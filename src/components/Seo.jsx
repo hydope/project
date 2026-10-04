@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { LANDING_PAGE_META } from '../pages/landing/landingPageMeta.js';
 import { ARTICLE_META } from '../data/articleMeta.js';
+import { ROUTE_SEO, SITE_URL } from '../data/routeSeo.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-route SEO for the SPA. index.html ships the homepage <head>; this
@@ -14,66 +15,14 @@ import { ARTICLE_META } from '../data/articleMeta.js';
 // Unknown routes (NotFound): noindex.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SITE = 'https://shiarishta.com';
+// SITE comes from routeSeo.js so the prerenderer and the runtime agree on the host.
+const SITE = SITE_URL;
 
-const PUBLIC_META = {
-  '/': {
-    title: 'Shia Matrimony | Find Shia Rishta for Nikah – Shia Rishta',
-    desc: 'Shia Rishta is the nikah-first Shia matrimony platform. Browse verified Shia brides and grooms, keep your photos private, and involve family with dignity. Join free.',
-  },
-  '/profiles': {
-    title: 'Browse Shia Brides & Grooms for Nikah | Shia Rishta',
-    desc: 'Search verified Shia profiles for nikah — filter by sect, marja, education and location. Serious Shia matrimony with privacy-first profiles. Join free.',
-  },
-  '/blog': {
-    title: 'Nikah & Marriage Guidance for Shia Muslims | Shia Rishta Blog',
-    desc: 'Practical guidance on nikah, choosing a spouse, and married life for Shia Muslims — written for serious seekers and their families.',
-  },
-  '/success-stories': {
-    title: 'How Shia Rishta Works – Honest Nikah Matchmaking',
-    desc: 'How Shia Rishta actually works: verified profiles, mutual-interest messaging, privacy controls and family-supported introductions. No invented stories.',
-  },
-  '/about': {
-    title: 'About Shia Rishta – Nikah-First Shia Matchmaking',
-    desc: 'Why Shia Rishta exists: a dignified, nikah-first alternative to swiping for Shia Muslims and their families.',
-  },
-  '/profile-guide': {
-    title: 'Profile Guide – Write a Strong Shia Rishta Profile',
-    desc: 'Worked examples of strong Shia marriage profiles: how to write about deen, expectations, family and timeline so real families reach back.',
-  },
-  '/safety': {
-    title: 'Safety & Verification Standards | Shia Rishta',
-    desc: 'How Shia Rishta keeps members safe: identity verification, photo privacy tiers, mutual-interest messaging and human review.',
-  },
-  '/support': {
-    title: 'Help & Support | Shia Rishta',
-    desc: 'Get help with your Shia Rishta account, verification, privacy settings and messaging.',
-  },
-  '/contact': {
-    title: 'Contact Shia Rishta',
-    desc: 'Reach the Shia Rishta team with questions, feedback or partnership enquiries.',
-  },
-  '/privacy': {
-    title: 'Privacy Policy | Shia Rishta',
-    desc: 'How Shia Rishta collects, encrypts and protects your personal data. Your photos and details stay under your control.',
-  },
-  '/terms': {
-    title: 'Terms of Service | Shia Rishta',
-    desc: 'The terms governing your use of Shia Rishta, the nikah-first Shia matrimony platform.',
-  },
-  '/agents': {
-    title: 'Matchmaking Agents & Family Introductions | Shia Rishta',
-    desc: 'Family members and matchmakers can create private, photo-free introductions on Shia Rishta — with the person concerned in control throughout.',
-  },
-  '/community': {
-    title: 'Shia Community, Guidance & Events | Shia Rishta',
-    desc: 'Community guidance and events for Shia Muslims preparing for nikah — beyond the profile.',
-  },
-  '/guardians': {
-    title: 'Wali & Guardian Workflow for Nikah | Shia Rishta',
-    desc: 'How walis and guardians stay involved on Shia Rishta: approvals, introductions and family-to-family communication.',
-  },
-};
+// Per-route title/description/h1/body copy now lives in src/data/routeSeo.js so that
+// this component and the build-time prerenderer (scripts/prerender-routes.mjs) cannot
+// disagree about what a route is called. See that file for the full explanation.
+const PUBLIC_META = ROUTE_SEO;
+
 
 // Prefixes that are private even though the path is public-shaped.
 // Matched on segment boundaries so /profile never catches /profiles.
@@ -281,3 +230,5 @@ export default function Seo() {
 
   return null;
 }
+
+

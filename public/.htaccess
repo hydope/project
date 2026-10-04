@@ -64,6 +64,26 @@ RewriteRule ^wp-sitemap-posts- - [G,L]
 #    /blog/ is a real directory on disk (article images), so the !-d guard
 #    would skip the fallback and expose the folder — route it explicitly.
 RewriteRule ^blog/?$ index.html [L]
+
+# 4) Prerendered routes.
+#    scripts/prerender-routes.mjs writes a real directory per public route
+#    (dist/privacy/index.html and so on), so a crawler that never executes JS
+#    receives that route's own H1, title and canonical instead of the
+#    homepage's.
+#
+#    NO REWRITE IS NEEDED HERE, and adding one is actively dangerous:
+#
+#    * mod_dir's DirectorySlash (on by default) already 301s "/privacy" to
+#      "/privacy/" and then serves privacy/index.html. The route works.
+#
+#    * A "strip the trailing slash" rule on top of that creates an infinite
+#      loop: /privacy -> /privacy/ (DirectorySlash) -> /privacy (our rule) ->
+#      forever. The page becomes unreachable for everyone, not just crawlers.
+#      An earlier draft of this file had exactly that rule.
+#
+#    So the prerendered directories are served by DirectoryIndex and the
+#    generic SPA fallback below still catches everything else.
+
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.html [L]

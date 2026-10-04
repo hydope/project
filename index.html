@@ -73,28 +73,7 @@
          preloading it here lets the browser fetch it during JS parse. -->
     <link rel="preload" as="image" href="/hero-nikah.webp" type="image/webp" fetchpriority="high" />
     <title>Shia Matrimony | Find Shia Rishta for Nikah – Shia Rishta</title>
-    <!--
-      ── Static pre-render shell ──────────────────────────────────────────────
-      An audit of the deployed HTML found 0 <h1>, 0 headings, 0 <nav> landmarks
-      and a 0.0% text-to-HTML ratio. Root cause: this is a client-rendered SPA
-      and <div id="root"> shipped EMPTY, so any crawler that does not execute
-      JavaScript — most SEO checkers, and every social scraper (Twitter,
-      WhatsApp, Slack, LinkedIn previews) — read a 5.9KB shell with no content.
-
-      Google executes JS, which is why rankings survived. Nothing else does.
-      That is a real distribution loss, not a theoretical one.
-
-      The fix is this block: real copy that matches the live page, placed inside
-      #root so React replaces it on mount (createRoot clears the container). No
-      JS runs twice — main.jsx only sets html.js, and .js .seo-static below hides
-      this shell the instant JS is available.
-
-      NOTHING HERE IS INVENTED. There are no testimonials, because no real
-      member has consented to one, and no member count, because a static file
-      cannot know one — the live figure is fetched from /api/profiles/stats by
-      the React app. Faking either to satisfy a scorer is exactly the behaviour
-      this project refuses elsewhere.
-    -->
+    
     <style>
       /* Scoped to .seo-static so it cannot leak into the React app. */
       .seo-static {

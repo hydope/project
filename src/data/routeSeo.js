@@ -1,0 +1,261 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Single source of truth for per-route SEO.
+//
+// Consumed by TWO consumers that must never disagree:
+//
+//   1. src/components/Seo.jsx — sets document.title, meta description,
+//      canonical and robots on every client-side navigation.
+//   2. scripts/prerender-routes.mjs — generates a static index.html per route
+//      at build time so a crawler that never executes JavaScript receives the
+//      CORRECT page instead of the homepage's H1 and title.
+//
+// The table used to live only inside Seo.jsx. The build step then had no way to
+// learn the per-route copy, so every route served one identical document — the
+// homepage's H1 on /privacy, which is worse than no static HTML at all because
+// it tells a crawler the wrong thing confidently. A second hand-copied table
+// would drift the first time a title changed, so there is one table.
+//
+// `body` is the no-JS content: real copy matching the live page. No testimonials
+// and no member counts appear anywhere in this file. A build-time artifact
+// cannot know either, and inventing them is precisely what this project refuses
+// to do — the live figures come from /api/profiles/stats at runtime.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const SHARED_NAV = [
+  { href: '/profiles', label: 'Browse profiles' },
+  { href: '/about', label: 'About' },
+  { href: '/safety', label: 'Safety' },
+  { href: '/success-stories', label: 'How it works' },
+  { href: '/contact', label: 'Contact' },
+  { href: '/privacy', label: 'Privacy' },
+  { href: '/terms', label: 'Terms' },
+  { href: '/auth/register', label: 'Create free account' },
+];
+
+export const ROUTE_SEO = {
+  '/': {
+    title: 'Shia Matrimony | Find Shia Rishta for Nikah – Shia Rishta',
+    desc: 'Shia Rishta is the nikah-first Shia matrimony platform. Browse verified Shia brides and grooms, keep your photos private, and involve family with dignity. Join free.',
+    h1: 'Shia Rishta — nikah-first Shia matrimony',
+    lede: 'Shia Rishta is a matchmaking platform built for Shia Muslims seeking nikah, and for the families and walis who support them. Every profile is created with marriage intent. Photos stay private by default, conversations require mutual interest, and family involvement is part of the journey rather than an afterthought.',
+    price: true,
+    sections: [
+      {
+        h2: 'Privacy by design',
+        p: 'Your contact details are never published. A member chooses exactly who sees their photos: everyone, only after mutual interest, or only after matching. Blocking is instant, and revoking a wali or guardian link takes effect immediately.',
+      },
+      {
+        h2: 'Family and wali workflows',
+        p: 'In Shia fiqh a virgin woman’s nikah requires her wali’s consent, so guardian approvals, family-to-family introductions and chaperoned communication are built in from the start. A member can delegate profile management to a parent, guardian or trusted matchmaker.',
+      },
+      {
+        h2: 'How it works',
+        steps: [
+          { h3: '1. Create a profile with your intent', p: 'Set your marriage goals, religious practice, family background and timeline, plus the sect and marja filters that generic matrimonial sites do not carry.' },
+          { h3: '2. Browse and express interest privately', p: 'Search by sect, city, age and practice. Interest is one-sided until it is mutual, so nobody is notified of an unreciprocated approach.' },
+          { h3: '3. Talk once you both agree', p: 'A conversation opens only after mutual interest. Contact exchange and photo unlocks require agreement from both sides.' },
+        ],
+      },
+      {
+        h2: 'Who can join',
+        p: 'Serious Shia Muslims seeking nikah, along with parents, guardians and trusted matchmakers acting on their behalf. Identity and intention checks are reviewed before sensitive access opens.',
+      },
+      {
+        h2: 'Common questions',
+        steps: [
+          { h3: 'Is Shia Rishta really free?', p: 'Yes. Creating a profile, browsing, expressing interest and using guardian tools are all free, and core access is intended to stay free.' },
+          { h3: 'Who can see my photos?', p: 'Only the people you choose: everyone, people you have mutual interest with, or only your matches. The default is the most private of those.' },
+          { h3: 'Can my family be involved?', p: 'Yes. Wali and guardian workflows are first-class: approvals, family introductions and chaperoned communication.' },
+        ],
+      },
+      {
+        h2: 'Contact',
+        p: 'Questions, privacy requests or takedown requests go through our contact form, which reaches the operations team directly. Signed-in members can also raise a support request from their dashboard.',
+      },
+    ],
+  },
+
+  '/profiles': {
+    title: 'Browse Shia Brides & Grooms for Nikah | Shia Rishta',
+    desc: 'Search verified Shia profiles for nikah — filter by sect, marja, education and location. Serious Shia matrimony with privacy-first profiles. Join free.',
+    h1: 'Browse Shia brides and grooms seeking nikah',
+    lede: 'Search real Shia profiles by sect, marja, education, city and practice. Browsing is free and needs no account. Private profiles stay private, and photos follow each member’s own visibility setting.',
+    sections: [
+      { h2: 'How profiles are filtered', p: 'Narrow results by age, gender, sect, marja, religiosity, education and location. Filters are applied server-side, and the same rules apply whether or not you are signed in.' },
+      { h2: 'Photo privacy on every profile', p: 'A member can show photos to everyone, only to people they have mutual interest with, or only to their matches. A locked photo stays locked until the owner decides otherwise.' },
+      { h2: 'Your details stay yours', p: 'Contact details are never published. Blocking is instant and permanent, and revoking a wali or guardian link takes effect immediately.' },
+    ],
+  },
+
+  '/privacy': {
+    title: 'Privacy Policy | Shia Rishta',
+    desc: 'How Shia Rishta collects, encrypts and protects your personal data. Your photos and details stay under your control.',
+    h1: 'Privacy Policy',
+    lede: 'This policy explains what Shia Rishta collects, why, how it is protected, and what control you keep over it. It is written to be read, not to be skipped.',
+    sections: [
+      { h2: 'What we collect', p: 'Your email address, a one-way hashed password, display name and authentication tokens. Passwords are hashed with bcrypt and cannot be read back by us or anyone else. One-time email-verification and password-reset links are stored only as SHA-256 hashes, so a database leak cannot be replayed as a valid link.' },
+      { h2: 'What we never publish', p: 'Your email address, phone number and contact details are never shown on your profile or to another member. Contact exchange happens only by mutual agreement.' },
+      { h2: 'Photos', p: 'You choose who sees your photos: everyone, only after mutual interest, or only after matching. The default is the most private of those. Photos uploaded for identity verification are encrypted before they touch the disk and are readable only by administrators reviewing them.' },
+      { h2: 'Wali and guardian access', p: 'A wali or guardian link can be revoked by the member at any time, permanently. Revocation takes effect immediately and cannot be undone by us.' },
+      { h2: 'Encryption', p: 'Sensitive data is encrypted at rest with AES-256-GCM. Access tokens are revocable, and server-side role checks enforce who may read or change what.' },
+      { h2: 'Your rights', p: 'You can request a copy of your data, ask for corrections, or ask us to delete your account. Use the contact form and we will action it.' },
+    ],
+  },
+
+  '/terms': {
+    title: 'Terms of Service | Shia Rishta',
+    desc: 'The terms governing your use of Shia Rishta, the nikah-first Shia matrimony platform.',
+    h1: 'Terms of Service',
+    lede: 'These terms govern the use of Shia Rishta. By creating an account you agree to them. They are written plainly, because a contract nobody can read protects nobody.',
+    sections: [
+      { h2: 'Who may use Shia Rishta', p: 'Shia Muslims seriously seeking nikah, together with parents, guardians and trusted matchmakers acting on their behalf. Anyone found abusing the service may be removed.' },
+      { h2: 'Your account', p: 'You are responsible for what happens under your account. Keep your sign-in details private, and tell us if you believe they have been compromised.' },
+      { h2: 'Conduct', p: 'Shia Rishta exists for marriage with genuine intent. Impersonation, harassment, commercial solicitation, and any attempt to obtain contact details or photos without the other person’s consent are grounds for immediate removal.' },
+      { h2: 'No guarantee of outcome', p: 'Shia Rishta provides a platform for introductions. We do not guarantee that any introduction leads to a marriage, and we are not a party to any relationship formed through the service.' },
+      { h2: 'Cost', p: 'Shia Rishta is free. There is no payment system today, and no paid tier is required to browse, express interest, message a match, or use the guardian tools.' },
+    ],
+  },
+
+  '/about': {
+    title: 'About Shia Rishta – Nikah-First Shia Matchmaking',
+    desc: 'Why Shia Rishta exists: a dignified, nikah-first alternative to swiping for Shia Muslims and their families.',
+    h1: 'About Shia Rishta',
+    lede: 'Shia Rishta exists because general dating apps were never built for nikah. They treat a marriage hunt like entertainment, and they treat a wali’s consent as an obstacle rather than part of the process.',
+    sections: [
+      { h2: 'Nikah first', p: 'Every profile is created with marriage intent. There is no swiping culture here and no incentive to keep people browsing — the goal is a suitable introduction, not daily engagement.' },
+      { h2: 'Built for Shia practice', p: 'Sect, marja, religiosity and prayer practice are first-class fields, not afterthoughts in a free-text box. Generic matrimonial sites do not carry them at all.' },
+      { h2: 'Family belongs in the process', p: 'Wali and guardian workflows are built into the journey from the start, because in Shia fiqh a virgin woman’s nikah requires her wali’s consent.' },
+      { h2: 'Honest about size', p: 'We show real member numbers on this site, counted from the database. We do not publish testimonials we have not been given, or success stories that have not happened.' },
+    ],
+  },
+
+  '/safety': {
+    title: 'Safety & Verification Standards | Shia Rishta',
+    desc: 'How Shia Rishta keeps members safe: identity verification, photo privacy tiers, mutual-interest messaging and human review.',
+    h1: 'Safety and verification standards',
+    lede: 'On a platform where the alternative is being catfished, safety is the product. These are the specific controls we operate.',
+    sections: [
+      { h2: 'Identity verification', p: 'Members can submit a selfie or an identity document for review. Submissions are encrypted at rest and reviewed by a person, not an algorithm alone. Verification is a badge on your profile, never a precondition for browsing.' },
+      { h2: 'Photo privacy tiers', p: 'Choose who sees your photos: everyone, only people with mutual interest, or only matches. The most private setting is the default.' },
+      { h2: 'Mutual-interest messaging', p: 'A conversation cannot start until both people have expressed interest. Nobody is ever notified of an unreciprocated approach, which removes the most common harassment vector on dating platforms.' },
+      { h2: 'Reporting and blocking', p: 'Block anyone instantly and permanently. Report anything concerning and it enters a moderation queue an administrator reviews. Blocking is immediate and needs no approval from anyone.' },
+      { h2: 'Data minimisation', p: 'We collect what a marriage introduction needs and no more. Contact details are never published, and deleting your account removes your data.' },
+    ],
+  },
+
+  '/success-stories': {
+    title: 'How Shia Rishta Works – Honest Nikah Matchmaking',
+    desc: 'How Shia Rishta actually works: verified profiles, mutual-interest messaging, privacy controls and family-supported introductions. No invented stories.',
+    h1: 'How Shia Rishta works',
+    lede: 'We are not going to invent testimonials for you. No member has given us permission to publish their story yet, so this page describes how the service actually works instead.',
+    sections: [
+      { h2: 'What we will not claim', p: 'We do not publish member counts we have not counted, success stories that have not happened, or testimonials nobody consented to. Where a number matters, it comes from the database.' },
+      { h2: 'How it works', steps: [
+        { h3: '1. Create a profile with your intent', p: 'Set your marriage goals, religious practice, family background and timeline, plus the sect and marja filters that generic matrimonial sites do not carry.' },
+        { h3: '2. Browse and express interest privately', p: 'Interest is one-sided until it is mutual, so nobody is notified of an unreciprocated approach.' },
+        { h3: '3. Talk once you both agree', p: 'A conversation opens only after mutual interest. Contact exchange and photo unlocks require agreement from both sides.' },
+      ] },
+    ],
+  },
+
+  '/contact': {
+    title: 'Contact Shia Rishta',
+    desc: 'Reach the Shia Rishta team with questions, feedback or partnership enquiries.',
+    h1: 'Contact Shia Rishta',
+    lede: 'Questions, privacy requests, takedown requests or partnership enquiries all reach the operations team through the contact form.',
+    sections: [
+      { h2: 'Before you write', p: 'Account, verification and privacy questions are answered fastest in your dashboard, where the support team can see your account state. Signed-in members can raise a request there directly.' },
+      { h2: 'Privacy and takedown requests', p: 'Requests to access, correct or delete your data are actioned through the same form. Mark it clearly as a privacy request so it is routed correctly.' },
+      { h2: 'Safety reports', p: 'To report abuse or a profile, use the report control on that profile if you are signed in, or contact us directly. Blocking is instant and separate from reporting.' },
+    ],
+  },
+
+  '/blog': {
+    title: 'Nikah & Marriage Guidance for Shia Muslims | Shia Rishta Blog',
+    desc: 'Practical guidance on nikah, choosing a spouse, and married life for Shia Muslims — written for serious seekers and their families.',
+    h1: 'Nikah and marriage guidance',
+    lede: 'Practical guidance on nikah, choosing a spouse, and married life — written for serious seekers and the families supporting them.',
+    sections: [
+      { h2: 'What we write about', p: 'Nikah and its conditions, choosing a spouse, family expectations, and the practical questions that come up during a marriage introduction.' },
+    ],
+  },
+
+  '/community': {
+    title: 'Shia Community, Guidance & Events | Shia Rishta',
+    desc: 'Community guidance and events for Shia Muslims preparing for nikah — beyond the profile.',
+    h1: 'Shia community and guidance',
+    lede: 'Community guidance and events for Shia Muslims preparing for nikah — the conversations that happen before a profile does.',
+    sections: [
+      { h2: 'Beyond the profile', p: 'Guidance, discussion and events for members of the community, moderated by the operations team.' },
+    ],
+  },
+
+  '/support': {
+    title: 'Help & Support | Shia Rishta',
+    desc: 'Get help with your Shia Rishta account, verification, privacy settings and messaging.',
+    h1: 'Help and support',
+    lede: 'Help with your account, verification, privacy settings and messaging.',
+    sections: [
+      { h2: 'Getting a response faster', p: 'Support requests raised from your dashboard reach the team with your account state attached, which usually means a first answer sooner.' },
+      { h2: 'Still stuck?', p: 'Use the contact form and tell us what you were trying to do and what happened instead.' },
+    ],
+  },
+
+  '/profile-guide': {
+    title: 'Profile Guide – Write a Strong Shia Rishta Profile',
+    desc: 'Worked examples of strong Shia marriage profiles: how to write about deen, expectations, family and timeline so real families reach back.',
+    h1: 'Writing a strong Shia rishta profile',
+    lede: 'Worked examples of what a serious marriage profile actually says, and the mistakes that make families move on.',
+    sections: [
+      { h2: 'Write your intent clearly', p: 'State what you are looking for and by when. A family reading your profile should understand the shape of the match before they reply.' },
+      { h2: 'Say something about deen and practice', p: 'Sect, marja and level of practice belong in structured fields, not a paragraph someone has to guess at.' },
+      { h2: 'Family and expectations', p: 'Expectations of a spouse and the role of family are normal to state. They are also most of what families are actually deciding.' },
+    ],
+  },
+
+  '/agents': {
+    title: 'Matchmaking Agents & Family Introductions | Shia Rishta',
+    desc: 'Family members and matchmakers can create private, photo-free introductions on Shia Rishta — with the person concerned in control throughout.',
+    h1: 'Family introductions and matchmakers',
+    lede: 'A parent, guardian or trusted matchmaker can create a private, photo-free introduction — with the person concerned in control throughout.',
+    sections: [
+      { h2: 'How it works', p: 'An introduction is created without photos. The person it concerns reviews and decides whether to take it further. A matchmaker cannot speak for them, and an introduction cannot be published over their objection.' },
+      { h2: 'Control stays with the member', p: 'Any introduction can be withdrawn by the person it concerns, at any time and permanently.' },
+    ],
+  },
+
+  '/auth/register': {
+    title: 'Create Your Free Account | Shia Rishta',
+    desc: 'Create a free Shia Rishta profile for nikah — privacy-first photos, wali and guardian workflows, and no payment required.',
+    h1: 'Create your free account',
+    lede: 'Creating a profile, browsing, expressing interest and using the guardian tools are all free. There is no payment system today.',
+    sections: [
+      { h2: 'What we ask for', p: 'An email address, a password, and the basics of who you are and what you are looking for. You control what is published, and your contact details are never shown.' },
+      { h2: 'Privacy from the start', p: 'Your photos default to the most private setting, conversations require mutual interest, and any guardian link can be revoked permanently.' },
+    ],
+  },
+
+  '/auth/login': {
+    title: 'Log in | Shia Rishta',
+    desc: 'Log in to your Shia Rishta account to manage your profile, favourites and conversations.',
+    h1: 'Log in',
+    lede: 'Log in to manage your profile, favourites and conversations.',
+    sections: [
+      { h2: 'Forgotten your password?', p: 'Use the reset link on the sign-in page. Reset tokens are stored only as hashes, so an emailed link cannot be replayed from a leaked database.' },
+    ],
+  },
+};
+
+// Routes deliberately NOT prerendered.
+//
+// Private and token-bearing paths stay on the plain SPA shell with noindex.
+// Prerendering them would bake the existence of member-only screens into served
+// HTML, and a /verify/<token> or /wali/<token> file on disk would turn a
+// one-time secret into a guessable, cacheable URL.
+export const NO_PRERENDER = [
+  '/dashboard', '/messages', '/settings', '/onboard', '/profile', '/drafts',
+  '/verify', '/wali', '/claim', '/admin', '/login', '/signup', '/signin',
+  '/guardians',
+];
+
+export const SITE_URL = 'https://shiarishta.com';

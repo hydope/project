@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5173",
-    "build": "vite build",
+    "build": "vite build && node scripts/prerender-routes.mjs",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "lint": "eslint . --ext .js,.jsx",
     "db:dev": "node scripts/dev-db.mjs",
@@ -17,7 +17,9 @@
     "e2e:ui": "node scripts/e2e-ui-claim.mjs",
     "php:smoke": "node php-api/tests/smoke.mjs",
     "dev:full": "node scripts/start-local-stack.mjs",
-    "start": "node scripts/start-local-stack.mjs"
+    "start": "node scripts/start-local-stack.mjs",
+    "verify:prerender": "node scripts/verify-prerender.mjs",
+    "verify:seo-shell": "node scripts/verify-seo-shell.mjs"
   },
   "engines": {
     "node": ">=20.0.0"
