@@ -118,10 +118,25 @@ jobs:
           SMTP_PASS=${{ secrets.SMTP_PASS }}
           ADMIN_EMAILS=${{ secrets.ADMIN_EMAILS }}
           PROMOTE_TOKEN=${{ secrets.PROMOTE_TOKEN }}
+          # NVIDIA NIM — read server-side only, by php-api/lib/ai.php. Never sent
+          # to the browser. Blank is survivable: the assistant falls back to the
+          # retrieved platform facts and content drafting is disabled.
+          NVIDIA_API_KEY=${{ secrets.NVIDIA_API_KEY }}
+          NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+          NVIDIA_MODEL=moonshotai/kimi-k3
           TZ=America/New_York
           EOF
           echo ".env generated with $(wc -l < php-api/.env) lines (values from secrets, not shown)"
           echo "UPLOAD_DIR=${UPLOAD_BASE}"
+          # Fail loudly if the AI key is absent, but do not block the deploy —
+          # the rest of the site is unaffected by it. A silent blank here reads
+          # as "the assistant is broken" rather than "no key was configured".
+          if [ -n "${{ secrets.NVIDIA_API_KEY }}" ]; then
+            echo "NVIDIA_API_KEY: configured"
+          else
+            echo "WARN: NVIDIA_API_KEY secret is empty. Assistant will answer from"
+            echo "      retrieved facts only; /admin/content drafting is disabled."
+          fi
 
       - name: Deploy frontend to public_html
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
