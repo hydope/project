@@ -25,26 +25,6 @@ function pairBlocked(string $a, string $b): bool
     return (bool)$stmt->fetch();
 }
 
-/**
- * True when BOTH members have expressed interest — i.e. they have matched.
- *
- * This is the single definition of "matched", used by photo access, by starting
- * a conversation and by sending a message. It used to be inlined in one place
- * and absent from another, which is how "matched" quietly came to mean two
- * different things. Kept here, next to pairBlocked, so all three agree.
- */
-function mutualInterest(string $a, string $b): bool
-{
-    $stmt = db()->prepare(
-        'SELECT 1 FROM interests
-          WHERE (from_user_id = ? AND to_user_id = ?) OR (from_user_id = ? AND to_user_id = ?)
-          LIMIT 2'
-    );
-    $stmt->execute([$a, $b, $b, $a]);
-    // Two distinct rows is what makes it mutual; one row is a one-sided interest.
-    return count($stmt->fetchAll()) === 2;
-}
-
 function messagesList(): void
 {
     $user = requireAuthUser();

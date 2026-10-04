@@ -9,7 +9,7 @@ import Layout from '../layouts/LandingLayout';
 import ProfileCard from '../components/ProfileCard.jsx';
 import FaqSection from '../components/FaqSection.jsx';
 import { useAuth } from '../lib/auth/AuthContext';
-import { useProfiles } from '../lib/api/client';
+import { useProfiles, useStats } from '../lib/api/client';
 
 // Homepage FAQs — genuine questions, keyword-aware, visible on the page so
 // the FAQPage JSON-LD in FaqSection is eligible for rich results.
@@ -63,6 +63,15 @@ export default function Home() {
   const { data } = useProfiles({});
   const featured = (data || []).slice(0, 6);
 
+  // Community counts, straight from the database. Until this resolves we show
+  // nothing rather than a placeholder number — a wrong figure on a marriage
+  // site is worse than an absent one, and the endpoint is a single cheap query.
+  const { data: stats } = useStats();
+  const memberCount = Number(stats?.members ?? 0);
+  const cityCount = Number(stats?.cities ?? 0);
+  const verifiedCount = Number(stats?.verified ?? 0);
+  const hasStats = !!stats;
+
   return (
     <Layout>
       <div className="hp-home">
@@ -98,11 +107,16 @@ export default function Home() {
                   <Icon className="w-4 h-4" aria-hidden="true" /> {label}
                 </span>
               ))}
+              {/* Real counts from the database, not a marketing number.
+                  This card used to read "96% values match" — a figure no code
+                  anywhere computed. A matchmaking site that advertises a
+                  statistic it cannot produce is the same trust failure as
+                  displaying QA shells, just quieter. */}
               <div className="hp-float-card">
                 <span className="hp-float-icon" aria-hidden="true"><Heart className="w-4 h-4" /></span>
                 <div>
-                  <strong>96% values match</strong>
-                  <span>Limited daily matches</span>
+                  <strong>{memberCount} {memberCount === 1 ? 'member' : 'members'}</strong>
+                  <span>{cityCount > 0 ? `across ${cityCount} ${cityCount === 1 ? 'city' : 'cities'}` : 'and growing'}</span>
                 </div>
               </div>
             </Reveal>
@@ -112,6 +126,43 @@ export default function Home() {
             Photo access, guardian contact, and contact details can unlock only when both sides agree.
           </p>
         </section>
+
+        {/* ── Community proof ──
+            Real numbers only. If the endpoint fails this band renders nothing,
+            so a broken API can never leave a stale or invented claim on the
+            page — the failure mode of a hardcoded figure. */}
+        {hasStats && memberCount > 0 && (
+          <section className="hp-stats" aria-label="Community at a glance">
+            <p className="hp-eyebrow"><span aria-hidden="true" /> Community at a glance</p>
+            <dl className="hp-stats-row">
+              <div className="hp-stat">
+                <dt>Members</dt>
+                <dd>{memberCount}</dd>
+              </div>
+              <div className="hp-stat">
+                <dt>Cities</dt>
+                <dd>{cityCount}</dd>
+              </div>
+              <div className="hp-stat">
+                <dt>Identity verified</dt>
+                <dd>{verifiedCount}</dd>
+              </div>
+              <div className="hp-stat">
+                <dt>Cost</dt>
+                <dd>Free</dd>
+              </div>
+            </dl>
+            {stats.topCities?.length > 0 && (
+              <p className="hp-stats-cities">
+                Families from {stats.topCities.join(', ')}
+              </p>
+            )}
+            <p className="hp-stats-note">
+              Counts are live from our database and update as members join. Verification is
+              reviewed by a human, so the number moves only as reviews complete.
+            </p>
+          </section>
+        )}
 
         {/* ── Quiet feature grid ── */}
         <section className="hp-features" aria-label="Platform principles">

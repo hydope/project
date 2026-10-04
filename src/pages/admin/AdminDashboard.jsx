@@ -127,6 +127,61 @@ function StatCard({ stat, value, index, pending }) {
 
 // __CHUNK2__
 
+// Data-health banner.
+//
+// 48 of 61 profiles were E2E test shells and no screen reported it. This is the
+// early-warning signal: real counts from /api/admin/health, shown to whoever is
+// operating the site. It never rounds up and never invents a reassuring number —
+// if the data is contaminated, the banner says so.
+//
+// role="status" (not alert) so it is announced politely on load instead of
+// interrupting, and because the page's own state is informational.
+function HealthBanner({ health }) {
+  if (!health) return null;
+  const warn = health.level === 'warn';
+  const tone = warn
+    ? 'border-warning/40 bg-warning/10 text-ink'
+    : health.level === 'info'
+      ? 'border-line/30 bg-elevated text-ink'
+      : 'border-success/40 bg-success/10 text-ink';
+  const Icon = warn ? AlertTriangle : ShieldCheck;
+
+  return (
+    <div role="status" aria-live="polite"
+      className={`mb-6 rounded-2xl border p-4 sm:p-5 ${tone}`}>
+      <div className="flex items-start gap-3">
+        <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${warn ? 'text-warning' : 'text-success'}`} aria-hidden="true" />
+        <div className="min-w-0">
+          <h2 className="text-sm font-bold">
+            {warn ? 'Data health needs attention' : 'Data health'}
+          </h2>
+          <ul className="mt-1.5 space-y-1 text-sm text-muted">
+            {health.messages.map((m) => <li key={m}>{m}</li>)}
+          </ul>
+          <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted">
+            <div className="flex gap-1.5">
+              <dt>Real profiles</dt>
+              <dd className="font-bold text-ink">{health.realProfiles}</dd>
+            </div>
+            <div className="flex gap-1.5">
+              <dt>Shells hidden</dt>
+              <dd className="font-bold text-ink">{health.testShellsHidden}</dd>
+            </div>
+            <div className="flex gap-1.5">
+              <dt>Incomplete</dt>
+              <dd className="font-bold text-ink">{health.incompleteProfiles}</dd>
+            </div>
+            <div className="flex gap-1.5">
+              <dt>Verified</dt>
+              <dd className="font-bold text-ink">{health.verified}</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const [timeRange, setTimeRange] = useState('30d');
   const [chartMetric, setChartMetric] = useState('members');
@@ -134,6 +189,7 @@ export default function AdminDashboard() {
   const [daily, setDaily] = useState([]);
   const [loadError, setLoadError] = useState(null);
   const [pending, setPending] = useState(true);
+  const [health, setHealth] = useState(null);
 
   // Live aggregates. /overview gives the six KPIs, /analytics gives the real
   // day series. Both are already admin-guarded server-side.
@@ -142,10 +198,14 @@ export default function AdminDashboard() {
     setLoadError(null);
     try {
       const range = timeRange === '90d' ? '30d' : timeRange; // API supports 7d | 30d
-      const [overview, analytics] = await Promise.all([
+      const [overview, analytics, healthRes] = await Promise.all([
         http.get('/api/admin/overview'),
         http.get(`/api/admin/analytics?range=${range}`),
+        // Health is advisory: a failure here must not blank the whole dashboard,
+        // so it resolves separately rather than joining the Promise.all above.
+        http.get('/api/admin/health').catch(() => null),
       ]);
+      setHealth(healthRes);
       setStats(overview);
       const members = analytics?.charts?.find((c) => c.key === 'memberGrowth');
       const messages = analytics?.charts?.find((c) => c.key === 'messageVolume');
@@ -174,6 +234,7 @@ export default function AdminDashboard() {
   return (
     <Layout>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <HealthBanner health={health} />
         {/* Header */}
         <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
           <div>

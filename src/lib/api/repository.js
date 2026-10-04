@@ -48,6 +48,20 @@ export const profilesRepo = {
     }
     return [...list].sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0));
   },
+  async stats() {
+    if (useRemote) return http.get('/api/profiles/stats');
+    // Offline fallback: count what this device actually has, which is an empty
+    // list in demo mode. Returning zeros rather than invented numbers is the
+    // whole point — the landing page must never imply members that don't exist.
+    const list = allProfiles();
+    return {
+      members: list.length,
+      cities: new Set(list.map((p) => p.city).filter(Boolean)).size,
+      verified: list.filter((p) => p.is_verified).length,
+      topCities: [...new Set(list.map((p) => p.city).filter(Boolean))].slice(0, 6),
+      testShellsHidden: 0,
+    };
+  },
   async save(profile) {
     if (useRemote) return http.put('/api/profiles/me', profile);
     const list = allProfiles();

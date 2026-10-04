@@ -22,6 +22,11 @@ function routeProfiles(string $method, array $segments): void
     $sub = $segments[1] ?? null;
 
     if ($method === 'GET' && $id === null) { profilesList(); return; }
+    // Community stats MUST be matched before the `/:id` branch below, or the
+    // literal string "stats" is treated as a profile id and every request 404s
+    // as "profile not found" — the same ordering bug that made
+    // /api/profiles/me/favourites unreachable.
+    if ($method === 'GET' && $id === 'stats') { profilesStats(); return; }
     // Saved profiles.
     //
     // MUST be matched BEFORE the `/me` branch below. The `/me` test only looks at

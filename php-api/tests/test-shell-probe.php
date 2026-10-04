@@ -11,29 +11,45 @@
  */
 declare(strict_types=1);
 
-// The predicates live in lib/db.php, which declares db() behind a
-// function_exists guard — so this probe can supply its own stub and include it
-// with no database and no HTTP helpers.
-if (!function_exists('db')) {
-    function db(): PDO { throw new RuntimeException('no db in this probe'); }
-}
-require __DIR__ . '/../lib/db.php';
+// The predicates live in their own file with no dependencies, so this probe
+// needs no database, no HTTP helpers and no stub juggling. Requiring
+// lib/db.php here instead would fatal on a redeclared requestJson().
+require __DIR__ . '/../lib/test_shell_patterns.php';
 
 foreach (['testShellPatterns', 'isTestShellRow', 'testShellFilterSql'] as $fn) {
     if (!function_exists($fn)) {
-        echo "FAIL  $fn is not defined in lib/db.php\n";
-        echo "\n0 passed, 1 failed\n";
-        exit(1);
+        probe_fail("$fn is not defined in lib/db.php");
     }
 }
 
-$pass = 0;
-$fail = 0;
-function check(string $label, bool $ok, string $detail = ''): void
+// Standalone: `php tests/test-shell-probe.php` prints and exits non-zero on
+// failure, so it can be run on its own.
+// Included: the parent suite already owns check() and $pass/$fail, so this file
+// contributes assertions to the parent's totals instead of printing its own and
+// calling exit() — which used to kill the parent mid-run and under-report.
+// A variable, not a const: const expressions cannot call function_exists().
+$probeStandalone = !function_exists('check');
+
+if ($probeStandalone) {
+    $pass = 0;
+    $fail = 0;
+    function check(string $label, bool $ok, string $detail = ''): void
+    {
+        global $pass, $fail;
+        if ($ok) { $pass++; echo "PASS  $label\n"; }
+        else { $fail++; echo "FAIL  $label" . ($detail !== '' ? " — $detail" : '') . "\n"; }
+    }
+}
+
+function probe_fail(string $label, string $detail = ''): void
 {
-    global $pass, $fail;
-    if ($ok) { $pass++; echo "PASS  $label\n"; }
-    else { $fail++; echo "FAIL  $label" . ($detail !== '' ? " — $detail" : '') . "\n"; }
+    if ($probeStandalone) {
+        check($label, false, $detail);
+        echo "\n0 passed, 1 failed\n";
+        exit(1);
+    }
+    check($label, false, $detail);
+    throw new RuntimeException('probe boot failure');
 }
 
 /**
@@ -116,5 +132,10 @@ check(
     'a real city matched the shell filter'
 );
 
-echo "\n$pass passed, $fail failed\n";
-exit($fail === 0 ? 0 : 1);
+// Only a standalone run prints its own summary and exit code. When included, the
+// parent owns the totals and the process exit.
+if ($probeStandalone) {
+    echo "\n$pass passed, $fail failed\n";
+    exit($fail === 0 ? 0 : 1);
+}
+

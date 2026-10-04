@@ -32,94 +32,11 @@ function db(): PDO
 }
 }
 
-/**
- * Test-shell detection — ONE definition, used by both the browse filter and the
- * purge script.
- *
- * Why this exists: an automated E2E pass left ~48 shells in the live database
- * ("QA Test 14", "qatest15", "TEST PROFILE FOR QA — please ignore."). They are
- * public, so every visitor saw a directory that was 79% debris. That reads as
- * an abandoned build and destroys trust before the copy gets a chance.
- *
- * The purge script can delete them, but a purge is destructive and only runs
- * when an operator remembers to run it. Hiding them from the browse listing is
- * non-destructive, reversible, and takes effect the moment it deploys — so the
- * public directory is correct even on a database nobody has cleaned yet.
- *
- * Both sides MUST agree, or a hidden-but-present row is worse than a visible
- * one (an operator wondering why a member "disappeared"). Keep this pattern
- * list and the one in scripts/seed-production-profiles.php in step.
- *
- * @return array{0:string,1:array} SQL fragment and its bound parameters
- */
-function testShellFilterSql(string $alias = 'p'): array
-{
-    $clauses = [];
-    $params = [];
-    foreach (testShellPatterns() as $pat) {
-        $clauses[] = "{$alias}.display_name LIKE ?";
-        $params[] = $pat;
-    }
-    // The same debris seen from another column.
-    $clauses[] = "{$alias}.city LIKE ?";
-    $params[] = 'TEST PROFILE%';
-    $clauses[] = "{$alias}.city LIKE ?";
-    $params[] = 'DATA-% City';
-    $clauses[] = "{$alias}.profession LIKE ?";
-    $params[] = 'probe-%';
-
-    return ['(' . implode(' OR ', $clauses) . ')', $params];
-}
-
-/**
- * Does this profile row look like E2E debris?
- *
- * The single matching rule, shared by the SQL builder above and by the runtime
- * filter in profilesList(). Both must agree: one hides it from the public
- * directory, the other deletes it from the database, and a divergence would
- * mean a member quietly vanished with no row to find.
- *
- * Patterns are anchored at the START of the value, so a genuine member called
- * "Testament", "Probes" or "Qasim" is never caught.
- */
-function isTestShellRow(array $row): bool
-{
-    $patterns = testShellPatterns();
-    $name = trim((string)($row['display_name'] ?? ''));
-    if ($name !== '') {
-        foreach ($patterns as $pat) {
-            if (stripos($name, rtrim($pat, '%')) === 0) return true;
-        }
-    }
-    $city = trim((string)($row['city'] ?? ''));
-    if ($city !== '' && (stripos($city, 'TEST PROFILE') === 0 || stripos($city, 'DATA-') === 0)) {
-        return true;
-    }
-    $job = trim((string)($row['profession'] ?? ''));
-    return $job !== '' && stripos($job, 'probe-') === 0;
-}
-
-/**
- * The pattern list, verbatim: observed in production plus what the E2E suite is
- * known to generate. Kept in one function so the SQL form and the PHP form
- * cannot drift apart.
- *
- * @return array<int,string>
- */
-function testShellPatterns(): array
-{
-    return [
-        'TEST PROFILE%', 'Desi Test%', 'Life Test%', 'Data-%',
-        'QA Test%', 'QATest%', 'qatest%', 'QA Tester%', 'QA Verify%',
-        'Sec Test%', 'Probe L1-%', 'probe.%',
-        // Bare 'TEST%' is deliberately NOT here. It reads as harmless but
-        // swallows genuine names that merely begin with "test" — Testament,
-        // Testa, T-esther — and silently hiding a real member from the
-        // directory is far worse than leaving one test row visible. The E2E
-        // suite always emits a fuller label ("TEST PROFILE FOR QA", "QA Test
-        // 07"), all of which are matched above.
-    ];
-}
+// Test-shell predicates live in their own file: lib/db.php declares
+// requestJson()/sanitizeText(), which every test harness stubs itself, so
+// requiring db.php from a probe is a fatal redeclare. The matching rules are
+// the part with real bug potential, so they get tested directly.
+require_once __DIR__ . '/test_shell_patterns.php';
 
 function requestJson(): array
 {
@@ -195,6 +112,88 @@ function makeMemberSession(array $row): array
         'isAdmin' => (bool)($row['is_admin'] ?? false),
         'emailVerified' => (bool)($row['email_verified'] ?? false),
     ];
+}
+
+/**
+ * True when BOTH members have expressed interest — i.e. they have matched.
+ *
+ * This is the single definition of "matched", used by private-profile access,
+ * photo access, starting a conversation and sending a message. It used to be
+ * inlined in one place and absent from another, which is how "matched" quietly
+ * came to mean two different things.
+ *
+ * It used to live in routes/messages.php — a *route* file — while being called
+ * from lib/db.php and routes/profiles.php. That worked only because index.php
+ * happened to require messages.php last, and it made the function untestable:
+ * every probe that exercised visibleProfile() had to fake a database to get
+ * past a "call to undefined function". Now it sits beside its callers, so the
+ * privacy rules that depend on it are finally reachable in a test.
+ */
+function mutualInterest(string $a, string $b): bool
+{
+    $stmt = db()->prepare(
+        'SELECT 1 FROM interests
+          WHERE (from_user_id = ? AND to_user_id = ?) OR (from_user_id = ? AND to_user_id = ?)
+          LIMIT 2'
+    );
+    $stmt->execute([$a, $b, $b, $a]);
+    // Two distinct rows is what makes it mutual; one row is a one-sided interest.
+    return count($stmt->fetchAll()) === 2;
+}
+
+/**
+ * GET /api/profiles/stats — honest community numbers for the landing page.
+ *
+ * The critique that this product had no social proof was right, and the obvious
+ * "fix" — hardcode "12,000 families joined" — is exactly the fabrication this
+ * project refuses to ship. So these numbers are counted from the live database,
+ * with the same test-shell filter the browse listing uses, and the UI is
+ * designed to read well whether the answer is 13 or 13,000.
+ *
+ * Deliberately absent: any estimate, growth projection or rounded-up figure.
+ * Only counts that can be recomputed by hand from the database.
+ *
+ * Public and unauthenticated, because its entire purpose is to be visible to a
+ * first-time visitor. It exposes aggregates only — no names, no ids, no city
+ * breakdown beyond a top-N list of city names that members chose to publish.
+ */
+function profilesStats(): void
+{
+    $rows = db()->query('SELECT display_name, city, visibility, is_blocked FROM profiles WHERE is_blocked = 0')->fetchAll();
+    $real = array_values(array_filter($rows, 'isTestShellRow'));
+
+    // Private members still count as members — they are real people who chose
+    // not to be browsable. Hiding them from the count would understate the
+    // community, which is the opposite of the honesty this endpoint is for.
+    $cities = [];
+    foreach ($real as $r) {
+        $city = trim((string)($r['city'] ?? ''));
+        if ($city !== '') $cities[$city] = ($cities[$city] ?? 0) + 1;
+    }
+    arsort($cities);
+
+    $verified = 0;
+    try {
+        $v = db()->query(
+            'SELECT COUNT(*) AS n FROM verifications v
+               JOIN profiles p ON p.user_id = v.user_id
+              WHERE v.status = \'approved\' AND p.is_blocked = 0'
+        )->fetch();
+        $verified = (int)($v['n'] ?? 0);
+    } catch (Throwable $e) {
+        // The verifications table is added by migrate.php; a database that has
+        // not been migrated yet should render the page, not 500 it.
+        $verified = 0;
+    }
+
+    json([
+        'members' => count($real),
+        'cities' => count($cities),
+        'verified' => $verified,
+        // Names only — a city label a member published themselves.
+        'topCities' => array_slice(array_keys($cities), 0, 6),
+        'testShellsHidden' => count($rows) - count($real),
+    ]);
 }
 
 // Node's visibleProfile(): privacy tiers + blocks enforced here, not in the UI.

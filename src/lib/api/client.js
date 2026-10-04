@@ -32,6 +32,7 @@ export const api = {
 
   // ── Profiles ──
   getProfiles: (filters = {}) => unwrap(profilesRepo.search(filters), 'Could not load profiles.'),
+  getStats: () => unwrap(profilesRepo.stats(), 'Could not load community stats.'),
   getProfile: (id) => unwrap(profilesRepo.getById(id), 'Could not load this profile.'),
   updateProfile: (id, data) => unwrap(profilesRepo.save({ ...data, id }), 'Could not save this profile.'),
   uploadPhoto: (file) => unwrap(profilesRepo.uploadPhoto(file), 'Could not upload that photo.'),
@@ -78,6 +79,7 @@ export const keys = {
   messages: (cid) => ['messages', cid],
   suggestions: () => ['suggestions'],
   tickets: () => ['tickets'],
+  stats: () => ['profiles', 'stats'],
 };
 
 export const useProfiles = (filters) => useSWR(keys.profiles(filters), () => api.getProfiles(filters));
@@ -86,5 +88,12 @@ export const useConversations = () => useSWR(keys.conversations(), api.getConver
 export const useMessages = (cid) => useSWR(cid ? keys.messages(cid) : null, () => api.getMessages(cid));
 export const useSuggestions = () => useSWR(keys.suggestions(), api.getSuggestions);
 export const useTickets = () => useSWR(keys.tickets(), api.getTickets);
+// Public community counts. Cached for 10 minutes: these numbers move slowly, and
+// they sit above the fold, so a visitor scrolling back up should not re-fetch.
+export const useStats = () =>
+  useSWR(keys.stats(), () => api.getStats(), {
+    refreshInterval: 10 * 60 * 1000,
+    revalidateOnFocus: false,
+  });
 
 export default api;

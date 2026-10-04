@@ -325,6 +325,7 @@ function routeAdmin(string $method, array $segments): void
         if ($verb === 'reject')  { adminRejectVerification((string)$segments[1]); return; }
     }
     if ($method === 'GET' && $action === 'overview') { adminOverview(); return; }
+    if ($method === 'GET' && $action === 'health') { adminHealth(); return; }
     if ($method === 'GET' && $action === 'analytics') { adminAnalytics(); return; }
     if ($method === 'GET' && $action === 'queue') { adminModerationQueue(); return; }
     if ($method === 'GET' && $action === 'verification-queue') { adminVerificationQueue(); return; }
@@ -502,6 +503,79 @@ function adminOverview(): void
         'livePosts' => (int)db()->query('SELECT COUNT(*) AS n FROM posts WHERE is_hidden = 0')->fetch()['n'],
         'repliesThisWeek' => (int)db()->query('SELECT COUNT(*) AS n FROM replies WHERE created_at > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)')->fetch()['n'],
         'openReports' => (int)db()->query("SELECT COUNT(*) AS n FROM reports WHERE status = 'open'")->fetch()['n'],
+    ]);
+}
+
+/**
+ * Data health: the signal that 48 of 61 profiles were test shells went unnoticed
+ * for weeks because no admin screen surfaced it.
+ *
+ * The banner is the early-warning system. It reports what is actually in the
+ * database — never a rounded-up or reassuring figure — so an operator sees the
+ * same number a visitor would.
+ */
+function adminHealth(): void
+{
+    $rows = db()->query(
+        'SELECT p.user_id, p.display_name, p.city, p.profession, p.visibility
+           FROM profiles p'
+    )->fetchAll();
+
+    $real = array_values(array_filter($rows, 'isTestShellRow'));
+    $shells = count($rows) - count($real);
+
+    // A profile that is browsable but has nothing in it is the other half of
+    // the problem: a wall of blanks reads exactly like a wall of junk.
+    $incomplete = 0;
+    foreach ($real as $r) {
+        if (trim((string)($r['city'] ?? '')) === '' || trim((string)($r['profession'] ?? '')) === '') {
+            $incomplete++;
+        }
+    }
+    try {
+        $v = db()->query(
+            "SELECT COUNT(*) AS n FROM verifications WHERE status = 'approved'"
+        )->fetch();
+        $verified = (int)($v['n'] ?? 0);
+    } catch (Throwable $e) {
+        $verified = 0;
+    }
+
+    // A visible shell is worth an operator's attention; a hidden one is not.
+    // Severity is deliberately driven by what a member would actually see.
+    $level = 'ok';
+    $messages = [];
+    if ($shells > 0) {
+        $level = 'warn';
+        $messages[] = sprintf(
+            '%d test-shell profile%s hidden from the public directory. They are excluded from browse and stats, but still occupy the database.',
+            $shells,
+            $shells === 1 ? '' : 's'
+        );
+    }
+    if ($incomplete > 0) {
+        $level = $level === 'ok' ? 'info' : $level;
+        $messages[] = sprintf(
+            '%d real profile%s missing a city or profession.',
+            $incomplete,
+            $incomplete === 1 ? '' : 's'
+        );
+    }
+    if ($verified === 0 && count($real) > 0) {
+        $level = $level === 'ok' ? 'info' : $level;
+        $messages[] = 'No approved identity verifications yet — the public badge count reads zero.';
+    }
+    if ($messages === []) {
+        $messages[] = 'No test shells and no incomplete profiles detected.';
+    }
+
+    json([
+        'level' => $level,
+        'realProfiles' => count($real),
+        'testShellsHidden' => $shells,
+        'incompleteProfiles' => $incomplete,
+        'verified' => $verified,
+        'messages' => $messages,
     ]);
 }
 

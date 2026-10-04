@@ -892,6 +892,68 @@ check(
     $listBody !== '' && strpos($listBody, "['isAdmin']") !== false,
     'the shell filter blocks admins too, leaving the debris unmanageable'
 );
+// ── Honest stats: the anti-fabrication guard ────────────────────────────────
+// The landing page now shows member/city/verified counts. Those numbers are the
+// single most load-bearing thing on a matchmaking site: a wrong figure is the
+// same class of defect as a fake profile, because it invites real people to
+// invest time in a service that does not have them.
+$dbSrc = (string)file_get_contents(__DIR__ . '/../lib/db.php');
+check(
+    'public community stats exist and are counted, not hardcoded',
+    strpos($dbSrc, 'function profilesStats') !== false
+        && strpos($dbSrc, "'members' => count(\$real)") !== false,
+    'profilesStats() does not derive its counts from the database'
+);
+check(
+    'community stats exclude test shells',
+    strpos($dbSrc, "array_filter(\$rows, 'isTestShellRow')") !== false,
+    'stats count QA shells as members, inflating the public number'
+);
+check(
+    'community stats are reachable — routed before the :id handler',
+    strpos($profilesSrc, "id === 'stats'") !== false
+        && strpos($profilesSrc, "\$id === 'stats'") < strpos($profilesSrc, "profileById(\$id)"),
+    'GET /api/profiles/stats is captured as a profile id and 404s'
+);
+
+// ── Admin health banner ─────────────────────────────────────────────────────
+// 48 of 61 shells went unnoticed because no screen reported them.
+check(
+    'admin exposes a data-health signal',
+    strpos($adminSrc, 'function adminHealth') !== false,
+    'no adminHealth(): contaminated data stays invisible to operators'
+);
+check(
+    'admin health reports hidden shells and real profiles separately',
+    strpos($adminSrc, "'testShellsHidden' => \$shells") !== false
+        && strpos($adminSrc, "'realProfiles' => count(\$real)") !== false,
+    'adminHealth() does not distinguish real profiles from test debris'
+);
+check(
+    'admin health reports the verified count',
+    strpos($adminSrc, "'verified' => \$verified") !== false,
+    'adminHealth() omits verification, so the public zero badge is never explained'
+);
+
+// ── mutualInterest must not depend on include order ──────────────────────────
+// It gates private profiles, photos and messaging, yet it was declared in a
+// *route* file while lib/db.php called it. A test harness could not load
+// visibleProfile() without a live database.
+$messagesSrc = (string)file_get_contents(__DIR__ . '/../routes/messages.php');
+check(
+    'mutualInterest is declared exactly once',
+    substr_count($dbSrc, 'function mutualInterest') === 1
+        && substr_count($messagesSrc, 'function mutualInterest') === 0,
+    'mutualInterest() is declared twice, or lives in a route file that lib/db.php depends on'
+);
+check(
+    'mutualInterest is declared in lib/db.php, beside its callers',
+    strpos($dbSrc, 'function mutualInterest') !== false
+        && strpos($dbSrc, 'function mutualInterest') < strpos($dbSrc, 'function visibleProfile'),
+    'the match rule is not available to visibleProfile() without a route file'
+
+);
+
 // Behavioural check of the predicate itself, run against the exact names pulled
 // from the live database, including the false-positive cases.
 require_once __DIR__ . '/test-shell-probe.php';

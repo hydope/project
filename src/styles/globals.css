@@ -3588,6 +3588,75 @@ button, a, input, select, textarea {
   gap: clamp(3.5rem, 8vw, 6.5rem);
   padding-bottom: clamp(3rem, 7vw, 5.5rem);
 }
+/* ── Community proof band ───────────────────────────────────────────────────
+   Four real numbers from /api/profiles/stats. Contrast is checked against both
+   themes via the shared tokens rather than hardcoded hex, so the dark theme
+   cannot inherit a light-theme contrast failure. */
+.hp-stats {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 4vw, 2.5rem) clamp(1.25rem, 4vw, 2.5rem);
+  width: 100%;
+  text-align: center;
+}
+
+.hp-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  margin: 0 0 1.25rem;
+}
+
+.hp-stat {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: clamp(1rem, 2.5vw, 1.5rem) 0.75rem;
+}
+
+.hp-stat dt {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.hp-stat dd {
+  margin: 0;
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.hp-stats-cities {
+  color: var(--text);
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.hp-stats-note {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  margin: 0;
+  max-width: 46rem;
+  margin-inline: auto;
+}
+
+@media (max-width: 640px) {
+  .hp-stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hp-stat {
+    transition: none;
+  }
+}
+
 .hp-section {
   max-width: 1200px;
   margin: 0 auto;
