@@ -227,26 +227,33 @@ function aiComplete(array $messages, array $opts = []): ?string
     }
 
     $base = rtrim((string)(getenv('NVIDIA_BASE_URL') ?: 'https://integrate.api.nvidia.com/v1'), '/');
-    $payload = json_encode([
-        'model' => (string)(getenv('NVIDIA_MODEL') ?: 'meta/llama-3.3-70b-instruct'),
+    $payload = [
+        'model' => (string)(getenv('NVIDIA_MODEL') ?: 'moonshotai/kimi-k3'),
         'messages' => $messages,
-        'temperature' => (float)($opts['temperature'] ?? 0.4),
-        'top_p' => (float)($opts['top_p'] ?? 0.9),
-        'max_tokens' => (int)($opts['max_tokens'] ?? 600),
-    ], JSON_UNESCAPED_UNICODE);
+        'max_tokens' => (int)($opts['max_tokens'] ?? 16000),
+        'seed' => 0,
+        'stream' => false,
+        'temperature' => (float)($opts['temperature'] ?? 0.7),
+    ];
+    // NIM reasoning models reject an unknown parameter, so this is sent only
+    // when the caller asks for it.
+    if (isset($opts['reasoning_effort'])) {
+        $payload['reasoning_effort'] = (string)$opts['reasoning_effort'];
+    }
+    $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE);
 
     $ch = curl_init($base . '/chat/completions');
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 30,
+        CURLOPT_TIMEOUT => 60,
         CURLOPT_CONNECTTIMEOUT => 8,
         CURLOPT_HTTPHEADER => [
             'Authorization: Bearer ' . $key,
             'Content-Type: application/json',
-            'Accept: application/json',
+            'Accept: ' . ((string)($opts['accept'] ?? 'application/json')),
         ],
-        CURLOPT_POSTFIELDS => $payload,
+        CURLOPT_POSTFIELDS => $encoded,
     ]);
 
     $body = curl_exec($ch);

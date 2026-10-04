@@ -41,6 +41,7 @@ function migrateSchema(): void
     migrateAddWaliLinksTable();
     migrateAddUserVerificationColumns();
     migrateAddBlogPostsTable();
+    migrateAddContactSpamColumn();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -213,6 +214,30 @@ function migrateAddUserVerificationColumns(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (user verification) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Spam flag on the contact inbox.
+ *
+ * Without it the inbox is untriagable in practice: marketing mail from
+ * jmailservice.com sits interleaved with real member enquiries and there is
+ * nothing to separate them. Declared in schema.sql too, so the conformance test
+ * keeps the two in step.
+ */
+function migrateAddContactSpamColumn(): void
+{
+    try {
+        $existing = [];
+        foreach (db()->query('SHOW COLUMNS FROM contact_messages')->fetchAll() as $c) {
+            $existing[strtolower((string)$c['Field'])] = true;
+        }
+        if (isset($existing['is_spam'])) return;
+
+        db()->exec('ALTER TABLE contact_messages ADD COLUMN is_spam TINYINT(1) NOT NULL DEFAULT 0');
+        error_log('[api] migration: added contact_messages.is_spam');
+    } catch (Throwable $e) {
+        error_log('[api] migration: contact_messages.is_spam — ' . substr($e->getMessage(), 0, 120));
     }
 }
 

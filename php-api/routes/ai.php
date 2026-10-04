@@ -16,7 +16,7 @@ function routeAI(string $method, array $segments): void
         // — never the key, never the upstream response.
         json([
             'available' => trim((string)getenv('NVIDIA_API_KEY')) !== '',
-            'model' => (string)(getenv('NVIDIA_MODEL') ?: 'meta/llama-3.3-70b-instruct'),
+            'model' => (string)(getenv('NVIDIA_MODEL') ?: 'moonshotai/kimi-k3'),
         ]);
     }
 
@@ -144,7 +144,7 @@ function aiGeneratePost(): void
 
     $raw = aiComplete(
         [['role' => 'system', 'content' => $system]],
-        ['temperature' => 0.8, 'max_tokens' => 2200]
+        ['temperature' => 0.9, 'max_tokens' => 8000, 'reasoning_effort' => 'max']
     );
 
     if ($raw === null) {

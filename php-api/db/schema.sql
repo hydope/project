@@ -228,8 +228,12 @@ CREATE TABLE IF NOT EXISTS contact_messages (
   subject    VARCHAR(200) NOT NULL,
   message    TEXT         NOT NULL,
   status     VARCHAR(16)  NOT NULL DEFAULT 'new',
+  -- Set by an admin. Separates marketing mail from member enquiries so the
+  -- inbox is triagable; the default view hides flagged rows.
+  is_spam    TINYINT(1)   NOT NULL DEFAULT 0,
   created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  KEY idx_contact_status (status, created_at)
+  KEY idx_contact_status (status, created_at),
+  KEY idx_contact_spam (is_spam)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Session tracking: one row per login token so the Security tab can list

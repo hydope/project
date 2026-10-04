@@ -69,8 +69,13 @@ function routeAdmin(string $method, array $segments): void
         adminVerificationBulk();
         return;
     }
+    // Accepts both POST /verifications/bulk and the legacy POST /verifications/:id/bulk.
+// The id slot was only ever a placeholder, which meant the endpoint could not
+// be called without inventing a throwaway id — a trap for anyone wiring a new
+// client against it.
     if ($method === 'POST' && $action === 'verifications' && ($segments[1] ?? null) !== null) {
         $verb = strtolower((string)($segments[2] ?? ''));
+        if ($segments[1] === 'bulk') { adminVerificationBulk(); return; }
         if ($verb === 'bulk') { adminVerificationBulk(); return; }
         if ($verb === 'approve') { adminApproveVerification((string)$segments[1]); return; }
         if ($verb === 'reject')  { adminRejectVerification((string)$segments[1]); return; }
@@ -132,7 +137,29 @@ function adminVerificationsList(): void
           ORDER BY v.created_at ASC LIMIT 200'
     );
     $stmt->execute([$status]);
-    json($stmt->fetchAll());
+    $rows = $stmt->fetchAll();
+
+    // Counts for every tab, not just the active one. An "Approved (14)" tab is
+    // how an operator discovers what they did last week.
+    $counts = ['pending' => 0, 'approved' => 0, 'rejected' => 0];
+    try {
+        foreach (db()->query('SELECT status, COUNT(*) AS n FROM verifications GROUP BY status')->fetchAll() as $r) {
+            if (isset($counts[(string)$r['status']])) {
+                $counts[(string)$r['status']] = (int)$r['n'];
+            }
+        }
+    } catch (Throwable) {
+        // Counts stay at zero if the query fails; the list still renders.
+    }
+
+    // The reviewer has to actually see the submission to judge it, so give the
+    // UI the file URL instead of making it construct one from the id.
+    foreach ($rows as &$r) {
+        $r['file_url'] = '/api/admin/verifications/' . rawurlencode((string)$r['id']) . '/file';
+    }
+    unset($r);
+
+    json(['rows' => $rows, 'counts' => $counts]);
 }
 
 function adminApproveVerification(string $verificationId): void
