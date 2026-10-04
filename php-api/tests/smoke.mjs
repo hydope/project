@@ -331,8 +331,11 @@ const run = async () => {
   const mySubs = await api('GET', '/api/verifications/mine', { token: memToken });
   check('member sees own submissions', Array.isArray(mySubs.data) && mySubs.data.length >= 1, `n=${mySubs.data?.length}`);
   const queue = await api('GET', '/api/admin/verifications?status=pending', { token: adminToken });
-  check('admin sees pending queue', queue.status === 200 && queue.data.length >= 1, `n=${queue.data.length}`);
-  const vid = queue.data[0].id;
+  // The list response is now { rows, counts }; accept a bare array too, so this
+  // test cannot silently pass against whichever shape it happens to receive.
+  const queueRows = Array.isArray(queue.data) ? queue.data : (queue.data?.rows || []);
+  check('admin sees pending queue', queue.status === 200 && queueRows.length >= 1, `n=${queueRows.length}`);
+  const vid = queueRows[0].id;
   const approve = await api('POST', `/api/admin/verifications/${vid}/approve`, { token: adminToken, body: {} });
   check('approve → 200 verified', approve.status === 200 && approve.data?.verified === true, `${approve.status}`);
   const doubleApprove = await api('POST', `/api/admin/verifications/${vid}/approve`, { token: adminToken, body: {} });
@@ -455,7 +458,8 @@ const run = async () => {
     // back from the queue, it is NOT echoed in the response body.
     check('admin reject → 200 {ok:true}', rejected.status === 200 && rejected.data?.ok === true, JSON.stringify(rejected.data));
     const rejQueue = await api('GET', '/api/admin/verifications?status=rejected', { token: adminToken });
-    check('rejected submission appears in the rejected queue', rejQueue.data.some(v => String(v.id) === String(rejId)), `n=${rejQueue.data?.length}`);
+    const rejRows = Array.isArray(rejQueue.data) ? rejQueue.data : (rejQueue.data?.rows || []);
+   check('rejected submission appears in the rejected queue', rejRows.some(v => String(v.id) === String(rejId)), `n=${rejRows.length}`);
     const reRej = await api('POST', `/api/admin/verifications/${rejId}/reject`, { token: adminToken, body: {} });
     check('re-reject an already-reviewed item → 404', reRej.status === 404, `${reRej.status}`);
   }
