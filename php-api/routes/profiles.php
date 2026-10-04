@@ -615,7 +615,7 @@ function profileUpdate(): void
         if ($raw === '') {
             $b['username'] = null;                 // clearing a handle is allowed
         } elseif (!preg_match('/^[a-z0-9][a-z0-9._-]{2,31}$/', $raw)) {
-            je('Username must be 3–32 characters, start with a letter or number, and use only letters, numbers, dots, dashes or underscores.', 400);
+            je('Username must be 3-32 characters, start with a letter or number, and use only letters, numbers, dots, dashes or underscores.', 400);
         } else {
             $taken = db()->prepare('SELECT user_id FROM profiles WHERE username = ? AND user_id <> ? LIMIT 1');
             $taken->execute([$raw, (string)$user['uid']]);

@@ -141,7 +141,7 @@ function migrateAddProfileColumns(): void
     } catch (Throwable $e) {
         // "Duplicate key name" simply means it already exists — not an error.
         if (!/Duplicate key name|already exists/i.test($e->getMessage())) {
-            error_log('[api] migration: username index not created — ' . substr($e->getMessage(), 0, 120));
+            error_log('[api] migration: username index not created - ' . substr($e->getMessage(), 0, 120));
         }
     }
 }
