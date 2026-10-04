@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/layouts/MainLayout';
 import { http } from '@/lib/api/transport';
 import { AlertTriangle, ShieldCheck, Flag, RefreshCw, Check, X, Inbox } from 'lucide-react';
