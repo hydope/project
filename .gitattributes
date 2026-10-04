@@ -1,0 +1,21 @@
+# Declare the text encoding explicitly.
+#
+# Without this, Git guesses, and on a Windows workstation a file written as UTF-8
+# can get committed as something else. That is how php-api/db/schema.sql ended
+# up double-encoded: a UTF-8 em dash (E2 80 94) stored as the eight bytes
+# c3 a2 e2 82 ac e2 80 9d, which renders as "├óΓé¼ΓÇ¥".
+#
+# It is almost always a TERMINAL problem, not a file problem: PowerShell decodes
+# UTF-8 output as Windows-1252, so a correct em dash prints as "ΓÇö". If you see
+# that, the file is fine; run `chcp 65001` or use a UTF-8 terminal.
+* text=auto eol=lf
+
+# Binary assets — never diffed, never transcoded.
+*.webp binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.pdf  binary
+*.woff2 binary
+*.woff  binary
+*.ico  binary

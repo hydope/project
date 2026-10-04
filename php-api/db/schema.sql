@@ -1,4 +1,4 @@
--- Shia Rishta PHP API â€” MariaDB schema (utf8mb4). Idempotent: safe to re-run.
+-- Shia Rishta PHP API -  MariaDB schema (utf8mb4). Idempotent: safe to re-run.
 -- Port of server/schema.sql: UUID -> CHAR(36) app-generated, CITEXT -> TEXT with
 -- lowercased values + unique index, TIMESTAMPTZ -> DATETIME (UTC session set by
 -- db.php), gen_random_uuid() -> uuid() in PHP.
@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS wali_links (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Introductions: verified matchmakers + guardians create a PRIVATE draft,
--- share a one-time claim link, and the subject claims it â€” a draft is NEVER a
+-- share a one-time claim link, and the subject claims it -  a draft is NEVER a
 -- profile row until she claims it.
 CREATE TABLE IF NOT EXISTS profile_drafts (
   id                  CHAR(36)     NOT NULL PRIMARY KEY,
