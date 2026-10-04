@@ -107,6 +107,10 @@ function migrateAddProfileColumns(): void
         'photo_url'        => "VARCHAR(500) DEFAULT NULL",
         'contact_visibility' => "VARCHAR(20) DEFAULT 'members'",
         'syed_status'        => "VARCHAR(40) DEFAULT NULL",
+        // Public handle, distinct from display_name. A member picks this
+        // themselves (e.g. "zainab.h") so they can be addressed without
+        // publishing a full name or an email address.
+        'username'           => "VARCHAR(32) DEFAULT NULL",
     ];
 
     try {
@@ -125,6 +129,20 @@ function migrateAddProfileColumns(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (columns) issue: ' . $e->getMessage());
+    }
+
+    // Uniqueness for the public handle. Added separately because MySQL cannot
+    // express "unique unless NULL" in the ADD COLUMN above, and because an
+    // existing database may already hold duplicate values from before handles
+    // existed (every row is NULL at that point, which is fine).
+    try {
+        db()->exec("CREATE UNIQUE INDEX uq_profiles_username ON profiles (username)");
+        error_log('[api] migration: added unique index on profiles.username');
+    } catch (Throwable $e) {
+        // "Duplicate key name" simply means it already exists — not an error.
+        if (!/Duplicate key name|already exists/i.test($e->getMessage())) {
+            error_log('[api] migration: username index not created — ' . substr($e->getMessage(), 0, 120));
+        }
     }
 }
 
