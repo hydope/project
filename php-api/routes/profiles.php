@@ -1,12 +1,18 @@
 <?php
-// Profile read routes — exact parity with server/routes/profiles.js.
-// GET / browse with filters (privacy tiers + blocks in visibleProfile)
-// GET /:id one profile (404 when hidden)
-// GET /me, PUT /me owner read/update (mutations mirror profileMutations.js)
-// POST /:id/interest express interest; matched = mutual
-//
-// Photo routes are the one deliberate addition: the schema carried a photo_url
-// column that nothing ever wrote, so no member could set a photo at all.
+/**
+ * Profile read routes — exact parity with server/routes/profiles.js.
+ * GET / browse with filters (privacy tiers + blocks in visibleProfile)
+ * GET /:id one profile (404 when hidden)
+ * GET /me, PUT /me owner read/update (mutations mirror profileMutations.js)
+ * POST /:id/interest express interest; matched = mutual
+ *
+ * Photo routes are the one deliberate addition: the schema carried a photo_url
+ * column that nothing ever wrote, so no member could set a photo at all.
+ *
+ * Test-shell detection (testShellFilterSql / isTestShellRow) lives in
+ * lib/db.php, alongside visibleProfile() which it filters, so it can be tested
+ * without a database.
+ */
 
 declare(strict_types=1);
 
@@ -502,6 +508,18 @@ function profilesList(): void
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
+
+    // Test shells never belong in a public directory.
+    //
+    // Applied HERE, after the SQL rather than in the WHERE clause, for two
+    // reasons: the predicate list lives in one function shared with the purge
+    // script, and a LIMIT applies before a filter would remove rows — with
+    // 48 shells ahead of 13 real profiles, filtering in SQL after LIMIT would
+    // return a short page. Filtering here guarantees the member sees only
+    // genuine rows however much debris precedes them.
+    if ($viewer === null || ($viewer['isAdmin'] ?? false) !== true) {
+        $rows = array_values(array_filter($rows, 'isTestShellRow'));
+    }
 
     // Include interest state per card so the UI survives reloads (parity with profileById).
     $sentStmt = null;

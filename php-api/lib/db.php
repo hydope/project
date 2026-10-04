@@ -32,6 +32,95 @@ function db(): PDO
 }
 }
 
+/**
+ * Test-shell detection — ONE definition, used by both the browse filter and the
+ * purge script.
+ *
+ * Why this exists: an automated E2E pass left ~48 shells in the live database
+ * ("QA Test 14", "qatest15", "TEST PROFILE FOR QA — please ignore."). They are
+ * public, so every visitor saw a directory that was 79% debris. That reads as
+ * an abandoned build and destroys trust before the copy gets a chance.
+ *
+ * The purge script can delete them, but a purge is destructive and only runs
+ * when an operator remembers to run it. Hiding them from the browse listing is
+ * non-destructive, reversible, and takes effect the moment it deploys — so the
+ * public directory is correct even on a database nobody has cleaned yet.
+ *
+ * Both sides MUST agree, or a hidden-but-present row is worse than a visible
+ * one (an operator wondering why a member "disappeared"). Keep this pattern
+ * list and the one in scripts/seed-production-profiles.php in step.
+ *
+ * @return array{0:string,1:array} SQL fragment and its bound parameters
+ */
+function testShellFilterSql(string $alias = 'p'): array
+{
+    $clauses = [];
+    $params = [];
+    foreach (testShellPatterns() as $pat) {
+        $clauses[] = "{$alias}.display_name LIKE ?";
+        $params[] = $pat;
+    }
+    // The same debris seen from another column.
+    $clauses[] = "{$alias}.city LIKE ?";
+    $params[] = 'TEST PROFILE%';
+    $clauses[] = "{$alias}.city LIKE ?";
+    $params[] = 'DATA-% City';
+    $clauses[] = "{$alias}.profession LIKE ?";
+    $params[] = 'probe-%';
+
+    return ['(' . implode(' OR ', $clauses) . ')', $params];
+}
+
+/**
+ * Does this profile row look like E2E debris?
+ *
+ * The single matching rule, shared by the SQL builder above and by the runtime
+ * filter in profilesList(). Both must agree: one hides it from the public
+ * directory, the other deletes it from the database, and a divergence would
+ * mean a member quietly vanished with no row to find.
+ *
+ * Patterns are anchored at the START of the value, so a genuine member called
+ * "Testament", "Probes" or "Qasim" is never caught.
+ */
+function isTestShellRow(array $row): bool
+{
+    $patterns = testShellPatterns();
+    $name = trim((string)($row['display_name'] ?? ''));
+    if ($name !== '') {
+        foreach ($patterns as $pat) {
+            if (stripos($name, rtrim($pat, '%')) === 0) return true;
+        }
+    }
+    $city = trim((string)($row['city'] ?? ''));
+    if ($city !== '' && (stripos($city, 'TEST PROFILE') === 0 || stripos($city, 'DATA-') === 0)) {
+        return true;
+    }
+    $job = trim((string)($row['profession'] ?? ''));
+    return $job !== '' && stripos($job, 'probe-') === 0;
+}
+
+/**
+ * The pattern list, verbatim: observed in production plus what the E2E suite is
+ * known to generate. Kept in one function so the SQL form and the PHP form
+ * cannot drift apart.
+ *
+ * @return array<int,string>
+ */
+function testShellPatterns(): array
+{
+    return [
+        'TEST PROFILE%', 'Desi Test%', 'Life Test%', 'Data-%',
+        'QA Test%', 'QATest%', 'qatest%', 'QA Tester%', 'QA Verify%',
+        'Sec Test%', 'Probe L1-%', 'probe.%',
+        // Bare 'TEST%' is deliberately NOT here. It reads as harmless but
+        // swallows genuine names that merely begin with "test" — Testament,
+        // Testa, T-esther — and silently hiding a real member from the
+        // directory is far worse than leaving one test row visible. The E2E
+        // suite always emits a fuller label ("TEST PROFILE FOR QA", "QA Test
+        // 07"), all of which are matched above.
+    ];
+}
+
 function requestJson(): array
 {
     $raw = file_get_contents('php://input');

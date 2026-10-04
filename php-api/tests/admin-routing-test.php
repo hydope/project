@@ -872,5 +872,29 @@ check(
     'favouritesList still runs a per-row profile lookup (N+1)'
 );
 
+// ── Test shells must never appear in a public directory ─────────────────────
+// Production had 61 profiles of which ~48 were E2E debris ("QA Test 14",
+// "qatest15", "TEST PROFILE FOR QA — please ignore."). That was 79% of what
+// every visitor could browse, and it read as an abandoned build.
+$profilesListStart = (int)strpos($profilesSrc, 'function profilesList');
+$profilesListEnd = (int)strpos($profilesSrc, "\nfunction ", $profilesListStart + 10);
+$listBody = $profilesListEnd > $profilesListStart
+    ? substr($profilesSrc, $profilesListStart, $profilesListEnd - $profilesListStart)
+    : '';
+
+check(
+    'the browse listing filters test shells',
+    $listBody !== '' && strpos($listBody, 'isTestShellRow') !== false,
+    'profilesList() does not filter E2E debris, so members browse QA Test shells'
+);
+check(
+    'admins can still see test shells for cleanup',
+    $listBody !== '' && strpos($listBody, "['isAdmin']") !== false,
+    'the shell filter blocks admins too, leaving the debris unmanageable'
+);
+// Behavioural check of the predicate itself, run against the exact names pulled
+// from the live database, including the false-positive cases.
+require_once __DIR__ . '/test-shell-probe.php';
+
 echo "\n$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);
