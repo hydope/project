@@ -73,9 +73,156 @@
          preloading it here lets the browser fetch it during JS parse. -->
     <link rel="preload" as="image" href="/hero-nikah.webp" type="image/webp" fetchpriority="high" />
     <title>Shia Matrimony | Find Shia Rishta for Nikah – Shia Rishta</title>
+    <!--
+      ── Static pre-render shell ──────────────────────────────────────────────
+      An audit of the deployed HTML found 0 <h1>, 0 headings, 0 <nav> landmarks
+      and a 0.0% text-to-HTML ratio. Root cause: this is a client-rendered SPA
+      and <div id="root"> shipped EMPTY, so any crawler that does not execute
+      JavaScript — most SEO checkers, and every social scraper (Twitter,
+      WhatsApp, Slack, LinkedIn previews) — read a 5.9KB shell with no content.
+
+      Google executes JS, which is why rankings survived. Nothing else does.
+      That is a real distribution loss, not a theoretical one.
+
+      The fix is this block: real copy that matches the live page, placed inside
+      #root so React replaces it on mount (createRoot clears the container). No
+      JS runs twice — main.jsx only sets html.js, and .js .seo-static below hides
+      this shell the instant JS is available.
+
+      NOTHING HERE IS INVENTED. There are no testimonials, because no real
+      member has consented to one, and no member count, because a static file
+      cannot know one — the live figure is fetched from /api/profiles/stats by
+      the React app. Faking either to satisfy a scorer is exactly the behaviour
+      this project refuses elsewhere.
+    -->
+    <style>
+      /* Scoped to .seo-static so it cannot leak into the React app. */
+      .seo-static {
+        font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+        color: #17130f;
+        background: #fffaf4;
+        max-width: 62rem;
+        margin: 0 auto;
+        padding: 1.5rem 1.25rem 3rem;
+        line-height: 1.6;
+      }
+      .seo-static h1 {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: clamp(2rem, 6vw, 3rem);
+        line-height: 1.15;
+        margin: 0 0 0.75rem;
+      }
+      .seo-static h2 { font-size: 1.375rem; margin: 2rem 0 0.5rem; }
+      .seo-static h3 { font-size: 1.0625rem; margin: 1.25rem 0 0.35rem; }
+      .seo-static p { margin: 0 0 0.85rem; color: #5d5449; }
+      .seo-static ul { margin: 0 0 1rem; padding-left: 1.15rem; color: #5d5449; }
+      .seo-static nav ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 1rem; }
+      .seo-static a { color: #416b5b; }
+      .seo-static .seo-price { font-weight: 700; color: #17130f; }
+      /* The reveal gate: this is the no-JS fallback, so it must stay visible
+         when JS never runs and disappear the moment it does. */
+      .js .seo-static { display: none !important; }
+    </style>
   </head>
-  <body>
-    <div id="root"></div>
+  <body style="background-color:#fffaf4">
+    <div id="root"><div class="seo-static">
+      <header>
+        <nav aria-label="Main">
+          <ul>
+            <li><a href="/profiles">Browse profiles</a></li>
+            <li><a href="/about">About</a></li>
+            <li><a href="/safety">Safety</a></li>
+            <li><a href="/success-stories">Success stories</a></li>
+            <li><a href="/contact">Contact</a></li>
+            <li><a href="/privacy">Privacy</a></li>
+            <li><a href="/terms">Terms</a></li>
+            <li><a href="/auth/register">Create free account</a></li>
+          </ul>
+        </nav>
+      </header>
+
+      <h1>Shia Rishta — nikah-first Shia matrimony</h1>
+      <p>
+        Shia Rishta is a matchmaking platform built for Shia Muslims seeking nikah, and for the
+        families and walis who support them. Every profile is created with marriage intent. Photos
+        stay private by default, conversations require mutual interest, and family involvement is
+        part of the journey rather than an afterthought.
+      </p>
+      <p class="seo-price">
+        Free to join. There is no payment system today and no paid tier is required to browse,
+        express interest, message a match, or use the guardian tools.
+      </p>
+
+      <h2>Privacy by design</h2>
+      <p>
+        Your contact details are never published. A member chooses exactly who sees their photos:
+        everyone, only after mutual interest, or only after matching. Blocking is instant, and
+        revoking a wali or guardian link takes effect immediately.
+      </p>
+
+      <h2>Family and wali workflows</h2>
+      <p>
+        In Shia fiqh a virgin woman&rsquo;s nikah requires her wali&rsquo;s consent, so guardian
+        approvals, family-to-family introductions and chaperoned communication are built in from the
+        start. A member can delegate profile management to a parent, guardian or trusted matchmaker.
+      </p>
+      <h2>How it works</h2>
+      <h3>1. Create a profile with your intent</h3>
+      <p>
+        Set your marriage goals, religious practice, family background and timeline, plus the sect
+        and marja filters that generic matrimonial sites do not carry.
+      </p>
+      <h3>2. Browse and express interest privately</h3>
+      <p>
+        Search by sect, city, age and practice. Interest is one-sided until it is mutual, so nobody
+        is notified of an unreciprocated approach.
+      </p>
+      <h3>3. Talk once you both agree</h3>
+      <p>
+        A conversation opens only after mutual interest. Contact exchange and photo unlocks require
+        agreement from both sides.
+      </p>
+
+      <h2>Who can join</h2>
+      <p>
+        Serious Shia Muslims seeking nikah, along with parents, guardians and trusted matchmakers
+        acting on their behalf. Identity and intention checks are reviewed before sensitive access
+        opens.
+      </p>
+
+      <h2>Common questions</h2>
+      <h3>Is Shia Rishta really free?</h3>
+      <p>
+        Yes. Creating a profile, browsing, expressing interest and using guardian tools are all
+        free, and core access is intended to stay free.
+      </p>
+      <h3>Who can see my photos?</h3>
+      <p>
+        Only the people you choose: everyone, people you have mutual interest with, or only your
+        matches. The default is the most private of those.
+      </p>
+      <h3>Can my family be involved?</h3>
+      <p>
+        Yes. Wali and guardian workflows are first-class: approvals, family introductions and
+        chaperoned communication.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Questions, privacy requests or takedown requests go through our
+        <a href="/contact">contact form</a>, which reaches the operations team directly. Signed-in
+        members can also raise a support request from their dashboard.
+      </p>
+
+      <footer>
+        <p>
+          <a href="/privacy">Privacy policy</a> &middot;
+          <a href="/terms">Terms of use</a> &middot;
+          <a href="/safety">Safety</a> &middot;
+          <a href="/contact">Contact</a>
+        </p>
+      </footer>
+    </div></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
