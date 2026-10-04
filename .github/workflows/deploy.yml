@@ -48,41 +48,41 @@ jobs:
           npm ci
           VITE_API_URL=https://shiarishta.com npm run build
 
-# The prerender rewrites every route's <head> and <body>. A silently failing
-# regex would ship 15 identical documents that all claim to be the homepage -
-# every route still returns 200, so nothing else would notice. Verify the real
-# build output before anything is published.
-echo "--- verifying prerender ---"
-npm run verify:prerender
+          # The prerender rewrites every route's <head> and <body>. A silently failing
+          # regex would ship 15 identical documents that all claim to be the homepage -
+          # every route still returns 200, so nothing else would notice. Verify the real
+          # build output before anything is published.
+          echo "--- verifying prerender ---"
+          npm run verify:prerender
 
-# PHP assertions: RBAC, routing, privacy tiers, the shell filter and its
-# inverted-array_filter regression guard.
-echo "--- php assertions ---"
-php php-api/tests/admin-routing-test.php
-php php-api/tests/seo-shell-test.php
-php php-api/tests/test-shell-probe.php
-php php-api/tests/ai-parser-probe.php
+          # PHP assertions: RBAC, routing, privacy tiers, the shell filter and its
+          # inverted-array_filter regression guard.
+          echo "--- php assertions ---"
+          php php-api/tests/admin-routing-test.php
+          php php-api/tests/seo-shell-test.php
+          php php-api/tests/test-shell-probe.php
+          php php-api/tests/ai-parser-probe.php
           echo "--- dist contents ---"
           ls dist/
           test -f dist/.htaccess && echo "OK: .htaccess present in dist" || (echo "FAIL: .htaccess missing from dist"; exit 1)
           test -f dist/index.html && echo "OK: index.html present" || (echo "FAIL: index.html missing"; exit 1)
 
-# Per-route prerender must actually be in the artifact. If the build step is
-# ever reordered or skipped, these directories disappear and every route falls
-# back to the SPA shell with the homepage's H1 - the exact defect fixed here.
-for route in privacy terms about safety contact profiles; do
-  if [ -f "dist/${route}/index.html" ]; then
-    if grep -q "rel=\"canonical\" href=\"https://shiarishta.com/${route}\"" "dist/${route}/index.html"; then
-      echo "OK: /${route} prerendered"
-    else
-      echo "FAIL: /${route} has no route-specific canonical"
-      exit 1
-    fi
-  else
-    echo "FAIL: /${route} was not prerendered"
-    exit 1
-  fi
-done
+          # Per-route prerender must actually be in the artifact. If the build step is
+          # ever reordered or skipped, these directories disappear and every route falls
+          # back to the SPA shell with the homepage's H1 - the exact defect fixed here.
+          for route in privacy terms about safety contact profiles; do
+            if [ -f "dist/${route}/index.html" ]; then
+              if grep -q "rel=\"canonical\" href=\"https://shiarishta.com/${route}\"" "dist/${route}/index.html"; then
+                echo "OK: /${route} prerendered"
+              else
+                echo "FAIL: /${route} has no route-specific canonical"
+                exit 1
+              fi
+          else
+            echo "FAIL: /${route} was not prerendered"
+            exit 1
+          fi
+          done
 
       - name: Database setup via cPanel UAPI
         env:
