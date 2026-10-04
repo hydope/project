@@ -38,6 +38,8 @@ function migrateSchema(): void
     migrateAddEmailVerificationsTable();
     migrateAddNotificationsTable();
     migrateAddAdminAuditTable();
+    migrateAddWaliLinksTable();
+    migrateAddUserVerificationColumns();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -137,6 +139,75 @@ function migrateAddProfileColumns(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (columns) issue: ' . $e->getMessage());
+    }
+}
+
+// wali_links. Present in db/schema.sql, so a fresh install creates it on the
+// first request. This exists because the schema probe below short-circuits on
+// any database that already has users + profile_drafts, which meant a database
+// created before wali_links was introduced never picked it up: the Guardians
+// screen then reported "not available" forever.
+function migrateAddWaliLinksTable(): void
+{
+    try {
+        db()->exec(
+            "CREATE TABLE IF NOT EXISTS wali_links (
+                token      VARCHAR(64) NOT NULL PRIMARY KEY,
+                user_id    CHAR(36)    NOT NULL,
+                created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                revoked_at DATETIME    DEFAULT NULL,
+                KEY idx_wali_user (user_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    } catch (Throwable $e) {
+        error_log('[api] migration: wali_links — ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+// Manual (admin-driven) account verification.
+//
+// This is deliberately NOT the same thing as profiles.is_verified, which is the
+// public blue badge flipped when an identity document is approved. Those are two
+// independent claims: "this person proved their identity with paperwork" and
+// "a human moderator reviewed this account and accepts it". Storing the second
+// on the same column would let a document approval silently vouch for an
+// account nobody ever reviewed.
+function migrateAddUserVerificationColumns(): void
+{
+    $additions = [
+        'verification_status' => "VARCHAR(16) NOT NULL DEFAULT 'unverified'",
+        'verified_by'         => 'CHAR(36) DEFAULT NULL',
+        'verified_at'         => 'DATETIME DEFAULT NULL',
+        'verification_note'   => 'TEXT DEFAULT NULL',
+    ];
+
+    try {
+        $existing = [];
+        foreach (db()->query('SHOW COLUMNS FROM users')->fetchAll() as $c) {
+            $existing[strtolower((string)$c['Field'])] = true;
+        }
+        foreach ($additions as $col => $def) {
+            if (isset($existing[$col])) continue;
+            try {
+                db()->exec("ALTER TABLE users ADD COLUMN `$col` $def");
+                error_log("[api] migration: added users.$col");
+            } catch (Throwable $e) {
+                error_log("[api] migration: could not add users.$col — " . substr($e->getMessage(), 0, 120));
+            }
+        }
+
+        // Oldest-first queue ordering depends on this existing; a database that
+        // already has rows would otherwise fall back to a full scan.
+        foreach (db()->query("SHOW INDEX FROM users WHERE Key_name = 'idx_users_verif'")->fetchAll() as $_) {
+            return;
+        }
+        try {
+            db()->exec('CREATE INDEX idx_users_verif ON users (verification_status, created_at)');
+        } catch (Throwable $e) {
+            error_log('[api] migration: users verification index — ' . substr($e->getMessage(), 0, 120));
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (user verification) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }
 

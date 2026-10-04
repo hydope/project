@@ -17,9 +17,16 @@ CREATE TABLE IF NOT EXISTS users (
   email_verify_expires    DATETIME     DEFAULT NULL,
   password_reset_token    VARCHAR(64)  DEFAULT NULL,
   password_reset_expires  DATETIME     DEFAULT NULL,
+  -- Manual account verification. Distinct from profiles.is_verified, which is the
+  -- document-derived public badge: this is a human moderator's decision.
+  verification_status     VARCHAR(16)  NOT NULL DEFAULT 'unverified',
+  verified_by             CHAR(36)     DEFAULT NULL,
+  verified_at             DATETIME     DEFAULT NULL,
+  verification_note       TEXT         DEFAULT NULL,
   created_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_email (email),
-  KEY idx_users_role (role)
+  KEY idx_users_role (role),
+  KEY idx_users_verif (verification_status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
 
 CREATE TABLE IF NOT EXISTS profiles (

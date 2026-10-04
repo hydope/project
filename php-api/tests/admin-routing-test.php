@@ -76,6 +76,8 @@ final class StubStmt
             'n' => 0, 'id' => 'row-1', 'email' => 'member@test.local',
             'user_id' => 'user-1', 'role' => 'member', 'display_name' => 'Member',
             'target_type' => 'profile', 'target_id' => 'row-1', 'storage_path' => null,
+            'verification_status' => 'unverified', 'verification_note' => null,
+            'is_admin' => 0, 'email_verified' => 0,
         ];
     }
     public function rowCount(): int { return 0; }
@@ -191,6 +193,27 @@ route('GET /user/:id loads the detail bundle', 'GET', ['user', 'abc'], 'FROM rep
 route('GET /user/:id counts messages via conversations', 'GET', ['user', 'abc'], 'JOIN conversations c ON c.id = m.conversation_id');
 route('GET /wali reads wali_links', 'GET', ['wali'], 'FROM wali_links');
 route('GET /analytics reads the time series', 'GET', ['analytics'], 'FROM users');
+
+// Manual account verification: the queue a moderator works through.
+route('GET /verification-queue lists accounts awaiting review', 'GET', ['verification-queue'], 'WHERE u.is_admin = 0 AND u.verification_status = ?');
+route('GET /verification-queue?status=all is allowed', 'GET', ['verification-queue'], 'u.verification_status');
+
+// Writes. The queue route must be matched before the :id branch reads
+// 'bulk' as a user id.
+route(
+    'POST /users/:id/verify updates the account',
+    'POST',
+    ['users', 'u1', 'verify'],
+    'UPDATE users',
+    ['decision' => 'approve', 'note' => 'checked']
+);
+route(
+    'POST /verify/bulk resolves to the bulk handler',
+    'POST',
+    ['verify', 'bulk'],
+    'SELECT id FROM users WHERE id IN (?,?)',
+    ['ids' => ['a', 'b'], 'decision' => 'approve']
+);
 
 // Report actions the queue UI calls. Note /action probes with a SELECT first,
 // while /dismiss goes straight to the UPDATE -- assert what each really runs.

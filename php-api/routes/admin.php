@@ -78,6 +78,18 @@ function routeAdmin(string $method, array $segments): void
     if ($method === 'GET' && $action === 'overview') { adminOverview(); return; }
     if ($method === 'GET' && $action === 'analytics') { adminAnalytics(); return; }
     if ($method === 'GET' && $action === 'queue') { adminModerationQueue(); return; }
+    if ($method === 'GET' && $action === 'verification-queue') { adminVerificationQueue(); return; }
+    // POST /verify/bulk — segments are ['verify', 'bulk'], so the verb is at
+// index 1, not 2. Tested against index 2 it silently fell through to the 404.
+    if ($method === 'POST' && $action === 'verify' && ($segments[1] ?? null) === 'bulk'
+        && ($segments[2] ?? null) === null) {
+        adminVerifyBulk();
+        return;
+    }
+    if ($method === 'POST' && $action === 'users' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === 'verify') {
+        adminVerifyOne((string)$segments[1]);
+        return;
+    }
     if ($method === 'GET' && $action === 'funnel') { adminFunnel(); return; }
     if ($method === 'GET' && $action === 'wali') { adminWaliLinks(); return; }
     if ($method === 'GET' && $action === 'reports') { adminReports(); return; }
@@ -360,11 +372,27 @@ function adminUsers(): void
     }
 
     $sql = 'SELECT u.id, u.email, u.display_name, u.role, u.email_verified, u.created_at,
+                   u.verification_status,
                    p.is_blocked, p.is_verified AS id_verified, p.city, p.country, p.age
               FROM users u
               LEFT JOIN profiles p ON p.user_id = u.id';
     if ($blocked === '1') $where[] = 'p.is_blocked = 1';
     if ($where) $sql .= ' WHERE ' . implode(' AND ', $where);
+
+    // Real total for the same filters, so the footer can say "25 of 63" instead
+    // of the useless "25+". Counting was previously done as count($rows), which
+    // is just the page length and told an operator nothing.
+    $total = 0;
+    try {
+        $countSql = 'SELECT COUNT(*) AS n FROM users u LEFT JOIN profiles p ON p.user_id = u.id';
+        if ($where) $countSql .= ' WHERE ' . implode(' AND ', $where);
+        $cstmt = db()->prepare($countSql);
+        $cstmt->execute($params);
+        $total = (int)($cstmt->fetch()['n'] ?? 0);
+    } catch (Throwable $e) {
+        error_log('[api] admin/users count failed: ' . substr($e->getMessage(), 0, 100));
+    }
+
     $sql .= ' ORDER BY u.created_at DESC, u.id DESC LIMIT ' . ($limit + 1);
 
     $stmt = db()->prepare($sql);
@@ -382,7 +410,7 @@ function adminUsers(): void
     }
     unset($r);
 
-    json(['rows' => $rows, 'hasMore' => $hasMore, 'count' => count($rows)]);
+    json(['rows' => $rows, 'hasMore' => $hasMore, 'count' => count($rows), 'total' => $total]);
 }
 
 // GET /api/admin/queue — one ranked moderation worklist.
@@ -610,6 +638,253 @@ function adminWaliLinks(): void
     unset($r);
 
     json(['rows' => $rows, 'available' => true]);
+}
+
+// GET /api/admin/verification-queue
+//
+// Accounts waiting for a human to review them. Returning bare user rows would
+// force a moderator to open each profile and judge it from scratch, so every
+// row carries the evidence the decision needs: profile completeness, photo
+// count, whether the email was confirmed, how long the account has waited, and
+// whether it looks like a duplicate. Flags are advisory — they never auto-decide.
+function adminVerificationQueue(): void
+{
+    $status = (string)($_GET['status'] ?? 'unverified');
+    if (!in_array($status, ['unverified', 'verified', 'rejected', 'all'], true)) {
+        $status = 'unverified';
+    }
+    $limit = max(1, min(200, (int)($_GET['limit'] ?? 50)));
+
+    $where = 'u.is_admin = 0';
+    $params = [];
+    if ($status !== 'all') {
+        $where .= ' AND u.verification_status = ?';
+        $params[] = $status;
+    }
+
+    try {
+        $rows = db()->prepare(
+            "SELECT u.id, u.email, u.display_name, u.created_at, u.verification_status,
+                    u.verified_at, u.verification_note, u.email_verified,
+                    p.display_name AS profile_name, p.age, p.gender, p.city, p.country,
+                    p.sect, p.profession, p.education_level, p.username, p.bio,
+                    p.photo_url, p.marital_status, p.religiosity
+               FROM users u
+               LEFT JOIN profiles p ON p.user_id = u.id
+              WHERE {$where}
+              ORDER BY u.created_at ASC
+              LIMIT {$limit}"
+        );
+        $rows->execute($params);
+        $list = $rows->fetchAll();
+    } catch (Throwable $e) {
+        error_log('[api] admin/verification-queue unavailable: ' . substr($e->getMessage(), 0, 140));
+        json(['rows' => [], 'available' => false, 'counts' => null]);
+    }
+
+    $ids = array_column($list, 'id');
+    $photoCounts = [];
+    $reportsBy = [];
+    $waliBy = [];
+    $verifBy = [];
+    $dupes = [];
+
+    if ($ids) {
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $load = static function (string $sql, array $args) use (&$photoCounts, &$reportsBy, &$waliBy, &$verifBy) {
+            try {
+                $st = db()->prepare($sql);
+                $st->execute($args);
+                return $st->fetchAll();
+            } catch (Throwable) {
+                return null; // optional evidence on an older database
+            }
+        };
+        foreach ((array)$load("SELECT user_id, COUNT(*) AS n FROM profile_photos WHERE user_id IN ({$ph}) GROUP BY user_id", $ids) as $r) {
+            $photoCounts[(string)$r['user_id']] = (int)$r['n'];
+        }
+        foreach ((array)$load("SELECT target_id, COUNT(*) AS n FROM reports WHERE status = 'open' AND target_id IN ({$ph}) GROUP BY target_id", $ids) as $r) {
+            $reportsBy[(string)$r['target_id']] = (int)$r['n'];
+        }
+        foreach ((array)$load("SELECT user_id, COUNT(*) AS n FROM wali_links WHERE revoked_at IS NULL AND user_id IN ({$ph}) GROUP BY user_id", $ids) as $r) {
+            $waliBy[(string)$r['user_id']] = (int)$r['n'];
+        }
+        foreach ((array)$load("SELECT user_id, COUNT(*) AS n FROM verifications WHERE status = 'approved' AND user_id IN ({$ph}) GROUP BY user_id", $ids) as $r) {
+            $verifBy[(string)$r['user_id']] = (int)$r['n'];
+        }
+
+        // Same display name AND same city is the shape a re-registration or a
+        // sock-puppet takes. Surfacing it lets a human make the call.
+        try {
+            $st = db()->prepare(
+                "SELECT LOWER(p.display_name) AS nm, LOWER(COALESCE(p.city,'')) AS ct, COUNT(*) AS n
+                   FROM profiles p JOIN users u2 ON u2.id = p.user_id
+                  WHERE p.user_id IN ({$ph}) AND u2.is_admin = 0
+                  GROUP BY nm, ct HAVING n > 1"
+            );
+            $st->execute($ids);
+            foreach ($st->fetchAll() as $r) {
+                $dupes[strtolower((string)$r['nm'] . '|' . (string)$r['ct'])] = (int)$r['n'];
+            }
+        } catch (Throwable) { /* optional evidence */ }
+    }
+
+    $now = time();
+    foreach ($list as &$r) {
+        $id = (string)$r['id'];
+        $complete = 0;
+        foreach (['profile_name', 'age', 'gender', 'city', 'sect', 'profession', 'education_level'] as $f) {
+            if (!empty($r[$f])) $complete++;
+        }
+        $photoN = $photoCounts[$id] ?? (empty($r['photo_url']) ? 0 : 1);
+
+        $flags = [];
+        if (empty($r['bio'])) $flags[] = 'no_bio';
+        if ($photoN === 0) $flags[] = 'no_photo';
+        if ((int)($r['email_verified'] ?? 0) === 0) $flags[] = 'email_unconfirmed';
+        if (empty($r['sect'])) $flags[] = 'no_sect';
+        if (($reportsBy[$id] ?? 0) > 0) $flags[] = 'open_report';
+
+        $ageDays = (int)floor(($now - strtotime((string)$r['created_at'] . ' UTC')) / 86400);
+        if ($ageDays >= 7) $flags[] = 'waiting_7d';
+
+        $dupKey = strtolower((string)($r['profile_name'] ?? $r['display_name']) . '|' . strtolower((string)($r['city'] ?? '')));
+
+        $r['evidence'] = [
+            'completeness' => (int)round(($complete / 7) * 100),
+            'photos' => (int)$photoN,
+            'hasWali' => (int)($waliBy[$id] ?? 0) > 0,
+            'documentApproved' => (int)($verifBy[$id] ?? 0) > 0,
+            'openReports' => (int)($reportsBy[$id] ?? 0),
+            'accountAgeDays' => max(0, $ageDays),
+            'duplicateOf' => $dupes[$dupKey] ?? null,
+        ];
+        $r['flags'] = $flags;
+        // Highest-signal first, then longest-waiting: a moderator should never
+        // have to scroll to find the account that most needs judgement.
+        $r['priority'] = ($reportsBy[$id] ?? 0) > 0 ? 3 : ($complete >= 6 ? 2 : 1);
+    }
+    unset($r);
+
+    usort($list, static function ($a, $b) {
+        if ($a['priority'] !== $b['priority']) return $b['priority'] <=> $a['priority'];
+        return $a['evidence']['accountAgeDays'] <=> $b['evidence']['accountAgeDays'];
+    });
+
+    $counts = ['unverified' => 0, 'verified' => 0, 'rejected' => 0];
+    try {
+        foreach (db()->query(
+            'SELECT verification_status AS s, COUNT(*) AS n FROM users WHERE is_admin = 0 GROUP BY verification_status'
+        )->fetchAll() as $r) {
+            $counts[(string)$r['s']] = (int)$r['n'];
+        }
+    } catch (Throwable) { /* counts are decorative */ }
+
+    json(['rows' => $list, 'available' => true, 'counts' => $counts]);
+}
+
+// GET /api/admin/funnel — where members drop out of activation.
+/**
+ * Shared write path for manual verification decisions.
+ *
+ * Every decision is audited with the actor, the subject, the note and the flags
+ * that were visible at decision time. On a platform where an admin can mark a
+ * real person's account as reviewed, "who approved this and why" has to be
+ * answerable months later.
+ */
+function applyVerification(string $userId, string $decision, ?string $note, array $flags = []): bool
+{
+    if (!in_array($decision, ['approve', 'reject'], true)) {
+        je('decision must be approve or reject.', 400);
+    }
+
+    $probe = db()->prepare("SELECT id, verification_status FROM users WHERE id = ? LIMIT 1");
+    $probe->execute([$userId]);
+    $row = $probe->fetch();
+    if (!$row) return false;
+
+    $actor = currentUser();
+    $next = $decision === 'approve' ? 'verified' : 'rejected';
+
+    db()->prepare(
+        'UPDATE users
+            SET verification_status = ?, verified_by = ?, verified_at = UTC_TIMESTAMP(), verification_note = ?
+          WHERE id = ?'
+    )->execute([$next, (string)($actor['uid'] ?? ''), $note, $userId]);
+
+    auditLog('account.' . $decision . 'd', 'user', $userId, [
+        'from' => $row['verification_status'],
+        'to' => $next,
+        'note' => $note,
+        'flags' => array_values(array_slice($flags, 0, 8)),
+    ]);
+    return true;
+}
+
+// POST /api/admin/users/:id/verify { decision, note, flags }
+function adminVerifyOne(string $userId): void
+{
+    $payload = requestJson();
+    $decision = strtolower(trim((string)($payload['decision'] ?? '')));
+    $note = sanitizeText($payload['note'] ?? '', 500);
+    $note = $note === '' ? null : $note;
+    $flags = is_array($payload['flags'] ?? null) ? $payload['flags'] : [];
+
+    if (!applyVerification($userId, $decision, $note, $flags)) {
+        je('Member not found.', 404);
+    }
+
+    $out = db()->prepare('SELECT id, email, display_name, verification_status, verified_at FROM users WHERE id = ? LIMIT 1');
+    $out->execute([$userId]);
+    $user = $out->fetch() ?: null;
+
+    json(['ok' => true, 'user' => $user]);
+}
+
+// POST /api/admin/verify/bulk { ids: [], decision, note }
+//
+// Reviewing sixty accounts one click at a time is not a workflow. Guarded so a
+// typo cannot mass-approve, and every affected id is audited individually so the
+// trail stays per-account rather than one opaque "bulk" line.
+function adminVerifyBulk(): void
+{
+    $payload = requestJson();
+    $decision = strtolower(trim((string)($payload['decision'] ?? '')));
+    if (!in_array($decision, ['approve', 'reject'], true)) {
+        je('decision must be approve or reject.', 400);
+    }
+
+    $ids = array_values(array_filter(array_map(
+        static fn($v) => is_string($v) ? trim($v) : '',
+        (array)($payload['ids'] ?? [])
+    )));
+    if (!$ids) {
+        je('Provide a non-empty ids array.', 400);
+    }
+    if (count($ids) > 200) {
+        je('Bulk actions are limited to 200 accounts at a time.', 400);
+    }
+
+    $note = sanitizeText($payload['note'] ?? '', 500);
+    $note = $note === '' ? null : $note;
+
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $probe = db()->prepare("SELECT id FROM users WHERE id IN ({$placeholders}) AND is_admin = 0");
+    $probe->execute($ids);
+    $rows = $probe->fetchAll();
+
+    if (!$rows) {
+        json(['ok' => true, 'affected' => 0, 'message' => 'No reviewable accounts in that selection.']);
+    }
+
+    $n = 0;
+    foreach ($rows as $row) {
+        if (applyVerification((string)$row['id'], $decision, $note, (array)($payload['flags'] ?? []))) {
+            $n++;
+        }
+    }
+
+    json(['ok' => true, 'affected' => $n]);
 }
 
 function adminFunnel(): void

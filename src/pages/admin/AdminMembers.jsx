@@ -142,7 +142,11 @@ export default function AdminMembers() {
         )}
 
         <div className="flex items-center justify-between mt-4">
-          <p className="text-xs text-muted">Showing {data.count}{data.hasMore ? '+' : ''}</p>
+          // A real total beats "25+": the operator can tell whether the page is showing
+// everything or a slice of something much larger.
+<p className="text-xs text-muted">
+  Showing {data.rows.length}{data.total ? ` of ${data.total}` : ''}{data.hasMore ? ' — more available' : ''}
+</p>
           <div className="flex items-center gap-2">
             <button onClick={() => setLimit((l) => Math.max(25, l - 25))} disabled={limit <= 25}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-line/20 text-muted disabled:opacity-40">Fewer</button>

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Moon, Search, Command, X, LayoutDashboard, Users, MessageCircle,
   BookOpen, LifeBuoy, Settings, LogOut, Home, Menu,
-  Shield, ShieldAlert, BarChart3, History, HandHeart, BadgeCheck, KeyRound
+  Shield, ShieldAlert, BarChart3, History, HandHeart, BadgeCheck, KeyRound, UserCheck
 } from 'lucide-react';
 import ThemeMenu from '../components/ThemeMenu';
 // Lazy: the assistant widget + brain load on demand, not in the entry chunk.
@@ -33,6 +33,7 @@ function CommandPalette({ open, onClose, toggleTheme, isAdmin }) {
     ...(isAdmin ? [
       { label: 'Go to Admin Panel', icon: Shield, path: '/admin/dashboard', section: 'Admin' },
       { label: 'Go to Moderation Queue', icon: ShieldAlert, path: '/admin/queue', section: 'Admin' },
+      { label: 'Go to Verify Accounts', icon: UserCheck, path: '/admin/verify-accounts', section: 'Admin' },
       { label: 'Go to Admin Members', icon: Users, path: '/admin/members', section: 'Admin' },
       { label: 'Go to Admin Analytics', icon: BarChart3, path: '/admin/analytics', section: 'Admin' },
     ] : []),
@@ -213,6 +214,7 @@ const NAV_ITEMS = [
 const ADMIN_NAV_ITEMS = [
   { path: '/admin/dashboard', label: 'Admin Panel', icon: Shield, section: 'Admin' },
   { path: '/admin/queue', label: 'Moderation Queue', icon: ShieldAlert, section: 'Admin' },
+  { path: '/admin/verify-accounts', label: 'Verify Accounts', icon: UserCheck, section: 'Admin' },
   { path: '/admin/members', label: 'Members', icon: Users, section: 'Admin' },
   { path: '/admin/support', label: 'Support Queue', icon: LifeBuoy, section: 'Admin' },
   { path: '/admin/verifications', label: 'Verifications', icon: BadgeCheck, section: 'Admin' },
