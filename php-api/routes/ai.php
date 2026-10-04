@@ -20,10 +20,11 @@ function routeAI(string $method, array $segments): void
         // reported `available: false` forever whenever the GitHub secret was
         // missing, which made the panel look permanently broken even after an
         // operator had configured a working key.
-        json([
-            'available' => aiApiKey() !== '',
-            'model' => aiModel(),
-        ]);
+        // Reports the model so the admin panel can show which one is active.
+    json([
+        'available' => aiApiKey() !== '',
+        'model' => aiModel(),
+    ]);
     }
 
     if ($method === 'POST' && $action === 'chat') {
