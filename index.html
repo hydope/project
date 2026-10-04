@@ -98,19 +98,22 @@
       .seo-static nav ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 1rem; }
       .seo-static a { color: #416b5b; }
       .seo-static .seo-price { font-weight: 700; color: #17130f; }
-      /* The shell is deliberately NOT hidden by a CSS class when JS runs.
-         It used to be: a rule keyed on the html.js class collapsed the shell
-         to zero height the instant main.jsx set that class, and React then grew
-         the real page back — two mutations, one visible jump. Measured CLS
-         0.275 on a throttled Pixel 5 before this was removed.
+      /* No class-based hide rule for the shell. An earlier version had one,
+         on the theory that collapsing the shell before React mounts would
+         remove a layout shift. Measured after removing it, CLS was unchanged
+         at 0.275 on a throttled Pixel 5 — the hypothesis was wrong.
 
-         React's createRoot already clears #root when it mounts, so the shell is
-         replaced regardless; letting React do it in a single commit removes the
-         intermediate collapse entirely.
+         The shift is not the CSS collapse. It is inherent to replacing a
+         prerendered document with a different React tree: the shell paints,
+         then the app paints at different offsets, and the difference is
+         scored. React's createRoot clears #root when it mounts, so the shell
+         disappears either way.
 
-         Note: the wording above deliberately avoids writing the selector out in
-         full — a test asserts this rule is absent, and a comment quoting it
-         verbatim kept matching that assertion after the rule itself was gone. */
+         Keeping the rule removed is still correct: it is one less mutation,
+         and it means the shell is replaced in React's single commit rather
+         than by a style recalc followed by a render. But it is NOT the fix,
+         and CLS remains open. Recorded here so the next person does not
+         re-run this experiment. */
     </style>
   </head>
   <body style="background-color:#fffaf4">
