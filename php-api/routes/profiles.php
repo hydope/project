@@ -16,10 +16,16 @@ function routeProfiles(string $method, array $segments): void
     $sub = $segments[1] ?? null;
 
     if ($method === 'GET' && $id === null) { profilesList(); return; }
-    if ($method === 'GET' && $id === 'me') { profileMe(); return; }
-    // Saved profiles. Must be matched before the generic /:id branch below or
-    // "favourites" would be read as a user id.
+    // Saved profiles.
+    //
+    // MUST be matched BEFORE the `/me` branch below. The `/me` test only looks at
+    // $segments[0], so `GET /api/profiles/me/favourites` matched it and returned
+    // the member's OWN profile instead of their saved list — the endpoint was
+    // unreachable, and the favourites page rendered the account holder as if
+    // they were a saved result. The comment here previously claimed the ordering
+    // was safe; it was not.
     if ($method === 'GET' && $id === 'me' && $sub === 'favourites') { favouritesList(); return; }
+    if ($method === 'GET' && $id === 'me') { profileMe(); return; }
     if ($method === 'POST' && $id !== null && $sub === 'favourite') { favouriteAdd($id); return; }
     if ($method === 'DELETE' && $id !== null && $sub === 'favourite') { favouriteRemove($id); return; }
     // POST is accepted as an alias for PUT. Only PUT was ever routed, so a

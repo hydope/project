@@ -826,5 +826,22 @@ check(
     '/api/ai/status still reads only the env var, so the admin panel will look broken after a successful save'
 );
 
+// ── Route ordering: /me/favourites must win over /me ────────────────────────
+// This regressed once and shipped. `GET /api/profiles/me` only inspects the
+// FIRST path segment, so it matched `/me/favourites` and returned the caller's
+// own profile. The favourites page therefore rendered the account holder as a
+// saved result, and the list endpoint was unreachable.
+//
+// Ordering bugs are invisible to a lint pass and to any test that only checks
+// the handler in isolation, so this asserts the actual source order.
+$profilesSrc = (string)file_get_contents(__DIR__ . '/../routes/profiles.php');
+$favPos = strpos($profilesSrc, "\$id === 'me' && \$sub === 'favourites'");
+$mePos = strpos($profilesSrc, "\$id === 'me') { profileMe()");
+check(
+    'the favourites route is matched before the bare /me route',
+    $favPos !== false && $mePos !== false && $favPos < $mePos,
+    'GET /api/profiles/me swallows /me/favourites, so the saved list is unreachable'
+);
+
 echo "\n$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);
