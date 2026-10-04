@@ -150,12 +150,16 @@ function migrateAddProfileColumns(): void
 function migrateAddWaliLinksTable(): void
 {
     try {
+        // Must match db/schema.sql exactly: token as PK and a `revoked` flag.
+        // An earlier version of this migration invented `revoked_at`, which
+        // would have created a table whose shape disagreed with every other
+        // reader of wali_links.
         db()->exec(
             "CREATE TABLE IF NOT EXISTS wali_links (
                 token      VARCHAR(64) NOT NULL PRIMARY KEY,
                 user_id    CHAR(36)    NOT NULL,
+                revoked    TINYINT(1)  NOT NULL DEFAULT 0,
                 created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                revoked_at DATETIME    DEFAULT NULL,
                 KEY idx_wali_user (user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         );

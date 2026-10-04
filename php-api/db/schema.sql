@@ -273,3 +273,17 @@ CREATE TABLE IF NOT EXISTS email_verifications (
   expires_at DATETIME     NOT NULL,
   created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- In-app notifications (interests, messages, introductions).
+CREATE TABLE IF NOT EXISTS notifications (
+  id         CHAR(36)     NOT NULL PRIMARY KEY,
+  user_id    CHAR(36)     NOT NULL,
+  type       VARCHAR(40)  NOT NULL,
+  title      VARCHAR(255) NOT NULL,
+  body       TEXT         DEFAULT NULL,
+  ref_id     CHAR(36)     DEFAULT NULL,
+  is_read    TINYINT(1)   NOT NULL DEFAULT 0,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_notif_user (user_id, created_at),
+  KEY idx_notif_unread (user_id, is_read)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

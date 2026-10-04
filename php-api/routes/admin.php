@@ -615,8 +615,18 @@ function adminAuditList(): void
 function adminWaliLinks(): void
 {
     try {
+        // wali_links has no `id` column (the token is the primary key) and
+        // revokes via a `revoked` flag, not a `revoked_at` timestamp. Selecting
+        // the wrong names here is what kept this endpoint reporting
+        // "not available" forever.
+        //
+        // The token itself is NEVER returned. It is the bearer credential that
+        // opens a read-only view of that member's profile, so an admin list must
+        // not be a way to harvest one. A truncated SHA-256 of it is enough to
+        // key a row without exposing anything reversible.
         $rows = db()->query(
-            'SELECT w.id, w.user_id, w.created_at, w.revoked_at,
+            'SELECT LEFT(SHA2(w.token, 256), 12) AS ref,
+                    w.user_id, w.created_at, w.revoked,
                     u.display_name AS member_name, u.email,
                     p.display_name AS profile_name
                FROM wali_links w
@@ -633,7 +643,8 @@ function adminWaliLinks(): void
     }
 
     foreach ($rows as &$r) {
-        $r['active'] = empty($r['revoked_at']);
+        $r['active'] = (int)($r['revoked'] ?? 0) === 0;
+        unset($r['revoked']);
     }
     unset($r);
 

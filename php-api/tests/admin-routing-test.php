@@ -310,5 +310,76 @@ check(
     implode(', ', $missing)
 );
 
+// ── Schema conformance ──────────────────────────────────────────────────────
+// adminUserDetail shipped querying messages.receiver_id and adminWaliLinks
+// shipped querying wali_links.id / revoked_at. None of those columns exist:
+// messages is normalised, and wali_links uses `token` as its PK with a `revoked`
+// flag. Both endpoints failed at runtime while php -l stayed silent.
+//
+// A migration that invents a shape disagreeing with db/schema.sql is how the
+// Guardians screen ended up permanently unavailable, so assert they agree.
+echo "\nschema conformance\n";
+
+$schema = (string)file_get_contents(__DIR__ . '/../db/schema.sql');
+
+/** Parse `CREATE TABLE x (...)` into a lowercase column list. */
+function schemaColumns(string $sql): array
+{
+    $out = [];
+    if (!preg_match_all('/CREATE TABLE IF NOT EXISTS\s+(\w+)\s*\((.*?)\)\s*ENGINE/is', $sql, $m, PREG_SET_ORDER)) {
+        return $out;
+    }
+    foreach ($m as $set) {
+        $cols = [];
+        foreach (preg_split('/,\s*\n/', $set[2]) as $line) {
+            $line = trim($line);
+            if ($line === '' || preg_match('/^(PRIMARY|UNIQUE|KEY|INDEX|CONSTRAINT|FOREIGN)/i', $line)) continue;
+            if (preg_match('/^(\w+)\s+/', $line, $c)) $cols[] = strtolower($c[1]);
+        }
+        $out[strtolower($set[1])] = $cols;
+    }
+    return $out;
+}
+
+$canonical = schemaColumns($schema);
+
+$migrateSrc = (string)file_get_contents(__DIR__ . '/../lib/migrate.php');
+preg_match_all('/CREATE TABLE IF NOT EXISTS\s+(\w+)\s*\((.*?)\)\s*ENGINE/is', $migrateSrc, $mm, PREG_SET_ORDER);
+$mismatch = [];
+foreach ($mm as $set) {
+    $table = strtolower($set[1]);
+    if (!isset($canonical[$table])) {
+        $mismatch[] = "$table created by migration but absent from schema.sql";
+        continue;
+    }
+    $mine = schemaColumns('CREATE TABLE IF NOT EXISTS ' . $set[1] . " (\n" . $set[2] . "\n) ENGINE=InnoDB;");
+    foreach ($mine[$table] ?? [] as $col) {
+        if (!in_array($col, $canonical[$table], true)) {
+            $mismatch[] = "$table.$col created by migration but not in schema.sql";
+        }
+    }
+}
+check('migration tables match schema.sql', $mismatch === [], implode('; ', $mismatch));
+
+$waliExpected = ['token', 'user_id', 'revoked', 'created_at'];
+$missingWali = array_values(array_diff($waliExpected, $canonical['wali_links'] ?? []));
+check(
+    'schema.sql wali_links has token/user_id/revoked/created_at',
+    $missingWali === [],
+    'missing: ' . implode(',', $missingWali)
+);
+
+// messages is normalised; a receiver_id reference must never come back. Strip
+// comments first — the explanation of why this matters necessarily names the
+// column, and matching that would make the check fail on its own rationale.
+$adminSrc = (string)file_get_contents(__DIR__ . '/../routes/admin.php');
+$adminSqlOnly = preg_replace('!/\*.*?\*/!s', '', $adminSrc);
+$adminSqlOnly = preg_replace('!//[^\n]*!', '', (string)$adminSqlOnly);
+check(
+    'no route queries the non-existent messages.receiver_id',
+    stripos((string)$adminSqlOnly, 'receiver_id') === false,
+    'a live query still references messages.receiver_id'
+);
+
 echo "\n$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);
