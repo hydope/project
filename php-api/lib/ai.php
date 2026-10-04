@@ -139,6 +139,27 @@ function aiPlatformFacts(): array
 }
 
 /**
+ * Words that carry no retrieval signal.
+ *
+ * Without this, "what" matched the "what do i say" term and an off-topic question
+ * like "what is the capital of Peru?" confidently returned first-message tips.
+ * The old regex assistant had the opposite bug — it answered everything with the
+ * privacy blob — so this is the same failure wearing a different hat: a weak
+ * scorer producing a confident wrong answer instead of admitting a gap.
+ */
+function aiStopWords(): array
+{
+    return ['what', 'when', 'where', 'which', 'who', 'whom', 'whose', 'why', 'how',
+        'does', 'did', 'do', 'the', 'and', 'for', 'you', 'your', 'yours', 'are',
+        'was', 'were', 'can', 'could', 'should', 'would', 'will', 'shall', 'with',
+        'that', 'this', 'these', 'those', 'from', 'have', 'has', 'had', 'been',
+        'about', 'there', 'their', 'them', 'they', 'his', 'her', 'hers', 'our',
+        'please', 'tell', 'give', 'help', 'know', 'like', 'get', 'got', 'any',
+        'some', 'many', 'much', 'more', 'most', 'into', 'than', 'then', 'just',
+        'also', 'over', 'after', 'before', 'but', 'not', 'youre', 'whats'];
+}
+
+/**
  * Score facts against the question by term overlap, best first.
  *
  * Cheap and deterministic: no embeddings to host, nothing to keep in sync, and
@@ -147,10 +168,11 @@ function aiPlatformFacts(): array
 function aiRetrieveFacts(string $question, int $limit = 3): array
 {
     $q = mb_strtolower($question);
-    $qWords = array_values(array_filter(
-        preg_split('/[^\p{L}\p{N}]+/u', $q) ?: [],
-        fn($w) => mb_strlen($w) > 2
-    ));
+    $stop = array_flip(aiStopWords());
+    $qWords = [];
+    foreach (preg_split('/[^\p{L}\p{N}]+/u', $q) ?: [] as $w) {
+        if (mb_strlen($w) > 2 && !isset($stop[$w])) $qWords[] = $w;
+    }
 
     $scored = [];
     foreach (aiPlatformFacts() as $fact) {
@@ -160,6 +182,7 @@ function aiRetrieveFacts(string $question, int $limit = 3): array
             // A whole-phrase hit is worth far more than a shared token.
             if (str_contains($q, $term)) { $score += 10; continue; }
             foreach (explode(' ', $term) as $word) {
+                if (isset($stop[$word])) continue;      // never score on a stopword
                 if (mb_strlen($word) > 3 && in_array($word, $qWords, true)) { $score += 3; }
             }
         }

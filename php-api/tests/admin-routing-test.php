@@ -556,5 +556,37 @@ check(
     'off-topic answer did not defer: ' . substr($offTopic, 0, 120)
 );
 
+// Retrieval precision. A scorer that counts stopwords answers "what is the
+// capital of Peru?" with first-message tips — a confident wrong answer, which is
+// worse than the old blanket fallback because it reads as authoritative.
+echo "\nAI retrieval precision\n";
+
+check(
+    'an off-topic question retrieves nothing',
+    aiRetrieveFacts('what is the capital of Peru?') === [],
+    'off-topic question matched: ' . implode(' / ', array_column(aiRetrieveFacts('what is the capital of Peru?'), 'text'))
+);
+check(
+    'a stopword-only overlap does not match',
+    aiRetrieveFacts('what is it like') === [],
+    'matched on stopwords alone'
+);
+check(
+    'a real question retrieves the right topic',
+    count(aiRetrieveFacts('can my wali see my messages')) > 0
+        && stripos(aiRetrieveFacts('can my wali see my messages')[0]['text'], 'wali') !== false,
+    'wali question did not retrieve the wali fact'
+);
+check(
+    'a pricing question retrieves pricing, not privacy',
+    stripos(aiRetrieveFacts('is this site paid')[0]['text'] ?? '', 'free') !== false,
+    'pricing question retrieved the wrong fact'
+);
+check(
+    'a safety question retrieves the safety fact',
+    stripos(aiRetrieveFacts('I think someone is scamming me')[0]['text'] ?? '', 'report') !== false,
+    'safety question retrieved the wrong fact'
+);
+
 echo "\n$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);
