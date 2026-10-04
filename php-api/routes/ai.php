@@ -143,8 +143,8 @@ function aiGeneratePost(): void
         . "'excerpt' is one sentence under 160 characters. 'category' is one of: Guidance, Safety, Community, "
         . "Profiles. 'readTime' is like '5 min'. 'body' is an ARRAY of objects, each {\"t\": \"p\"|\"h2\", "
         . "\"x\": \"...\"} — never markdown fences.\n\n"
-        . "Write 700-1000 words. Structure with h2 headings every few paragraphs. Do not invent statistics, "
-        . "user counts or claims about the site's features beyond what is stated.\n\n"
+        . "Write a focused piece of roughly 500 words, 5-8 paragraphs with an h2 heading or two. "
+        . "Do not invent statistics, user counts or claims about the site's features beyond what is stated.\n\n"
         . ($existing ? "Recently published (do not repeat these angles): " . implode(' | ', $existing) . "\n\n" : '')
         . "TOPIC: " . $topic . ($angle !== '' ? "\nANGLE: " . $angle : '')
         . "\nAUDIENCE: " . $audience . "\n\nReturn only the JSON object.";
@@ -154,18 +154,17 @@ function aiGeneratePost(): void
         // Model, timeout and token budget are all tuned for SHARED HOSTING.
         //
         // The host terminates any request that outlives roughly 60s and returns
-        // an HTML "Request Timeout" page — which the client cannot parse, so it
-        // appeared as a bare 500 with no explanation. Measured on this stack:
+        // an HTML "Request Timeout" page, which the client cannot parse. Measured
+        // on this stack with the real article prompt:
         //
-        //   kimi-k3, reasoning_effort=max  -> EMPTY content in 12s (broken)
-        //   kimi-k3, no reasoning_effort   -> 75s for a full article (killed)
-        //   nemotron-3-ultra, mt=3000      -> 36s, valid JSON (fits)
-        //   nemotron-3-ultra, mt=4000      -> 74s (killed)
+        //   max_tokens=3000 -> 112s  (killed by the host)
+        //   max_tokens=1200 ->  31s  (fits, with headroom)
         //
-        // So: no reasoning_effort (it silently produced nothing on this model
-        // family), a 3000-token ceiling that leaves headroom, and a 45s cURL
-        // timeout that fails with a readable JSON error instead of an HTML 500.
-        ['temperature' => 0.9, 'max_tokens' => 3000, 'timeout' => 45]
+        // 1200 tokens yields a complete ~500 word article. The previous 8000
+        // could never finish here regardless of model: the large MoE models in
+        // this catalogue all take 80s+ for a 1000-word piece, and
+        // `reasoning_effort` produced empty content outright.
+        ['temperature' => 0.9, 'max_tokens' => 1200, 'timeout' => 45]
     );
 
     if ($raw === null) {
@@ -193,7 +192,15 @@ function parseGeneratedPost(string $raw): ?array
     if ($start === false || $end === false || $end <= $start) return null;
 
     $decoded = json_decode(substr($raw, $start, $end - $start + 1), true);
-    if (!is_array($decoded)) return null;
+
+    // Truncated output is the common failure, not a rare one: a token ceiling
+    // cut mid-object leaves valid-but-incomplete JSON, and json_decode returns
+    // null for the whole thing. Discarding every complete "x" block salvages the
+    // finished paragraphs instead of failing the entire draft.
+    if (!is_array($decoded)) {
+        $decoded = salvageTruncatedPost($raw);
+        if ($decoded === null) return null;
+    }
 
     $title = sanitizeText($decoded['title'] ?? '', 160);
     if ($title === '') return null;
@@ -217,6 +224,67 @@ function parseGeneratedPost(string $raw): ?array
         'excerpt' => sanitizeText($decoded['excerpt'] ?? '', 300),
         'category' => $category,
         'readTime' => sanitizeText($decoded['readTime'] ?? '5 min', 16),
+        'body' => $body,
+    ];
+}
+
+/**
+ * Recover what we can from a JSON response the token ceiling cut short.
+ *
+ * Regex-based and deliberately narrow: it only matches a body block whose
+ * closing brace is actually present, so it can never invent content. Returns
+ * null when there is not enough intact structure to be worth showing — a
+ * partial article with no title is worse than a clear "try again".
+ */
+function salvageTruncatedPost(string $raw): ?array
+{
+    // A title that was emitted before the cut is enough to render something.
+    if (!preg_match('/"title"\s*:\s*"((?:[^"\\\\]|\\\\.)*)"/', $raw, $tm)) {
+        return null;
+    }
+    $title = json_decode('"' . $tm[1] . '"');
+    if (!is_string($title) || trim($title) === '') return null;
+
+    $body = [];
+    // Only complete blocks: the lookahead requires a closing brace after "x".
+    preg_match_all(
+        '/\{\s*"t"\s*:\s*"(p|h2)"\s*,\s*"x"\s*:\s*"((?:[^"\\\\]|\\\\.)*)"\s*\}/',
+        $raw,
+        $bm,
+        PREG_SET_ORDER
+    );
+    foreach ($bm as $m) {
+        $x = json_decode('"' . $m[2] . '"');
+        if (is_string($x) && trim($x) !== '') {
+            $body[] = ['t' => $m[1], 'x' => sanitizeText($x, 4000)];
+        }
+    }
+    // parseGeneratedPost() already requires 3 blocks; bail early if we have fewer.
+    if (count($body) < 3) return null;
+
+    $excerpt = '';
+    if (preg_match('/"excerpt"\s*:\s*"((?:[^"\\\\]|\\\\.)*)"/', $raw, $em)) {
+        $excerpt = json_decode('"' . $em[1] . '"');
+        $excerpt = is_string($excerpt) ? $excerpt : '';
+    }
+
+    $readTime = '5 min';
+    if (preg_match('/"readTime"\s*:\s*"((?:[^"\\\\]|\\\\.)*)"/', $raw, $rm)) {
+        $rt = json_decode('"' . $rm[1] . '"');
+        if (is_string($rt) && trim($rt) !== '') $readTime = $rt;
+    }
+
+    $category = 'Guidance';
+    if (preg_match('/"category"\s*:\s*"((?:[^"\\\\]|\\\\.)*)"/', $raw, $cm)) {
+        $cat = json_decode('"' . $cm[1] . '"');
+        if (in_array($cat, ['Guidance', 'Safety', 'Community', 'Profiles'], true)) $category = $cat;
+    }
+
+    return [
+        'title' => $title,
+        'excerpt' => $excerpt,
+        'category' => $category,
+        'readTime' => $readTime,
         'body' => $body,
     ];
 }
