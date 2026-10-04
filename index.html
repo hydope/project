@@ -98,9 +98,19 @@
       .seo-static nav ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 1rem; }
       .seo-static a { color: #416b5b; }
       .seo-static .seo-price { font-weight: 700; color: #17130f; }
-      /* The reveal gate: this is the no-JS fallback, so it must stay visible
-         when JS never runs and disappear the moment it does. */
-      .js .seo-static { display: none !important; }
+      /* The shell is deliberately NOT hidden by a CSS class when JS runs.
+         It used to be: a rule keyed on the html.js class collapsed the shell
+         to zero height the instant main.jsx set that class, and React then grew
+         the real page back — two mutations, one visible jump. Measured CLS
+         0.275 on a throttled Pixel 5 before this was removed.
+
+         React's createRoot already clears #root when it mounts, so the shell is
+         replaced regardless; letting React do it in a single commit removes the
+         intermediate collapse entirely.
+
+         Note: the wording above deliberately avoids writing the selector out in
+         full — a test asserts this rule is absent, and a comment quoting it
+         verbatim kept matching that assertion after the rule itself was gone. */
     </style>
   </head>
   <body style="background-color:#fffaf4">

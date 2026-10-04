@@ -135,10 +135,20 @@ const badRoots = routes
   .map((r) => r);
 check('exactly one #root per document', badRoots.length === 0, badRoots.join(', '));
 
-// ── The no-JS reveal gate survives on every route ────────────────────────────
-const noGate = routes
-  .filter((r) => docs[r] && !/\.js\s+\.seo-static\s*\{[^}]*display:\s*none/.test(docs[r]));
-check('every route keeps the no-JS reveal gate', noGate.length === 0, noGate.join(', '));
+// ── The shell must not be hidden by a CSS class ─────────────────────────────
+// It used to be, via `.js .seo-static { display:none }`. That collapsed the
+// shell to zero height the moment main.jsx set html.js, then React grew the real
+// page back — two mutations, one visible jump. Measured CLS 0.275 on a
+// throttled Pixel 5 before the change.
+//
+// React's createRoot clears #root when it mounts, so the shell is replaced in a
+// single commit with no intermediate collapse. This asserts the CSS rule stays
+// gone, because re-adding it would silently restore the layout shift.
+const cssHidden = routes.filter((r) => docs[r] && /\.js\s+\.seo-static\s*\{[^}]*display:\s*none/.test(docs[r]));
+check('no route hides the shell via a CSS class', cssHidden.length === 0, cssHidden.join(', '));
+check('the shell still sits inside #root so React replaces it',
+  routes.every((r) => docs[r]?.includes('<div id="root"><div class="seo-static">')),
+  'the shell must be the first child of #root or React cannot replace it');
 
 // ── Private routes are NOT prerendered ───────────────────────────────────────
 // A dist/dashboard/ directory would publish the existence of member screens and

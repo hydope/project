@@ -19,7 +19,8 @@
     "dev:full": "node scripts/start-local-stack.mjs",
     "start": "node scripts/start-local-stack.mjs",
     "verify:prerender": "node scripts/verify-prerender.mjs",
-    "verify:seo-shell": "node scripts/verify-seo-shell.mjs"
+    "verify:seo-shell": "node scripts/verify-seo-shell.mjs",
+    "measure:vitals": "node scripts/measure-vitals.mjs"
   },
   "engines": {
     "node": ">=20.0.0"

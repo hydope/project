@@ -91,10 +91,14 @@ check(
 // If this breaks, either the shell sits on top of the React app (duplicate
 // content) or a no-JS user gets a blank page. Both are worse than the original
 // problem, so the gate is asserted rather than eyeballed.
+// The shell is NOT hidden by a CSS class. It used to be, and the collapse
+// caused a measured CLS of 0.275 on a throttled Pixel 5. React's createRoot
+// clears #root when it mounts, so the shell is replaced in a single commit
+// with no intermediate collapse. Assert the CSS rule stays gone.
 check(
-    'the static shell hides once JS runs',
-    preg_match('/\.js\s+\.seo-static\s*\{[^}]*display:\s*none/', $doc) === 1,
-    '.js .seo-static { display: none } is missing — the shell would cover the React app'
+    'the shell is not hidden by a CSS class when JS runs',
+    preg_match('/\.js\s+\.seo-static\s*\{[^}]*display:\s*none/', $doc) !== 1,
+    'a class-based hide rule is present — it collapses the shell to zero height before React mounts and reintroduces the layout shift'
 );
 check(
     'main.jsx marks the document as JS-enabled',
@@ -134,4 +138,5 @@ check(
 
 echo "\n$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);
+
 
