@@ -28,7 +28,13 @@ if (!function_exists('testShellPatterns')) {
         return [
             'TEST PROFILE%', 'Desi Test%', 'Life Test%', 'Data-%',
             'QA Test%', 'QATest%', 'qatest%', 'QA Tester%', 'QA Verify%',
-            'Sec Test%', 'Probe L1-%', 'probe.%',
+            'Sec Test%', 'Probe L1-%',
+            // The probe series appears under several shapes: "Probe L1-1" and
+            // "Probe L1-2" as display names, "probe." as an email local-part, and
+            // "probe-l2" / "probe-2" as display names or professions. One narrow
+            // pattern let the shorter variants through and they reached the
+            // public directory as real-looking names.
+            'probe.%', 'probe-%',
             // Bare 'TEST%' is deliberately NOT here. It reads as harmless but
             // swallows genuine names that merely begin with "test" — Testament,
             // Testa, T-esther — and silently hiding a real member from the

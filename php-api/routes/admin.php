@@ -521,7 +521,10 @@ function adminHealth(): void
            FROM profiles p'
     )->fetchAll();
 
-    $real = array_values(array_filter($rows, 'isTestShellRow'));
+    // Negate, for the same array_filter reason documented in profilesStats():
+    // passing isTestShellRow() directly would report the 48 shells as the real
+    // profile count and leave the banner reassuring an operator about junk data.
+    $real = array_values(array_filter($rows, static fn(array $r): bool => !isTestShellRow($r)));
     $shells = count($rows) - count($real);
 
     // A profile that is browsable but has nothing in it is the other half of

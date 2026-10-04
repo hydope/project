@@ -85,6 +85,9 @@ $mustHide = [
     'QA Test 07', 'QA Test 08', 'QA Test 09', 'QA Test 10', 'QA Test 11',
     'QA Test 12', 'QA Test 17', 'QA Test 18', 'QA Test 19', 'QA Test 21',
     'QA Test 22', 'QA Test 23', 'QA Test 24', 'QA Test 26', 'QA Test 100',
+    // Shorter probe shapes the earlier single 'probe.%' pattern missed; these
+    // reached the public directory looking like ordinary member names.
+    'probe-l2', 'probe-2', 'probe.1',
 ];
 
 $leaked = [];

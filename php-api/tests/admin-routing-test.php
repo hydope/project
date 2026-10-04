@@ -906,7 +906,7 @@ check(
 );
 check(
     'community stats exclude test shells',
-    strpos($dbSrc, "array_filter(\$rows, 'isTestShellRow')") !== false,
+    strpos($dbSrc, '!isTestShellRow($r)') !== false,
     'stats count QA shells as members, inflating the public number'
 );
 check(
@@ -952,6 +952,58 @@ check(
         && strpos($dbSrc, 'function mutualInterest') < strpos($dbSrc, 'function visibleProfile'),
     'the match rule is not available to visibleProfile() without a route file'
 
+);
+
+// ── The inverted-array_filter regression ────────────────────────────────────
+// This exact mistake shipped TWICE: array_filter($rows, 'isTestShellRow') KEEPS
+// the rows the predicate returns true for, so passing the shell predicate
+// straight through keeps the SHELLS. On the browse listing that published a
+// directory of 48 QA shells and hid all 13 real members. On /profiles/stats it
+// reported "50 members" with "TEST PROFILE FOR QA - please ignore." as a top
+// city.
+//
+// A structural check for the function name would pass while the logic is
+// backwards, so this runs the real predicate over real rows and asserts the
+// survivor is the GENUINE profile.
+require __DIR__ . '/../lib/test_shell_patterns.php';
+
+$fixture = [
+    ['display_name' => 'QA Test 14', 'city' => 'Karachi'],
+    ['display_name' => 'Zoya Kazmi', 'city' => 'Dubai'],
+    ['display_name' => 'probe-l2', 'city' => 'Testville'],
+    ['display_name' => 'Maryam Siddiqui', 'city' => 'Toronto'],
+];
+
+// The call shape used in profilesList(), profilesStats() and adminHealth().
+$kept = array_values(array_filter($fixture, static fn(array $r): bool => !isTestShellRow($r)));
+$keptNames = array_column($kept, 'display_name');
+
+check(
+    'filtering keeps genuine members, not test shells',
+    $keptNames === ['Zoya Kazmi', 'Maryam Siddiqui'],
+    'survivors were [' . implode(', ', $keptNames) . '] — array_filter is keeping the shells'
+);
+
+// Every call site must negate. A bare `array_filter($rows, 'isTestShellRow')`
+// is the exact defect, so forbid it outright rather than trusting a review.
+$filterSources = [
+    'profiles.php' => $profilesSrc,
+    'admin.php' => $adminSrc,
+    'db.php' => $dbSrc,
+];
+$bareFilterSites = [];
+foreach ($filterSources as $file => $src) {
+    // A call that uses isTestShellRow without a preceding '!' anywhere in the
+    // statement is the bug.
+    if (preg_match("/array_filter\(\s*\\\$\w+\s*,\s*(?:'isTestShellRow'|static\s+fn[^\n]*isTestShellRow(?<neg>!)?)/", $src)
+        && preg_match("/array_filter\(\s*\\\$\w+\s*,\s*'isTestShellRow'/", $src)) {
+        $bareFilterSites[] = $file;
+    }
+}
+check(
+    'no call site passes the shell predicate to array_filter un-negated',
+    $bareFilterSites === [],
+    'inverted filter in: ' . implode(', ', $bareFilterSites)
 );
 
 // Behavioural check of the predicate itself, run against the exact names pulled

@@ -160,7 +160,12 @@ function mutualInterest(string $a, string $b): bool
 function profilesStats(): void
 {
     $rows = db()->query('SELECT display_name, city, visibility, is_blocked FROM profiles WHERE is_blocked = 0')->fetchAll();
-    $real = array_values(array_filter($rows, 'isTestShellRow'));
+    // Negate. array_filter KEEPS rows whose callback returns TRUE, and
+    // isTestShellRow() returns true FOR THE SHELLS — so passing it straight
+    // through would count 48 QA shells as "members" and report the top cities as
+    // "TEST PROFILE FOR QA — please ignore." and "DATA-09 City". That shipped
+    // once before on the browse listing, so it is asserted in the test suite now.
+    $real = array_values(array_filter($rows, static fn(array $r): bool => !isTestShellRow($r)));
 
     // Private members still count as members — they are real people who chose
     // not to be browsable. Hiding them from the count would understate the
