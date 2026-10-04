@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Moon, Search, Command, X, LayoutDashboard, Users, MessageCircle,
   BookOpen, LifeBuoy, Settings, LogOut, Home, Menu,
-  Shield, BarChart3, MessageSquare, HandHeart, BadgeCheck, KeyRound
+  Shield, ShieldAlert, BarChart3, History, HandHeart, BadgeCheck, KeyRound
 } from 'lucide-react';
 import ThemeMenu from '../components/ThemeMenu';
 // Lazy: the assistant widget + brain load on demand, not in the entry chunk.
@@ -32,7 +32,8 @@ function CommandPalette({ open, onClose, toggleTheme, isAdmin }) {
     { label: 'Go to Settings', icon: Settings, path: '/settings', section: 'Navigate' },
     ...(isAdmin ? [
       { label: 'Go to Admin Panel', icon: Shield, path: '/admin/dashboard', section: 'Admin' },
-      { label: 'Go to Admin Inbox', icon: MessageSquare, path: '/admin/messages', section: 'Admin' },
+      { label: 'Go to Moderation Queue', icon: ShieldAlert, path: '/admin/queue', section: 'Admin' },
+      { label: 'Go to Admin Members', icon: Users, path: '/admin/members', section: 'Admin' },
       { label: 'Go to Admin Analytics', icon: BarChart3, path: '/admin/analytics', section: 'Admin' },
     ] : []),
     { label: 'Toggle Dark Mode', icon: Moon, action: 'theme', section: 'Actions' },
@@ -211,11 +212,13 @@ const NAV_ITEMS = [
 // Elevated controls render for admins/moderators only — never for members.
 const ADMIN_NAV_ITEMS = [
   { path: '/admin/dashboard', label: 'Admin Panel', icon: Shield, section: 'Admin' },
-  { path: '/admin/messages', label: 'Inbox', icon: MessageSquare, section: 'Admin' },
+  { path: '/admin/queue', label: 'Moderation Queue', icon: ShieldAlert, section: 'Admin' },
+  { path: '/admin/members', label: 'Members', icon: Users, section: 'Admin' },
   { path: '/admin/support', label: 'Support Queue', icon: LifeBuoy, section: 'Admin' },
   { path: '/admin/verifications', label: 'Verifications', icon: BadgeCheck, section: 'Admin' },
   { path: '/admin/guardians', label: 'Guardians', icon: Users, section: 'Admin' },
   { path: '/admin/roles', label: 'Roles', icon: KeyRound, section: 'Admin' },
+  { path: '/admin/audit', label: 'Audit Trail', icon: History, section: 'Admin' },
   { path: '/admin/analytics', label: 'Analytics', icon: BarChart3, section: 'Admin' },
 ];
 

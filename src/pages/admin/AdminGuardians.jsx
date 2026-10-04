@@ -1,132 +1,108 @@
+﻿import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/layouts/MainLayout';
-import { useEffect, useState } from 'react';
-import { adminData } from '@lib/api/adminData';
+import { http } from '@/lib/api/transport';
+import { UserCheck, RefreshCw, ShieldCheck } from 'lucide-react';
 
-const PERMISSION_LABELS = {
-  profileView: 'Profile View',
-  messageView: 'Message Access',
-  contactApproval: 'Contact Approval',
-  familyIntroduction: 'Family Introduction',
-};
-
-function statusPillClass(status) {
-  if (status === 'approved') return 'verified-pill';
-  if (status === 'pending') return 'button muted';
-  return '';
-}
-
+/**
+ * Wali / guardian links.
+ *
+ * Previously rendered fixture data. This reads the real wali_links table.
+ * The share token is never sent to the client: it is the bearer credential that
+ * opens a read-only view of that member's profile, so an admin list must never
+ * be a way to harvest one.
+ */
 export default function AdminGuardians() {
-  const [guardians, setGuardians] = useState([]);
-  const [demo, setDemo] = useState(false);
+  const [rows, setRows] = useState([]);
+  const [available, setAvailable] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setLoadError(null);
-      try {
-        const { data, demo: isDemo } = await adminData.getGuardians();
-        if (cancelled) return;
-        // Shape guard: a non-array payload (e.g. an HTML fallback or error object)
-        // must never reach .map().
-        setGuardians(Array.isArray(data) ? data : []);
-        setDemo(Boolean(isDemo));
-      } catch {
-        if (!cancelled) setLoadError('Could not load guardian assignments. Showing demo data instead.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await http.get('/api/admin/wali');
+      setRows(Array.isArray(res?.rows) ? res.rows : []);
+      setAvailable(res?.available !== false);
+    } catch (e) {
+      setError(e?.message || 'Could not load companion links.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  if (loading) {
-    return (
-      <Layout>
-        <main>
-          <h1>Admin Guardian Management</h1>
-          <div className="empty-state" role="status" aria-live="polite">
-            <p>Loading guardian data…</p>
-          </div>
-        </main>
-      </Layout>
-    );
-  }
+  useEffect(() => { load(); }, [load]);
+
+  const active = rows.filter((r) => r.active).length;
 
   return (
     <Layout>
-      <main>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <h1>Admin Guardian Management</h1>
-          {demo && (
-            <span
-              className="verified-pill"
-              style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}
-              title="Backed by local demo data until the admin API is connected"
-            >
-              Demo data
-            </span>
-          )}
-        </div>
-        <p>Review and manage wali (guardian) assignments for members.</p>
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+        <header className="flex flex-wrap items-end justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-ink">Wali &amp; guardians</h1>
+            <p className="text-sm text-muted mt-1">Companion links members have issued to a family member.</p>
+          </div>
+          <button onClick={load} disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-elevated text-muted border border-line/20 hover:border-line/40 disabled:opacity-50">
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+        </header>
 
-        {loadError && (
-          <p className="empty-state" role="alert" style={{ color: 'var(--color-danger)', marginBottom: '16px' }}>
-            {loadError}
-          </p>
+        {error && (
+          <div className="mb-4 rounded-xl border border-line/20 bg-elevated p-3 text-sm text-muted">{error}</div>
         )}
 
-        {guardians.length === 0 ? (
+        {!available ? (
+          <div className="rounded-xl border border-line/20 bg-elevated p-4 text-sm text-muted">
+            Companion links are not available on this database yet.
+          </div>
+        ) : loading && !rows.length ? (
+          <div className="space-y-2">{[0, 1, 2].map((i) => <div key={i} className="skeleton h-14 rounded-xl" />)}</div>
+        ) : !rows.length ? (
           <div className="empty-state">
-            <p>No guardian assignments found.</p>
-            <p style={{ marginTop: '4px' }}>Wali invitations sent by members will appear here for review.</p>
+            <div className="text-muted mb-3 flex justify-center"><UserCheck className="w-12 h-12" /></div>
+            <h2 className="empty-state-title">No companion links issued</h2>
+            <p className="empty-state-text">
+              When a member issues a wali link from Settings, it appears here with its
+              {active > 0 ? ' current' : ''} status.
+            </p>
           </div>
         ) : (
-          <div className="admin-grid">
-            {guardians.map((guardian) => {
-              const since = guardian?.assignedSince ? new Date(guardian.assignedSince) : null;
-              const permissions = Array.isArray(guardian?.permissions) ? guardian.permissions : [];
-              return (
-                <div key={guardian.id} className="admin-card">
-                  <h3>{guardian?.memberName || 'Unknown member'}</h3>
-                  <p><strong>Guardian:</strong> {guardian?.guardianName || '—'}</p>
-                  <p><strong>Relationship:</strong> {guardian?.relationship || '—'}</p>
-                  <p>
-                    <strong>Status:</strong>{' '}
-                    <span className={statusPillClass(guardian?.status)}>
-                      {guardian?.status
-                        ? guardian.status.charAt(0).toUpperCase() + guardian.status.slice(1)
-                        : 'Unknown'}
-                    </span>
-                  </p>
-                  <p>
-                    <strong>Assigned Since:</strong>{' '}
-                    {since && !Number.isNaN(since.getTime()) ? since.toLocaleDateString() : '—'}
-                  </p>
-                  <div className="permission-tags" style={{ marginTop: '12px' }}>
-                    <strong>Permissions:</strong><br />
-                    {Object.entries(PERMISSION_LABELS).map(([perm, label]) => (
-                      <span
-                        key={perm}
-                        className={permissions.includes(perm) ? 'verified-pill' : 'button muted'}
-                        style={{
-                          marginRight: '8px',
-                          marginBottom: '4px',
-                          display: 'inline-block',
-                          padding: '4px 8px',
-                          fontSize: '0.85rem',
-                        }}
-                      >
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <>
+            <p className="text-xs text-muted mb-3">{rows.length} link(s), {active} active</p>
+            <div className="rounded-xl border border-line/20 bg-elevated overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-hover/50">
+                  <tr className="text-left text-xs text-muted">
+                    <th className="px-4 py-3 font-semibold">Member</th>
+                    <th className="px-4 py-3 font-semibold">Created</th>
+                    <th className="px-4 py-3 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.id} className="border-t border-line/15">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-ink">{r.profile_name || r.member_name || 'Member'}</p>
+                        <p className="text-xs text-muted">{r.email}</p>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted">{String(r.created_at).slice(0, 16)}</td>
+                      <td className="px-4 py-3">
+                        {r.active ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
+                            <ShieldCheck className="w-3.5 h-3.5" /> Active
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted">Revoked</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </main>
     </Layout>

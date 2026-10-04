@@ -61,6 +61,14 @@ function routeAdmin(string $method, array $segments): void
         return;
     }
     if ($method === 'GET' && $action === 'verifications') { adminVerificationsList(); return; }
+    if ($method === 'POST' && $action === 'verifications' && ($segments[1] ?? null) === 'bulk'
+        && ($segments[2] ?? null) === null) {
+        // POST /api/admin/verifications/bulk — the collection form. This is the
+        // contract the queue UI calls. It must be tested BEFORE the /:id branch
+        // below, otherwise "bulk" is read as a verification id.
+        adminVerificationBulk();
+        return;
+    }
     if ($method === 'POST' && $action === 'verifications' && ($segments[1] ?? null) !== null) {
         $verb = strtolower((string)($segments[2] ?? ''));
         if ($verb === 'bulk') { adminVerificationBulk(); return; }
@@ -71,6 +79,7 @@ function routeAdmin(string $method, array $segments): void
     if ($method === 'GET' && $action === 'analytics') { adminAnalytics(); return; }
     if ($method === 'GET' && $action === 'queue') { adminModerationQueue(); return; }
     if ($method === 'GET' && $action === 'funnel') { adminFunnel(); return; }
+    if ($method === 'GET' && $action === 'wali') { adminWaliLinks(); return; }
     if ($method === 'GET' && $action === 'reports') { adminReports(); return; }
     if ($method === 'POST' && $action === 'reports' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === 'action') {
         adminReportAction((string)$segments[1]);
@@ -544,6 +553,40 @@ function adminAuditList(): void
 // registered -> email verified -> profile published -> ID verified -> interest
 // exchanged -> mutual match. Each step is a plain COUNT so it stays cheap on
 // shared hosting.
+// GET /api/admin/wali — every companion link a member has issued.
+//
+// AdminGuardians previously rendered fixture data. This reads the real
+// wali_links table. The share TOKEN is deliberately NOT returned: it is the
+// bearer credential that opens a read-only view of that member's profile, so it
+// must never be exposed in an admin list.
+function adminWaliLinks(): void
+{
+    try {
+        $rows = db()->query(
+            'SELECT w.id, w.user_id, w.created_at, w.revoked_at,
+                    u.display_name AS member_name, u.email,
+                    p.display_name AS profile_name
+               FROM wali_links w
+               LEFT JOIN users u ON u.id = w.user_id
+               LEFT JOIN profiles p ON p.user_id = w.user_id
+              ORDER BY w.created_at DESC
+              LIMIT 200'
+        )->fetchAll();
+    } catch (Throwable $e) {
+        // Older databases may not have wali_links yet; report honestly rather
+        // than 500-ing the whole panel.
+        error_log('[api] admin/wali unavailable: ' . substr($e->getMessage(), 0, 120));
+        json(['rows' => [], 'available' => false]);
+    }
+
+    foreach ($rows as &$r) {
+        $r['active'] = empty($r['revoked_at']);
+    }
+    unset($r);
+
+    json(['rows' => $rows, 'available' => true]);
+}
+
 function adminFunnel(): void
 {
     $count = static function (string $sql): int {

@@ -1,138 +1,146 @@
+﻿import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/layouts/MainLayout';
-import { useEffect, useState } from 'react';
-import { adminData, ANALYTICS_TITLES } from '@lib/api/adminData';
+import { http } from '@/lib/api/transport';
+import { BarChart3, RefreshCw, TrendingDown } from 'lucide-react';
 
-/** Compact CSS bar chart — no chart library, no placeholder text. */
-function MiniBarChart({ labels, values, color }) {
+/**
+ * Analytics â€” real aggregates plus the activation funnel.
+ *
+ * This page previously imported `adminData`, a fixture module, and rendered
+ * hardcoded charts. An operator could see growth that never happened and make
+ * decisions from it. Everything below comes from GET /api/admin/analytics (real
+ * created_at buckets) and GET /api/admin/funnel (real COUNTs per step).
+ */
+
+function BarChart({ title, labels, values, color }) {
   const max = Math.max(...values, 1);
   return (
-    <div className="chart-placeholder" role="img" aria-label={`Bar chart with ${labels.length} data points`}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '96px', width: '100%' }}>
-        {labels.map((label, i) => {
-          const v = values[i] ?? 0;
-          const pct = Math.round((v / max) * 100);
-          return (
-            <div
-              key={`${label}-${i}`}
-              title={`${label}: ${v}`}
-              style={{
-                flex: 1,
-                height: `${Math.max(pct, 4)}%`,
-                minWidth: '8px',
-                borderRadius: '6px 6px 2px 2px',
-                background: color,
-                opacity: 0.85,
-                transition: 'height 0.25s ease-out',
-              }}
-            />
-          );
-        })}
-      </div>
-      <div style={{ display: 'flex', gap: '6px', width: '100%', marginTop: '6px' }}>
-        {labels.map((label, i) => (
-          <span
-            key={`${label}-l-${i}`}
-            style={{ flex: 1, textAlign: 'center', fontSize: '0.6875rem', color: 'var(--color-ink-tertiary)' }}
-          >
-            {label}
-          </span>
+    <section className="rounded-xl border border-line/20 bg-elevated p-5">
+      <h3 className="text-sm font-bold text-ink mb-4">{title}</h3>
+      <div className="flex items-end gap-1 h-28" role="img" aria-label={`${title}: ${values.length} data points`}>
+        {values.map((v, i) => (
+          <div key={i} title={`${labels[i]}: ${v}`}
+            style={{ flex: 1, height: `${Math.max((v / max) * 100, 2)}%`, background: color, borderRadius: '4px 4px 0 0', minWidth: 4 }}
+            className="transition-all" />
         ))}
       </div>
-    </div>
+      <div className="flex gap-1 mt-2">
+        {labels.map((l, i) => (
+          <span key={i} style={{ flex: 1, textAlign: 'center', fontSize: '0.625rem' }}
+            className="text-muted truncate">{i === 0 || i === labels.length - 1 ? l : ''}</span>
+        ))}
+      </div>
+      <p className="text-xs text-muted mt-2">Peak {max} Â· total {values.reduce((a, b) => a + b, 0)}</p>
+    </section>
   );
 }
 
 export default function AdminAnalytics() {
-  const [charts, setCharts] = useState([]);
-  const [demo, setDemo] = useState(false);
+  const [range, setRange] = useState('7d');
+  const [analytics, setAnalytics] = useState(null);
+  const [funnel, setFunnel] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
-  const [timeRange, setTimeRange] = useState('7d'); // 7d | 30d | 90d
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setLoadError(null);
-      try {
-        const { data, demo: isDemo } = await adminData.getAnalytics(timeRange);
-        if (cancelled) return;
-        setCharts(Array.isArray(data) ? data : []);
-        setDemo(Boolean(isDemo));
-      } catch {
-        if (!cancelled) {
-          setLoadError('Could not load analytics. Showing demo data instead.');
-          setCharts([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [timeRange]);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [a, f] = await Promise.all([
+        http.get(`/api/admin/analytics?range=${range}`),
+        http.get('/api/admin/funnel'),
+      ]);
+      setAnalytics(a);
+      setFunnel(f);
+    } catch (e) {
+      setError(e?.message || 'Could not load analytics.');
+    } finally {
+      setLoading(false);
+    }
+  }, [range]);
 
-  if (loading) {
-    return (
-      <Layout>
-        <main>
-          <h1>Admin Analytics</h1>
-          <div className="empty-state" role="status" aria-live="polite">
-            <p>Loading analytics data…</p>
-          </div>
-        </main>
-      </Layout>
-    );
-  }
+  useEffect(() => { load(); }, [load]);
+
+  const charts = analytics?.charts || [];
+  const steps = funnel?.steps || [];
+  const base = steps[0]?.n || 0;
 
   return (
     <Layout>
-      <main>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <h1>Platform Analytics</h1>
-          {demo && (
-            <span
-              className="verified-pill"
-              style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}
-              title="Backed by local demo data until the admin API is connected"
-            >
-              Demo data
-            </span>
-          )}
-        </div>
-        <p>Insights into member engagement, growth, and platform usage.</p>
-
-        <div className="settings-list" style={{ marginBottom: '24px' }}>
-          <div className="toggle-row">
-            <span>Time Range:</span>
-            <select value={timeRange} onChange={(e) => setTimeRange(e.target.value)} aria-label="Analytics time range">
-              <option value="7d">Last 7 Days</option>
-              <option value="30d">Last 30 Days</option>
-              <option value="90d">Last 90 Days</option>
-            </select>
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+        <header className="flex flex-wrap items-end justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-ink">Analytics</h1>
+            <p className="text-sm text-muted mt-1">Real counts from the database. No sample data.</p>
           </div>
-        </div>
+          <div className="flex items-center gap-2">
+            {['7d', '30d'].map((r) => (
+              <button key={r} onClick={() => setRange(r)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  range === r ? 'bg-primary text-white' : 'bg-elevated text-muted border border-line/20 hover:border-line/40'}`}>
+                {r === '7d' ? '7 days' : '30 days'}
+              </button>
+            ))}
+            <button onClick={load} disabled={loading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-elevated text-muted border border-line/20 hover:border-line/40 disabled:opacity-50">
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+            </button>
+          </div>
+        </header>
 
-        {loadError && (
-          <p className="empty-state" role="alert" style={{ color: 'var(--color-danger)', marginBottom: '16px' }}>
-            {loadError}
-          </p>
+        {error && (
+          <div className="mb-4 rounded-xl border border-line/20 bg-elevated p-3 text-sm text-muted">{error}</div>
         )}
 
-        {charts.length === 0 ? (
-          <div className="empty-state">
-            <p>No analytics data available.</p>
-            <p style={{ marginTop: '4px' }}>Charts will appear once engagement data is collected.</p>
+        <section className="mb-8">
+          <h2 className="text-base font-bold text-ink mb-3">Activation funnel</h2>
+          {loading && !steps.length ? (
+            <div className="skeleton h-40 rounded-xl" />
+          ) : !steps.length ? (
+            <p className="text-sm text-muted">No data yet.</p>
+          ) : (
+            <div className="rounded-xl border border-line/20 bg-elevated p-5 space-y-2.5">
+              {steps.map((s, idx) => {
+                const pct = base > 0 ? Math.round((s.n * 100) / base) : 0;
+                const drop = idx > 0 ? steps[idx - 1].n - s.n : 0;
+                return (
+                  <div key={s.key}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-semibold text-ink">{s.label}</span>
+                      <span className="text-muted">
+                        {s.n}
+                        {drop > 0 && (
+                          <span className="text-danger inline-flex items-center gap-0.5 ml-2">
+                            <TrendingDown className="w-3 h-3" />{drop}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-hover overflow-hidden">
+                      <div className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: `${Math.max(pct, pct > 0 ? 2 : 0)}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {loading && !charts.length ? (
+          <div className="grid gap-4 sm:grid-cols-2">{[0, 1].map((i) => <div key={i} className="skeleton h-56 rounded-xl" />)}</div>
+        ) : charts.length ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {charts.map((c) => (
+              <BarChart key={c.key} title={c.title} labels={c.labels} values={c.values}
+                color={c.color || 'var(--color-primary)'} />
+            ))}
           </div>
         ) : (
-          <div className="section">
-            <div className="admin-grid">
-              {charts.map(({ key, title, labels, values, color }) => (
-                <div key={key} className="admin-card">
-                  <h3>{ANALYTICS_TITLES[key] ?? title ?? key}</h3>
-                  <MiniBarChart labels={labels} values={values} color={color} />
-                </div>
-              ))}
-            </div>
+          <div className="empty-state">
+            <div className="text-muted mb-3 flex justify-center"><BarChart3 className="w-12 h-12" /></div>
+            <h2 className="empty-state-title">No activity in this window</h2>
+            <p className="empty-state-text">Widen the range, or check back once members are active.</p>
           </div>
         )}
       </main>

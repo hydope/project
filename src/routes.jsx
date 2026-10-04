@@ -41,8 +41,10 @@ const Safety = lazy(() => import('./pages/Safety'));
 // Admin subpages
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
-const AdminMessages = lazy(() => import('./pages/admin/AdminMessages'));
 const AdminSupport = lazy(() => import('./pages/admin/AdminSupport'));
+const AdminQueue = lazy(() => import('./pages/admin/AdminQueue'));
+const AdminMembers = lazy(() => import('./pages/admin/AdminMembers'));
+const AdminAudit = lazy(() => import('./pages/admin/AdminAudit'));
 const AdminVerifications = lazy(() => import('./pages/admin/AdminVerifications'));
 const AdminRoles = lazy(() => import('./pages/admin/AdminRoles'));
 const AdminGuardians = lazy(() => import('./pages/admin/AdminGuardians'));
@@ -194,7 +196,11 @@ const router = createBrowserRouter([
         element: <RequireAdmin />,
         children: [
           { path: 'dashboard', element: <LazyRoute component={AdminDashboard} /> },
-          { path: 'messages', element: <LazyRoute component={AdminMessages} /> },
+          // The queue is the admin landing surface: reports and pending
+          // verifications ranked together instead of split across two tabs.
+          { path: 'queue', element: <LazyRoute component={AdminQueue} /> },
+          { path: 'members', element: <LazyRoute component={AdminMembers} /> },
+          { path: 'audit', element: <LazyRoute component={AdminAudit} /> },
           { path: 'support', element: <LazyRoute component={AdminSupport} /> },
           { path: 'verifications', element: <LazyRoute component={AdminVerifications} /> },
           { path: 'roles', element: <LazyRoute component={AdminRoles} /> },
