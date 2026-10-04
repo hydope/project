@@ -8,11 +8,19 @@ function migrateSchema(): void
     $done = true;
 
     // Fast path: once a full migration has succeeded, a marker file lets us
-    // skip all the SHOW COLUMNS / SHOW TABLES probes on every request. The
-    // marker expires after 6 hours so new migrations still get picked up.
+    // skip all the SHOW COLUMNS / SHOW TABLES probes on every request.
     // (This was adding 5-6 DB round-trips to EVERY API call on shared hosting.)
-    $marker = sys_get_temp_dir() . '/shiarishta_migrated';
-    if (is_file($marker) && (time() - filemtime($marker) < 21600)) {
+    //
+    // The marker name carries a digest of the schema, NOT a fixed filename. It
+    // used to be a constant path with a 6-hour TTL, which meant that shipping a
+    // change to migrateAddProfileColumns() did nothing for up to six hours: the
+    // stale marker short-circuited before the column was ever added, and every
+    // write to that column failed with an opaque 500. Hashing the desired schema
+    // means a new column invalidates the marker on the very next request, while
+    // an unchanged schema still short-circuits instantly.
+    $schemaDigest = substr(sha1((string)@file_get_contents(__DIR__ . '/../db/schema.sql')), 0, 12);
+    $marker = sys_get_temp_dir() . '/shiarishta_migrated_' . $schemaDigest;
+    if (is_file($marker)) {
         return;
     }
 
@@ -37,7 +45,7 @@ function migrateSchema(): void
         $col = db()->query("SHOW COLUMNS FROM users LIKE 'email_verified'")->fetch();
         $tbl = db()->query("SHOW TABLES LIKE 'profile_drafts'")->fetch();
         if ($col && $tbl) {
-            @touch(sys_get_temp_dir() . '/shiarishta_migrated');
+            @touch($marker);
             return;
         }
     } catch (Throwable) {
@@ -72,7 +80,7 @@ function migrateSchema(): void
             }
         }
         error_log($errors === 0 ? '[api] schema migrated' : "[api] schema migrated with {$errors} tolerated statement error(s)");
-        @touch(sys_get_temp_dir() . '/shiarishta_migrated');
+        @touch($marker);
     } catch (Throwable $e) {
         error_log('[api] migration issue: ' . $e->getMessage());
     }
