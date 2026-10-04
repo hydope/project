@@ -275,6 +275,31 @@ CREATE TABLE IF NOT EXISTS email_verifications (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- In-app notifications (interests, messages, introductions).
+-- Blog posts written and scheduled by admins. The curated long-form articles in
+-- src/data/articles.js stay compiled into the bundle; this table holds anything
+-- produced later from the admin console, so publishing never needs a rebuild.
+CREATE TABLE IF NOT EXISTS blog_posts (
+  id           CHAR(36)     NOT NULL PRIMARY KEY,
+  slug         VARCHAR(160) NOT NULL,
+  title        VARCHAR(160) NOT NULL,
+  excerpt      VARCHAR(300) DEFAULT NULL,
+  category     VARCHAR(40)  NOT NULL DEFAULT 'Guidance',
+  read_time    VARCHAR(16)  NOT NULL DEFAULT '5 min',
+  body         MEDIUMTEXT   NOT NULL,
+  status       VARCHAR(16)  NOT NULL DEFAULT 'draft',
+  -- Set when status = 'scheduled'. A reader sees the post only once this is in
+  -- the past, which is what makes "scheduled" mean anything.
+  scheduled_for DATETIME    DEFAULT NULL,
+  published_at  DATETIME    DEFAULT NULL,
+  author_email  VARCHAR(320) DEFAULT NULL,
+  created_at    DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_blog_slug (slug),
+  KEY idx_blog_public (status, scheduled_for),
+  KEY idx_blog_published (published_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- In-app notifications (interests, messages, introductions).
 CREATE TABLE IF NOT EXISTS notifications (
   id         CHAR(36)     NOT NULL PRIMARY KEY,
   user_id    CHAR(36)     NOT NULL,

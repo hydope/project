@@ -221,13 +221,23 @@ const ADMIN_NAV_ITEMS = [
   { path: '/admin/guardians', label: 'Guardians', icon: Users, section: 'Admin' },
   { path: '/admin/roles', label: 'Roles', icon: KeyRound, section: 'Admin' },
   { path: '/admin/audit', label: 'Audit Trail', icon: History, section: 'Admin' },
+  { path: '/admin/content', label: 'Content', icon: BookOpen, section: 'Admin' },
   { path: '/admin/analytics', label: 'Analytics', icon: BarChart3, section: 'Admin' },
 ];
 
-function Nav({ isLoggedIn, isAdmin, isActive, onNavigate }) {
+function Nav({ isLoggedIn, isAdmin, isActive, onNavigate, inAdmin }) {
   if (!isLoggedIn) return null;
 
-  const items = isAdmin ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
+  // Inside the admin console an admin sees the admin tree, not the member one.
+  // Showing "Messages / Introductions / Browse Profiles" alongside moderation
+  // controls made the console feel like a member site with an extra panel, and
+  // gave an operator one stray click to leave the queue mid-review. One escape
+  // hatch back to the member side is deliberate; a second nav is not.
+  const items = !isAdmin
+    ? NAV_ITEMS
+    : inAdmin
+      ? [...ADMIN_NAV_ITEMS, { path: '/dashboard', label: 'Member dashboard', icon: LayoutDashboard, section: 'Admin', divider: true }]
+      : [...NAV_ITEMS, ...ADMIN_NAV_ITEMS];
 
   // Group by section
   const sections = {};
@@ -263,6 +273,11 @@ function Nav({ isLoggedIn, isAdmin, isActive, onNavigate }) {
 export default function MainLayout({ children }) {
   const { isLoggedIn, isAdmin, user, logout } = useAuth();
   const location = useLocation();
+  // /admin/login and /admin are public entry points, not the console itself.
+  // Everything else under /admin swaps the sidebar to the admin tree.
+  const inAdmin = location.pathname.startsWith('/admin')
+    && location.pathname !== '/admin'
+    && location.pathname !== '/admin/login';
   // Single source of truth: lib/theme.js (versioned key, shared with
   // LandingLayout and the Settings Appearance tab). No per-layout overrides —
   // a stored "dark" must actually render dark.
@@ -325,7 +340,7 @@ export default function MainLayout({ children }) {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <Nav isLoggedIn={isLoggedIn} isAdmin={isAdmin} isActive={isActive} onNavigate={() => setMobileNavOpen(false)} />
+              <Nav isLoggedIn={isLoggedIn} isAdmin={isAdmin} isActive={isActive} onNavigate={() => setMobileNavOpen(false)} inAdmin={inAdmin} />
               <div className="sidebar-footer">
                 <button onClick={() => { setCmdOpen(true); setMobileNavOpen(false); }} className="sidebar-nav-btn">
                   <Search className="w-4 h-4" /> Search
@@ -340,7 +355,7 @@ export default function MainLayout({ children }) {
       {/* Desktop sidebar */}
       <aside className="app-sidebar">
         <BrandMark />
-        <Nav isLoggedIn={isLoggedIn} isAdmin={isAdmin} isActive={isActive} />
+        <Nav isLoggedIn={isLoggedIn} isAdmin={isAdmin} isActive={isActive} inAdmin={inAdmin} />
         <div className="sidebar-footer">
           <div className="flex items-center gap-1.5">
             <button onClick={() => setCmdOpen(true)} className="sidebar-nav-btn flex-1 min-w-0">

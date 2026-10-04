@@ -23,6 +23,8 @@ require __DIR__ . '/routes/wali.php';
 require __DIR__ . '/routes/drafts.php';
 require __DIR__ . '/routes/admin.php';
 require __DIR__ . '/routes/contact.php';
+require __DIR__ . '/lib/ai.php';
+require __DIR__ . '/routes/ai.php';
 
 // ── Security headers (helmet-equivalent, zero dependencies) ─────────────────
 header('X-Content-Type-Options: nosniff');
@@ -159,6 +161,9 @@ try {
             break;
         case 'contact':
             routeContact($method, $rest);
+            break;
+        case 'ai':
+            routeAI($method, $rest);
             break;
         default:
             json(['error' => 'Not found'], 404);

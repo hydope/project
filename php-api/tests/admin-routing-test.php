@@ -331,7 +331,14 @@ function schemaColumns(string $sql): array
     }
     foreach ($m as $set) {
         $cols = [];
-        foreach (preg_split('/,\s*\n/', $set[2]) as $line) {
+        // Strip comment lines first. schema.sql documents some columns with a
+        // leading `--` block, and without this a commented column is invisible
+        // to the checker — which would make the check pass on a real mismatch.
+        $inner = implode("\n", array_filter(
+            explode("\n", $set[2]),
+            fn($l) => !preg_match('/^\s*--/', $l)
+        ));
+        foreach (preg_split('/,\s*\n/', $inner) as $line) {
             $line = trim($line);
             if ($line === '' || preg_match('/^(PRIMARY|UNIQUE|KEY|INDEX|CONSTRAINT|FOREIGN)/i', $line)) continue;
             if (preg_match('/^(\w+)\s+/', $line, $c)) $cols[] = strtolower($c[1]);
@@ -379,6 +386,70 @@ check(
     'no route queries the non-existent messages.receiver_id',
     stripos((string)$adminSqlOnly, 'receiver_id') === false,
     'a live query still references messages.receiver_id'
+);
+
+// ── AI credential containment ───────────────────────────────────────────────
+// The NVIDIA key must exist only in php-api/.env. If it ever lands in a route,
+// a lib file, or anything under src/ (which is bundled to the browser), anyone
+// reading the page or the repo can spend the account.
+echo "\nAI credential containment\n";
+
+$keyish = '/nvapi-[A-Za-z0-9_-]{20,}/';
+$scanned = 0;
+$leaks = [];
+foreach (['/routes', '/lib', '/db'] as $sub) {
+    foreach (glob(__DIR__ . '/..' . $sub . '/*.{php,sql}', GLOB_BRACE) as $f) {
+        $scanned++;
+        if (preg_match($keyish, (string)file_get_contents($f))) $leaks[] = basename($f);
+    }
+}
+check('no PHP/SQL file contains an NVIDIA key', $leaks === [], implode(', ', $leaks));
+
+// src/ is compiled into the public bundle — nothing there may look like a key
+// or an Authorization header. Walk it with a PHP iterator: `find` does not
+// exist on Windows, and a silently-empty scan would pass vacuously.
+$srcDir = dirname(__DIR__, 2) . '/src';
+$srcLeaks = [];
+$srcCount = 0;
+if (is_dir($srcDir)) {
+    $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($srcDir));
+    foreach ($it as $file) {
+        if (!$file->isFile() || !preg_match('/\.(js|jsx|ts|tsx|json)$/', $file->getFilename())) continue;
+        $srcCount++;
+        $body = (string)file_get_contents($file->getPathname());
+        if (preg_match($keyish, $body)) $srcLeaks[] = $file->getFilename() . ' (key)';
+        if (preg_match('/Authorization\s*:\s*Bearer\s+[A-Za-z0-9_-]{16,}/i', $body)) {
+            $srcLeaks[] = $file->getFilename() . ' (bearer header)';
+        }
+    }
+}
+check('client bundle was actually scanned', $srcCount > 20, "only scanned $srcCount files");
+check('no client bundle contains an NVIDIA key', $srcLeaks === [], implode(', ', $srcLeaks));
+
+// The credential may only ever be read to build a boolean or to fill an
+// Authorization header — never placed inside a json() payload. The status
+// endpoint legitimately calls getenv() to compare against '', so a naive
+// "does this file mention the env var" check would false-positive on the one
+// place it is used safely.
+$aiRoute = (string)file_get_contents(__DIR__ . '/../routes/ai.php');
+$badUse = [];
+foreach (explode("\n", $aiRoute) as $n => $line) {
+    if (!str_contains($line, 'NVIDIA_API_KEY')) continue;
+    $safe = str_contains($line, "!== ''")          // boolean for the status endpoint
+        || str_contains($line, '$key =');          // assignment for the auth header
+    if (!$safe) $badUse[] = 'L' . ($n + 1) . ': ' . trim($line);
+}
+check(
+    'NVIDIA_API_KEY is only read for a boolean or an auth header',
+    $badUse === [],
+    implode(' | ', $badUse)
+);
+
+// And the parsed $key must never reach a response body.
+check(
+    'AI routes never json() the parsed $key',
+    !preg_match('/json\(\s*\[.*\$key/s', $aiRoute),
+    'a json() payload may be leaking the credential'
 );
 
 echo "\n$pass passed, $fail failed\n";

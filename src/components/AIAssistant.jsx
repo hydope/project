@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Bot, X, Send, Shield, Sparkles, BadgeCheck, MessageCircleHeart } from 'lucide-react';
-import { SUGGESTIONS, getReply, WELCOME } from '../lib/aiAssistantBrain';
+import { SUGGESTIONS, WELCOME } from '../lib/aiAssistantBrain';
 import { AI_OPEN_EVENT } from '../lib/aiAssistant';
+import { http, useRemote } from '../lib/api/transport';
 
 // Re-exported for existing import sites; new code should import from
 // '../lib/aiAssistant' so the header button doesn't pull this component
@@ -36,16 +37,36 @@ export default function AIAssistant() {
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
 
-  const send = (e, preset) => {
+  const send = async (e, preset) => {
     e?.preventDefault();
     const text = (preset ?? input).trim();
     if (!text || loading) return;
-    setMessages(p => [...p, { role: 'user', content: text }]);
-    setInput(''); setLoading(true);
-    setTimeout(() => {
+    const turn = { role: 'user', content: text };
+    setMessages(p => [...p, turn]);
+    setInput('');
+    setLoading(true);
+
+    // Ask the server. The model call and the retrieval both live behind
+    // /api/ai/* so the NVIDIA key never reaches this bundle. If the API is not
+    // reachable we fall back to the local brain so the assistant still answers
+    // rather than showing an error to a member looking for help.
+    try {
+      if (!useRemote) throw new Error('offline');
+      const res = await http.post('/api/ai/chat', {
+        question: text,
+        history: messages.slice(-6),
+      });
+      const { getReply } = await import('../lib/aiAssistantBrain');
+      setMessages(p => [...p, {
+        role: 'assistant',
+        content: res?.answer || getReply(text),
+      }]);
+    } catch {
+      const { getReply } = await import('../lib/aiAssistantBrain');
       setMessages(p => [...p, { role: 'assistant', content: getReply(text) }]);
+    } finally {
       setLoading(false);
-    }, 900);
+    }
   };
 
   const reset = () => setMessages([]);

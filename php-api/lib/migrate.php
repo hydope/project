@@ -40,6 +40,7 @@ function migrateSchema(): void
     migrateAddAdminAuditTable();
     migrateAddWaliLinksTable();
     migrateAddUserVerificationColumns();
+    migrateAddBlogPostsTable();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -212,6 +213,37 @@ function migrateAddUserVerificationColumns(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (user verification) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+// Admin-authored blog posts, including scheduled ones. Declared identically in
+// db/schema.sql so a fresh install and an upgraded one agree — the schema
+// conformance test in tests/ fails if these two ever drift.
+function migrateAddBlogPostsTable(): void
+{
+    try {
+        db()->exec(
+            "CREATE TABLE IF NOT EXISTS blog_posts (
+                id            CHAR(36)     NOT NULL PRIMARY KEY,
+                slug          VARCHAR(160) NOT NULL,
+                title         VARCHAR(160) NOT NULL,
+                excerpt       VARCHAR(300) DEFAULT NULL,
+                category      VARCHAR(40)  NOT NULL DEFAULT 'Guidance',
+                read_time     VARCHAR(16)  NOT NULL DEFAULT '5 min',
+                body          MEDIUMTEXT   NOT NULL,
+                status        VARCHAR(16)  NOT NULL DEFAULT 'draft',
+                scheduled_for DATETIME     DEFAULT NULL,
+                published_at  DATETIME     DEFAULT NULL,
+                author_email  VARCHAR(320) DEFAULT NULL,
+                created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_blog_slug (slug),
+                KEY idx_blog_public (status, scheduled_for),
+                KEY idx_blog_published (published_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    } catch (Throwable $e) {
+        error_log('[api] migration: blog_posts — ' . substr($e->getMessage(), 0, 120));
     }
 }
 
