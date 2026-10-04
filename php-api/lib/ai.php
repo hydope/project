@@ -270,7 +270,10 @@ function aiAnswerQuestion(string $question, array $history = [], array $context 
     $ctx = [];
     if (!empty($context['signedIn'])) $ctx[] = 'signed in';
     if (!empty($context['verified'])) $ctx[] = 'verified';
-    $ctxLine = $ctx ? 'User context: ' . implode(', ') . '.' : '';
+    // implode() takes the array as the SECOND argument here. Calling it with
+    // only the separator throws a TypeError, which surfaced as a 500 for every
+    // signed-in member — and only for them, because $ctx is empty for guests.
+    $ctxLine = $ctx ? 'User context: ' . implode(', ', $ctx) . '.' : '';
 
     $messages = [[
         'role' => 'system',

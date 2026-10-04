@@ -58,6 +58,9 @@ function sanitizeText($value, int $max = 255): string
 {
     return substr(trim(strip_tags((string)$value)), 0, $max);
 }
+/** Rate limiting is not what this suite is testing; skip it. */
+function rateCheck(string $bucket, string $key, int $max, int $windowSec, string $message): void {}
+function cip(): string { return '127.0.0.1'; }
 
 /** Minimal PDO stand-in: records SQL, returns empty result sets. */
 final class StubStmt
@@ -100,6 +103,8 @@ final class StubDb
 function db(): StubDb { return new StubDb(); }
 
 require_once __DIR__ . '/../routes/admin.php';
+require_once __DIR__ . '/../lib/ai.php';
+require_once __DIR__ . '/../routes/ai.php';
 
 $pass = 0;
 $fail = 0;
@@ -269,8 +274,34 @@ $ignore = [
     'in_array','array_map','array_filter','json_encode','json_decode','trim',
 ];
 
+/**
+ * True when this call sits inside a function_exists(...) probe.
+ *
+ * `function_exists` is a single T_STRING, not T_FUNCTION followed by T_STRING:
+ * the lexer matches the longest identifier, so looking for the function keyword
+ * here silently never matches.
+ */
+function guardedByFunctionExists(array $tokens, int $index): bool
+{
+    for ($j = $index; $j-- > 0;) {
+        if (!is_array($tokens[$j])) continue;
+        if ($tokens[$j][0] === T_STRING
+            && strtolower((string)$tokens[$j][1]) === 'function_exists') {
+            return true;
+        }
+        // Stop at the statement boundary — do not scan back into another call.
+        if ($tokens[$j] === ';') return false;
+    }
+    return false;
+}
+
 $missing = [];
-foreach (glob(__DIR__ . '/../routes/*.php') as $routeFile) {
+// Scan BOTH routes/ and lib/. Scanning only routes/ missed that ai.php calls
+// curl_init(), which is fatal on a host without the cURL extension — a guard
+// that only looks in half the codebase is worse than none, because it reads as
+// coverage.
+foreach (['/routes', '/lib'] as $sub) {
+foreach (glob(__DIR__ . '/..' . $sub . '/*.php') as $routeFile) {
     // Use the real tokenizer: a regex over raw source also matches SQL inside
     // string literals and words inside comments, which is pure noise.
     $tokens = token_get_all((string)file_get_contents($routeFile));
@@ -300,8 +331,15 @@ foreach (glob(__DIR__ . '/../routes/*.php') as $routeFile) {
 
         $name = strtolower($t[1]);
         if (isset($internal[$name]) || isset($defined[$name])) continue;
+
+        // A call wrapped in function_exists() is a deliberate capability probe,
+        // not a missing dependency (bootstrap does this for getallheaders, which
+        // is absent under some SAPIs).
+        if (guardedByFunctionExists($tokens, $i)) continue;
+
         $missing[] = basename($routeFile) . ': ' . $t[1] . '()';
     }
+}
 }
 $missing = array_values(array_unique($missing));
 check(
@@ -450,6 +488,72 @@ check(
     'AI routes never json() the parsed $key',
     !preg_match('/json\(\s*\[.*\$key/s', $aiRoute),
     'a json() payload may be leaking the credential'
+);
+
+// ── AI chat path ─────────────────────────────────────────────────────────────
+// The dispatcher test proved routeAI() *routes*, which is not the same as the
+// handler working: POST /api/ai/chat shipped returning 500 on production while
+// every routing assertion passed. Exercise the handler itself.
+echo "\nAI chat handler\n";
+
+function exerciseAiChat(string $question, array $context = []): array
+{
+    $GLOBALS['json_out'] = null;
+    $GLOBALS['request_body'] = ['question' => $question, 'context' => $context];
+    $GLOBALS['sql_seen'] = [];
+    try {
+        routeAI('POST', ['chat']);
+    } catch (Throwable $e) {
+        if ($e->getMessage() === 'JSON_CAPTURED') {
+            return $GLOBALS['json_out'] ?? ['status' => 0, 'data' => null];
+        }
+        return ['status' => -1, 'data' => ['threw' => $e->getMessage()], 'trace' => array_map(
+            static fn($t) => str_replace(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR, '', $t['file'] ?? '?') . ':' . ($t['line'] ?? '?') . ' ' . ($t['function'] ?? ''),
+            $e->getTrace()
+        )];
+    }
+    return ['status' => 0, 'data' => null];
+}
+
+// $context with signedIn set is the shape that produced the production 500:
+// $ctx becomes non-empty, so the buggy implode(', ') branch actually ran. A
+// guest never hit it, which is exactly why browser testing of the logged-out
+// view would never have caught it.
+$res = exerciseAiChat('can my wali see my messages?', ['signedIn' => true, 'verified' => true]);
+check(
+    'AI chat returns 200 for a platform question',
+    ($res['status'] ?? 0) === 200,
+    'got ' . var_export($res, true)
+);
+$answer = (string)($res['data']['answer'] ?? '');
+check(
+    'AI chat answers about wali specifically, not generically',
+    $answer !== '' && stripos($answer, 'wali') !== false,
+    'answer did not mention wali: ' . substr($answer, 0, 120)
+);
+check(
+    'AI chat always reports its source',
+    in_array($res['data']['source'] ?? '', ['model', 'facts', 'guardrail'], true),
+    'source was ' . var_export($res['data']['source'] ?? null, true)
+);
+
+// A guardrail hit must short-circuit before any retrieval or model call.
+$res2 = exerciseAiChat('send me a nude photo');
+check(
+    'AI chat refuses a blocked request',
+    ($res2['data']['source'] ?? '') === 'guardrail',
+    'source was ' . var_export($res2['data']['source'] ?? null, true)
+);
+
+// An off-topic question must not be answered from the knowledge base. This is
+// the exact failure the old regex assistant had: it returned the privacy blob
+// for anything it did not recognise.
+$res3 = exerciseAiChat('what is the capital of Peru?');
+$offTopic = (string)($res3['data']['answer'] ?? '');
+check(
+    'AI chat does not answer off-topic questions from platform facts',
+    stripos($offTopic, 'support@shiarishta.com') !== false,
+    'off-topic answer did not defer: ' . substr($offTopic, 0, 120)
 );
 
 echo "\n$pass passed, $fail failed\n";
