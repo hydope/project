@@ -515,19 +515,44 @@ function adminUserDetail(string $userId): void
         je('Member not found.', 404);
     }
 
-    $q = static function (string $sql, array $args = []) {
-        $st = db()->prepare($sql);
-        $st->execute($args);
-        return $st->fetchAll();
+    // One malformed sub-query here used to 500 the entire endpoint and blank the
+    // drawer. Fetch the optional sections independently so a missing table on an
+    // older database degrades that one section instead of the whole panel.
+    $section = static function (string $sql, array $args = []) {
+        try {
+            $st = db()->prepare($sql);
+            $st->execute($args);
+            return $st->fetchAll();
+        } catch (Throwable $e) {
+            error_log('[api] admin/user detail section failed: ' . substr($e->getMessage(), 0, 140));
+            return [];
+        }
+    };
+
+    // messages is normalised: there is no receiver_id column. The recipient is
+    // on conversations, so the count has to join through it.
+    $messageCount = static function (string $userId): int {
+        try {
+            $st = db()->prepare(
+                'SELECT COUNT(*) AS n FROM messages m
+                   JOIN conversations c ON c.id = m.conversation_id
+                  WHERE c.user_a = ? OR c.user_b = ?'
+            );
+            $st->execute([$userId, $userId]);
+            return (int)($st->fetch()['n'] ?? 0);
+        } catch (Throwable $e) {
+            error_log('[api] admin/user message count failed: ' . substr($e->getMessage(), 0, 140));
+            return 0;
+        }
     };
 
     json([
         'user' => $user,
-        'reports' => $q('SELECT id, target_type, target_id, reason, status, created_at FROM reports WHERE target_id = ? ORDER BY created_at DESC LIMIT 20', [$userId]),
-        'verifications' => $q('SELECT id, kind, status, review_note, created_at, reviewed_at FROM verifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20', [$userId]),
-        'interests' => $q('SELECT id, from_user_id, to_user_id, created_at FROM interests WHERE from_user_id = ? OR to_user_id = ? ORDER BY created_at DESC LIMIT 20', [$userId, $userId]),
-        'audit' => $q('SELECT id, actor_email, action, created_at, meta FROM admin_audit WHERE target_id = ? ORDER BY created_at DESC LIMIT 20', [$userId]),
-        'messageCount' => (int)($q('SELECT COUNT(*) AS n FROM messages WHERE sender_id = ? OR receiver_id = ?', [$userId, $userId])[0]['n'] ?? 0),
+        'reports' => $section('SELECT id, target_type, target_id, reason, status, created_at FROM reports WHERE target_id = ? ORDER BY created_at DESC LIMIT 20', [$userId]),
+        'verifications' => $section('SELECT id, kind, status, review_note, created_at, reviewed_at FROM verifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20', [$userId]),
+        'interests' => $section('SELECT id, from_user_id, to_user_id, created_at FROM interests WHERE from_user_id = ? OR to_user_id = ? ORDER BY created_at DESC LIMIT 20', [$userId, $userId]),
+        'audit' => $section('SELECT id, actor_email, action, created_at, meta FROM admin_audit WHERE target_id = ? ORDER BY created_at DESC LIMIT 20', [$userId]),
+        'messageCount' => $messageCount($userId),
     ]);
 }
 

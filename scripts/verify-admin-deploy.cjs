@@ -1,6 +1,7 @@
 // One-off production verification: confirm the rebuilt admin console is served.
 // Checks the route paths and lazy component names in the deployed index chunk.
 const https = require('https');
+const https = require('https');
 
 const get = (url) => new Promise((resolve, reject) => {
   https.get(url, { headers: { 'User-Agent': 'verify' } }, (res) => {

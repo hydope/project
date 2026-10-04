@@ -44,7 +44,7 @@ function submitContact(): void
 
 function listContact(): void
 {
-    requireAdmin();
+    requireAdminUser();
     $status = trim((string)($_GET['status'] ?? ''));
     $sql = "SELECT id, name, email, subject, message, status, created_at FROM contact_messages";
     $params = [];
@@ -60,7 +60,7 @@ function listContact(): void
 
 function updateContactStatus(string $id): void
 {
-    requireAdmin();
+    requireAdminUser();
     $payload = requestJson();
     $status = trim((string)($payload['status'] ?? ''));
     if (!in_array($status, ['new', 'read', 'replied', 'archived'], true)) {

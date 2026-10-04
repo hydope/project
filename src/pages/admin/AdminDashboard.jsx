@@ -44,18 +44,39 @@ const colorMap = {
 };
 
 function Sparkline({ dataKey, data, color = 'primary', height = 80 }) {
-  const values = data.map(d => d[dataKey]);
+  const values = data.map(d => Number(d[dataKey]) || 0);
+  const c = colorMap[color] || colorMap.primary;
+
+  // A window with no rows used to build `points = ''`, which produced the path
+  // "M0,120 L L300,120 Z" and threw an SVG error on every empty dashboard. A
+  // single point also divided by (length - 1) = 0 and produced NaN coordinates.
+  if (values.length === 0) {
+    return (
+      <div
+        className="flex items-center justify-center rounded-lg bg-hover/40 text-xs text-muted"
+        style={{ height }}
+      >
+        No activity in this window
+      </div>
+    );
+  }
+
   const max = Math.max(...values);
   const min = Math.min(...values);
   const range = max - min || 1;
   const w = 300;
-  const points = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * w;
-    const y = height - ((v - min) / range) * (height - 10) - 5;
-    return `${x},${y}`;
-  }).join(' ');
-  const linePath = points.split(' ').map((p, i) => `${i === 0 ? 'M' : 'L'}${p}`).join(' ');
-  const c = colorMap[color] || colorMap.primary;
+  const step = values.length > 1 ? w / (values.length - 1) : 0;
+  const points = values
+    .map((v, i) => {
+      const x = values.length > 1 ? i * step : w / 2;
+      const y = height - ((v - min) / range) * (height - 10) - 5;
+      return `${x},${y}`;
+    })
+    .join(' ');
+  const linePath = points
+    .split(' ')
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${p}`)
+    .join(' ');
   return (
     <svg viewBox={`0 0 ${w} ${height}`} className="w-full" style={{ height }} preserveAspectRatio="none" aria-hidden="true">
       <path d={`M0,${height} ${points.split(' ').map(p => `L${p}`).join(' ')} L${w},${height} Z`} fill={c.fill} opacity="0.12" />

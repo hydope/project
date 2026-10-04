@@ -14,14 +14,17 @@ export default function AdminSupport() {
   const [filter, setFilter] = useState('open');
   const [msgFilter, setMsgFilter] = useState('new');
   const [expanded, setExpanded] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const { addToast } = useToast();
 
   const loadReports = async (status = filter) => {
     setLoading(true);
+    setLoadError('');
     try {
       if (!useRemote) { setReports([]); return; }
       setReports(await http.get(`/api/admin/reports?status=${encodeURIComponent(status)}`));
     } catch (e) {
+      setLoadError(e.message || 'Could not load reports.');
       addToast(e.message || 'Could not load reports.', 'error');
     } finally {
       setLoading(false);
@@ -30,11 +33,13 @@ export default function AdminSupport() {
 
   const loadMessages = async (status = msgFilter) => {
     setLoading(true);
+    setLoadError('');
     try {
       if (!useRemote) { setMessages([]); return; }
       const data = await http.get(`/api/contact?status=${encodeURIComponent(status)}`);
       setMessages(data.messages || []);
     } catch (e) {
+      setLoadError(e.message || 'Could not load messages.');
       addToast(e.message || 'Could not load messages.', 'error');
     } finally {
       setLoading(false);
@@ -114,6 +119,17 @@ export default function AdminSupport() {
 
             {loading ? (
               <div className="empty-state"><p>Loading messages…</p></div>
+            ) : loadError ? (
+              // Never render the empty state on a failed load. "No new messages"
+              // and "the request failed" look identical, and an operator reading
+              // the first would conclude the inbox is genuinely empty.
+              <div className="empty-state">
+                <div className="text-muted mb-3 flex justify-center"><ShieldAlert className="w-10 h-10" /></div>
+                <p className="empty-state-title">Could not load the inbox</p>
+                <p className="empty-state-text">{loadError}</p>
+                <button onClick={() => loadMessages(msgFilter)}
+                  className="button primary mt-4 inline-flex">Retry</button>
+              </div>
             ) : messages.length === 0 ? (
               <div className="empty-state">
                 <p>No {msgFilter} messages.</p>
@@ -184,6 +200,14 @@ export default function AdminSupport() {
               <div className="empty-state">
                 <p>No backend connected.</p>
                 <p style={{ marginTop: '4px' }}>Set VITE_API_URL to review live member reports here.</p>
+              </div>
+            ) : loadError ? (
+              <div className="empty-state">
+                <div className="text-muted mb-3 flex justify-center"><ShieldAlert className="w-10 h-10" /></div>
+                <p className="empty-state-title">Could not load reports</p>
+                <p className="empty-state-text">{loadError}</p>
+                <button onClick={() => loadReports(filter)}
+                  className="button primary mt-4 inline-flex">Retry</button>
               </div>
             ) : reports.length === 0 ? (
               <div className="empty-state">

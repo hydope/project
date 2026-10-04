@@ -183,6 +183,12 @@ route('GET /funnel counts registered', 'GET', ['funnel'], 'FROM users');
 route('GET /audit reads admin_audit', 'GET', ['audit'], 'FROM admin_audit');
 route('GET /users lists members', 'GET', ['users'], 'FROM users');
 route('GET /user/:id loads the detail bundle', 'GET', ['user', 'abc'], 'FROM reports');
+
+// The message count in that bundle shipped as `messages.receiver_id`. The table
+// is normalised (conversation_id + sender_id) and has no such column, so the
+// whole endpoint 500'd and blanked the drawer. Assert it joins through
+// conversations instead.
+route('GET /user/:id counts messages via conversations', 'GET', ['user', 'abc'], 'JOIN conversations c ON c.id = m.conversation_id');
 route('GET /wali reads wali_links', 'GET', ['wali'], 'FROM wali_links');
 route('GET /analytics reads the time series', 'GET', ['analytics'], 'FROM users');
 
@@ -202,6 +208,84 @@ try {
     $status = $GLOBALS['json_out']['status'] ?? null;
 }
 check('unknown action still returns 404', $status === 404, 'got ' . var_export($status, true));
+
+// A call to a helper that does not exist is a FATAL at runtime, not a lint
+// error: `requireAdmin()` shipped in contact.php while the lib defines
+// requireAdminUser(), so the entire admin support inbox 500'd while `php -l`
+// stayed silent. Check every internal call resolves to something defined.
+echo "\nundefined-function guard\n";
+
+/** Collect every `function name(` defined across the API. */
+function definedFunctionNames(string $dir): array
+{
+    $names = [];
+    $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir));
+    foreach ($it as $file) {
+        if ($file->getExtension() !== 'php') continue;
+        $src = (string)file_get_contents($file->getPathname());
+        if (preg_match_all('/^\s*function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/mi', $src, $m)) {
+            foreach ($m[1] as $n) $names[strtolower($n)] = true;
+        }
+    }
+    return $names;
+}
+
+$defined = definedFunctionNames(__DIR__ . '/..');
+
+// PHP built-ins plus anything the runtime provides; only flag names that look
+// like this project's own helpers but resolve to nothing.
+$builtins = get_defined_functions()['internal'];
+$internal = [];
+foreach ($builtins as $b) $internal[strtolower($b)] = true;
+
+// Calls that are method calls, `new X`, or language constructs.
+$ignore = [
+    'if','for','foreach','while','switch','array','list','isset','unset','empty',
+    'echo','print','return','function','fn','match','catch','use','exit','die',
+    'and','or','new','static','self','parent','str_replace','sprintf','count',
+    'in_array','array_map','array_filter','json_encode','json_decode','trim',
+];
+
+$missing = [];
+foreach (glob(__DIR__ . '/../routes/*.php') as $routeFile) {
+    // Use the real tokenizer: a regex over raw source also matches SQL inside
+    // string literals and words inside comments, which is pure noise.
+    $tokens = token_get_all((string)file_get_contents($routeFile));
+    $count = count($tokens);
+    for ($i = 0; $i < $count; $i++) {
+        $t = $tokens[$i];
+        if (!is_array($t) || $t[0] !== T_STRING) continue;
+
+        // Must be a call: next meaningful token is '('.
+        $j = $i + 1;
+        while ($j < $count && is_array($tokens[$j])
+            && in_array($tokens[$j][0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+            $j++;
+        }
+        if ($j >= $count || $tokens[$j] !== '(') continue;
+
+        // Skip declarations and object/static access.
+        $k = $i - 1;
+        while ($k >= 0 && is_array($tokens[$k])
+            && in_array($tokens[$k][0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+            $k--;
+        }
+        if ($k >= 0 && is_array($tokens[$k])
+            && in_array($tokens[$k][0], [T_FUNCTION, T_NEW, T_OBJECT_OPERATOR, T_DOUBLE_COLON, T_CLASS], true)) {
+            continue;
+        }
+
+        $name = strtolower($t[1]);
+        if (isset($internal[$name]) || isset($defined[$name])) continue;
+        $missing[] = basename($routeFile) . ': ' . $t[1] . '()';
+    }
+}
+$missing = array_values(array_unique($missing));
+check(
+    'no route calls an undefined function',
+    $missing === [],
+    implode(', ', $missing)
+);
 
 echo "\n$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);
