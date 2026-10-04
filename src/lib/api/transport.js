@@ -37,7 +37,35 @@ function headers(extra = {}) {
 }
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, { ...options, headers: headers(options.headers) });
+  // Client-side timeout. The API sits behind shared hosting that terminates
+  // slow requests at roughly 60s and returns an HTML error page; without this
+  // the fetch would hang for minutes and the UI would sit on "loading" forever.
+  // Aborting first lets callers show a real message and retry.
+  const controller = new AbortController();
+  const timeoutMs = options.timeout ?? 30000;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...options,
+      headers: headers(options.headers),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    // Distinguish "we gave up" from "the network failed" — they need different
+    // copy, and conflating them is how a timeout became an unexplained spinner.
+    if (e?.name === 'AbortError') {
+      const err = new Error(`The server took longer than ${Math.round(timeoutMs / 1000)}s and the request was cancelled.`);
+      err.code = 'timeout';
+      err.status = 0;
+      throw err;
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+
   const data = await readApiResponse(res);
   if (!res.ok) {
     // Carry `status` and the parsed payload on the Error. Several routes answer
@@ -53,10 +81,13 @@ async function request(path, options = {}) {
 }
 
 export const http = {
-  get: (path) => request(path),
-  post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body ?? {}) }),
-  put: (path, body) => request(path, { method: 'PUT', body: JSON.stringify(body ?? {}) }),
-  del: (path) => request(path, { method: 'DELETE' }),
+  get: (path, opts) => request(path, opts),
+  // `opts` carries the per-call timeout. Article drafting needs a longer budget
+  // than ordinary writes, and the shared host kills anything past ~60s — so the
+  // two AI routes pass an explicit value rather than inheriting the default.
+  post: (path, body, opts) => request(path, { method: 'POST', body: JSON.stringify(body ?? {}), ...(opts || {}) }),
+  put: (path, body, opts) => request(path, { method: 'PUT', body: JSON.stringify(body ?? {}), ...(opts || {}) }),
+  del: (path, opts) => request(path, { method: 'DELETE', ...(opts || {}) }),
   // Returns the raw Response (not JSON) for binary endpoints. Accepts either a
   // path or an already-absolute URL — apiUrl() output must not be double-prefixed
   // with BASE.

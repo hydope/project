@@ -150,7 +150,21 @@ function aiGeneratePost(): void
 
     $raw = aiComplete(
         [['role' => 'system', 'content' => $system]],
-        ['temperature' => 0.9, 'max_tokens' => 8000, 'reasoning_effort' => 'max']
+        // Model, timeout and token budget are all tuned for SHARED HOSTING.
+        //
+        // The host terminates any request that outlives roughly 60s and returns
+        // an HTML "Request Timeout" page — which the client cannot parse, so it
+        // appeared as a bare 500 with no explanation. Measured on this stack:
+        //
+        //   kimi-k3, reasoning_effort=max  -> EMPTY content in 12s (broken)
+        //   kimi-k3, no reasoning_effort   -> 75s for a full article (killed)
+        //   nemotron-3-ultra, mt=3000      -> 36s, valid JSON (fits)
+        //   nemotron-3-ultra, mt=4000      -> 74s (killed)
+        //
+        // So: no reasoning_effort (it silently produced nothing on this model
+        // family), a 3000-token ceiling that leaves headroom, and a 45s cURL
+        // timeout that fails with a readable JSON error instead of an HTML 500.
+        ['temperature' => 0.9, 'max_tokens' => 3000, 'timeout' => 45]
     );
 
     if ($raw === null) {

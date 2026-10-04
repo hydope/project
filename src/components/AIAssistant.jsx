@@ -65,7 +65,7 @@ export default function AIAssistant() {
       const res = await http.post('/api/ai/chat', {
         question: text,
         history: messages.slice(-6),
-      });
+      }, { timeout: 40000 });
       const { getReply } = await import('../lib/aiAssistantBrain');
       const answer = res?.answer || getReply(text);
       setMessages(p => [...p, { role: 'assistant', content: answer }]);

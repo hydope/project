@@ -215,7 +215,7 @@ export default function AdminContent() {
       const res = await http.post('/api/ai/generate-post', {
         topic: topic.trim(),
         angle: angle.trim() || undefined,
-      });
+      }, { timeout: 55000 });
       setDraft(res.draft);
       setFlash('Draft ready. Read it, edit anything, then save.');
     } catch (err) {

@@ -286,7 +286,18 @@ function aiModel(): string
         // ignore — env/default below
     }
     if ($override !== '') return $override;
-    return (string)(getenv('NVIDIA_MODEL') ?: 'moonshotai/kimi-k3');
+    // Default model is chosen for SHARED-HOSTING latency, not raw capability.
+//
+// The host kills any request past roughly 60s and answers with an HTML error
+// page. A long-form draft on the previous default (moonshotai/kimi-k3) took
+// ~75s and was killed every time; nemotron-3-ultra produces a comparable
+// article in ~36s, inside the limit. `reasoning_effort` is likewise off by
+// default — on kimi-k3 it returned an empty completion in 12s, which the
+// client could not distinguish from a working reply.
+//
+// Operators can still change this at runtime from /admin/content with no
+// redeploy, at the cost of whatever latency the host enforces.
+return (string)(getenv('NVIDIA_MODEL') ?: 'nvidia/nemotron-3-ultra-550b-a55b');
 }
 
 /**
@@ -313,9 +324,13 @@ function aiComplete(array $messages, array $opts = []): ?string
         'stream' => false,
         'temperature' => (float)($opts['temperature'] ?? 0.7),
     ];
-    // NIM reasoning models reject an unknown parameter, so this is sent only
-    // when the caller asks for it.
-    if (isset($opts['reasoning_effort'])) {
+    // `reasoning_effort` is opt-in only, never default.
+    //
+    // It used to be sent unconditionally for the article path, and on the
+    // reasoning model family it reliably returned a 200 with an EMPTY content
+    // field in ~12s — a silent failure that looked like a working request. Any
+    // caller that wants it must ask for it explicitly, and accept that risk.
+    if (isset($opts['reasoning_effort']) && $opts['reasoning_effort'] !== '') {
         $payload['reasoning_effort'] = (string)$opts['reasoning_effort'];
     }
     $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE);
@@ -335,9 +350,11 @@ function aiComplete(array $messages, array $opts = []): ?string
         curl_setopt_array($ch, [
             CURLOPT_POST => true,
             CURLOPT_RETURNTRANSFER => true,
-            // Generous, but bounded. A reasoning model can take tens of seconds;
-            // the old 60s ceiling was tight enough to abort long drafts mid-flight.
-            CURLOPT_TIMEOUT => (int)(getenv('NVIDIA_TIMEOUT') ?: 120),
+            // Per-call timeout, clamped well under the host's own request limit.
+            // If the upstream is going to miss the deadline, failing here returns
+            // clean JSON that the client can display; letting it run until the
+            // host intervenes returns an HTML error page the client cannot parse.
+            CURLOPT_TIMEOUT => (int)($opts['timeout'] ?? (getenv('NVIDIA_TIMEOUT') ?: 45)),
             CURLOPT_CONNECTTIMEOUT => 8,
             CURLOPT_HTTPHEADER => [
                 'Authorization: Bearer ' . $key,
