@@ -37,6 +37,7 @@ function migrateSchema(): void
     migrateAddSessionsTable();
     migrateAddEmailVerificationsTable();
     migrateAddNotificationsTable();
+    migrateAddAdminAuditTable();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -136,6 +137,30 @@ function migrateAddProfileColumns(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (columns) issue: ' . $e->getMessage());
+    }
+}
+
+// Admin audit trail. Created unconditionally (idempotent). auditLog() in
+// routes/admin.php swallows its own errors, so an existing database missing this
+// table degrades to "no audit entries" rather than breaking every admin action.
+function migrateAddAdminAuditTable(): void
+{
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS admin_audit (
+          id          CHAR(36)     NOT NULL PRIMARY KEY,
+          actor_id    CHAR(36)     DEFAULT NULL,
+          actor_email VARCHAR(320) DEFAULT NULL,
+          action      VARCHAR(64)  NOT NULL,
+          target_type VARCHAR(32)  NOT NULL,
+          target_id   VARCHAR(255) DEFAULT NULL,
+          meta        TEXT         DEFAULT NULL,
+          created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          KEY idx_audit_created (created_at),
+          KEY idx_audit_target (target_type, target_id),
+          KEY idx_audit_actor (actor_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Throwable $e) {
+        error_log('[api] migration (admin_audit): ' . substr($e->getMessage(), 0, 120));
     }
 }
 

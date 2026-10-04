@@ -240,6 +240,24 @@ CREATE TABLE IF NOT EXISTS sessions (
   KEY idx_sessions_user (user_id, last_seen)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Immutable audit trail for admin actions. Append-only: no UPDATE or DELETE is
+-- ever issued against this table by the application. Required on a platform
+-- that verifies identity documents and can block a member -- "which admin did
+-- this, and when" has to be answerable months later.
+CREATE TABLE IF NOT EXISTS admin_audit (
+  id          CHAR(36)     NOT NULL PRIMARY KEY,
+  actor_id    CHAR(36)     DEFAULT NULL,
+  actor_email VARCHAR(320) DEFAULT NULL,
+  action      VARCHAR(64)  NOT NULL,
+  target_type VARCHAR(32)  NOT NULL,
+  target_id   VARCHAR(255) DEFAULT NULL,
+  meta        TEXT         DEFAULT NULL,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_audit_created (created_at),
+  KEY idx_audit_target (target_type, target_id),
+  KEY idx_audit_actor (actor_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Email verification tokens (stored HASHED — a DB leak must not yield usable
 -- verification links). One row per user; re-requested tokens replace the old.
 CREATE TABLE IF NOT EXISTS email_verifications (

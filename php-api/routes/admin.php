@@ -2,7 +2,37 @@
 // Admin routes — parity with server/routes/admin.js. Everything here requires
 // an authenticated admin session (router.use(authRequired, adminRequired)).
 // MySQL has no UPDATE...RETURNING: guarded writes probe first, then act.
+//
+// Every state-changing admin action writes an immutable row to admin_audit via
+// auditLog(). On a platform that verifies identity documents and can block a
+// member outright, "who did this and when" is a compliance requirement, not a
+// nice-to-have.
 declare(strict_types=1);
+
+/**
+ * Append an immutable audit record. Never throws into the caller: a logging
+ * failure must not roll back the action that already succeeded, so errors are
+ * swallowed after being written to the error log.
+ */
+function auditLog(string $action, string $targetType, string $targetId, array $meta = []): void
+{
+    try {
+        db()->prepare(
+            'INSERT INTO admin_audit (id, actor_id, actor_email, action, target_type, target_id, meta, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())'
+        )->execute([
+            uuid(),
+            (string)(currentUser()['uid'] ?? ''),
+            (string)(currentUser()['email'] ?? ''),
+            $action,
+            $targetType,
+            $targetId,
+            json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ]);
+    } catch (Throwable $e) {
+        error_log('[api] audit log failed: ' . substr($e->getMessage(), 0, 140));
+    }
+}
 
 function routeAdmin(string $method, array $segments): void
 {
@@ -13,6 +43,17 @@ function routeAdmin(string $method, array $segments): void
 
     $action = $segments[0] ?? null;
 
+    // Audit trail — immutable, read-only.
+    if ($method === 'GET' && $action === 'audit') { adminAuditList(); return; }
+
+    // Member search with pagination. The old adminUsers() returned a flat
+    // LIMIT 100 list with no way to find anybody and no way to page.
+    if ($method === 'GET' && $action === 'users') { adminUsers(); return; }
+    if ($method === 'GET' && $action === 'user' && ($segments[1] ?? null) !== null) {
+        adminUserDetail((string)$segments[1]);
+        return;
+    }
+
     // The file branch must come before the plain list branch: /verifications
     // alone and /verifications/:id/file both start with action=verifications.
     if ($method === 'GET' && $action === 'verifications' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === 'file') {
@@ -22,11 +63,14 @@ function routeAdmin(string $method, array $segments): void
     if ($method === 'GET' && $action === 'verifications') { adminVerificationsList(); return; }
     if ($method === 'POST' && $action === 'verifications' && ($segments[1] ?? null) !== null) {
         $verb = strtolower((string)($segments[2] ?? ''));
+        if ($verb === 'bulk') { adminVerificationBulk(); return; }
         if ($verb === 'approve') { adminApproveVerification((string)$segments[1]); return; }
         if ($verb === 'reject')  { adminRejectVerification((string)$segments[1]); return; }
     }
     if ($method === 'GET' && $action === 'overview') { adminOverview(); return; }
     if ($method === 'GET' && $action === 'analytics') { adminAnalytics(); return; }
+    if ($method === 'GET' && $action === 'queue') { adminModerationQueue(); return; }
+    if ($method === 'GET' && $action === 'funnel') { adminFunnel(); return; }
     if ($method === 'GET' && $action === 'reports') { adminReports(); return; }
     if ($method === 'POST' && $action === 'reports' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === 'action') {
         adminReportAction((string)$segments[1]);
@@ -36,7 +80,6 @@ function routeAdmin(string $method, array $segments): void
         adminReportDismiss((string)$segments[1]);
         return;
     }
-    if ($method === 'GET' && $action === 'users') { adminUsers(); return; }
     if ($method === 'POST' && $action === 'users' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === 'role') {
         adminSetRole((string)$segments[1]);
         return;
@@ -90,6 +133,11 @@ function adminApproveVerification(string $verificationId): void
     db()->prepare('UPDATE profiles SET is_verified = 1, updated_at = UTC_TIMESTAMP() WHERE user_id = ?')
         ->execute([$row['user_id']]);
 
+    auditLog('verification.approved', 'verification', $verificationId, [
+        'userId' => (string)$row['user_id'],
+        'note' => $note,
+    ]);
+
     json(['ok' => true, 'verified' => true]);
 }
 
@@ -108,6 +156,8 @@ function adminRejectVerification(string $verificationId): void
 
     db()->prepare("UPDATE verifications SET status = 'rejected', reviewed_by = ?, reviewed_at = UTC_TIMESTAMP(), review_note = ? WHERE id = ?")
         ->execute([$admin['uid'], $note, $verificationId]);
+
+    auditLog('verification.rejected', 'verification', $verificationId, ['note' => $note]);
 
     json(['ok' => true]);
 }
@@ -250,6 +300,11 @@ function adminReportAction(string $reportId): void
     }
     db()->prepare("UPDATE reports SET status = 'actioned' WHERE id = ?")->execute([$reportId]);
 
+    auditLog('report.actioned', 'report', $reportId, [
+        'targetType' => $type,
+        'targetId' => $targetId,
+    ]);
+
     json(['ok' => true]);
 }
 
@@ -257,25 +312,271 @@ function adminReportAction(string $reportId): void
 function adminReportDismiss(string $reportId): void
 {
     db()->prepare("UPDATE reports SET status = 'dismissed' WHERE id = ?")->execute([$reportId]);
+    auditLog('report.dismissed', 'report', $reportId);
     json(['ok' => true]);
 }
 
-// GET /api/admin/users?role=member — find members (e.g. to approve applications)
+// GET /api/admin/users — searchable, paginated member directory.
+//
+// The previous version returned a flat LIMIT 100 with no search, so an operator
+// could neither find a specific member nor read past the hundredth. Supports
+// ?q= (email, display name or id), ?role=, ?verified=, ?blocked= and
+// ?limit=/?hasMore.
 function adminUsers(): void
 {
+    $q = trim((string)($_GET['q'] ?? ''));
     $role = $_GET['role'] ?? null;
-    if ($role && in_array($role, ['member', 'matchmaker', 'guardian'], true)) {
-        $stmt = db()->prepare('SELECT id, email, display_name, role, email_verified, created_at FROM users WHERE role = ? ORDER BY created_at DESC LIMIT 100');
-        $stmt->execute([$role]);
-        json($stmt->fetchAll());
-        return;
+    $verified = $_GET['verified'] ?? null;
+    $blocked = $_GET['blocked'] ?? null;
+    $limit = max(1, min(100, (int)($_GET['limit'] ?? 25)));
+
+    $where = [];
+    $params = [];
+
+    if ($q !== '') {
+        // Escape LIKE metacharacters so a query containing % or _ is literal.
+        $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q) . '%';
+        $where[] = '(u.email LIKE ? OR u.display_name LIKE ? OR u.id = ?)';
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $q;
+    }
+    if (is_string($role) && in_array($role, ['member', 'matchmaker', 'guardian'], true)) {
+        $where[] = 'u.role = ?';
+        $params[] = $role;
+    }
+    if ($verified === '1' || $verified === '0') {
+        $where[] = 'u.email_verified = ?';
+        $params[] = (int)$verified;
     }
 
-    json(db()->query('SELECT id, email, display_name, role, email_verified, created_at FROM users ORDER BY created_at DESC LIMIT 100')->fetchAll());
+    $sql = 'SELECT u.id, u.email, u.display_name, u.role, u.email_verified, u.created_at,
+                   p.is_blocked, p.is_verified AS id_verified, p.city, p.country, p.age
+              FROM users u
+              LEFT JOIN profiles p ON p.user_id = u.id';
+    if ($blocked === '1') $where[] = 'p.is_blocked = 1';
+    if ($where) $sql .= ' WHERE ' . implode(' AND ', $where);
+    $sql .= ' ORDER BY u.created_at DESC, u.id DESC LIMIT ' . ($limit + 1);
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+
+    // One extra row tells us whether another page exists without a COUNT(*).
+    $hasMore = count($rows) > $limit;
+    if ($hasMore) array_pop($rows);
+
+    foreach ($rows as &$r) {
+        $r['is_blocked'] = (bool)($r['is_blocked'] ?? false);
+        $r['id_verified'] = (bool)($r['id_verified'] ?? false);
+        $r['email_verified'] = (bool)($r['email_verified'] ?? false);
+    }
+    unset($r);
+
+    json(['rows' => $rows, 'hasMore' => $hasMore, 'count' => count($rows)]);
+}
+
+// GET /api/admin/queue — one ranked moderation worklist.
+//
+// Open reports and pending verifications merged, severity-first, with item age
+// so an operator can see what is about to breach an SLA. Replaces the separate
+// Reports and Verifications tabs that hid the real workload from each other.
+function adminModerationQueue(): void
+{
+    $openReports = db()->query("SELECT r.id, r.reporter_id, r.target_type, r.target_id, r.reason, r.created_at,
+                                       u.display_name AS reporter_name
+                                  FROM reports r
+                                  LEFT JOIN users u ON u.id = r.reporter_id
+                                 WHERE r.status = 'open'
+                                 ORDER BY r.created_at ASC LIMIT 200")
+        ->fetchAll();
+
+    $pending = db()->query("SELECT v.id, v.kind, v.created_at, u.display_name AS member_name, u.email
+                              FROM verifications v
+                              LEFT JOIN users u ON u.id = v.user_id
+                             WHERE v.status = 'pending'
+                             ORDER BY v.created_at ASC LIMIT 200")
+        ->fetchAll();
+
+    $now = time();
+    $items = [];
+
+    foreach ($openReports as $r) {
+        $ageHours = (int)floor(($now - strtotime((string)$r['created_at'])) / 3600);
+        $items[] = [
+            'kind' => 'report',
+            'id' => $r['id'],
+            'title' => (string)$r['reason'],
+            'subtitle' => 'Reported ' . $r['target_type'] . ' by ' . ($r['reporter_name'] ?: 'member'),
+            'targetId' => $r['target_id'],
+            'createdAt' => $r['created_at'],
+            'ageHours' => $ageHours,
+            // Older and safety-critical work first.
+            'severity' => $ageHours >= 24 ? 'urgent' : 'normal',
+        ];
+    }
+    foreach ($pending as $v) {
+        $ageHours = (int)floor(($now - strtotime((string)$v['created_at'])) / 3600);
+        $items[] = [
+            'kind' => 'verification',
+            'id' => $v['id'],
+            'title' => ucfirst((string)$v['kind']) . ' verification',
+            'subtitle' => ($v['member_name'] ?: 'Member') . ' - ' . ($v['email'] ?? ''),
+            'targetId' => null,
+            'createdAt' => $v['created_at'],
+            'ageHours' => $ageHours,
+            'severity' => $ageHours >= 48 ? 'urgent' : 'normal',
+        ];
+    }
+
+    usort($items, static function (array $a, array $b): int {
+        if ($a['severity'] !== $b['severity']) return $a['severity'] === 'urgent' ? -1 : 1;
+        return $b['ageHours'] <=> $a['ageHours'];
+    });
+
+    json([
+        'items' => $items,
+        'openReports' => count($openReports),
+        'pendingVerifications' => count($pending),
+        'urgent' => count(array_filter($items, static fn(array $i): bool => $i['severity'] === 'urgent')),
+    ]);
+}
+
+// POST /api/admin/verifications/bulk { ids:[], verb, note }
+// Bulk review. Approving forty identity documents one click at a time is not an
+// operable queue; this is the single biggest ergonomic win in the panel.
+function adminVerificationBulk(): void
+{
+    $payload = requestJson();
+    $ids = $payload['ids'] ?? [];
+    $verb = strtolower((string)($payload['verb'] ?? 'approve'));
+    $note = sanitizeText((string)($payload['note'] ?? ''), 500);
+
+    if (!is_array($ids) || !$ids) {
+        je('Provide a non-empty ids array.', 400);
+    }
+    if (!in_array($verb, ['approve', 'reject'], true)) {
+        je('Verb must be approve or reject.', 400);
+    }
+    // Bound the batch so a fat-fingered request cannot lock the table.
+    if (count($ids) > 200) {
+        je('Bulk actions are limited to 200 items at a time.', 400);
+    }
+
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $probe = db()->prepare("SELECT id, user_id FROM verifications WHERE id IN ({$placeholders}) AND status = 'pending'");
+    $probe->execute($ids);
+    $rows = $probe->fetchAll();
+    if (!$rows) {
+        json(['ok' => true, 'affected' => 0, 'message' => 'Nothing pending in that selection.']);
+    }
+
+    $actor = requireAuthUser();
+    if ($verb === 'approve') {
+        $up = db()->prepare("UPDATE verifications SET status='approved', reviewed_by=?, reviewed_at=UTC_TIMESTAMP(), review_note=? WHERE id IN ({$placeholders})");
+        $up->execute(array_merge([$actor['uid'], $note ?: null], $ids));
+        $sync = db()->prepare("UPDATE profiles SET is_verified = 1, updated_at = UTC_TIMESTAMP() WHERE user_id IN (SELECT user_id FROM verifications WHERE id IN ({$placeholders}))");
+        $sync->execute($ids);
+    } else {
+        $up = db()->prepare("UPDATE verifications SET status='rejected', reviewed_by=?, reviewed_at=UTC_TIMESTAMP(), review_note=? WHERE id IN ({$placeholders})");
+        $up->execute(array_merge([$actor['uid'], $note ?: 'Photo was not clear enough - please resubmit.'], $ids));
+    }
+
+    $n = count($rows);
+    auditLog('verification.bulk_' . $verb, 'verification', implode(',', array_column($rows, 'id')), [
+        'count' => $n,
+        'note' => $note,
+    ]);
+    json(['ok' => true, 'affected' => $n]);
+}
+function adminUserDetail(string $userId): void
+{
+    $stmt = db()->prepare(
+        'SELECT u.id, u.email, u.display_name, u.role, u.email_verified, u.is_admin, u.created_at,
+                p.display_name AS profile_name, p.age, p.city, p.country, p.sect, p.profession,
+                p.bio, p.username, p.is_blocked, p.is_verified AS id_verified,
+                p.visibility, p.photos_visibility
+           FROM users u
+           LEFT JOIN profiles p ON p.user_id = u.id
+          WHERE u.id = ? LIMIT 1'
+    );
+    $stmt->execute([$userId]);
+    $user = $stmt->fetch();
+    if (!$user) {
+        je('Member not found.', 404);
+    }
+
+    $q = static function (string $sql, array $args = []) {
+        $st = db()->prepare($sql);
+        $st->execute($args);
+        return $st->fetchAll();
+    };
+
+    json([
+        'user' => $user,
+        'reports' => $q('SELECT id, target_type, target_id, reason, status, created_at FROM reports WHERE target_id = ? ORDER BY created_at DESC LIMIT 20', [$userId]),
+        'verifications' => $q('SELECT id, kind, status, review_note, created_at, reviewed_at FROM verifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20', [$userId]),
+        'interests' => $q('SELECT id, from_user_id, to_user_id, created_at FROM interests WHERE from_user_id = ? OR to_user_id = ? ORDER BY created_at DESC LIMIT 20', [$userId, $userId]),
+        'audit' => $q('SELECT id, actor_email, action, created_at, meta FROM admin_audit WHERE target_id = ? ORDER BY created_at DESC LIMIT 20', [$userId]),
+        'messageCount' => (int)($q('SELECT COUNT(*) AS n FROM messages WHERE sender_id = ? OR receiver_id = ?', [$userId, $userId])[0]['n'] ?? 0),
+    ]);
+}
+
+// GET /api/admin/audit — the immutable trail.
+function adminAuditList(): void
+{
+    $limit = max(1, min(200, (int)($_GET['limit'] ?? 50)));
+    $rows = db()->query("SELECT id, actor_id, actor_email, action, target_type, target_id, meta, created_at
+                           FROM admin_audit ORDER BY created_at DESC, id DESC LIMIT {$limit}")
+        ->fetchAll();
+    foreach ($rows as &$r) {
+        $decoded = json_decode((string)($r['meta'] ?? ''), true);
+        $r['meta'] = is_array($decoded) ? $decoded : [];
+    }
+    unset($r);
+    json($rows);
 }
 
 // POST /api/admin/users/:id/role { role } — approve a matchmaker/guardian (or
 // revoke back to member). Revoking never deletes data; it only stops new drafts.
+// GET /api/admin/funnel — where members drop out of activation.
+//
+// registered -> email verified -> profile published -> ID verified -> interest
+// exchanged -> mutual match. Each step is a plain COUNT so it stays cheap on
+// shared hosting.
+function adminFunnel(): void
+{
+    $count = static function (string $sql): int {
+        try {
+            $row = db()->query($sql)->fetch();
+            return (int)($row['n'] ?? 0);
+        } catch (Throwable $e) {
+            error_log('[api] funnel step failed: ' . substr($e->getMessage(), 0, 100));
+            return 0;
+        }
+    };
+
+    $steps = [
+        ['key' => 'registered', 'label' => 'Registered', 'n' => $count('SELECT COUNT(*) AS n FROM users')],
+        ['key' => 'verified', 'label' => 'Email verified', 'n' => $count('SELECT COUNT(*) AS n FROM users WHERE email_verified = 1')],
+        ['key' => 'published', 'label' => 'Profile published', 'n' => $count("SELECT COUNT(*) AS n FROM profiles WHERE visibility != 'private'")],
+        ['key' => 'idVerified', 'label' => 'ID verified', 'n' => $count('SELECT COUNT(*) AS n FROM profiles WHERE is_verified = 1')],
+        ['key' => 'interested', 'label' => 'Interest sent', 'n' => $count('SELECT COUNT(DISTINCT from_user_id) AS n FROM interests')],
+        ['key' => 'matched', 'label' => 'Mutual match', 'n' => $count(
+            'SELECT COUNT(*) AS n FROM interests a JOIN interests b ON a.from_user_id = b.to_user_id AND a.to_user_id = b.from_user_id',
+        )],
+    ];
+
+    // Conversion from the first step, so the UI can show drop-off percentages.
+    $base = $steps[0]['n'];
+    foreach ($steps as &$s) {
+        $s['pctOfRegistered'] = $base > 0 ? (int)round($s['n'] * 100 / $base) : 0;
+    }
+    unset($s);
+
+    json(['steps' => $steps]);
+}
+
 function adminSetRole(string $userId): void
 {
     $payload = requestJson();
@@ -294,6 +595,11 @@ function adminSetRole(string $userId): void
 
     db()->prepare('UPDATE users SET role = ? WHERE id = ?')->execute([$role, $userId]);
 
+    auditLog('user.role_changed', 'user', $userId, [
+        'email' => (string)$row['email'],
+        'newRole' => $role,
+    ]);
+
     json(['ok' => true, 'id' => $row['id'], 'email' => $row['email'], 'role' => $role]);
 }
 
@@ -310,6 +616,9 @@ function adminUnblockUser(string $userId): void
     try {
         db()->prepare('UPDATE profiles SET is_blocked = 0 WHERE user_id = ?')->execute([$userId]);
     } catch (Throwable) { /* target may have no profile row */ }
+
+    auditLog('user.unblocked', 'user', $userId, ['email' => (string)$row['email']]);
+
     json(['ok' => true, 'id' => $row['id'], 'email' => $row['email']]);
 }
 
