@@ -518,7 +518,14 @@ function profilesList(): void
     // return a short page. Filtering here guarantees the member sees only
     // genuine rows however much debris precedes them.
     if ($viewer === null || ($viewer['isAdmin'] ?? false) !== true) {
-        $rows = array_values(array_filter($rows, 'isTestShellRow'));
+        // Negate. array_filter KEEPS rows for which the callback returns true,
+        // so passing isTestShellRow() directly would keep the debris and drop
+        // every genuine member — the exact inverse of the intent, and it
+        // shipped briefly before this was caught.
+        $rows = array_values(array_filter(
+            $rows,
+            static fn(array $row): bool => !isTestShellRow($row)
+        ));
     }
 
     // Include interest state per card so the UI survives reloads (parity with profileById).
