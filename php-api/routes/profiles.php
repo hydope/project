@@ -572,7 +572,7 @@ function favouritesList(): void
 
     try {
         $rows = db()->prepare(
-            'SELECT f.profile_id, f.created_at
+            'SELECT p.*, f.created_at AS fav_created_at
                FROM favourites f
                JOIN profiles p ON p.user_id = f.profile_id
               WHERE f.user_id = ? AND p.is_blocked = 0
@@ -588,15 +588,17 @@ function favouritesList(): void
 
     $out = [];
     foreach ($favs as $f) {
-        $probe = db()->prepare('SELECT * FROM profiles WHERE user_id = ? LIMIT 1');
-        $probe->execute([$f['profile_id']]);
-        $row = $probe->fetch();
-        if (!$row) continue;
+        $row = $f;
         // Reuse the normal visibility rules — a saved profile that has since
         // been hidden must stop appearing here too.
         $view = visibleProfile($row, $user);
         if (!$view) continue;
-        $view['favouritedAt'] = $f['created_at'];
+        $view['favouritedAt'] = $f['fav_created_at'] ?? null;
+        // MUST be true, not merely implied by appearing in this list.
+        // ProfileCard seeds its bookmark from `profile.favourited === true`; with
+        // this field absent every card on /favorites rendered as unsaved, so
+        // tapping the bookmark there removed the save the member had just made.
+        $view['favourited'] = true;
         $out[] = $view;
     }
 

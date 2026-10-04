@@ -843,5 +843,34 @@ check(
     'GET /api/profiles/me swallows /me/favourites, so the saved list is unreachable'
 );
 
+// The saved-profiles list must flag each row as saved. ProfileCard seeds its
+// bookmark from `favourited === true`, so a row without it renders as unsaved
+// and tapping the bookmark on /favorites removes the save instead of showing it.
+// Both endpoints that return profile cards are checked.
+check(
+    'the favourites list marks every row as favourited',
+    strpos($profilesSrc, "\$view['favourited'] = true;") !== false,
+    'favouritesList() never sets favourited, so saved cards render as unsaved'
+);
+check(
+    'the browse list derives a per-profile favourited flag',
+    strpos($profilesSrc, "\$view['favourited'] = isset(\$favIds") !== false,
+    'profilesList() does not report favourite state per card'
+);
+// The N+1 was one round-trip per saved profile, on the page that grows with the
+// member's own engagement. Scope the search to the function body: the same
+// SELECT legitimately appears in profileMe(), and an unscoped check matches it
+// there and reports a failure that does not exist.
+$favFnStart = (int)strpos($profilesSrc, 'function favouritesList');
+$favFnEnd = (int)strpos($profilesSrc, "\nfunction ", $favFnStart + 10);
+$favFnBody = $favFnEnd > $favFnStart
+    ? substr($profilesSrc, $favFnStart, $favFnEnd - $favFnStart)
+    : '';
+check(
+    'favouritesList does not re-query each profile individually',
+    $favFnBody !== '' && strpos($favFnBody, 'SELECT * FROM profiles WHERE user_id = ? LIMIT 1') === false,
+    'favouritesList still runs a per-row profile lookup (N+1)'
+);
+
 echo "\n$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);
