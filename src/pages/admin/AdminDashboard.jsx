@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users, UserPlus, MessageCircle, Heart, ShieldCheck, Activity,
-  ArrowUpRight, ArrowDownRight, RefreshCw, AlertTriangle
+  RefreshCw, AlertTriangle
 } from 'lucide-react';
 import Layout from '@/layouts/MainLayout';
 import { http } from '@/lib/api/transport';

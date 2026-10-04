@@ -9,6 +9,25 @@ import { write } from '../lib/api/storage';
 // link. Nothing here needs an account: the token IS the credential. She reviews
 // the prefilled draft, then either claims it (becomes HER account + profile) or
 // declines (everything about her is erased server-side).
+/**
+ * A label/value line in the claim preview.
+ *
+ * Hoisted to module scope deliberately. It was previously declared inside the
+ * component body, which creates a NEW component type on every render — React
+ * unmounts and remounts the whole subtree each time (losing focus, resetting
+ * animation state, and doing needless DOM work). Functionally it looked fine,
+ * which is why it survived review.
+ */
+function Row({ label, value }) {
+  if (!value) return null;
+  return (
+    <div style={{ display: 'flex', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
+      <span style={{ width: 130, flexShrink: 0, fontSize: '0.8rem', color: 'var(--color-ink-faint)' }}>{label}</span>
+      <span style={{ fontSize: '0.9rem', color: 'var(--color-ink)' }}>{value}</span>
+    </div>
+  );
+}
+
 export default function ClaimDraft() {
   const { token } = useParams();
   const navigate = useNavigate();
@@ -67,12 +86,6 @@ export default function ClaimDraft() {
   };
 
   const card = { background: 'color-mix(in srgb, var(--color-elevated) 82%, transparent)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-lg)' };
-  const Row = ({ label, value }) => (value ? (
-    <div style={{ display: 'flex', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
-      <span style={{ width: 130, flexShrink: 0, fontSize: '0.8rem', color: 'var(--color-ink-faint)' }}>{label}</span>
-      <span style={{ fontSize: '0.9rem', color: 'var(--color-ink)' }}>{value}</span>
-    </div>
-  ) : null);
 
   return (
     <div className="relative min-h-screen px-6 py-12" style={{ background: 'var(--color-canvas)' }}>
@@ -129,13 +142,9 @@ export default function ClaimDraft() {
 // Review + claim form: she sees exactly what was written about her before she
 // decides. Every field is editable after claiming — this is a preview, not a cage.
 function ClaimReview({ preview, state, setState, claim, decline, email, setEmail, password, setPassword, displayName, setDisplayName, busy, message }) {
-  const Row = ({ label, value }) => (value ? (
-    <div style={{ display: 'flex', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
-      <span style={{ width: 130, flexShrink: 0, fontSize: '0.8rem', color: 'var(--color-ink-faint)' }}>{label}</span>
-      <span style={{ fontSize: '0.9rem', color: 'var(--color-ink)' }}>{value}</span>
-    </div>
-  ) : null);
-
+  // `Row` is the module-scope component defined at the top of this file. It used
+  // to be redefined here inside the render body, which gave React a new
+  // component type on every render and remounted the whole preview each time.
   return (
     <>
       <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--color-ink)' }}>A profile is waiting for you</h1>

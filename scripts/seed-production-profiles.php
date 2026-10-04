@@ -727,7 +727,7 @@ function seedOne(PDO $pdo, array $p, int $index, string $photoBase, bool $dryRun
                 is_verified, religiosity, education_level, marja, prayer, modesty,
                 diet, languages, ethnicity, income_range, marital_status, children,
                 children_plans, relocation, family_involvement, height_cm, timeline,
-                photo_url, syed_status)
+                photo_url, syed_status, is_demo)
              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
              ON DUPLICATE KEY UPDATE
                 display_name = VALUES(display_name), age = VALUES(age), gender = VALUES(gender),
@@ -744,6 +744,7 @@ function seedOne(PDO $pdo, array $p, int $index, string $photoBase, bool $dryRun
                 relocation = VALUES(relocation), family_involvement = VALUES(family_involvement),
                 height_cm = VALUES(height_cm), timeline = VALUES(timeline),
                 photo_url = VALUES(photo_url), syed_status = VALUES(syed_status),
+                is_demo = VALUES(is_demo),
                 updated_at = UTC_TIMESTAMP()'
         )->execute([
             $uid, $p['displayName'], $p['age'], $p['gender'], $p['city'], $p['country'],
@@ -756,6 +757,12 @@ function seedOne(PDO $pdo, array $p, int $index, string $photoBase, bool $dryRun
             $p['maritalStatus'], $p['children'], $p['childrenPlans'], $p['relocation'],
             $p['familyInvolvement'], $p['heightCm'], $p['timeline'],
             $photoPath, $p['syedStatus'],
+            // Every row this script writes is illustrative sample content, and is
+            // labelled as such in the UI. A well-written example profile is
+            // genuinely useful for showing what "complete" looks like; presenting
+            // one as a person a member could message is not. is_demo=1 makes the
+            // badge appear and disables interest + favourites for it.
+            1,
         ]);
 
         $pdo->commit();

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
 // In-app confirmation dialog — replaces the native window.confirm(), which is
@@ -17,13 +17,50 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }) {
+  const panelRef = useRef(null);
+  const restoreFocusRef = useRef(null);
+
   useEffect(() => {
+    if (!open) return undefined;
+    // Remember what had focus so it can be handed back on close. Without this,
+    // dismissing the dialog drops the caret to <body> and a keyboard user has
+    // to Tab from the top of the page to get back where they were.
+    restoreFocusRef.current = document.activeElement;
+
     const onKey = (e) => {
-      if (e.key === 'Escape') onCancel?.();
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onCancel?.();
+        return;
+      }
+      // Focus trap. aria-modal="true" tells assistive tech the rest of the page
+      // is inert, but without this the Tab key still walked into the page
+      // behind the dialog — focus visibly disappearing mid-task.
+      if (e.key !== 'Tab') return;
+      const focusables = panelRef.current?.querySelectorAll(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusables || focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel]);
+
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      const el = restoreFocusRef.current;
+      if (el && typeof el.focus === 'function' && document.contains(el)) {
+        el.focus();
+      }
+    };
+  }, [open, onCancel]);
 
   if (!open) return null;
 
@@ -35,6 +72,7 @@ export default function ConfirmDialog({
       role="presentation"
     >
       <div
+        ref={panelRef}
         className="ai-drawer"
         style={{ width: '380px', maxWidth: '95vw', margin: '2rem auto', borderRadius: 'var(--radius-xl)', position: 'relative', top: '20vh' }}
         onClick={(e) => e.stopPropagation()}

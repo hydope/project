@@ -25,10 +25,6 @@ const PUBLIC_META = {
     title: 'Browse Shia Brides & Grooms for Nikah | Shia Rishta',
     desc: 'Search verified Shia profiles for nikah — filter by sect, marja, education and location. Serious Shia matrimony with privacy-first profiles. Join free.',
   },
-  '/pricing': {
-    title: 'Pricing – Free Nikah Matchmaking, No Paywalls | Shia Rishta',
-    desc: 'Shia Rishta is free: profiles, browsing, interest and messaging with no paywalls. See exactly what is included and why privacy is never a premium feature.',
-  },
   '/blog': {
     title: 'Nikah & Marriage Guidance for Shia Muslims | Shia Rishta Blog',
     desc: 'Practical guidance on nikah, choosing a spouse, and married life for Shia Muslims — written for serious seekers and their families.',
@@ -40,6 +36,10 @@ const PUBLIC_META = {
   '/about': {
     title: 'About Shia Rishta – Nikah-First Shia Matchmaking',
     desc: 'Why Shia Rishta exists: a dignified, nikah-first alternative to swiping for Shia Muslims and their families.',
+  },
+  '/profile-guide': {
+    title: 'Profile Guide – Write a Strong Shia Rishta Profile',
+    desc: 'Worked examples of strong Shia marriage profiles: how to write about deen, expectations, family and timeline so real families reach back.',
   },
   '/safety': {
     title: 'Safety & Verification Standards | Shia Rishta',

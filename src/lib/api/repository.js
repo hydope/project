@@ -135,6 +135,22 @@ export const matchesRepo = {
     if (useRemote) return http.del(`/api/profiles/${encodeURIComponent(profileId)}/interest`);
     return { success: true };
   },
+  // ── Favourites ──
+  // Remote-only by design. A localStorage fallback would let a signed-out
+  // visitor save profiles they could never see again after signing in, which
+  // reads as silent data loss. The API requires a session.
+  async favourites() {
+    if (!useRemote) return [];
+    const res = await http.get('/api/profiles/me/favourites');
+    return res?.rows ?? res ?? [];
+  },
+  async addFavourite(profileId) {
+    return http.post(`/api/profiles/${encodeURIComponent(profileId)}/favourite`, {});
+  },
+  async removeFavourite(profileId) {
+    return http.del(`/api/profiles/${encodeURIComponent(profileId)}/favourite`);
+  },
+
   // Interest-gated conversation start (server enforces mutual interest).
   async startConversation(profileId) {
     if (useRemote) return http.post('/api/messages', { userId: profileId });

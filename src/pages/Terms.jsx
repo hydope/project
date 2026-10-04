@@ -43,7 +43,7 @@ const sections = [
     id: 'payments',
     title: '7. Payments & Subscriptions',
     icon: FileText,
-    content: 'Early access is free — there are no payments, subscriptions, or billing of any kind in this build, and you will never be asked for payment details. If paid membership is introduced later, these terms will be updated and members will be notified before any charge could occur.'
+    content: 'Shia Rishta is free and always will be: there are no payments, subscriptions, billing, or paid membership tiers in any part of this platform, and you will never be asked for payment details. We will not introduce a paid tier without telling members first and updating these terms.'
   },
   {
     id: 'termination',

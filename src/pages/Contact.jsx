@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import Layout from '../layouts/LandingLayout';
-import { Mail, Phone, MapPin, Clock, Send, CheckCircle2, AlertCircle, Loader2, MessageSquareHeart } from 'lucide-react';
+import { Mail, Clock, Send, CheckCircle2, AlertCircle, Loader2, MessageSquareHeart } from 'lucide-react';
 
 const CONTACT_METHODS = [
   { icon: Mail, title: 'Email Support', desc: 'Send us a message', links: [

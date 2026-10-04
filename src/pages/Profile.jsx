@@ -12,6 +12,7 @@ import { ReportFlag } from '../components/ReportFlag';
 import { blockMember, unblockMember } from '../lib/api/safety';
 import { computeCompatibility } from '../lib/compatibility';
 import { apiUrl, http } from '../lib/api/transport';
+import SampleProfileBadge from '../components/SampleProfileBadge';
 
 // No stock/placeholder photo is injected into the gallery. A member who hides
 // their photos gets an honest "photos are private" state, never someone else's
@@ -244,30 +245,64 @@ export default function Profile() {
                 </div>
               )}
             </div>
-            <button onClick={() => setShortlisted(!shortlisted)} className="w-full button flex items-center justify-center gap-2 py-2.5 font-semibold text-sm" style={{ background: shortlisted ? 'var(--color-primary)' : 'var(--color-elevated)', color: shortlisted ? '#fff' : 'var(--color-ink)', border: '1px solid var(--color-border)' }}>
-              <Bookmark className="w-4 h-4" style={{ fill: shortlisted ? '#fff' : 'none' }} /> {shortlisted ? 'Shortlisted' : 'Shortlist'}
-            </button>
-            <div className="w-full rounded-xl p-3" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-              <button
-                onClick={handleBlockToggle}
-                disabled={blockBusy}
-                className="w-full text-xs font-semibold py-2 rounded-lg mb-2"
-                style={{
-                  background: blocked ? 'var(--color-elevated)' : 'var(--color-danger, #c0392b)',
-                  color: blocked ? 'var(--color-ink)' : '#fff',
-                  border: '1px solid var(--color-border)',
-                  opacity: blockBusy ? 0.6 : 1,
-                }}
-              >
-                {blockBusy ? 'Working…' : blocked ? 'Unblock this member' : 'Block this member'}
-              </button>
-              <ReportFlag targetType="profile" targetId={String(profile.id || id)} onDone={null} />
-            </div>
-            <p className="text-[11px] text-center" style={{ color: 'var(--color-ink-faint)' }}>
-              Reports go to our safety team and are reviewed by a person.
-            </p>
+            {/* Shortlisting, blocking and reporting are all acts toward a person. None of
+                them are meaningful against a sample profile, and a "Block this
+                member" button on an example would invite a safety report we
+                cannot act on. */}
+            {profile.isDemo !== true && (
+              <>
+                <button onClick={() => setShortlisted(!shortlisted)} className="w-full button flex items-center justify-center gap-2 py-2.5 font-semibold text-sm" style={{ background: shortlisted ? 'var(--color-primary)' : 'var(--color-elevated)', color: shortlisted ? '#fff' : 'var(--color-ink)', border: '1px solid var(--color-border)' }}>
+                  <Bookmark className="w-4 h-4" style={{ fill: shortlisted ? '#fff' : 'none' }} /> {shortlisted ? 'Shortlisted' : 'Shortlist'}
+                </button>
+                <div className="w-full rounded-xl p-3" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                  <button
+                    onClick={handleBlockToggle}
+                    disabled={blockBusy}
+                    className="w-full text-xs font-semibold py-2 rounded-lg mb-2"
+                    style={{
+                      background: blocked ? 'var(--color-elevated)' : 'var(--color-danger, #c0392b)',
+                      color: blocked ? 'var(--color-ink)' : '#fff',
+                      border: '1px solid var(--color-border)',
+                      opacity: blockBusy ? 0.6 : 1,
+                    }}
+                  >
+                    {blockBusy ? 'Working…' : blocked ? 'Unblock this member' : 'Block this member'}
+                  </button>
+                  <ReportFlag targetType="profile" targetId={String(profile.id || id)} onDone={null} />
+                </div>
+                <p className="text-[11px] text-center" style={{ color: 'var(--color-ink-faint)' }}>
+                  Reports go to our safety team and are reviewed by a person.
+                </p>
+              </>
+            )}
           </div>
           <div className="space-y-5">
+{/* A sample profile reads exactly like a real one on this page, so it
+                states its nature above everything else and the contact actions
+                below are replaced — there is nobody at the other end. */}
+            {profile.isDemo === true && (
+              <div
+                className="p-5 rounded-2xl"
+                style={{ background: 'rgba(212,175,105,0.08)', border: '1px solid rgba(212,175,105,0.4)' }}
+                role="note"
+              >
+                <SampleProfileBadge className="mb-3" />
+                <h2 className="text-lg font-bold" style={{ color: 'var(--color-ink)' }}>
+                  This is an example, not a person
+                </h2>
+                <p className="text-sm leading-relaxed mt-1.5" style={{ color: 'var(--color-ink-secondary)' }}>
+                  We wrote this profile to show what a complete one looks like — the
+                  detail on faith practice, expectations and family that makes a real
+                  introduction easier. There is no member behind it, so you cannot
+                  send it a message. Browsing and filtering stay open to everyone;
+                  messaging opens between real members once interest is mutual.
+                </p>
+                <Link to="/onboard" className="btn btn-primary mt-4 inline-flex items-center gap-2">
+                  Create your own profile
+                </Link>
+              </div>
+            )}
+
             <div className="p-5 rounded-2xl" style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)' }}>
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
@@ -280,12 +315,20 @@ export default function Profile() {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={handleInterest} disabled={interestBusy} className="button primary px-4 py-2 text-sm font-semibold flex items-center gap-1.5">
-                    <Heart className="w-4 h-4" style={{ fill: interestSent ? '#fff' : 'none' }} /> {interestSent ? 'Interest sent' : 'Send interest'}
-                  </button>
-                  <button onClick={handleMessage} disabled={messageBusy} className="button px-4 py-2 text-sm font-semibold flex items-center gap-1.5" style={{ background: 'var(--color-elevated)', color: 'var(--color-ink)', border: '1px solid var(--color-border)' }}>
-                    <MessageCircle className="w-4 h-4" /> Message
-                  </button>
+                  {profile.isDemo === true ? (
+                    <span className="text-xs px-3 py-2 rounded-lg flex items-center gap-1.5" style={{ background: 'var(--color-surface)', color: 'var(--color-ink-tertiary)', border: '1px solid var(--color-border)' }}>
+                      Example profile — not contactable
+                    </span>
+                  ) : (
+                    <button onClick={handleInterest} disabled={interestBusy} className="button primary px-4 py-2 text-sm font-semibold flex items-center gap-1.5">
+                      <Heart className="w-4 h-4" style={{ fill: interestSent ? '#fff' : 'none' }} /> {interestSent ? 'Interest sent' : 'Send interest'}
+                    </button>
+                  )}
+                  {profile.isDemo !== true && (
+                    <button onClick={handleMessage} disabled={messageBusy} className="button px-4 py-2 text-sm font-semibold flex items-center gap-1.5" style={{ background: 'var(--color-elevated)', color: 'var(--color-ink)', border: '1px solid var(--color-border)' }}>
+                      <MessageCircle className="w-4 h-4" /> Message
+                    </button>
+                  )}
                 </div>
               </div>
               {actionNote && <p className="text-xs mt-3" style={{ color: actionNote.ok ? 'var(--color-primary)' : 'var(--color-danger, #c0392b)' }}>{actionNote.text}</p>}

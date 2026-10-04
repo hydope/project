@@ -80,10 +80,22 @@ export default function SwipeDeck({ profiles = [], onExpressInterest }) {
   // Keyboard navigation: ← pass, → like, ↑ maybe, U undo
   useEffect(() => {
     const handler = (e) => {
-      if (e.key === 'ArrowRight') decide('like', queue[0]?.id);
-      else if (e.key === 'ArrowLeft') decide('pass', queue[0]?.id);
-      else if (e.key === 'ArrowUp') decide('maybe', queue[0]?.id);
-      else if (e.key.toLowerCase() === 'u') undo();
+      // Arrow keys and "u" are ordinary characters while a member is typing.
+      // Without this guard, opening the deck and then pressing ← in the search
+      // box silently swiped the top profile away — data loss caused by an
+      // unrelated keystroke.
+      const el = document.activeElement;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) {
+        return;
+      }
+      // Never steal keys from another overlay (confirm dialog, command palette).
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+
+      if (e.key === 'ArrowRight') { e.preventDefault(); decide('like', queue[0]?.id); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); decide('pass', queue[0]?.id); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); decide('maybe', queue[0]?.id); }
+      else if (e.key.toLowerCase() === 'u') { e.preventDefault(); undo(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -262,7 +274,7 @@ function CardFace({ profile, children, staticMode = false }) {
               <MapPin className="w-3 h-3" /> {profile.city}, {profile.country} · {profile.profession}
             </p>
           </div>
-          <CompatibilityRing score={compat.overall} size={52} stroke={5} />
+          {compat && <CompatibilityRing score={compat.overall} size={52} stroke={5} />}
         </div>
         {children}
       </div>

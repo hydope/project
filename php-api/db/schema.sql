@@ -65,6 +65,11 @@ CREATE TABLE IF NOT EXISTS profiles (
   timeline           VARCHAR(80)  DEFAULT NULL,
   photo_url          VARCHAR(500) DEFAULT NULL,
   syed_status        VARCHAR(40)  DEFAULT NULL,
+  -- Illustrative sample content, NOT a real member. Set only by the seeder in
+  -- scripts/. The API passes it through as `isDemo` so the UI can label the
+  -- profile: a sample profile must never be mistakable for a person a member
+  -- could actually send a message to.
+  is_demo            TINYINT(1)   NOT NULL DEFAULT 0,
   -- Public handle chosen by the member, distinct from display_name. Unique
   -- where present; many members may leave it NULL.
   username           VARCHAR(32)  DEFAULT NULL,
@@ -161,6 +166,37 @@ CREATE TABLE IF NOT EXISTS verifications (
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   reviewed_at  DATETIME     DEFAULT NULL,
   KEY idx_verifications_status (status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Runtime configuration an admin can change without a redeploy.
+--
+-- The value column holds ENCRYPTED-AT-REST text (see encAtRest() in
+-- lib/util.php — AES-256-GCM, envelope "enc1:iv:tag:ct"). This table exists so
+-- an operator can repair a broken AI credential from /admin/content rather than
+-- needing shell access to a cPanel box and hand-editing .env.
+--
+-- There is deliberately NO read endpoint that returns `value`. The API reports
+-- only whether a key is present and how it was last verified. An admin can
+-- overwrite a credential; nobody can read one back out through the API.
+CREATE TABLE IF NOT EXISTS app_settings (
+  setting_key VARCHAR(64)  NOT NULL PRIMARY KEY,
+  value_enc   TEXT         DEFAULT NULL,
+  updated_by  CHAR(36)     DEFAULT NULL,
+  updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  -- Last non-secret diagnostic: HTTP status / error class from the last verify.
+  -- Never the credential, never an upstream body (those can echo the header).
+  last_status VARCHAR(160) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- A member's saved profiles. Strictly personal: one member's favourites must
+-- never appear on someone else's profile, so there is no read path for anyone
+-- but the owner.
+CREATE TABLE IF NOT EXISTS favourites (
+  user_id    CHAR(36)    NOT NULL,
+  profile_id CHAR(36)    NOT NULL,
+  created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, profile_id),
+  KEY idx_fav_profile (profile_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS wali_links (

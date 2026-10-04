@@ -1,13 +1,15 @@
 import { usePageTitle } from '../lib/usePageTitle';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import Layout from '../layouts/LandingLayout';
 import ProfileCard from '../components/ProfileCard.jsx';
 import CuratedMatchFeed from '../components/CuratedMatchFeed.jsx';
+import LoginGate from '../components/LoginGate';
+import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search, SlidersHorizontal, LayoutGrid, Heart, AlertCircle, Shield
+  Search, SlidersHorizontal, LayoutGrid, Heart, AlertCircle, Shield, Bookmark, Users
 } from 'lucide-react';
 
 const SECT_FILTERS = ['Any sect', 'Ithna Ashari (Twelver)', 'Ismaili', 'Bohra', 'Zaydi'];
@@ -39,7 +41,141 @@ const DEFAULT_FILTERS = {
 const sentinels = new Set(['Any sect', 'Any level', 'Any education', 'Any marja', 'Any', 'any', '']);
 const clean = (v) => (v === undefined || sentinels.has(String(v)) ? undefined : String(v));
 
-export default function Profiles() {
+const FAVOURITES_KEY = 'sr.favourites.v1';
+
+// ── Saved profiles ───────────────────────────────────────────────────────────
+// A private, per-member list. Backed by the API so it survives a reload and a
+// new device; localStorage is a read-through cache only, and is scoped to this
+// user id so two accounts on one browser never see each other's list.
+export function Favourites() {
+  usePageTitle('Saved Profiles');
+  const { isLoggedIn } = useAuth();
+  const navigate = useNavigate();
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [loginOpen, setLoginOpen] = useState(false);
+
+  const cacheKey = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('sr.user');
+      const u = raw ? JSON.parse(raw) : null;
+      return u?.id ? `${FAVOURITES_KEY}.${u.id}` : null;
+    } catch { return null; }
+  }, [isLoggedIn]);
+
+  const load = useCallback(async () => {
+    if (!isLoggedIn) { setRows([]); setLoading(false); return; }
+    setLoading(true); setError(null);
+    // Paint the cached list immediately so the page is never blank, then let the
+    // API confirm it. A cache that disagrees with the server is overwritten.
+    if (cacheKey) {
+      try {
+        const cached = JSON.parse(localStorage.getItem(cacheKey) || '[]');
+        if (Array.isArray(cached) && cached.length) setRows(cached);
+      } catch { /* corrupt cache is not worth surfacing */ }
+    }
+    try {
+      const data = await api.getFavourites();
+      const list = Array.isArray(data) ? data : (data?.rows ?? []);
+      setRows(list);
+      if (cacheKey) localStorage.setItem(cacheKey, JSON.stringify(list.map(p => p.id)));
+    } catch (e) {
+      setError(e.message || 'Could not load your saved profiles.');
+    } finally {
+      setLoading(false);
+    }
+  }, [isLoggedIn, cacheKey]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const remove = async (id) => {
+    const snapshot = rows;
+    // Optimistic, with a real rollback — a failed unfavourite must not silently
+    // look like it worked.
+    setRows(prev => prev.filter(p => p.id !== id));
+    try {
+      await api.removeFavourite(id);
+      if (cacheKey) localStorage.setItem(cacheKey, JSON.stringify(snapshot.filter(p => p.id !== id).map(p => p.id)));
+    } catch (e) {
+      setRows(snapshot);
+      setError(e.message || 'Could not remove that profile.');
+    }
+  };
+
+  if (!isLoggedIn) {
+    return (
+      <Layout>
+        <div className="max-w-2xl mx-auto px-4 py-20 text-center">
+          <h1 className="text-2xl font-semibold mb-3">Saved profiles</h1>
+          <p className="mb-6" style={{ color: 'var(--color-ink-secondary)' }}>
+            Sign in to save profiles and find them again on any device.
+          </p>
+          <button className="btn btn-primary" onClick={() => setLoginOpen(true)}>Sign in to see favourites</button>
+          {loginOpen && (
+            <LoginGate
+              reason="favourites"
+              onClose={() => setLoginOpen(false)}
+              onSuccess={() => { setLoginOpen(false); load(); }}
+            />
+          )}
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="max-w-6xl mx-auto px-4 py-10">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold">Saved profiles</h1>
+            <p className="text-sm" style={{ color: 'var(--color-ink-secondary)' }}>
+              Private to you. Only you can see this list.
+            </p>
+          </div>
+          <button className="btn btn-secondary" onClick={() => navigate('/profiles')}>Browse more profiles</button>
+        </div>
+
+        {error && (
+          <p className="mb-4 text-sm" style={{ color: 'var(--color-danger, #b3261e)' }}>{error}</p>
+        )}
+
+        {loading && rows.length === 0 && <p style={{ color: 'var(--color-ink-tertiary)' }}>Loading your saved profiles…</p>}
+
+        {!loading && rows.length === 0 && !error && (
+          <div className="card p-10 text-center">
+            <Bookmark className="w-8 h-8 mx-auto mb-3" style={{ color: 'var(--color-ink-tertiary)' }} />
+            <p className="mb-4" style={{ color: 'var(--color-ink-secondary)' }}>
+              You have not saved any profiles yet.
+            </p>
+            <button className="btn btn-primary" onClick={() => navigate('/profiles')}>Browse profiles</button>
+          </div>
+        )}
+
+        {rows.length > 0 && (
+          <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
+            {rows.map(p => (
+              <div key={p.id} className="relative">
+                <ProfileCard profile={p} />
+                <button
+                  onClick={() => remove(p.id)}
+                  className="btn btn-secondary"
+                  aria-label={`Remove ${p.displayName} from saved profiles`}
+                  style={{ position: 'absolute', top: 8, right: 8, minWidth: 32, minHeight: 32, padding: '0 10px', fontSize: 11 }}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+}
+
+export function BrowseProfiles() {
   usePageTitle('Browse Profiles');
   const [searchParams, setSearchParams] = useSearchParams();
   const [profiles, setProfiles] = useState([]);
@@ -324,10 +460,27 @@ export default function Profiles() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="empty-state">
-            <Search className="w-8 h-8 mx-auto mb-3" style={{ color: 'var(--color-ink-tertiary)' }} />
-            <h3 className="empty-state-title">No profiles match your filters</h3>
-            <p className="empty-state-text mb-4">Try adjusting your search criteria to see more members.</p>
-            <button onClick={() => setFilters(DEFAULT_FILTERS)} className="btn btn-secondary">Clear filters</button>
+            <Users className="w-8 h-8 mx-auto mb-3" style={{ color: 'var(--color-ink-tertiary)' }} />
+            <h3 className="empty-state-title">
+              {activeFilterCount > 0 ? 'No profiles match your filters' : 'No members here yet — be the first'}
+            </h3>
+            <p className="empty-state-text mb-5 max-w-md mx-auto">
+              {activeFilterCount > 0
+                ? 'Try widening the filters. Our member base is growing, and the right person may be one field away.'
+                : 'Shia Rishta is early access, so the member list is still short. Every real profile here is someone a family could actually reach — we would rather show you twelve honest members than a grid of invented ones.'}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              {activeFilterCount > 0 ? (
+                <button onClick={() => setFilters(DEFAULT_FILTERS)} className="btn btn-secondary">Clear filters</button>
+              ) : (
+                <>
+                  <Link to="/auth/register" className="btn btn-primary">Create your free profile</Link>
+                  <Link to="/profile-guide" className="btn btn-secondary">
+                    See what a strong profile looks like
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
         ) : view === 'curated' ? (
           <CuratedMatchFeed profiles={filtered} />

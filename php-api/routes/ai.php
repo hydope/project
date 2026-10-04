@@ -14,9 +14,15 @@ function routeAI(string $method, array $segments): void
     if ($method === 'GET' && $action === 'status') {
         // Reports whether the assistant can call a model. Deliberately a boolean
         // — never the key, never the upstream response.
+        //
+        // Reads through aiApiKey() so it reflects a key pasted into
+        // /admin/content, not just the environment variable. Before this it
+        // reported `available: false` forever whenever the GitHub secret was
+        // missing, which made the panel look permanently broken even after an
+        // operator had configured a working key.
         json([
-            'available' => trim((string)getenv('NVIDIA_API_KEY')) !== '',
-            'model' => (string)(getenv('NVIDIA_MODEL') ?: 'moonshotai/kimi-k3'),
+            'available' => aiApiKey() !== '',
+            'model' => aiModel(),
         ]);
     }
 

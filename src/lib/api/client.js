@@ -49,6 +49,14 @@ export const api = {
   getReceivedInterests: () => unwrap(matchesRepo.receivedInterests(), 'Could not load requests.'),
   startConversation: (pid) => unwrap(matchesRepo.startConversation(pid), 'Could not start the conversation.'),
 
+  // ── Favourites (saved profiles) ──
+  // Server-backed so a save survives a reload and a new device. Sign-in is
+  // required; there is no anonymous fallback, because a local-only save would
+  // silently look like it persisted and then vanish.
+  getFavourites: () => unwrap(matchesRepo.favourites(), 'Could not load your favourites.'),
+  addFavourite: (pid) => unwrap(matchesRepo.addFavourite(pid), 'Could not save this profile.'),
+  removeFavourite: (pid) => unwrap(matchesRepo.removeFavourite(pid), 'Could not remove this favourite.'),
+
   // ── Verification (trust ladder) ──
   submitVerification: (payload) => unwrap(matchesRepo.submitVerification(payload), 'Could not submit for verification.'),
   myVerifications: () => unwrap(matchesRepo.myVerifications(), 'Could not load your submissions.'),

@@ -17,6 +17,11 @@ function routeProfiles(string $method, array $segments): void
 
     if ($method === 'GET' && $id === null) { profilesList(); return; }
     if ($method === 'GET' && $id === 'me') { profileMe(); return; }
+    // Saved profiles. Must be matched before the generic /:id branch below or
+    // "favourites" would be read as a user id.
+    if ($method === 'GET' && $id === 'me' && $sub === 'favourites') { favouritesList(); return; }
+    if ($method === 'POST' && $id !== null && $sub === 'favourite') { favouriteAdd($id); return; }
+    if ($method === 'DELETE' && $id !== null && $sub === 'favourite') { favouriteRemove($id); return; }
     // POST is accepted as an alias for PUT. Only PUT was ever routed, so a
     // client sending POST got a 404 and every profile save silently failed --
     // while writeRateCheck() had already charged the request against the
@@ -240,8 +245,16 @@ function photoServe(string $id): void
         if ($tier === 'private') {
             je('Not found.', 404);
         }
-        if ($tier !== 'public' && $viewer === null) {
-            je('Sign in to view this photo.', 401);
+        // "Share after interest" is the members/match tier. A signed-in viewer
+        // needs a mutual interest to open it; an anonymous one is told to sign
+        // in rather than being 404'd, so the link is not mistaken for a bug.
+        if ($tier !== 'public') {
+            if ($viewer === null) {
+                je('Sign in to view this photo.', 401);
+            }
+            if (!mutualInterest((string)$row['user_id'], (string)$viewer['uid'])) {
+                je('Not found.', 404);
+            }
         }
         if ($viewer !== null && pairBlocked((string)$row['user_id'], (string)$viewer['uid'])) {
             je('Not found.', 404);
@@ -460,22 +473,16 @@ function profilesList(): void
     }
 
     if ($viewer === null) {
-        // Members-only profiles are invisible to logged-out callers. This is the
-        // real privacy boundary and it is unchanged.
-        $where[] = "p.visibility = 'public'";
-
-        // Signed-out visitors previously got a hard LIMIT 6 ("a teaser sample,
-        // prevents enumeration"). That capped the whole public roster at six
-        // cards while the page's own copy promised "every profile represents a
-        // real person" — the browse felt broken rather than gated. Logged-out
-        // visitors now page through the same public roster a member sees.
+        // Signed-out visitors browse the same non-private roster a member sees.
+        // Only `private` hides a profile now — it is the one setting a member
+        // chose specifically to disappear, so it is the only privacy boundary
+        // worth enforcing. `members` used to mean "logged-in only", which
+        // contradicted the site's own promise of a free, browsable platform.
         //
-        // They still receive the reduced teaser payload from visibleProfile()
-        // (no bio, expectations, family background, contact details or photos)
-        // and private/members-only profiles remain invisible, so this widens
-        // browsing without exposing anyone's private data. Enumeration of the
-        // public tier is now possible; that is the accepted trade for a
-        // browsable public listing.
+        // Enumeration of non-private profiles is therefore possible. That is the
+        // accepted trade: everything returned still honours the member's photo
+        // setting, and `private` profiles remain fully invisible.
+        $where[] = "p.visibility <> 'private'";
         $limit = 100;
     } else {
         $where[] = "(p.visibility <> 'private' OR p.user_id = ?)";
@@ -499,6 +506,22 @@ function profilesList(): void
         foreach ($sentStmt->fetchAll() as $s) { $sentIds[(string)$s['to_user_id']] = true; }
     }
 
+    // Same for favourites: one query for the whole page, not one per card. The
+    // ProfileCard seeds its bookmark from `favourited`, which is what makes a
+    // saved profile still look saved after a reload.
+    $favIds = [];
+    if ($viewer !== null) {
+        try {
+            $favStmt = db()->prepare('SELECT profile_id FROM favourites WHERE user_id = ?');
+            $favStmt->execute([$viewer['uid']]);
+            foreach ($favStmt->fetchAll() as $f) { $favIds[(string)$f['profile_id']] = true; }
+        } catch (Throwable $e) {
+            // A missing table must not break the browse page; the cards simply
+            // render unsaved.
+            error_log('[api] favourites flag: ' . substr($e->getMessage(), 0, 120));
+        }
+    }
+
     $list = [];
     foreach ($rows as $row) {
         $view = visibleProfile($row, $viewer);
@@ -508,6 +531,7 @@ function profilesList(): void
         } else {
             $view['interestSent'] = false;
         }
+        $view['favourited'] = isset($favIds[(string)($view['id'] ?? '')]);
         $list[] = $view;
     }
 
@@ -526,6 +550,89 @@ function profileMe(): void
     }
 
     json(visibleProfile($row, $user));
+}
+
+/**
+ * GET /api/profiles/me/favourites — the caller's own saved profiles.
+ *
+ * Private by construction: there is no endpoint that reads anyone else's list,
+ * so there is no way to learn who saved you. Rows reuse visibleProfile() so a
+ * favourite that later becomes private stops rendering, rather than leaking
+ * through the favourites list.
+ */
+function favouritesList(): void
+{
+    $user = requireAuthUser();
+
+    try {
+        $rows = db()->prepare(
+            'SELECT f.profile_id, f.created_at
+               FROM favourites f
+               JOIN profiles p ON p.user_id = f.profile_id
+              WHERE f.user_id = ? AND p.is_blocked = 0
+              ORDER BY f.created_at DESC
+              LIMIT 200'
+        );
+        $rows->execute([$user['uid']]);
+        $favs = $rows->fetchAll();
+    } catch (Throwable $e) {
+        error_log('[api] favourites list: ' . substr($e->getMessage(), 0, 120));
+        json(['rows' => [], 'available' => false]);
+    }
+
+    $out = [];
+    foreach ($favs as $f) {
+        $probe = db()->prepare('SELECT * FROM profiles WHERE user_id = ? LIMIT 1');
+        $probe->execute([$f['profile_id']]);
+        $row = $probe->fetch();
+        if (!$row) continue;
+        // Reuse the normal visibility rules — a saved profile that has since
+        // been hidden must stop appearing here too.
+        $view = visibleProfile($row, $user);
+        if (!$view) continue;
+        $view['favouritedAt'] = $f['created_at'];
+        $out[] = $view;
+    }
+
+    json(['rows' => $out, 'available' => true]);
+}
+
+/** POST /api/profiles/:id/favourite — idempotent. */
+function favouriteAdd(string $id): void
+{
+    $user = requireAuthUser();
+
+    if ((string)$id === (string)$user['uid']) {
+        je('You cannot save your own profile.', 400);
+    }
+    $probe = db()->prepare('SELECT user_id, is_demo FROM profiles WHERE user_id = ? AND is_blocked = 0 LIMIT 1');
+    $probe->execute([$id]);
+    $target = $probe->fetch();
+    if (!$target) {
+        je('Profile not found.', 404);
+    }
+    // A sample profile on a favourites list is a dead end — there is nobody to
+    // write to. Refused here as well as in the card so the list never fills with
+    // entries that can never lead anywhere.
+    if ((int)($target['is_demo'] ?? 0) === 1) {
+        je('This is a sample profile, so it cannot be saved. Create your own profile to start building your list.', 409);
+    }
+
+    // INSERT IGNORE, not a SELECT-then-INSERT: a double-tap is normal UI
+    // behaviour and must not 409 or insert a duplicate.
+    db()->prepare('INSERT IGNORE INTO favourites (user_id, profile_id) VALUES (?, ?)')
+        ->execute([$user['uid'], $id]);
+
+    json(['ok' => true, 'favourited' => true]);
+}
+
+/** DELETE /api/profiles/:id/favourite — idempotent. */
+function favouriteRemove(string $id): void
+{
+    $user = requireAuthUser();
+    db()->prepare('DELETE FROM favourites WHERE user_id = ? AND profile_id = ?')
+        ->execute([$user['uid'], $id]);
+    json(['ok' => true, 'favourited' => false]);
 }
 
 function profileById(string $id): void
@@ -739,6 +846,18 @@ function profileInterest(string $id): void
     $stmt->execute([$id]);
     if (!$stmt->fetch()) {
         je('Profile not found.', 404);
+    }
+
+    // Sample profiles exist to show the format of a complete profile. There is no
+    // person behind one, so accepting interest would create a match and a
+    // notification addressed to nobody — and tell a real member that someone
+    // chose them. Refuse server-side; the client hides the button, but the client
+    // is not the thing that has to be right here.
+    $demo = db()->prepare('SELECT is_demo FROM profiles WHERE user_id = ? LIMIT 1');
+    $demo->execute([$id]);
+    $demoRow = $demo->fetch();
+    if ($demoRow && (int)($demoRow['is_demo'] ?? 0) === 1) {
+        je('This is a sample profile, not a real member. It cannot receive interest or messages.', 409);
     }
 
     // Idempotent: PK conflict on (from,to) is a no-op, like ON CONFLICT DO NOTHING.

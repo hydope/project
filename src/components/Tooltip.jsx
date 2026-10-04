@@ -1,46 +1,65 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
-export default function Tooltip({ content, children, className = '' }) {
+export default function Tooltip({ content, children, className = '', placement = 'top' }) {
   const [showTooltip, setShowTooltip] = useState(false);
-  const [showTimeout, setShowTimeout] = useState(null);
-  const [hideTimeout, setHideTimeout] = useState(null);
+  // Timers live in refs, not state. They were `useState` before, which meant a
+  // re-render fired on every hover just to store a timer id, and the cleanup
+  // effect below re-ran each time — leaving already-fired timers un-cleared.
+  const showTimeout = useRef(null);
+  const hideTimeout = useRef(null);
 
-  useEffect(() => {
-    return () => {
-      if (showTimeout) clearTimeout(showTimeout);
-      if (hideTimeout) clearTimeout(hideTimeout);
-    };
-  }, [showTimeout, hideTimeout]);
+  const clearTimers = () => {
+    if (showTimeout.current) { clearTimeout(showTimeout.current); showTimeout.current = null; }
+    if (hideTimeout.current) { clearTimeout(hideTimeout.current); hideTimeout.current = null; }
+  };
+
+  useEffect(() => clearTimers, []);
 
   const handleMouseEnter = () => {
-    if (showTimeout) clearTimeout(showTimeout);
-    const timeout = setTimeout(() => {
-      setShowTooltip(true);
-    }, 300);
-    setShowTimeout(timeout);
+    if (hideTimeout.current) { clearTimeout(hideTimeout.current); hideTimeout.current = null; }
+    if (showTimeout.current) clearTimeout(showTimeout.current);
+    showTimeout.current = setTimeout(() => setShowTooltip(true), 300);
   };
 
   const handleMouseLeave = () => {
-    if (hideTimeout) clearTimeout(hideTimeout);
-    const timeout = setTimeout(() => {
-      setShowTooltip(false);
-    }, 100);
-    setHideTimeout(timeout);
+    if (showTimeout.current) { clearTimeout(showTimeout.current); showTimeout.current = null; }
+    if (hideTimeout.current) clearTimeout(hideTimeout.current);
+    hideTimeout.current = setTimeout(() => setShowTooltip(false), 100);
   };
 
+  // Keyboard parity. Hover-only tooltips are unreachable for keyboard and
+  // screen-reader users, which fails WCAG 1.4.13 (Content on Hover or Focus).
+  // Focus shows immediately (no delay — a keyboard user has already committed
+  // intent) and Escape dismisses.
+  const handleFocus = () => {
+    clearTimers();
+    setShowTooltip(true);
+  };
+  const handleBlur = () => setShowTooltip(false);
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape' && showTooltip) {
+      e.stopPropagation();
+      setShowTooltip(false);
+    }
+  };
+
+  if (!content) return <>{children}</>;
+
   return (
-    <div
-      className="relative inline-block"
+    <span
+      className="tooltip-wrap"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
     >
       {children}
       {showTooltip && (
-        <div className={`absolute left-0 bottom-full mb-2 px-3 py-1 text-xs font-medium bg-charcoal text-white rounded-lg shadow-lg z-10 max-w-xs whitespace-nowrap ${className}`}>
+        <span role="tooltip" className={`tooltip-bubble tooltip-${placement} ${className}`}>
           {content}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mb-0.5 h-0.5 w-0.5 bg-charcoal rotate-45" />
-        </div>
+        </span>
       )}
-    </div>
+    </span>
   );
 }

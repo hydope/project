@@ -25,6 +25,26 @@ function pairBlocked(string $a, string $b): bool
     return (bool)$stmt->fetch();
 }
 
+/**
+ * True when BOTH members have expressed interest — i.e. they have matched.
+ *
+ * This is the single definition of "matched", used by photo access, by starting
+ * a conversation and by sending a message. It used to be inlined in one place
+ * and absent from another, which is how "matched" quietly came to mean two
+ * different things. Kept here, next to pairBlocked, so all three agree.
+ */
+function mutualInterest(string $a, string $b): bool
+{
+    $stmt = db()->prepare(
+        'SELECT 1 FROM interests
+          WHERE (from_user_id = ? AND to_user_id = ?) OR (from_user_id = ? AND to_user_id = ?)
+          LIMIT 2'
+    );
+    $stmt->execute([$a, $b, $b, $a]);
+    // Two distinct rows is what makes it mutual; one row is a one-sided interest.
+    return count($stmt->fetchAll()) === 2;
+}
+
 function messagesList(): void
 {
     $user = requireAuthUser();
@@ -138,18 +158,10 @@ function startConversation(): void
         je('Messaging is unavailable with this member.', 403);
     }
 
-    // GATE: only two-way interest opens a conversation.
-    // Fetch immediately after each execute — never interleave prepares/executes
-    // across two statements before fetching, which is fragile on some drivers.
-    $mineStmt = db()->prepare('SELECT 1 FROM interests WHERE from_user_id = ? AND to_user_id = ? LIMIT 1');
-    $mineStmt->execute([(string)$user['uid'], $other]);
-    $mineFound = (bool)$mineStmt->fetch();
-
-    $theirsStmt = db()->prepare('SELECT 1 FROM interests WHERE from_user_id = ? AND to_user_id = ? LIMIT 1');
-    $theirsStmt->execute([$other, (string)$user['uid']]);
-    $theirsFound = (bool)$theirsStmt->fetch();
-
-    if (!$mineFound || !$theirsFound) {
+    // GATE: only two-way interest opens a conversation. Uses the same helper the
+    // photo endpoint and sendMessage use, so "matched" cannot drift into three
+    // subtly different definitions.
+    if (!mutualInterest((string)$user['uid'], $other)) {
         json([
             'error' => 'Messaging unlocks when you both express interest. Send interest and wait for theirs.',
             'mutualInterest' => false,
@@ -192,6 +204,13 @@ function sendMessage(string $id): void
     }
 
     $other = $row['user_a'] === (string)$user['uid'] ? $row['user_b'] : $row['user_a'];
+
+    // Messaging requires a match. Profiles are readable by anyone, so this is
+    // now the only thing standing between a stranger and someone's inbox — which
+    // makes it the check that matters most, not an extra hurdle on top of one.
+    if (!mutualInterest((string)$user['uid'], $other)) {
+        je('You can only message someone you have both matched with.', 403);
+    }
     if (pairBlocked((string)$user['uid'], $other)) {
         je('Messaging is unavailable with this member.', 403);
     }

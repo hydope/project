@@ -2,7 +2,7 @@
 // Local fallback keeps every flow working offline/demo: bcrypt-hashed passwords
 // in per-member storage, same session shape the backend returns.
 import bcrypt from 'bcryptjs';
-import { read, write, remove, clearUserData } from './storage';
+import { read, write, clearUserData } from './storage';
 import { http, useRemote } from './transport';
 
 const USERS_KEY = 'users';

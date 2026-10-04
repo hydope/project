@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Moon, Search, Command, X, LayoutDashboard, Users, MessageCircle,
   BookOpen, LifeBuoy, Settings, LogOut, Home, Menu,
-  Shield, ShieldAlert, BarChart3, History, HandHeart, BadgeCheck, KeyRound, UserCheck
+  Shield, ShieldAlert, BarChart3, History, HandHeart, BadgeCheck, KeyRound, UserCheck, Bookmark
 } from 'lucide-react';
 import ThemeMenu from '../components/ThemeMenu';
 // Lazy: the assistant widget + brain load on demand, not in the entry chunk.
@@ -26,6 +26,7 @@ function CommandPalette({ open, onClose, toggleTheme, isAdmin }) {
     { label: 'Go to Profiles', icon: Users, path: '/profiles', section: 'Navigate' },
     { label: 'Go to Dashboard', icon: LayoutDashboard, path: '/dashboard', section: 'Navigate' },
     { label: 'Go to Messages', icon: MessageCircle, path: '/messages', section: 'Navigate' },
+    { label: 'Go to Saved Profiles', icon: Bookmark, path: '/favorites', section: 'Navigate' },
     { label: 'Go to Blog', icon: BookOpen, path: '/blog', section: 'Navigate' },
     { label: 'Go to Community', icon: Users, path: '/community', section: 'Navigate' },
     { label: 'Go to Support', icon: LifeBuoy, path: '/support', section: 'Navigate' },
@@ -203,6 +204,7 @@ const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, section: 'Overview' },
   { path: '/profiles', label: 'Browse Profiles', icon: Users, section: 'Overview' },
   { path: '/settings', label: 'Settings', icon: Settings, section: 'Overview' },
+  { path: '/favorites', label: 'Saved Profiles', icon: Bookmark, section: 'Overview' },
   { path: '/messages', label: 'Messages', icon: MessageCircle, section: 'Connect' },
   { path: '/blog', label: 'Guidance', icon: BookOpen, section: 'Learn' },
   { path: '/community', label: 'Community', icon: Users, section: 'Learn' },

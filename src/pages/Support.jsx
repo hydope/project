@@ -2,14 +2,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import Layout from '../layouts/LandingLayout';
 import { useToast } from '../lib/useToast';
-import { HelpCircle, MessageSquare, Send, ChevronDown, Search, BookOpen, Shield, CreditCard, UserCheck, Sparkles, CheckCircle, Clock, Mail } from 'lucide-react';
+import { HelpCircle, MessageSquare, Send, ChevronDown, Search, BookOpen, Shield, Gift, UserCheck, Sparkles, CheckCircle, Clock, Mail } from 'lucide-react';
 
 const FAQ_CATEGORIES = [
   { id: 'all', label: 'All Topics', icon: BookOpen },
   { id: 'getting-started', label: 'Getting Started', icon: Sparkles },
   { id: 'privacy', label: 'Privacy & Safety', icon: Shield },
   { id: 'matchmaking', label: 'Matchmaking', icon: UserCheck },
-  { id: 'pricing', label: 'Pricing', icon: CreditCard },
+  // There is no pricing page or membership tier. The category is kept only to
+  // answer "is this free?", which members still ask — it just stops implying
+  // that a price list exists somewhere.
+  { id: 'free', label: 'Free — Always', icon: Gift },
 ];
 
 const FAQ_ITEMS = [
@@ -21,14 +24,13 @@ const FAQ_ITEMS = [
   { q: 'How do I add a guardian or wali?', a: 'A family member or approved matchmaker can create a private introduction on your behalf and share it with you by a secure link. You stay in control: the introduction carries no photos, expires after 45 days, and you can claim it, decline it, or have it withdrawn at any time. Viewing a wali page is read-only and never exposes your email.', cat: 'privacy' },
   { q: 'Can a family member read my messages?', a: 'No. Only the two people in a conversation can read it. Family involvement happens through introductions and shared profile links — not by giving anyone else message access. We do not have a feature that puts a third party inside a private conversation.', cat: 'privacy' },
   { q: 'How do I report inappropriate behavior?', a: 'Click the "Report" button on any profile or conversation. Our Trust & Safety team reviews all reports within 24 hours and takes appropriate action — up to and including permanent removal.', cat: 'privacy' },
-  { q: 'Are there any fees?', a: 'Shia Rishta is free. Profile creation, browsing, expressing interest and messaging have no paywall, and identity verification is included for every member. There is no paid tier today — we would rather earn your trust than sell you access to your own introduction.', cat: 'pricing' },
+  { q: 'Is Shia Rishta really free?', a: 'Yes — entirely free, for everyone, with no paid tier. Creating a profile, browsing, expressing interest, messaging and identity verification are all included, and none of your privacy controls are a premium feature. There is nothing to buy.', cat: 'free' },
   { q: 'How do I verify my identity?', a: 'After publishing your profile, navigate to Settings → Verification to submit a government ID or a selfie. Verified members receive a prominent badge. Your document is encrypted before it is stored, is reviewed only by our verification team, and is never shown to other members.', cat: 'privacy' },
 ];
 
 const TICKET_CATEGORIES = [
   { value: 'technical', label: 'Technical Issue' },
   { value: 'profile', label: 'Profile & Account' },
-  { value: 'payment', label: 'Payments & Billing' },
   { value: 'safety', label: 'Safety & Reporting' },
   { value: 'feedback', label: 'Feedback & Suggestions' },
   { value: 'other', label: 'Other' },

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import Layout from '../layouts/MainLayout';
 import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
-import { apiUrl, http } from '../lib/api/transport';
+import { http } from '../lib/api/transport';
 import { useAuthedImage } from '../lib/api/useAuthedImage';
 import { computeProfileCompleteness } from '../lib/onboardingData';
 import { getMyProfile } from '../lib/storage';

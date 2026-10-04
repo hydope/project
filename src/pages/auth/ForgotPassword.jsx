@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { KeyRound, Sparkles } from 'lucide-react';
+import { KeyRound } from 'lucide-react';
 import { auth } from '../../lib/api/authService';
 
 // Forgot password — asks the server for a reset link. The response shape is

@@ -44,7 +44,21 @@ function Dim({ label, value }) {
  * Used inside the swipe deck card and (later) the profile detail view.
  */
 export default function CompatibilityIndex({ profile, compact = false }) {
-  const { overall, breakdown, reasons } = computeCompatibility(profile);
+  // Null when the viewer has not onboarded — see the honesty contract in
+  // lib/compatibility.js. Destructuring that returned the same fixed 61% for
+  // every profile, so this component rendered a confident ring and two invented
+  // reasons for signed-out visitors. Say why there is no score instead.
+  const result = computeCompatibility(profile);
+
+  if (!result) {
+    return (
+      <div className="text-xs" style={{ color: 'var(--color-ink-tertiary)' }}>
+        {compact ? null : 'Complete your profile to see how you compare.'}
+      </div>
+    );
+  }
+
+  const { overall, breakdown, reasons } = result;
 
   if (compact) {
     return (

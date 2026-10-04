@@ -264,7 +264,7 @@ export default function Messages() {
           ) : (
             <>
               {requestError && (
-                <div className="mx-4 mt-3 p-3 rounded-lg text-sm" role="alert" style={{ background: 'var(--color-danger-soft)', color: 'var(--color-danger)' }}>
+                <div className="mx-4 mt-3 p-3 rounded-lg text-sm" role="alert" style={{ background: 'var(--color-danger-subtle)', color: 'var(--color-danger)' }}>
                   {requestError}
                 </div>
               )}
@@ -551,7 +551,7 @@ function ChatPane({ convo, messages, onBack, onSend, onBlock, messagesEndRef, lo
           placeholder={`Write a respectful message to ${name.split(' ')[0]}…`} aria-label="Message"
           maxLength={2000} autoComplete="off"
           className="input w-full"
-          style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-ink)' }} />
+          style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-ink)' }} />
         <button type="submit" disabled={!draft.trim() || sending} aria-label="Send message"
           className="btn btn-primary">
           <Send className="w-3 h-3" />

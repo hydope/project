@@ -4,6 +4,9 @@ import { motion } from 'framer-motion';
 import { Heart, Bookmark, MapPin, Briefcase, Shield, Lock, Sparkles } from 'lucide-react';
 import { useAuthedImage } from '../lib/api/useAuthedImage';
 import { computeCompatibility, getMyProfile } from '../lib/compatibility';
+import { useAuth } from '../lib/auth/AuthContext';
+import LoginGate from './LoginGate';
+import SampleProfileBadge from './SampleProfileBadge';
 
 function excerptText(value, maxLength = 90) {
   const text = String(value || '').trim();
@@ -13,7 +16,46 @@ function excerptText(value, maxLength = 90) {
 }
 
 export default function ProfileCard({ profile, className = '' }) {
-  const [saved, setSaved] = useState(false);
+  // ── Favourites ──
+  // Persisted on the server so a save survives a reload and a new device.
+  // Seeded from the profile payload (favourited) the server sends, then driven
+  // by the API. The old version was pure local state: it reset to false on
+  // every remount, so the bookmark silently undid itself.
+  const [saved, setSaved] = useState(profile.favourited === true);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const { isLoggedIn } = useAuth();
+  const [loginGateOpen, setLoginGateOpen] = useState(false);
+
+  const toggleSaved = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (saveBusy) return;
+    // Sample profiles cannot receive messages, so saving one would put it on a
+    // favourites list the member could never act on. Say so instead of storing it.
+    if (profile.isDemo === true) {
+      setSaveError('This is a sample profile, so it cannot be saved. Create your own profile to start building your list.');
+      return;
+    }
+    // Favourites need an account — the API is session-scoped and there is no
+    // anonymous save, so send a signed-out visitor to the login gate instead of
+    // pretending the bookmark worked.
+    if (!isLoggedIn) { setLoginGateOpen(true); return; }
+    const next = !saved;
+    setSaveBusy(true);
+    setSaveError('');
+    setSaved(next); // optimistic
+    try {
+      const { api } = await import('../lib/api/client');
+      if (next) await api.addFavourite(profile.id);
+      else await api.removeFavourite(profile.id);
+    } catch (err) {
+      setSaved(!next); // roll back — never show a save that did not happen
+      setSaveError(err.message || (next ? 'Could not save this profile.' : 'Could not remove this favourite.'));
+    } finally {
+      setSaveBusy(false);
+    }
+  };
   // Interest state is server truth: initialise from the profile payload when
   // the API provides it, and persist every tap via the API — the button used
   // to be a local-only toggle that silently dropped the interest on reload.
@@ -24,6 +66,13 @@ export default function ProfileCard({ profile, className = '' }) {
   const handleInterest = async (e) => {
     e.preventDefault();
     if (interestBusy) return;
+    // Sending interest is what opens a conversation, and a sample profile has
+    // nobody on the other end. Block it here and explain, rather than letting the
+    // request succeed against a person who does not exist.
+    if (profile.isDemo === true) {
+      setInterestError('This is a sample profile written to show the format — there is no one behind it. Browse real members to send interest.');
+      return;
+    }
     setInterestBusy(true);
     setInterestError('');
     try {
@@ -179,6 +228,11 @@ export default function ProfileCard({ profile, className = '' }) {
             </h3>
             <Sparkles className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-primary)', opacity: 0.7 }} />
           </div>
+          {/* Labelled before anything else the card says. A sample profile is
+              fully written and could otherwise read as a real person. */}
+          {profile.isDemo === true && (
+            <SampleProfileBadge className="w-fit" />
+          )}
           <p className="flex items-center gap-1 text-xs truncate" style={{ color: 'var(--color-ink-secondary)' }}>
             <MapPin className="w-3 h-3 flex-shrink-0" />
             {/* Both fields were interpolated unconditionally, so a member with
@@ -215,19 +269,22 @@ export default function ProfileCard({ profile, className = '' }) {
       <div className="px-3.5 pb-3.5 flex gap-2">
         <button
           onClick={handleInterest}
-          disabled={interestBusy}
+          disabled={interestBusy || profile.isDemo === true}
           className={'flex-1 py-2.5 min-h-[38px] text-xs font-semibold flex items-center justify-center gap-1 rounded-lg transition-all disabled:opacity-60 ' + (interested ? '' : 'btn-primary')}
           style={{ minHeight: '38px', ...(interested ? { background: 'var(--color-primary-subtle)', color: 'var(--color-primary)', border: '1px solid var(--color-primary-subtle)' } : undefined) }}
           title={interestError || (interested ? 'Click to withdraw interest' : undefined)}
           aria-label={interested ? `Withdraw interest in ${profile.displayName}` : `Express interest in ${profile.displayName}`}
         >
           <Heart className={'w-3.5 h-3.5 ' + (interested ? 'fill-current' : '')} />
-          {interestBusy ? (interested ? 'Withdrawing…' : 'Sending…') : interested ? 'Interested' : 'Interest'}
+          {interestBusy ? (interested ? 'Withdrawing…' : 'Sending…') : interested ? 'Interested' : profile.isDemo === true ? 'Sample' : 'Interest'}
         </button>
         <button
-          onClick={e => { e.preventDefault(); setSaved(!saved); }}
+          onClick={toggleSaved}
+          disabled={saveBusy}
           className="btn-secondary p-2.5"
-          aria-label={`Save ${profile.displayName} to favorites`}
+          aria-pressed={saved}
+          aria-label={saved ? `Remove ${profile.displayName} from favourites` : `Save ${profile.displayName} to favourites`}
+          title={saveError || (saved ? 'Remove from favourites' : 'Save to favourites')}
           style={{ minWidth: '38px', minHeight: '38px' }}
         >
           <Bookmark
@@ -236,6 +293,12 @@ export default function ProfileCard({ profile, className = '' }) {
           />
         </button>
       </div>
+      {saveError && (
+        <p className="px-3.5 pb-3 -mt-2 text-[11px]" style={{ color: 'var(--color-danger, #b3261e)' }}>{saveError}</p>
+      )}
+      {loginGateOpen && (
+        <LoginGate reason="favourites" onClose={() => setLoginGateOpen(false)} />
+      )}
     </motion.article>
   );
 }

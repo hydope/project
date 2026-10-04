@@ -44,7 +44,7 @@ export default function NotFound() {
           {/* Search bar */}
           <form onSubmit={handleSearch} className="max-w-md mx-auto mb-10">
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-ink-tertiary)' }} />
               <input
                 type="text"
                 value={search}
@@ -70,7 +70,7 @@ export default function NotFound() {
               >
                 <link.icon className="w-5 h-5" style={{ color: 'var(--primary)' }} />
                 <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>{link.label}</span>
-                <span className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{link.desc}</span>
+                <span className="text-[10px]" style={{ color: 'var(--color-ink-tertiary)' }}>{link.desc}</span>
               </Link>
             ))}
           </div>

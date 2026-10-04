@@ -9,7 +9,7 @@ const VALUES = [
   { icon: Users, title: 'Family-Centered', desc: 'Wali workflows and family-managed introductions aren\'t afterthoughts. They\'re built into the platform from day one.' },
   { icon: Globe, title: 'Community-Driven', desc: 'From Ithna Ashari to Ismaili, Bohra to Zaydi — we serve the full diversity of Shia Islam with granular sect and Marja\' filters.' },
   { icon: Sparkles, title: 'Values-Matched', desc: 'Our compatibility score weighs faith practice, values, lifestyle and timeline alignment — surfacing matches that genuinely matter.' },
-  { icon: Eye, title: 'Transparent', desc: 'No hidden paywalls behind basic navigation. Clear pricing, honest matching, and a team that responds within hours.' },
+  { icon: Eye, title: 'Transparent', desc: 'No hidden paywalls behind basic navigation. The platform is entirely free, matching is honest, and a team of people responds within hours.' },
 ];
 
 const TEAM = [

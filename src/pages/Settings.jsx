@@ -8,8 +8,7 @@ import PhotoUpload from '../components/PhotoUpload';
 import WaliLinks from '../components/WaliLinks';
 import ConfirmDialog from '../components/ConfirmDialog';
 import {
-  Shield, Bell, User, Lock, Moon, Sun,
-  AlertTriangle, Link2, Copy, Check, Trash2, Plus
+  Shield, Bell, User, Lock, Moon, Sun, AlertTriangle
 } from 'lucide-react';
 
 // Settings are per-member: the key follows the signed-in account
@@ -114,7 +113,11 @@ export default function Settings() {
             sess.displayName = payload.displayName;
             write('session', sess);
           }
-        } catch {}
+        } catch {
+          // A failed cache write must not fail the save itself — the profile
+          // already persisted server-side. The header simply shows the old
+          // name until the next load.
+        }
       }
       if (payload.email) {
         setAccountSaved('Saved. Verification required — check your inbox to confirm the new email address.');
@@ -467,12 +470,12 @@ export default function Settings() {
                     </button>
                   </div>
                   {blockError && (
-                    <div className="text-sm p-2 rounded-lg mb-3" role="alert" style={{ background: 'var(--color-danger-soft)', color: 'var(--color-danger)' }}>
+                    <div className="text-sm p-2 rounded-lg mb-3" role="alert" style={{ background: 'var(--color-danger-subtle)', color: 'var(--color-danger)' }}>
                       {blockError}
                     </div>
                   )}
                   {blockSuccess && (
-                    <div className="text-sm p-2 rounded-lg mb-3" role="status" style={{ background: 'var(--color-success-soft)', color: 'var(--color-success)' }}>
+                    <div className="text-sm p-2 rounded-lg mb-3" role="status" style={{ background: 'var(--color-success-subtle)', color: 'var(--color-success)' }}>
                       {blockSuccess}
                     </div>
                   )}

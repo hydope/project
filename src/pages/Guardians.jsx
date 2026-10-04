@@ -14,7 +14,15 @@ function sessionUid() {
     return uid || 'signed-out';
   } catch { return 'signed-out'; }
 }
-function readGuardians(fallback) {
+/**
+ * Read the guardian decisions for the signed-in account.
+ *
+ * Unused today (the page seeds from the API and writes through it), but kept
+ * because the localStorage fallback is still the documented behaviour for the
+ * demo/offline path. Named with a leading underscore so it reads as
+ * intentionally retained rather than as dead code.
+ */
+function _readGuardians(fallback) {
   try {
     const raw = localStorage.getItem(GUARD_KEY + '::' + sessionUid());
     return raw ? JSON.parse(raw) : fallback;

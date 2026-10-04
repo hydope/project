@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Layout from '@/layouts/MainLayout';
 import { http } from '@/lib/api/transport';
 import { Search, Users, RefreshCw, X, ShieldCheck, Ban, History, Mail } from 'lucide-react';
@@ -21,17 +21,28 @@ export default function AdminMembers() {
   const [detail, setDetail] = useState(null);
   const [detailBusy, setDetailBusy] = useState(false);
 
+  // Monotonic request id — see load() below.
+  const reqId = useRef(0);
+
   const load = useCallback(async () => {
+    // Monotonic request id. Search is debounced, but a slow response for "a" can
+    // still land AFTER a fast response for "ali" — without this guard the older
+    // result overwrote the newer one and the list showed the wrong members.
+    // Only the newest request is allowed to write state.
+    const id = ++reqId.current;
     setLoading(true);
     setError('');
     try {
       const params = new URLSearchParams({ limit: String(limit) });
       if (q.trim()) params.set('q', q.trim());
-      setData(await http.get(`/api/admin/users?${params}`));
+      const result = await http.get(`/api/admin/users?${params}`);
+      if (id !== reqId.current) return; // a newer search already won
+      setData(result);
     } catch (e) {
+      if (id !== reqId.current) return;
       setError(e?.message || 'Could not load members.');
     } finally {
-      setLoading(false);
+      if (id === reqId.current) setLoading(false);
     }
   }, [q, limit]);
 
@@ -142,9 +153,9 @@ export default function AdminMembers() {
         )}
 
         <div className="flex items-center justify-between mt-4">
-          // A real total beats "25+": the operator can tell whether the page is showing
-// everything or a slice of something much larger.
-<p className="text-xs text-muted">
+          {/* A real total beats "25+": the operator can tell whether the page is showing
+              everything or a slice of something much larger. */}
+          <p className="text-xs text-muted">
   Showing {data.rows.length}{data.total ? ` of ${data.total}` : ''}{data.hasMore ? ' — more available' : ''}
 </p>
           <div className="flex items-center gap-2">

@@ -6,7 +6,8 @@ import Seo from './components/Seo';
 // Route-based code splitting — each page loads only when visited,
 // keeping the first paint tiny and the app fast on every device.
 const Home = lazy(() => import('./pages/Home'));
-const Profiles = lazy(() => import('./pages/Profiles'));
+const Profiles = lazy(() => import('./pages/Profiles').then((m) => ({ default: m.BrowseProfiles })));
+const Favourites = lazy(() => import('./pages/Profiles').then((m) => ({ default: m.Favourites })));
 const Profile = lazy(() => import('./pages/Profile'));
 const Blog = lazy(() => import('./pages/Blog'));
 const BlogPost = lazy(() => import('./pages/BlogPost'));
@@ -32,11 +33,13 @@ const Agents = lazy(() => import('./pages/Agents'));
 const Onboard = lazy(() => import('./pages/Onboard'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Guardians = lazy(() => import('./pages/Guardians'));
-const Pricing = lazy(() => import('./pages/Pricing'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const Terms = lazy(() => import('./pages/Terms'));
 const SuccessStories = lazy(() => import('./pages/SuccessStories'));
 const About = lazy(() => import('./pages/About'));
+// Teaches members how to write a strong profile. Doubles as the honest answer to
+// "the browse page looks empty" — a good example beats invented people.
+const ProfileGuide = lazy(() => import('./pages/ProfileGuide'));
 const Safety = lazy(() => import('./pages/Safety'));
 // Admin subpages
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
@@ -92,7 +95,7 @@ class ChunkErrorBoundary extends Component {
           <h1 className="text-xl font-bold mb-2">Something went wrong loading this page</h1>
           <p className="text-sm opacity-70 mb-6">Please try again — your data is safe.</p>
           <button
-            className="btn-primary"
+            className="btn btn-primary"
             onClick={() => window.location.reload()}
           >
             Reload page
@@ -135,6 +138,7 @@ function ScrollToTop() {
 const router = createBrowserRouter([
   { path: '/', element: <LazyRoute component={Home} /> },
   { path: '/profiles', element: <LazyRoute component={Profiles} /> },
+  { path: '/favorites', element: <LazyRoute component={Favourites} /> },
   { path: '/profiles/:id', element: <LazyRoute component={Profile} /> },
   { path: '/blog', element: <LazyRoute component={Blog} /> },
   { path: '/blog/:slug', element: <LazyRoute component={BlogPost} /> },
@@ -159,11 +163,11 @@ const router = createBrowserRouter([
   { path: '/community/:slug/post/:postId', element: <LazyRoute component={CommunityPost} /> },
   { path: '/contact', element: <LazyRoute component={Contact} /> },
   { path: '/agents', element: <LazyRoute component={Agents} /> },
-  { path: '/pricing', element: <LazyRoute component={Pricing} /> },
   { path: '/privacy', element: <LazyRoute component={Privacy} /> },
   { path: '/terms', element: <LazyRoute component={Terms} /> },
   { path: '/success-stories', element: <LazyRoute component={SuccessStories} /> },
   { path: '/about', element: <LazyRoute component={About} /> },
+  { path: '/profile-guide', element: <LazyRoute component={ProfileGuide} /> },
   { path: '/safety', element: <LazyRoute component={Safety} /> },
   { path: '/support', element: <LazyRoute component={Support} /> },
   { path: '/guardians', element: <LazyRoute component={Guardians} /> },

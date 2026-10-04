@@ -199,15 +199,18 @@ function AccountMenu({ user, logout, open, onClose, onToggle }) {
 
   return (
     <div ref={rootRef} style={{ position: 'relative', display: 'inline-flex' }}>
-      {/* Avatar chip — opens the menu */}
+      {/* Avatar chip — opens the menu.
+          NOTE: no inline reset here. This element is styled entirely by
+          .landing-avatar-btn; an inline `background:'none', border:'none'`
+          outranks the class, which erased the gradient and left white
+          initials on a white header — i.e. an invisible account button. */}
       <button
         className="landing-avatar-btn"
         aria-label={`Account — ${user?.displayName || 'your profile'}`}
-        title="Your account"
+        title={`Your account${user?.displayName ? ` — ${user.displayName}` : ''}`}
         aria-haspopup="true"
         aria-expanded={open}
         onClick={() => { setConfirmLogout(false); onToggle(); }}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
       >
         {initialsOf(user?.displayName || user?.email)}
       </button>

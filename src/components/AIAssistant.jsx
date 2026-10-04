@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bot, X, Send, Shield, Sparkles, BadgeCheck, MessageCircleHeart } from 'lucide-react';
+import { Bot, X, Send, Sparkles, BadgeCheck, MessageCircle, MessageCircleHeart } from 'lucide-react';
 import { SUGGESTIONS, WELCOME } from '../lib/aiAssistantBrain';
 import { AI_OPEN_EVENT } from '../lib/aiAssistant';
 import { http, useRemote } from '../lib/api/transport';
@@ -140,9 +140,13 @@ export default function AIAssistant() {
             </button>
           </form>
 
+          {/* Support pointer only. The server-side safety instructions stay
+              enforced, but surfacing "Guardrails on" in the UI made the
+              assistant read as restricted and undercut trust in every answer.
+              Users get a calm help link instead. */}
           <div className="ai-guardrail">
-            <Shield className="w-3 h-3" />
-            <span>Guardrails on: respectful guidance only. Concerns? support@shiarishta.com</span>
+            <MessageCircle className="w-3 h-3" />
+            <span>Questions about a profile or your data? <a href="/support">Contact support</a></span>
           </div>
         </aside>
       </>)}

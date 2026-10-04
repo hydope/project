@@ -33,6 +33,182 @@ function auditLog(string $action, string $targetType, string $targetId, array $m
         error_log('[api] audit log failed: ' . substr($e->getMessage(), 0, 140));
     }
 }
+// ═══════════════════════════════════════════════════════════════════════════
+//  AI CREDENTIAL — admin-configurable, encrypted at rest
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Why this exists: the NVIDIA key came from a GitHub secret, so when it expired
+// or was never set, the only remedy was a redeploy or shell access to the host
+// to hand-edit .env. /admin/content can now set it directly.
+//
+// SECURITY MODEL — the important part:
+//   · Encrypted at rest (AES-256-GCM via encAtRest()).
+//   · NO endpoint returns a stored credential. GET returns presence, a source
+//     label and a masked tail — enough to confirm a paste worked, not enough to
+//     exfiltrate a live key from a browser.
+//   · Every write is audit-logged with actor, timestamp and which fields moved.
+//   · An admin can overwrite a credential; they cannot read one back.
+
+/** Mask a credential for display: "nvapi-…4f2a". Never the middle. */
+function aiMaskKey(string $key): string
+{
+    $key = trim($key);
+    if ($key === '') return '';
+    $tail = substr($key, -4);
+    $prefix = str_starts_with($key, 'nvapi-') ? 'nvapi-' : substr($key, 0, 5);
+    return $prefix . '…' . $tail;
+}
+
+/** Shared loader for the non-secret settings row. */
+function aiSettingsRow(string $key): array
+{
+    $stmt = db()->prepare('SELECT value_enc, updated_at, last_status FROM app_settings WHERE setting_key = ? LIMIT 1');
+    $stmt->execute([$key]);
+    $row = $stmt->fetch();
+    return is_array($row) ? $row : [];
+}
+
+/** GET /api/admin/ai-settings — status only, never the value. */
+function adminAiSettingsStatus(): void
+{
+    $key = aiApiKey();
+    $row = aiSettingsRow('nvidia_api_key');
+    $modelRow = aiSettingsRow('nvidia_model');
+
+    json([
+        'available' => $key !== '',
+        // 'admin-panel' | 'environment' | 'missing' — the single most useful
+        // diagnostic: it tells the operator whether the paste took effect or
+        // they are still relying on a (possibly empty) env var.
+        'source' => aiApiKeySource(),
+        'masked' => aiMaskKey($key),
+        'model' => aiModel(),
+        'modelOverridden' => ($modelRow['value_enc'] ?? null) !== null,
+        'baseUrl' => (string)(getenv('NVIDIA_BASE_URL') ?: 'https://integrate.api.nvidia.com/v1'),
+        'updatedAt' => $row['updated_at'] ?? null,
+        'lastStatus' => $row['last_status'] ?? null,
+    ]);
+}
+
+/** PUT /api/admin/ai-settings — set the key and/or the model. */
+function adminAiSettingsUpdate(): void
+{
+    $admin = requireAdminUser();
+    $body = requestJson();
+
+    $wrote = [];
+
+    if (array_key_exists('apiKey', $body)) {
+        $key = trim((string)($body['apiKey'] ?? ''));
+        if ($key === '') {
+            // Explicit clear: fall back to the environment variable.
+            db()->prepare('DELETE FROM app_settings WHERE setting_key = ?')->execute(['nvidia_api_key']);
+            $wrote[] = 'apiKey-cleared';
+        } else {
+            // NVIDIA keys are nvapi-<64 hex>. Validating the shape catches
+            // pasting the wrong thing (a GitHub PAT, a URL, a model id) before
+            // it becomes a mysterious 401 at request time.
+            if (!preg_match('/^nvapi-[A-Za-z0-9_\-]{20,}$/', $key)) {
+                je('That does not look like an NVIDIA API key. It should start with "nvapi-".', 400);
+            }
+            $up = db()->prepare(
+                'INSERT INTO app_settings (setting_key, value_enc, updated_by, updated_at)
+                 VALUES (?, ?, ?, UTC_TIMESTAMP())
+                 ON DUPLICATE KEY UPDATE value_enc = VALUES(value_enc), updated_by = VALUES(updated_by),
+                                         updated_at = UTC_TIMESTAMP(), last_status = NULL'
+            );
+            $up->execute(['nvidia_api_key', encAtRest($key), $admin['uid']]);
+            $wrote[] = 'apiKey';
+        }
+    }
+
+    if (array_key_exists('model', $body)) {
+        $model = trim((string)($body['model'] ?? ''));
+        if ($model === '') {
+            db()->prepare('DELETE FROM app_settings WHERE setting_key = ?')->execute(['nvidia_model']);
+            $wrote[] = 'model-cleared';
+        } else {
+            if (!preg_match('#^[A-Za-z0-9._\-]+/[A-Za-z0-9._\-]+$#', $model)) {
+                je('A model id looks like "vendor/model-name", e.g. moonshotai/kimi-k2-instruct.', 400);
+            }
+            $up = db()->prepare(
+                'INSERT INTO app_settings (setting_key, value_enc, updated_by, updated_at)
+                 VALUES (?, ?, ?, UTC_TIMESTAMP())
+                 ON DUPLICATE KEY UPDATE value_enc = VALUES(value_enc), updated_by = VALUES(updated_by),
+                                         updated_at = UTC_TIMESTAMP()'
+            );
+            $up->execute(['nvidia_model', encAtRest($model), $admin['uid']]);
+            $wrote[] = 'model';
+        }
+    }
+
+    if (!$wrote) {
+        je('Nothing to save.', 400);
+    }
+
+    // Audit the FACT that a credential was rotated. Never the credential, and
+    // not even its length — just which field moved.
+    auditLog('ai.settings.updated', 'app_setting', 'nvidia', [
+        'fields' => $wrote,
+        'source' => aiApiKeySource(),
+    ]);
+
+    json(['ok' => true, 'updated' => $wrote, 'source' => aiApiKeySource()]);
+}
+
+/**
+ * POST /api/admin/ai-settings/verify — live check against NVIDIA.
+ *
+ * Reports the HTTP status and a short error CLASS only. The upstream body is
+ * never returned: NVIDIA error payloads can echo back the Authorization header,
+ * which would put a live credential into a browser-visible response.
+ */
+function adminAiSettingsVerify(): void
+{
+    requireAdminUser();
+
+    $key = aiApiKey();
+    if ($key === '') {
+        json(['ok' => false, 'status' => 0, 'detail' => 'No credential configured. Add an API key first.']);
+        return;
+    }
+
+    $base = rtrim((string)(getenv('NVIDIA_BASE_URL') ?: 'https://integrate.api.nvidia.com/v1'), '/');
+    $ch = curl_init($base . '/models');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_CONNECTTIMEOUT => 6,
+        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $key, 'Accept: application/json'],
+    ]);
+    $body = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+
+    if ($err !== '') {
+        $detail = 'Could not reach NVIDIA: ' . substr($err, 0, 80);
+    } elseif ($status === 200) {
+        $detail = 'Credential accepted by NVIDIA.';
+    } elseif ($status === 401 || $status === 403) {
+        $detail = 'NVIDIA rejected the credential (401/403). It is invalid, expired or revoked.';
+    } elseif ($status === 429) {
+        $detail = 'Rate limited by NVIDIA (429). The key is valid but over quota right now.';
+    } elseif ($status >= 200 && $status < 300) {
+        $detail = 'Unexpected success status ' . $status . '.';
+    } else {
+        $detail = 'NVIDIA returned HTTP ' . $status . '.';
+    }
+
+    // Persist only the non-secret diagnosis so the panel can show it after a
+    // reload without the operator having to re-run the check.
+    $save = db()->prepare('UPDATE app_settings SET last_status = ? WHERE setting_key = ?');
+    $save->execute([substr('http=' . $status . ' ' . $detail, 0, 160), 'nvidia_api_key']);
+
+    json(['ok' => $status === 200, 'status' => $status, 'detail' => $detail, 'model' => aiModel()]);
+}
+
+
 
 function routeAdmin(string $method, array $segments): void
 {
@@ -42,6 +218,19 @@ function routeAdmin(string $method, array $segments): void
     }
 
     $action = $segments[0] ?? null;
+
+    // ── AI credential / runtime settings ────────────────────────────────────
+    // Checked before the generic branches below. These are the only endpoints
+    // that touch app_settings, and there is deliberately no "read the value"
+    // route — status reports presence and provenance only.
+    if ($action === 'ai-settings' && ($segments[1] ?? null) === null) {
+        if ($method === 'GET') { adminAiSettingsStatus(); return; }
+        if ($method === 'PUT' || $method === 'POST') { adminAiSettingsUpdate(); return; }
+    }
+    if ($method === 'POST' && $action === 'ai-settings' && ($segments[1] ?? null) === 'verify') {
+        adminAiSettingsVerify();
+        return;
+    }
 
     // Audit trail — immutable, read-only.
     if ($method === 'GET' && $action === 'audit') { adminAuditList(); return; }

@@ -212,6 +212,84 @@ function aiPublishedTopics(int $limit = 12): array
 }
 
 /**
+ * Resolve the NVIDIA credential.
+ *
+ * Order: admin-configured value (app_settings, encrypted at rest) first, then
+ * the NVIDIA_API_KEY environment variable. The DB value wins because it exists
+ * precisely for the case where the env var is missing or stale — which is the
+ * failure this whole path was added to fix. An operator pasting a fresh key
+ * into /admin/content should not have to wait for a redeploy to see it work.
+ *
+ * Cached per-request: aiComplete and the status endpoint both call this, and a
+ * decrypt per call would be wasteful. Never logged, never returned.
+ */
+function aiApiKey(): string
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+
+    $key = '';
+    try {
+        $row = db()->prepare('SELECT value_enc FROM app_settings WHERE setting_key = ? LIMIT 1');
+        $row->execute(['nvidia_api_key']);
+        $stored = $row->fetch();
+        if ($stored && (string)($stored['value_enc'] ?? '') !== '') {
+            $key = trim(decAtRest((string)$stored['value_enc']));
+        }
+    } catch (Throwable $e) {
+        // Table absent (migration not yet run) or decryption key rotated.
+        // Falling through to the env var keeps the assistant working.
+        error_log('[ai] credential lookup failed: ' . substr($e->getMessage(), 0, 100));
+    }
+
+    if ($key === '') {
+        $key = trim((string)getenv('NVIDIA_API_KEY'));
+    }
+
+    $cached = $key;
+    return $cached;
+}
+
+/**
+ * Which source the working credential came from. Admin-only, non-secret, and the
+ * single most useful thing to show an operator diagnosing an outage: "you fixed
+ * it in the panel" vs "you are still on the empty env var".
+ */
+function aiApiKeySource(): string
+{
+    try {
+        $row = db()->prepare('SELECT value_enc FROM app_settings WHERE setting_key = ? LIMIT 1');
+        $row->execute(['nvidia_api_key']);
+        $stored = $row->fetch();
+        if ($stored && trim(decAtRest((string)$stored['value_enc'])) !== '') {
+            return 'admin-panel';
+        }
+    } catch (Throwable) {
+        // ignore — fall through to the env report below
+    }
+    return trim((string)getenv('NVIDIA_API_KEY')) !== '' ? 'environment' : 'missing';
+}
+
+function aiModel(): string
+{
+    $override = '';
+    try {
+        $row = db()->prepare('SELECT value_enc FROM app_settings WHERE setting_key = ? LIMIT 1');
+        $row->execute(['nvidia_model']);
+        $stored = $row->fetch();
+        if ($stored && (string)($stored['value_enc'] ?? '') !== '') {
+            $override = trim(decAtRest((string)$stored['value_enc']));
+        }
+    } catch (Throwable) {
+        // ignore — env/default below
+    }
+    if ($override !== '') return $override;
+    return (string)(getenv('NVIDIA_MODEL') ?: 'moonshotai/kimi-k3');
+}
+
+/**
  * Call NVIDIA NIM. Returns the model text, or null on any failure.
  *
  * Never throws and never returns the key or a raw upstream body: an upstream
@@ -220,15 +298,15 @@ function aiPublishedTopics(int $limit = 12): array
  */
 function aiComplete(array $messages, array $opts = []): ?string
 {
-    $key = trim((string)getenv('NVIDIA_API_KEY'));
+    $key = aiApiKey();
     if ($key === '') {
-        error_log('[ai] NVIDIA_API_KEY is not set');
+        error_log('[ai] no NVIDIA credential (checked app_settings and NVIDIA_API_KEY)');
         return null;
     }
 
     $base = rtrim((string)(getenv('NVIDIA_BASE_URL') ?: 'https://integrate.api.nvidia.com/v1'), '/');
     $payload = [
-        'model' => (string)(getenv('NVIDIA_MODEL') ?: 'moonshotai/kimi-k3'),
+        'model' => aiModel(),
         'messages' => $messages,
         'max_tokens' => (int)($opts['max_tokens'] ?? 16000),
         'seed' => 0,

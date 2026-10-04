@@ -11,29 +11,49 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // The uid this tab is currently rendering. Kept in a ref AND mirrored onto
+  // <html data-session-uid> so the focus/storage listeners below can compare
+  // against it.
+  //
+  // BUG FIXED HERE: the stamp was only written once, at boot. Logging in or out
+  // changed `user` but never the stamp, so the very next window `focus` event
+  // saw "stamp (old/empty) !== current session (new)" and called
+  // window.location.reload(). In practice: sign in, click anywhere that blurred
+  // and refocused the window, and the page hard-reloaded — throwing away
+  // whatever the member had typed. Writing the stamp on every session change
+  // makes the comparison mean "did ANOTHER tab change identity", which is the
+  // only thing it should be watching for.
+  const stampSession = useCallback((session) => {
+    try {
+      document.documentElement.dataset.sessionUid = session?.uid || '';
+    } catch {
+      /* dataset unavailable (rare CSP/locked-down browser) — degrade quietly */
+    }
+  }, []);
+
   useEffect(() => {
     const current = authService.current();
     setUser(current);
-    // Stamp the uid this tab booted with so the identity-change guard below
-    // can detect a different account signing in from another tab.
-    try {
-      document.documentElement.dataset.sessionUid = current?.uid || '';
-    } catch { /* ignore */ }
+    stampSession(current);
     setLoading(false);
-  }, []);
+  }, [stampSession]);
 
   // Detect session changes from other tabs/windows (e.g. a different account
-  // Fail closed on identity change: if the uid changes under us (another tab
-  // signed in as a different account on a shared browser), do a full reload
-  // instead of silently swapping the user object. Merely setUser(next) would
-  // leave the previous account's profiles, messages, and drafts in memory and
-  // in component state. A reload rebuilds everything from the new session.
+  // signed in on a shared browser). Fail closed: if the uid changes under us,
+  // reload rather than silently swapping the user object, because setUser(next)
+  // alone would leave the previous account's profiles, messages and drafts in
+  // component state. A reload rebuilds everything from the new session.
   useEffect(() => {
     const identityChanged = () => {
       const next = authService.current();
-      // Read the uid this tab rendered for from a data attribute set at boot.
-      const bootUid = document.documentElement.dataset.sessionUid || null;
-      if ((bootUid || null) !== (next?.uid || null)) {
+      const currentUid = (() => {
+        try {
+          return document.documentElement.dataset.sessionUid || null;
+        } catch {
+          return null;
+        }
+      })();
+      if ((currentUid || null) !== (next?.uid || null)) {
         window.location.reload();
       }
     };
@@ -53,19 +73,24 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     const session = await authService.login({ email, password });
     setUser(session);
+    // Re-stamp: without this, logging in looks like an identity change to the
+    // listener above and the next focus triggers a full reload.
+    stampSession(session);
     return { user: session };
-  }, []);
+  }, [stampSession]);
 
   const register = useCallback(async (data) => {
     const session = await authService.register(data);
     setUser(session);
+    stampSession(session);
     return { user: session };
-  }, []);
+  }, [stampSession]);
 
   const logout = useCallback(() => {
     authService.logout();
     setUser(null);
-  }, []);
+    stampSession(null);
+  }, [stampSession]);
 
   return (
     <AuthContext.Provider

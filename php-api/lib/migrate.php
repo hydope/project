@@ -42,6 +42,8 @@ function migrateSchema(): void
     migrateAddUserVerificationColumns();
     migrateAddBlogPostsTable();
     migrateAddContactSpamColumn();
+    migrateAddFavouritesTable();
+    migrateAddAppSettingsTable();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -123,6 +125,11 @@ function migrateAddProfileColumns(): void
         // Public handle chosen by the member, distinct from display_name, so
         // they can be addressed without publishing a full name or an email.
         'username'           => "VARCHAR(32) DEFAULT NULL",
+        // Marks a profile as illustrative sample content rather than a real
+        // member. Set only by scripts/seed-production-profiles.php. The API
+        // surfaces it so the UI can badge the card honestly — a demo profile
+        // must never be mistakable for someone a member could write to.
+        'is_demo'            => "TINYINT(1) NOT NULL DEFAULT 0",
     ];
 
     try {
@@ -214,6 +221,54 @@ function migrateAddUserVerificationColumns(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (user verification) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Saved profiles.
+ *
+ * Created on upgrade as well as on a fresh install. Favourites are private to
+ * the owner: the only read path is "my favourites", so there is no way to see
+ * who bookmarked you.
+ */
+function migrateAddFavouritesTable(): void
+{
+    try {
+        db()->exec(
+            "CREATE TABLE IF NOT EXISTS favourites (
+                user_id    CHAR(36)    NOT NULL,
+                profile_id CHAR(36)    NOT NULL,
+                created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, profile_id),
+                KEY idx_fav_profile (profile_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    } catch (Throwable $e) {
+        error_log('[api] migration: favourites — ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Runtime admin-configurable settings (currently the NVIDIA credential).
+ *
+ * Lets an operator repair a broken API key from /admin/content instead of
+ * needing shell access to edit .env on the host. Values are stored encrypted at
+ * rest; the API never returns them.
+ */
+function migrateAddAppSettingsTable(): void
+{
+    try {
+        db()->exec(
+            "CREATE TABLE IF NOT EXISTS app_settings (
+                setting_key VARCHAR(64)  NOT NULL PRIMARY KEY,
+                value_enc   TEXT         DEFAULT NULL,
+                updated_by  CHAR(36)     DEFAULT NULL,
+                updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                last_status VARCHAR(160) DEFAULT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    } catch (Throwable $e) {
+        error_log('[api] migration: app_settings — ' . substr($e->getMessage(), 0, 120));
     }
 }
 

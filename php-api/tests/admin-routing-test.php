@@ -18,15 +18,7 @@ declare(strict_types=1);
 $GLOBALS['handler_hits'] = [];
 $GLOBALS['sql_seen'] = [];
 $GLOBALS['json_out'] = null;
-
-function requireAuthUser(): array
-{
-    return ['uid' => 'admin-1', 'email' => 'admin@test.local', 'isAdmin' => true];
-}
-function currentUser(): array
-{
-    return ['uid' => 'admin-1', 'email' => 'admin@test.local', 'isAdmin' => true];
-}
+$GLOBALS['fake_responses'] = [];
 function uuid(): string
 {
     return 'stub-uuid';
@@ -62,6 +54,39 @@ function sanitizeText($value, int $max = 255): string
 function rateCheck(string $bucket, string $key, int $max, int $windowSec, string $message): void {}
 function cip(): string { return '127.0.0.1'; }
 
+/**
+ * Identity for the caller.
+ *
+ * Returns the admin identity by default so the admin dispatcher suite works
+ * unchanged. The profile/message suite sets $GLOBALS['auth_uid'] to the member
+ * under test; when it is explicitly null the caller is anonymous and we return
+ * null, which is the branch every privacy gate in profiles.php sits behind.
+ */
+function requireAuthUser(): ?array
+{
+    if (array_key_exists('auth_uid', $GLOBALS)) {
+        return $GLOBALS['auth_uid'] === null
+            ? null
+            : ['uid' => (string)$GLOBALS['auth_uid'], 'email' => 'member@test.local', 'isAdmin' => false];
+    }
+    return ['uid' => 'admin-1', 'email' => 'admin@test.local', 'isAdmin' => true];
+}
+/** Some routes call the nullable form directly. */
+function requireUser(): ?array { return requireAuthUser(); }
+
+/** Nullable viewer: null for an anonymous request, else the identity array. */
+function currentUser(): ?array
+{
+    if (array_key_exists('auth_uid', $GLOBALS)) {
+        return $GLOBALS['auth_uid'] === null
+            ? null
+            : ['uid' => (string)$GLOBALS['auth_uid'], 'email' => 'member@test.local', 'isAdmin' => false];
+    }
+    return ['uid' => 'admin-1', 'email' => 'admin@test.local', 'isAdmin' => true];
+}
+function requireVerifiedEmail(string $uid): void {}
+function cleanMessage(string $text): string { return substr(trim(strip_tags($text)), 0, 4000); }
+
 /** Minimal PDO stand-in: records SQL, returns empty result sets. */
 final class StubStmt
 {
@@ -71,10 +96,14 @@ final class StubStmt
         $GLOBALS['sql_seen'][] = $this->sql;
         return true;
     }
-    public function fetchAll(): array { return []; }
+    public function fetchAll(): array { return $GLOBALS['fake_responses'] ?? []; }
     /** Full row so handlers that read columns do not emit warnings. */
     public function fetch(): array
     {
+        // A test that queued rows gets those; otherwise the generic stand-in row.
+        if (!empty($GLOBALS['fake_responses'])) {
+            return (array)$GLOBALS['fake_responses'][0];
+        }
         return [
             'n' => 0, 'id' => 'row-1', 'email' => 'member@test.local',
             'user_id' => 'user-1', 'role' => 'member', 'display_name' => 'Member',
@@ -100,6 +129,11 @@ final class StubDb
         return new StubStmt($sql);
     }
 }
+/**
+ * Per-test SQL response table. StubStmt serves these rows instead of its default
+ * one, so a test can stand up a specific interest or profile state.
+ */
+function fakeResponses(array $rows): void { $GLOBALS['fake_responses'] = $rows; }
 function db(): StubDb { return new StubDb(); }
 
 require_once __DIR__ . '/../routes/admin.php';
@@ -586,6 +620,210 @@ check(
     'a safety question retrieves the safety fact',
     stripos(aiRetrieveFacts('I think someone is scamming me')[0]['text'] ?? '', 'report') !== false,
     'safety question retrieved the wrong fact'
+);
+
+echo "\n$pass passed, $fail failed\n";
+
+// ── Public profile visibility ────────────────────────────────────────────────
+// The regression that motivated this: profiles were readable only when signed in,
+// so a signed-out visitor got an empty grid. These lock the NEW contract in
+// place — anonymous callers see real profile content and public photos, and only
+// `private` is withheld — so it cannot silently regress the other way.
+//
+// visibleProfile() and mutualInterest() live in lib/db.php, which cannot be
+// included here: it declares its own db() and this harness already stubs one.
+// So the real files are exercised in a child process that supplies its own db()
+// stub. Out-of-process also proves they work standalone, not just with this
+// file's globals in scope.
+echo "\npublic profile visibility\n";
+
+/**
+ * Run visibility-probe.php in a child process and return its key=value lines.
+ *
+ * The probe runs IN PLACE: copying it to a temp path would break its relative
+ * `require __DIR__ . '/../lib/db.php'`, and a probe that cannot boot reports
+ * nothing at all — silently turning every assertion below into a vacuous pass.
+ * Raw output is returned too so a boot failure surfaces as a readable error.
+ */
+function visibilityProbe(string $file): array
+{
+    $out = [];
+    exec(escapeshellcmd(PHP_BINARY) . ' ' . escapeshellarg($file) . ' 2>&1', $out);
+    $parsed = [];
+    foreach ($out as $line) {
+        $line = trim($line);
+        if (!str_contains($line, '=')) continue;
+        [$k, $v] = explode('=', $line, 2);
+        $parsed[$k] = json_decode($v, true);
+    }
+    $parsed['__raw'] = implode("\n", array_slice($out, 0, 6));
+    return $parsed;
+}
+
+$probeFile = __DIR__ . '/visibility-probe.php';
+$probe = visibilityProbe($probeFile);
+
+// A probe that failed to boot reports nothing; fail loudly rather than passing
+// vacuously on an empty array.
+check(
+    'the visibility probe ran',
+    ($probe['anon_is_array'] ?? null) !== null,
+    'probe produced no output: ' . substr((string)($probe['__raw'] ?? 'none'), 0, 200)
+);
+
+check('an anonymous visitor gets a profile at all', ($probe['anon_is_array'] ?? false) === true);
+check('an anonymous visitor sees the bio', ($probe['anon_bio'] ?? null) !== null, 'bio withheld');
+check(
+    'an anonymous visitor sees expectations',
+    ($probe['anon_expectations'] ?? null) !== null,
+    'expectations withheld'
+);
+check(
+    'an anonymous visitor sees family background',
+    ($probe['anon_family'] ?? null) !== null,
+    'family background withheld'
+);
+check(
+    'a public photo is served to an anonymous visitor',
+    ($probe['anon_photo'] ?? null) !== null && ($probe['anon_locked'] ?? true) === false,
+    'public photo withheld or marked locked'
+);
+check(
+    'no contact details leak in the anonymous payload',
+    ($probe['anon_leaks_contact'] ?? true) === false,
+    'the payload exposed contact fields'
+);
+// array_key_exists, not `??`: json_decode('null') yields PHP null, and `null ?? 'x'`
+// falls back to 'x', so a correctly-withheld photo would read as "served".
+$afterPhotoWithheld = array_key_exists('after_tier_photo', $probe)
+    && $probe['after_tier_photo'] === null;
+check(
+    'after-interest photos stay hidden from anonymous visitors',
+    ($probe['after_tier_locked'] ?? false) === true && $afterPhotoWithheld,
+    'an after-interest photo was served to a signed-out visitor'
+);
+check(
+    'a private profile is hidden from anonymous visitors',
+    ($probe['private_hidden_anon'] ?? false) === true,
+    'a private profile leaked to a signed-out visitor'
+);
+check(
+    'a private profile is hidden from other members',
+    ($probe['private_hidden_member'] ?? false) === true,
+    'a private profile leaked to another member'
+);
+check(
+    'an owner still sees their own private profile',
+    ($probe['owner_sees_private'] ?? false) === true,
+    'the owner lost access to their own profile'
+);
+check(
+    'a signed-in viewer sees an after-interest photo',
+    ($probe['authed_photo'] ?? null) !== null,
+    'after-interest photo withheld from a signed-in viewer'
+);
+check(
+    'a signed-in viewer sees a members-tier bio',
+    ($probe['authed_bio'] ?? null) !== null,
+    'members-tier bio withheld from a signed-in viewer'
+);
+
+// "Matched" had three separate implementations; one helper now defines it.
+check('a one-sided interest is not a match', ($probe['one_sided_is_match'] ?? true) === false);
+check('two mutual interests are a match', ($probe['two_way_is_match'] ?? false) === true);
+
+// ── Favourites ──────────────────────────────────────────────────────────────
+// Favourites are session-scoped and must never expose anyone else's list.
+check(
+    'schema.sql declares a favourites table',
+    isset($canonical['favourites']) && in_array('profile_id', $canonical['favourites'], true),
+    'the favourites table is missing from schema.sql'
+);
+
+// ── Sample profiles ──────────────────────────────────────────────────────────
+// The seeder writes fully-written example profiles. They are legitimate content
+// — they show what a complete profile looks like — but they are not people. The
+// is_demo flag has to reach the client so the UI can label them and refuse
+// contact. This is the load-bearing guarantee behind seeding anything at all.
+check(
+    'a sample profile is flagged as a sample for anonymous visitors',
+    ($probe['demo_flag_anon'] ?? null) === true,
+    'a sample profile reached a signed-out visitor without its isDemo flag'
+);
+check(
+    'a sample profile is flagged as a sample for signed-in members',
+    ($probe['demo_flag_authed'] ?? null) === true,
+    'a sample profile reached a member without its isDemo flag'
+);
+check(
+    'a real member is never flagged as a sample',
+    ($probe['real_flag_false'] ?? true) === false,
+    'a real member was mislabelled as a sample profile'
+);
+check(
+    'a database without the is_demo column defaults to a real member',
+    ($probe['real_flag_missing_column'] ?? null) === false,
+    'a missing is_demo column did not default to false — every profile would badge as a sample'
+);
+check(
+    'schema.sql declares the is_demo column',
+    isset($canonical['profiles']) && in_array('is_demo', $canonical['profiles'], true),
+    'profiles.is_demo is missing from schema.sql, so a fresh install cannot label samples'
+);
+
+// ── Admin-configurable AI credential ─────────────────────────────────────────
+// This is the only place a credential can be set at runtime, so two properties
+// matter more than anything else here: the schema supports it, and the API can
+// never read a stored value back out.
+check(
+    'schema.sql declares an app_settings table',
+    isset($canonical['app_settings']) && in_array('value_enc', $canonical['app_settings'], true),
+    'the app_settings table is missing from schema.sql, so the AI key cannot be configured from the admin panel'
+);
+
+// Structural guard: no route may ever hand a stored secret to the browser.
+//
+// Two things are checked, and the distinction matters. `value_enc` MAY appear in
+// this function, but only as a null/non-null presence test ('modelOverridden' =>
+// ($row['value_enc'] ?? null) !== null) — never echoed as a value. A bare
+// 'apiKey' => in the payload would be a real leak.
+$adminSrc = (string)file_get_contents(__DIR__ . '/../routes/admin.php');
+$statusStart = strpos($adminSrc, 'function adminAiSettingsStatus');
+$statusFn = $statusStart === false ? '' : substr($adminSrc, $statusStart, (int)strpos(substr($adminSrc, $statusStart), "\n}") + 2);
+check(
+    'the AI status endpoint never returns a raw credential',
+    $statusFn !== '' && stripos($statusFn, "'apiKey'") === false && stripos($statusFn, "'value' =>") === false,
+    'adminAiSettingsStatus() appears to return a raw credential — an admin session can read it back'
+);
+
+// Every `value_enc` mention in that function must sit inside a `?? null`
+// null-coalesce, i.e. be a presence test rather than an emitted value.
+check(
+    'stored values are only ever tested for presence, never emitted',
+    preg_match('/value_enc[^\n]*\?\?\s*null/', $statusFn) === 1,
+    'app_settings.value_enc is referenced in the status response without a null-guard — verify it is not emitted'
+);
+
+// The masking helper exists and never emits the body of a key.
+check('aiMaskKey() is defined for credential display', strpos($adminSrc, 'function aiMaskKey') !== false);
+check(
+    'the mask helper returns a prefix and last-4 only',
+    strpos($adminSrc, "substr(\$key, -4)") !== false && strpos($adminSrc, "substr(\$key, 0, 5)") !== false,
+    'aiMaskKey() does not limit the tail — a full key could reach the browser'
+);
+
+// lib/ai.php must resolve the credential through the DB-backed helper, not a raw
+// getenv — otherwise a key pasted into the panel would be ignored.
+$aiSrc = (string)file_get_contents(__DIR__ . '/../lib/ai.php');
+check(
+    'the AI client resolves the key through aiApiKey()',
+    strpos($aiSrc, '$key = aiApiKey();') !== false,
+    'aiComplete() still reads getenv() directly, so a panel-configured key would never be used'
+);
+check(
+    'the public AI status reflects a panel-configured key',
+    strpos((string)file_get_contents(__DIR__ . '/../routes/ai.php'), "aiApiKey() !== ''") !== false,
+    '/api/ai/status still reads only the env var, so the admin panel will look broken after a successful save'
 );
 
 echo "\n$pass passed, $fail failed\n";

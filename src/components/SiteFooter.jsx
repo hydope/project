@@ -22,7 +22,8 @@ const PLATFORM_LINKS = [
   { to: '/profiles', label: 'Browse Profiles' },
   { to: '/success-stories', label: 'Success Stories' },
   { to: '/auth/register', label: 'Create Profile' },
-  { to: '/pricing', label: 'Membership' },
+  { to: '/profile-guide', label: 'Profile Guide' },
+  { to: '/about', label: 'About Us' },
 ];
 
 const RESOURCE_LINKS = [

@@ -362,58 +362,22 @@ h1, h2, h3 {
   box-shadow: var(--shadow-glow);
 }
 
-/* Buttons */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1.25rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  border-radius: var(--radius-md);
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: all var(--transition-base);
-  text-decoration: none;
-}
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.btn-primary {
-  background-color: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
-}
-.btn-primary:hover:not(:disabled) {
-  background-color: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(65, 107, 91, 0.3);
-}
-.btn-secondary {
-  background-color: var(--color-elevated);
-  color: var(--color-ink);
-  border-color: var(--color-border);
-}
-.btn-secondary:hover:not(:disabled) {
-  background-color: var(--color-hover);
-  border-color: var(--color-border-strong);
-}
-.btn-ghost {
-  background-color: transparent;
-  color: var(--color-ink-secondary);
-  border-color: transparent;
-}
-.btn-ghost:hover:not(:disabled) {
-  background-color: var(--color-hover);
-  color: var(--color-ink);
-}
-.btn-sm {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.8125rem;
-}
+/* Buttons
+   NOTE: there was a second, earlier `.btn` block here that has been removed.
+   Everything it declared was re-declared (and overridden) by the canonical
+   block further down under COMPONENTS — Buttons, with two exceptions that had
+   to be carried over deliberately:
+
+     · text-decoration: none — the canonical block never set it, so anchors
+       rendered as <Link className="btn"> relied on this block to avoid an
+       underline. It is now declared there explicitly.
+     · The old block's `border-color` on .btn-primary/.btn-secondary/.btn-ghost
+       was NOT live: the canonical `.btn` sets `border: 1px solid transparent`,
+       which comes later at equal specificity and resets border-color. The
+       gradient/elevated fills in the canonical block are what actually render.
+
+   Keeping two blocks meant a change to button padding/size silently did
+   nothing, because whichever block came last won. One block, one source. */
 
 /* Input */
 .input {
@@ -585,6 +549,73 @@ h1, h2, h3 {
 }
 
 /* ============================================================
+   TOOLTIP
+   The bubble used `bg-charcoal`, a Tailwind class that never existed in the
+   build output — so it rendered as white text on a transparent box, i.e.
+   invisible against the cream canvas. Styled explicitly here instead, using
+   the elevated surface so it reads in both themes.
+   ============================================================ */
+.tooltip-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.tooltip-bubble {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: min(20rem, calc(100vw - 2rem));
+  /* Wraps rather than the old `whitespace-nowrap`, which let a long sentence
+     run off the edge of a 375px screen. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding: 0.375rem 0.625rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--color-ink);
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border-strong);
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+}
+
+.tooltip-top {
+  bottom: calc(100% + 0.5rem);
+}
+
+.tooltip-bottom {
+  top: calc(100% + 0.5rem);
+}
+
+.tooltip-top::after,
+.tooltip-bottom::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 0.5rem;
+  height: 0.5rem;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border-strong);
+}
+
+.tooltip-top::after {
+  top: 0.3rem;
+  border-top: 0;
+  border-left: 0;
+}
+
+.tooltip-bottom::after {
+  bottom: 0.3rem;
+  border-bottom: 0;
+  border-right: 0;
+}
+
+/* ============================================================
    COMPONENTS — Buttons
    ============================================================ */
 .btn {
@@ -599,14 +630,32 @@ h1, h2, h3 {
   line-height: 1;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast),
+              color var(--transition-fast), box-shadow var(--transition-fast),
+              transform var(--transition-fast);
   white-space: nowrap;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  /* Carried over from the removed duplicate .btn block: without this, every
+     <Link className="btn"> renders with a text underline under the button. */
+  text-decoration: none;
 }
 
 .btn:active { transform: scale(0.97); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+/* Keyboard focus. The global :focus-visible ring exists, but a 2px outline on a
+   gradient button loses its edge against the fill, so buttons get a light halo
+   in addition to the outline. */
+.btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--color-primary-glow);
+}
+.btn-primary:focus-visible {
+  outline-color: var(--color-primary-hover);
+  box-shadow: 0 0 0 4px var(--color-primary-glow), 0 4px 16px rgba(65, 107, 91, 0.3);
+}
 
 .btn-primary {
   background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
@@ -945,6 +994,17 @@ select.input {
   font-size: 0.6875rem; color: var(--color-ink-tertiary);
 }
 .ai-drawer-sub svg { color: var(--color-primary); }
+  /* Drawer footer — a calm support pointer. Previously unstyled, so it inherited
+     the drawer's own padding and sat flush against the edge. */
+  .ai-guardrail {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.7rem 1rem;
+    border-top: 1px solid var(--color-border);
+    font-size: 0.6875rem; color: var(--color-ink-tertiary);
+  }
+  .ai-guardrail svg { flex-shrink: 0; color: var(--color-primary); }
+  .ai-guardrail a { color: var(--color-primary); font-weight: 600; text-decoration: none; }
+  .ai-guardrail a:hover { text-decoration: underline; }
 .ai-icon-btn {
   width: 30px; height: 30px;
   display: flex; align-items: center; justify-content: center;
@@ -1666,29 +1726,43 @@ select.input {
   flex-shrink: 0;
 }
 
-/* Account avatar — real identity chip instead of a generic person glyph */
+/* Account avatar — real identity chip instead of a generic person glyph.
+   This element must be styled HERE and never inline-reset: an inline
+   `background:none` outranks a class rule, which left white initials on a
+   white header, i.e. a completely invisible account button. */
 .landing-avatar-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
+  /* Double ring: a translucent outer halo plus a solid inner edge gives the
+     chip a crisp edge against both the light header and dark mode. */
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 0 0 1px var(--color-border), 0 2px 6px rgba(65, 107, 91, 0.18);
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
   color: #fff;
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
+  line-height: 1;
   cursor: pointer;
   text-decoration: none;
   flex-shrink: 0;
-  transition: all 0.15s ease-out;
+  /* Shadows/transform are transitioned explicitly: `transition: all` also
+     animated the colour channels and made the chip look muddy on hover. */
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 .landing-avatar-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(65, 107, 91, 0.35);
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 0 0 1px var(--color-primary), 0 6px 16px rgba(65, 107, 91, 0.38);
 }
+.landing-avatar-btn:active { transform: translateY(0) scale(0.97); }
+/* Keep the initials optically centred regardless of how many there are. */
+.landing-avatar-btn > span { transform: translateY(0.5px); }
 
 .landing-menu-btn { display: none; }
 

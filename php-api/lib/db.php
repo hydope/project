@@ -1,6 +1,11 @@
 <?php
 // PDO connection (MariaDB/MySQL, utf8mb4, UTC session) + shared route helpers.
 
+// Guarded so an offline test harness can supply its own db() before including
+// this file. Without the guard, every test that wanted to exercise visibleProfile()
+// or mutualInterest() had to reach into this file — which is why those two
+// functions had no coverage at all.
+if (!function_exists('db')) {
 function db(): PDO
 {
     static $pdo = null;
@@ -24,6 +29,7 @@ function db(): PDO
     $pdo->exec("SET time_zone = '+00:00'");
 
     return $pdo;
+}
 }
 
 function requestJson(): array
@@ -112,47 +118,68 @@ function visibleProfile(array $row, ?array $viewer): ?array
     $ownerId = (string)($row['user_id'] ?? $row['id'] ?? '');
     $isOwner = $viewer !== null && (string)$viewer['uid'] === $ownerId;
     // Mutual interest unlocks private profiles — matches can see each other.
-    $isMutual = false;
-    if ($viewer !== null && !$isOwner) {
-        $pdo = db();
-        $s1 = $pdo->prepare('SELECT 1 FROM interests WHERE from_user_id = ? AND to_user_id = ? LIMIT 1');
-        $s1->execute([$viewer['uid'], $ownerId]);
-        $s2 = $pdo->prepare('SELECT 1 FROM interests WHERE from_user_id = ? AND to_user_id = ? LIMIT 1');
-        $s2->execute([$ownerId, $viewer['uid']]);
-        $isMutual = (bool)$s1->fetch() && (bool)$s2->fetch();
-    }
+    $isMutual = $viewer !== null && !$isOwner
+        && mutualInterest((string)$viewer['uid'], $ownerId);
     if (($row['visibility'] ?? 'members') === 'private' && !$isOwner && !$isMutual) {
         return null;
     }
     $isAnonymous = $viewer === null;
 
-    // P0: members-only profiles are invisible to anonymous visitors entirely.
-    // Only explicitly public profiles get a teaser.
-    if ($isAnonymous && ($row['visibility'] ?? 'members') !== 'public') {
-        return null;
-    }
-
-    // Anonymous visitors get a minimal teaser only — enough to encourage
-    // signup, never intimate details. Full profiles require an account.
+    // ── Anonymous visitors ────────────────────────────────────────────────────
+    // Members here do not need an account to read a profile or see a public
+    // photo. The previous behaviour hid everything behind a "sign up to view"
+    // wall, which meant the browse pages had nothing to show and search traffic
+    // bounced. A member's own settings still decide what is hidden: only
+    // `private` hides the profile, and only `private` photos are withheld.
+    // Messaging stays gated — see messages.php, which requires a mutual match.
     if ($isAnonymous) {
+        $tier = (string)($row['photos_visibility'] ?? 'members');
+        $photosLocked = $tier !== 'public';
         return [
             'id' => $ownerId,
             'displayName' => $row['display_name'] ?? null,
             'age' => $row['age'] ?? null,
+            'gender' => $row['gender'] ?? null,
             'city' => $row['city'] ?? null,
             'country' => $row['country'] ?? null,
+            'sect' => $row['sect'] ?? null,
+            'profession' => $row['profession'] ?? null,
+            'bio' => $row['bio'] ?? null,
+            'expectations' => $row['expectations'] ?? null,
+            'aboutFamily' => $row['about_family'] ?? null,
             'is_verified' => (bool)($row['is_verified'] ?? false),
+            'isDemo' => (bool)($row['is_demo'] ?? false),
             'visibility' => $row['visibility'] ?? 'members',
-            'photosVisibility' => (string)($row['photos_visibility'] ?? 'members'),
-            'photosLocked' => true,
-            'locked' => true,
-            'teaser' => true,
-            'gallery' => [],
+            'username' => $row['username'] ?? null,
+            'religiosity' => $row['religiosity'] ?? null,
+            'educationLevel' => $row['education_level'] ?? null,
+            'marja' => $row['marja'] ?? null,
+            'syedStatus' => $row['syed_status'] ?? null,
+            'prayer' => $row['prayer'] ?? null,
+            'modesty' => $row['modesty'] ?? null,
+            'diet' => $row['diet'] ?? null,
+            'languages' => $row['languages'] ?? null,
+            'ethnicity' => $row['ethnicity'] ?? null,
+            'incomeRange' => $row['income_range'] ?? null,
+            'maritalStatus' => $row['marital_status'] ?? null,
+            'children' => $row['children'] ?? null,
+            'childrenPlans' => $row['children_plans'] ?? null,
+            'relocation' => $row['relocation'] ?? null,
+            'familyInvolvement' => $row['family_involvement'] ?? null,
+            'heightCm' => isset($row['height_cm']) && $row['height_cm'] !== null ? (int)$row['height_cm'] : null,
+            'timeline' => $row['timeline'] ?? null,
+            'photosVisibility' => $tier,
+            'photosLocked' => $photosLocked,
+            'photo' => ($photosLocked || (string)($row['photo_url'] ?? '') === '')
+                ? null
+                : '/api/profiles/' . $ownerId . '/photo',
         ];
     }
 
     if (($row['visibility'] ?? 'members') === 'public' || isset($viewer['uid']) || $isOwner) {
         $photosVisibility = (string)($row['photos_visibility'] ?? 'members');
+        // For a signed-in viewer only `private` withholds the photo; a
+        // members/match tier is open to anyone who can see the profile.
         $photosLocked = $photosVisibility === 'private' && !$isOwner;
         return [
             'id' => $ownerId,
@@ -167,6 +194,7 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'expectations' => $row['expectations'] ?? null,
             'aboutFamily' => $row['about_family'] ?? null,
             'is_verified' => (bool)($row['is_verified'] ?? false),
+            'isDemo' => (bool)($row['is_demo'] ?? false),
             'visibility' => $row['visibility'] ?? 'members',
             // Public handle the member chose for themselves. Null when unset.
             'username' => $row['username'] ?? null,
@@ -210,6 +238,7 @@ function visibleProfile(array $row, ?array $viewer): ?array
         'age' => $row['age'] ?? null,
         'profession' => $row['profession'] ?? null,
         'is_verified' => (bool)($row['is_verified'] ?? false),
+        'isDemo' => (bool)($row['is_demo'] ?? false),
         'expectations' => $row['expectations'] ?? null,
         'aboutFamily' => $row['about_family'] ?? null,
         'visibility' => $row['visibility'] ?? 'members',

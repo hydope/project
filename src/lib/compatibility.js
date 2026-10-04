@@ -48,9 +48,29 @@ function languageOverlap(mine, theirs) {
  * Compute the compatibility breakdown between "me" and a candidate profile.
  * @param {Object} profile  candidate profile (mock or directory shape)
  * @param {Object} [me]     my onboarding answers; auto-loaded when omitted
- * @returns {{overall:number, breakdown:{values:number, lifestyle:number, faith:number, timeline:number}, reasons:string[], topReason:string}}
+ * @returns {{overall:number, breakdown:{values:number, lifestyle:number, faith:number, timeline:number}, reasons:string[], topReason:string}|null}
+ *
+ * HONESTY CONTRACT: returns null when there is no basis for a score — when the
+ * viewer has not onboarded, or has not stated a sect. It will NOT fall back to
+ * invented constants.
+ *
+ * Why that matters: with no viewer profile the old code fell through to fixed
+ * seeds (faith 62, values 65, lifestyle 58, timeline 60) which weighted to a
+ * flat **61% on every single profile**. Every signed-out visitor — and every
+ * signed-in member who had not finished onboarding — saw the same "61% match"
+ * badge on all 30 cards. A number identical across every candidate carries no
+ * information; it is not a weak signal, it is a fabricated one dressed up as a
+ * personal assessment.
+ *
+ * Callers must handle null. Every call site does; ProfileCard and
+ * CuratedMatchFeed simply omit the badge, which is the honest rendering.
  */
 export function computeCompatibility(profile, me = getMyProfile()) {
+  // Faith alignment is the heaviest weighted component (34%) and the one thing
+  // we can state with confidence. Without a viewer profile — or without a sect
+  // to compare — there is nothing to compute against, so we decline rather than
+  // emit a number.
+  if (!profile || !me || !me.sect) return null;
   // ── Faith alignment ──────────────────────────────────────────────────
   let faith = 62;
   if (me?.sect && profile.sect) faith = me.sect === profile.sect ? 95 : 55;
