@@ -157,11 +157,17 @@ function adminAiSettingsUpdate(): void
 }
 
 /**
- * POST /api/admin/ai-settings/verify — live check against NVIDIA.
+ * POST /api/admin/ai-settings/verify — live end-to-end check.
  *
- * Reports the HTTP status and a short error CLASS only. The upstream body is
- * never returned: NVIDIA error payloads can echo back the Authorization header,
- * which would put a live credential into a browser-visible response.
+ * Previously this hit GET /models, which only proves the credential is
+ * accepted. That is NOT the same as "the assistant works": it was reporting
+ * green while every real completion silently returned empty and the UI quietly
+ * fell back to retrieved facts. The only meaningful check is the same request
+ * the assistant actually makes.
+ *
+ * Reports HTTP status, elapsed time and a short error CLASS. The upstream body
+ * is never returned: NVIDIA error payloads can echo back the Authorization
+ * header, which would put a live credential into a browser-visible response.
  */
 function adminAiSettingsVerify(): void
 {
@@ -174,38 +180,87 @@ function adminAiSettingsVerify(): void
     }
 
     $base = rtrim((string)(getenv('NVIDIA_BASE_URL') ?: 'https://integrate.api.nvidia.com/v1'), '/');
-    $ch = curl_init($base . '/models');
+    $model = aiModel();
+
+    $payload = [
+        'model' => $model,
+        'messages' => [['role' => 'user', 'content' => 'Reply with the single word: OK']],
+        // Reasoning models spend part of this budget on internal reasoning, so a
+        // small cap can be exhausted before any visible answer is emitted —
+        // which is exactly how "the API works but returns nothing" happens.
+        // This mirrors aiComplete()'s defaults deliberately.
+        'max_tokens' => (int)(getenv('NVIDIA_VERIFY_MAX_TOKENS') ?: 2000),
+        'stream' => false,
+        'temperature' => 0.0,
+    ];
+
+    $ch = curl_init($base . '/chat/completions');
     curl_setopt_array($ch, [
+        CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 15,
-        CURLOPT_CONNECTTIMEOUT => 6,
-        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $key, 'Accept: application/json'],
+        CURLOPT_TIMEOUT => 90,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . $key,
+            'Content-Type: application/json',
+            'Accept: application/json',
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
     ]);
+
+    $started = microtime(true);
     $body = curl_exec($ch);
+    $elapsed = (int)round(microtime(true) - $started);
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $err = curl_error($ch);
     curl_close($ch);
 
-    if ($err !== '') {
-        $detail = 'Could not reach NVIDIA: ' . substr($err, 0, 80);
-    } elseif ($status === 200) {
-        $detail = 'Credential accepted by NVIDIA.';
-    } elseif ($status === 401 || $status === 403) {
-        $detail = 'NVIDIA rejected the credential (401/403). It is invalid, expired or revoked.';
-    } elseif ($status === 429) {
-        $detail = 'Rate limited by NVIDIA (429). The key is valid but over quota right now.';
-    } elseif ($status >= 200 && $status < 300) {
-        $detail = 'Unexpected success status ' . $status . '.';
-    } else {
-        $detail = 'NVIDIA returned HTTP ' . $status . '.';
+    $text = '';
+    $finish = '';
+    $reasoning = 0;
+    if (is_string($body) && $body !== '') {
+        $decoded = json_decode($body, true);
+        $text = trim((string)($decoded['choices'][0]['message']['content'] ?? ''));
+        $finish = (string)($decoded['choices'][0]['finish_reason'] ?? '');
+        $reasoning = (int)($decoded['usage']['completion_tokens_details']['reasoning_tokens'] ?? 0);
     }
 
-    // Persist only the non-secret diagnosis so the panel can show it after a
-    // reload without the operator having to re-run the check.
-    $save = db()->prepare('UPDATE app_settings SET last_status = ? WHERE setting_key = ?');
-    $save->execute([substr('http=' . $status . ' ' . $detail, 0, 160), 'nvidia_api_key']);
+    if ($err !== '') {
+        $detail = 'Could not reach NVIDIA: ' . substr($err, 0, 80);
+    } elseif ($status === 401 || $status === 403) {
+        $detail = 'NVIDIA rejected the credential (401/403). Invalid, expired or revoked.';
+    } elseif ($status === 429) {
+        $detail = 'Rate limited (429). The key is valid but over quota right now.';
+    } elseif ($status !== 200) {
+        $detail = 'NVIDIA returned HTTP ' . $status . '.';
+    } elseif ($text === '') {
+        // The specific failure this endpoint exists to catch: HTTP 200, valid
+        // key, no answer. Almost always a token budget consumed by reasoning.
+        $detail = 'NVIDIA accepted the request but returned no text'
+            . ($finish !== '' ? " (finish_reason=$finish" : '')
+            . ($reasoning > 0 ? ", {$reasoning} reasoning tokens" : '')
+            . ($finish !== '' || $reasoning > 0 ? ')' : '')
+            . '. Raise the token budget or use a non-reasoning model.';
+    } else {
+        $detail = 'Live completion succeeded.';
+    }
 
-    json(['ok' => $status === 200, 'status' => $status, 'detail' => $detail, 'model' => aiModel()]);
+    $ok = $status === 200 && $text !== '';
+
+    $save = db()->prepare('UPDATE app_settings SET last_status = ? WHERE setting_key = ?');
+    $save->execute([substr(($ok ? 'OK ' : 'FAIL ') . $detail, 0, 160), 'nvidia_api_key']);
+
+    json([
+        'ok' => $ok,
+        'status' => $status,
+        'detail' => $detail,
+        'model' => $model,
+        'elapsedMs' => $elapsed * 1000,
+        // The model's own reply, so an operator can see it genuinely answered.
+        // Truncated hard: this is a health probe, not a content preview.
+        'sample' => $text === '' ? null : substr($text, 0, 120),
+        'reasoningTokens' => $reasoning,
+    ]);
 }
 
 

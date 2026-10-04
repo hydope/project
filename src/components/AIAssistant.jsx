@@ -15,6 +15,11 @@ export default function AIAssistant() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
+  // Which backend actually produced the last reply: 'model' (live),
+  // 'facts' (retrieved platform guidance), 'guardrail' or 'offline'. Shown to
+  // the member rather than hidden, so a degraded assistant is never mistaken
+  // for a working one.
+  const [lastSource, setLastSource] = useState(null);
 
   useEffect(() => {
     const h = (e) => {
@@ -47,9 +52,14 @@ export default function AIAssistant() {
     setLoading(true);
 
     // Ask the server. The model call and the retrieval both live behind
-    // /api/ai/* so the NVIDIA key never reaches this bundle. If the API is not
-    // reachable we fall back to the local brain so the assistant still answers
-    // rather than showing an error to a member looking for help.
+    // /api/ai/* so the NVIDIA key never reaches this bundle.
+    //
+    // A note on the fallback: when the server cannot reach the model it answers
+    // from its retrieved platform facts and sets source='facts'. That is a
+    // genuinely useful answer, but it is NOT the same as a live model reply —
+    // and silently swapping one for the other is how "the API works but the
+    // assistant doesn't" stayed invisible. So the source is surfaced to the
+    // member rather than hidden.
     try {
       if (!useRemote) throw new Error('offline');
       const res = await http.post('/api/ai/chat', {
@@ -57,13 +67,13 @@ export default function AIAssistant() {
         history: messages.slice(-6),
       });
       const { getReply } = await import('../lib/aiAssistantBrain');
-      setMessages(p => [...p, {
-        role: 'assistant',
-        content: res?.answer || getReply(text),
-      }]);
-    } catch {
+      const answer = res?.answer || getReply(text);
+      setMessages(p => [...p, { role: 'assistant', content: answer }]);
+      setLastSource(res?.source || 'model');
+    } catch (err) {
       const { getReply } = await import('../lib/aiAssistantBrain');
       setMessages(p => [...p, { role: 'assistant', content: getReply(text) }]);
+      setLastSource('offline');
     } finally {
       setLoading(false);
     }
@@ -126,6 +136,23 @@ export default function AIAssistant() {
             )}
             <div ref={endRef} />
           </div>
+
+          {/* Honest provenance. A member asking a question and getting retrieved
+              facts is fine; not knowing WHICH they got is not. When the model is
+              unreachable we say so and point at support rather than presenting a
+              canned answer as a live one. */}
+          {lastSource && lastSource !== 'model' && (
+            <p
+              className="px-4 py-2 text-[11px]"
+              style={{ color: 'var(--color-ink-tertiary)', borderTop: '1px solid var(--color-border)' }}
+            >
+              {lastSource === 'facts'
+                ? 'Answered from our platform guidance — the live assistant is temporarily unavailable.'
+                : lastSource === 'offline'
+                  ? 'Offline answers only. Please email support@shiarishta.com for anything specific.'
+                  : null}
+            </p>
+          )}
 
           <form className="ai-drawer-input" onSubmit={(e) => send(e)}>
             <input

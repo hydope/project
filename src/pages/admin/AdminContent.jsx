@@ -190,6 +190,11 @@ export default function AdminContent() {
       ]);
       setPosts(list.rows || []);
       setAvailable(list.available !== false);
+      // `available` means a credential is CONFIGURED, not that the model
+      // answers. The two diverge — a reasoning model can accept every request
+      // and still return no text — which is why the panel also offers "Test
+      // connection", a real end-to-end completion. Gating the form on
+      // `available` is right: it only blocks when there is no key at all.
       setAiReady(!!status?.available);
     } catch (e) {
       setError(e?.message || 'Could not load posts.');

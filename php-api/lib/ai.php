@@ -320,34 +320,62 @@ function aiComplete(array $messages, array $opts = []): ?string
     }
     $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE);
 
-    $ch = curl_init($base . '/chat/completions');
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 60,
-        CURLOPT_CONNECTTIMEOUT => 8,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $key,
-            'Content-Type: application/json',
-            'Accept: ' . ((string)($opts['accept'] ?? 'application/json')),
-        ],
-        CURLOPT_POSTFIELDS => $encoded,
-    ]);
+    // Retry on a 200-with-no-text.
+    //
+    // kimi-k3 is a reasoning model: it spends part of the token budget on
+    // internal reasoning before emitting anything visible. On this endpoint a
+    // 200 with an EMPTY content field is intermittent — the same payload
+    // returns text on one call and nothing on the next. aiComplete() previously
+    // returned null on the first empty response, so the assistant silently fell
+    // back to retrieved facts while the API "worked" and the status endpoint
+    // reported green. One retry clears it; two consecutive empties is a real
+    // failure worth reporting.
+    for ($attempt = 1; $attempt <= 2; $attempt++) {
+        $ch = curl_init($base . '/chat/completions');
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            // Generous, but bounded. A reasoning model can take tens of seconds;
+            // the old 60s ceiling was tight enough to abort long drafts mid-flight.
+            CURLOPT_TIMEOUT => (int)(getenv('NVIDIA_TIMEOUT') ?: 120),
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $key,
+                'Content-Type: application/json',
+                'Accept: ' . ((string)($opts['accept'] ?? 'application/json')),
+            ],
+            CURLOPT_POSTFIELDS => $encoded,
+        ]);
 
-    $body = curl_exec($ch);
-    $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    $err = curl_error($ch);
-    curl_close($ch);
+        $body = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
 
-    if ($body === false || $err !== '' || $status < 200 || $status >= 300) {
-        error_log('[ai] NVIDIA call failed: status=' . $status
-            . ($err !== '' ? ' err=' . substr($err, 0, 80) : ''));
-        return null;
+        if ($body === false || $err !== '' || $status < 200 || $status >= 300) {
+            error_log('[ai] NVIDIA call failed: attempt=' . $attempt . ' status=' . $status
+                . ($err !== '' ? ' err=' . substr($err, 0, 80) : ''));
+            // Transport/HTTP failures are not worth an immediate retry — they
+            // will fail the same way. Only empty bodies are retried.
+            return null;
+        }
+
+        $decoded = json_decode((string)$body, true);
+        $text = $decoded['choices'][0]['message']['content'] ?? null;
+
+        if (is_string($text) && trim($text) !== '') {
+            return trim($text);
+        }
+
+        $finish = (string)($decoded['choices'][0]['finish_reason'] ?? '?');
+        $reasoning = (int)($decoded['usage']['completion_tokens_details']['reasoning_tokens'] ?? 0);
+        error_log('[ai] NVIDIA returned empty content: attempt=' . $attempt
+            . ' finish=' . $finish . ' reasoning_tokens=' . $reasoning
+            . ' max_tokens=' . (int)($opts['max_tokens'] ?? 16000));
     }
 
-    $decoded = json_decode((string)$body, true);
-    $text = $decoded['choices'][0]['message']['content'] ?? null;
-    return is_string($text) && trim($text) !== '' ? trim($text) : null;
+    error_log('[ai] NVIDIA returned empty content twice; giving up');
+    return null;
 }
 
 /**
