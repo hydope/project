@@ -168,6 +168,8 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'aboutFamily' => $row['about_family'] ?? null,
             'is_verified' => (bool)($row['is_verified'] ?? false),
             'visibility' => $row['visibility'] ?? 'members',
+            // Public handle the member chose for themselves. Null when unset.
+            'username' => $row['username'] ?? null,
             // ── Filterable fields ────────────────────────────────────────────
             // The browse filters (sect, religiosity, education, Marja') match on
             // these. They were absent from the response entirely, so selecting
