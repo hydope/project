@@ -188,5 +188,51 @@ const dupBodies = [...new Set(bodyValues.filter((b, i) => bodyValues.indexOf(b) 
 check('no two routes ship identical body content', dupBodies.length === 0,
   `${dupBodies.length} duplicate bodies`);
 
+// ── Structured data: the audit found 1 JSON-LD block and no FAQPage ─────────
+// An AI grader reported "Schema Types Found: 2" and zero FAQPage. Both were
+// correct: the prerenderer emitted Organization plus a breadcrumb only, and the
+// homepage's own FAQ copy had no machine-readable equivalent.
+const homeHtml = docs['/'] || '';
+check('the homepage emits FAQPage structured data', homeHtml.includes('"FAQPage"'),
+  'FAQPage schema is missing — answer engines must infer the FAQ from prose');
+check('every route emits a robots meta directive', routes.every((r) =>
+  docs[r] && /<meta name="robots" content="[^"]*index/.test(docs[r])),
+  routes.filter((r) => docs[r] && !/<meta name="robots"/.test(docs[r])).join(', '));
+check('the homepage keeps its WebSite node with a SearchAction',
+  homeHtml.includes('SearchAction'),
+  'the WebSite sitelinks node was dropped by the prerender');
+
+// The FAQ schema must describe text that is actually on the page. Google
+// penalises marked-up questions that are not rendered.
+const homeFaq = ROUTE_SEO['/'].faq || [];
+const faqNotOnPage = homeFaq.filter((f) => !homeHtml.includes(`<h3>${f.q}</h3>`));
+check('every FAQPage question is rendered as a visible h3', faqNotOnPage.length === 0,
+  `schema describes text that is not on the page: ${faqNotOnPage.map((f) => f.q).join(' | ')}`);
+
+const faqNotInSchema = homeFaq.filter(
+  (f) => !homeHtml.includes(f.q.replace(/"/g, '\\"')),
+);
+check('every visible FAQ question is also in the schema', faqNotInSchema.length === 0,
+  faqNotInSchema.map((f) => f.q).join(' | '));
+
+// Meta description length: the audit flagged 165 characters, above the
+// 120-160 window where snippets get truncated.
+const descLens = routes.map((r) => (docs[r] ? ROUTE_SEO[r].desc.length : 0));
+const tooLong = routes.filter((r, i) => descLens[i] > 160).map((r) => `${r}:${descLens[routes.indexOf(r)]}`);
+check('every meta description fits the 120-160 character window', tooLong.length === 0,
+  tooLong.join(', '));
+const tooShort = routes.filter((r) => ROUTE_SEO[r].desc.length < 120).map((r) => r);
+check('no meta description is under 120 characters', tooShort.length === 0, tooShort.join(', '));
+
+// Every prerendered route must carry contextual internal links, not just nav.
+const thinLinks = routes.filter((r) => {
+  const html = docs[r];
+  if (!html) return false;
+  const body = (html.match(/<div id="root">[\s\S]*?<\/body>/) || [''])[0];
+  return ((body.match(/href="\/(?![a-z0-9-]*\/)/g) || []).length) < 4;
+});
+check('every prerendered route has contextual internal links', thinLinks.length === 0,
+  thinLinks.join(', '));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

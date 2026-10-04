@@ -35,8 +35,24 @@ export const SHARED_NAV = [
 export const ROUTE_SEO = {
   '/': {
     title: 'Shia Matrimony | Find Shia Rishta for Nikah – Shia Rishta',
-    desc: 'Shia Rishta is the nikah-first Shia matrimony platform. Browse verified Shia brides and grooms, keep your photos private, and involve family with dignity. Join free.',
+    desc: 'Nikah-first Shia matrimony. Browse profiles, keep photos private, involve family with wali and guardian tools. Free to join.',
     h1: 'Shia Rishta — nikah-first Shia matrimony',
+    // Emitted as FAQPage structured data by the prerenderer.
+    //
+    // This is NOT social proof: these are questions the site already answers in
+    // its own on-page copy below, restated in schema.org form so an answer
+    // engine can read them without inferring them. Every answer here matches
+    // visible text on the page, which is what Google requires — inventing
+    // questions nobody on the page answers would be both useless and a policy
+    // risk.
+    faq: [
+      { q: 'Is Shia Rishta really free?', a: 'Yes. Creating a profile, browsing, expressing interest and using guardian tools are all free, and core access is intended to stay free.' },
+      { q: 'Who can see my photos?', a: 'Only the people you choose: everyone, people you have mutual interest with, or only your matches. The default is the most private of those.' },
+      { q: 'Can my family or wali be involved?', a: 'Yes. Wali and guardian workflows are first-class: approvals, family introductions and chaperoned communication. A member can revoke a guardian link permanently at any time.' },
+      { q: 'Who can join Shia Rishta?', a: 'Serious Shia Muslims seeking nikah, along with parents, guardians and trusted matchmakers acting on their behalf.' },
+      { q: 'When can I start a conversation?', a: 'Only after interest is mutual. Nobody is notified of an unreciprocated approach, which removes the most common harassment vector on dating platforms.' },
+      { q: 'What is the difference from a generic dating app?', a: 'It is Shia-specific (sect, marja and practice fields that generic sites do not carry), privacy-first (photo tiers instead of a public gallery) and nikah-first (no swiping culture).' },
+    ],
     lede: 'Shia Rishta is a matchmaking platform built for Shia Muslims seeking nikah, and for the families and walis who support them. Every profile is created with marriage intent. Photos stay private by default, conversations require mutual interest, and family involvement is part of the journey rather than an afterthought.',
     price: true,
     sections: [
@@ -60,14 +76,9 @@ export const ROUTE_SEO = {
         h2: 'Who can join',
         p: 'Serious Shia Muslims seeking nikah, along with parents, guardians and trusted matchmakers acting on their behalf. Identity and intention checks are reviewed before sensitive access opens.',
       },
-      {
-        h2: 'Common questions',
-        steps: [
-          { h3: 'Is Shia Rishta really free?', p: 'Yes. Creating a profile, browsing, expressing interest and using guardian tools are all free, and core access is intended to stay free.' },
-          { h3: 'Who can see my photos?', p: 'Only the people you choose: everyone, people you have mutual interest with, or only your matches. The default is the most private of those.' },
-          { h3: 'Can my family be involved?', p: 'Yes. Wali and guardian workflows are first-class: approvals, family introductions and chaperoned communication.' },
-        ],
-      },
+      // The visible FAQ is rendered from the `faq` array above, so it is not
+      // repeated here. Two copies of the same questions on one page is exactly
+      // the duplicate-content pattern this work removed elsewhere.
       {
         h2: 'Contact',
         p: 'Questions, privacy requests or takedown requests go through our contact form, which reaches the operations team directly. Signed-in members can also raise a support request from their dashboard.',
@@ -89,7 +100,7 @@ export const ROUTE_SEO = {
 
   '/privacy': {
     title: 'Privacy Policy | Shia Rishta',
-    desc: 'How Shia Rishta collects, encrypts and protects your personal data. Your photos and details stay under your control.',
+    desc: 'How Shia Rishta collects, encrypts and protects your personal data. Your photos, contact details and guardian links stay under your control.',
     h1: 'Privacy Policy',
     lede: 'This policy explains what Shia Rishta collects, why, how it is protected, and what control you keep over it. It is written to be read, not to be skipped.',
     sections: [
@@ -104,7 +115,7 @@ export const ROUTE_SEO = {
 
   '/terms': {
     title: 'Terms of Service | Shia Rishta',
-    desc: 'The terms governing your use of Shia Rishta, the nikah-first Shia matrimony platform.',
+    desc: 'The terms governing your use of Shia Rishta, the nikah-first Shia matrimony platform: who may join, what conduct is not allowed, and what we do not guarantee.',
     h1: 'Terms of Service',
     lede: 'These terms govern the use of Shia Rishta. By creating an account you agree to them. They are written plainly, because a contract nobody can read protects nobody.',
     sections: [
@@ -118,7 +129,7 @@ export const ROUTE_SEO = {
 
   '/about': {
     title: 'About Shia Rishta – Nikah-First Shia Matchmaking',
-    desc: 'Why Shia Rishta exists: a dignified, nikah-first alternative to swiping for Shia Muslims and their families.',
+    desc: 'Why Shia Rishta exists: a dignified, nikah-first alternative to swiping for Shia Muslims and their families, built on privacy-first photos and wali involvement.',
     h1: 'About Shia Rishta',
     lede: 'Shia Rishta exists because general dating apps were never built for nikah. They treat a marriage hunt like entertainment, and they treat a wali’s consent as an obstacle rather than part of the process.',
     sections: [
@@ -160,7 +171,7 @@ export const ROUTE_SEO = {
 
   '/contact': {
     title: 'Contact Shia Rishta',
-    desc: 'Reach the Shia Rishta team with questions, feedback or partnership enquiries.',
+    desc: 'Reach the Shia Rishta team with questions, privacy or takedown requests, safety reports and partnership enquiries. Members can also raise a request here.',
     h1: 'Contact Shia Rishta',
     lede: 'Questions, privacy requests, takedown requests or partnership enquiries all reach the operations team through the contact form.',
     sections: [
@@ -182,7 +193,7 @@ export const ROUTE_SEO = {
 
   '/community': {
     title: 'Shia Community, Guidance & Events | Shia Rishta',
-    desc: 'Community guidance and events for Shia Muslims preparing for nikah — beyond the profile.',
+    desc: 'Community guidance and events for Shia Muslims preparing for nikah — the discussions, advice and community that happen before a profile ever does.',
     h1: 'Shia community and guidance',
     lede: 'Community guidance and events for Shia Muslims preparing for nikah — the conversations that happen before a profile does.',
     sections: [
@@ -192,7 +203,7 @@ export const ROUTE_SEO = {
 
   '/support': {
     title: 'Help & Support | Shia Rishta',
-    desc: 'Get help with your Shia Rishta account, verification, privacy settings and messaging.',
+    desc: 'Get help with your Shia Rishta account, identity verification, privacy settings and messaging. Raising a request from your dashboard gets a faster answer.',
     h1: 'Help and support',
     lede: 'Help with your account, verification, privacy settings and messaging.',
     sections: [
@@ -237,7 +248,7 @@ export const ROUTE_SEO = {
 
   '/auth/login': {
     title: 'Log in | Shia Rishta',
-    desc: 'Log in to your Shia Rishta account to manage your profile, favourites and conversations.',
+    desc: 'Log in to manage your Shia Rishta profile, favourites and conversations. Forgotten your password? Reset links are single-use and stored as hashes.',
     h1: 'Log in',
     lede: 'Log in to manage your profile, favourites and conversations.',
     sections: [

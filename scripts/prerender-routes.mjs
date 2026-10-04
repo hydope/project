@@ -67,6 +67,48 @@ function breadcrumbJsonLd(pathname) {
   };
 }
 
+/**
+ * FAQPage for a route that declares `faq`.
+ *
+ * Only emitted when the route has a faq array, and those answers are the same
+ * strings rendered as visible <h3>/<p> below, so the structured data always
+ * matches on-page copy. Google requires that, and inventing questions nobody on
+ * the page answers would be both useless and a policy risk.
+ */
+function faqJsonLd(route) {
+  const meta = ROUTE_SEO[route];
+  if (!meta?.faq?.length) return null;
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: meta.faq.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  };
+}
+
+/** Organization node, plus the same SearchAction sitelinks box Seo.jsx emits. */
+function websiteNode() {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    '@id': `${SITE_URL}/#website`,
+    url: `${SITE_URL}/`,
+    name: 'Shia Rishta',
+    publisher: { '@id': `${SITE_URL}/#organization` },
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: `${SITE_URL}/profiles?search={search_term_string}`,
+      },
+      'query-input': 'required name=search_term_string',
+    },
+  };
+}
+
 function organizationJsonLd() {
   return {
     '@context': 'https://schema.org',
@@ -110,6 +152,18 @@ function renderBody(meta) {
     }
   }
 
+  // The FAQ block is rendered from meta.faq, the SAME array the FAQPage schema
+  // is generated from. Writing the questions twice meant the structured data
+  // could describe text that was no longer on the page, which is exactly what
+  // Google penalises.
+  if (meta.faq?.length) {
+    parts.push('<h2>Frequently Asked Questions</h2>');
+    for (const f of meta.faq) {
+      parts.push(`<h3>${esc(f.q)}</h3>`);
+      parts.push(`<p>${esc(f.a)}</p>`);
+    }
+  }
+
   // Legal links repeated in the footer on purpose: a crawler that skips the nav
   // still finds them.
   parts.push(
@@ -137,7 +191,12 @@ function renderBody(meta) {
  */
 async function buildRouteHtml(route, meta, baseHtml) {
   const canonical = `${SITE_URL}${route === '/' ? '/' : route}`;
-  const nodes = [organizationJsonLd(), breadcrumbJsonLd(route)].filter(Boolean);
+  const nodes = [
+    organizationJsonLd(),
+    websiteNode(),
+    breadcrumbJsonLd(route),
+    faqJsonLd(route),
+  ].filter(Boolean);
 
   let html = baseHtml;
 
@@ -152,6 +211,17 @@ async function buildRouteHtml(route, meta, baseHtml) {
     /<link rel="canonical" href="[^"]*"\s*\/?>/,
     `<link rel="canonical" href="${attr(canonical)}" />`,
   );
+  // Robots directive. Seo.jsx sets this at runtime on every navigation, but a
+  // crawler that does not execute JS saw NO directive at all, which an audit
+  // correctly reported as "robots meta not specified". Static is the only
+  // version most crawlers ever read, so it must be in the served document.
+  if (!/<meta name="robots"/.test(html)) {
+    html = html.replace(
+      /(<link rel="canonical"[^>]*\/?>)/,
+      '$1\n    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />',
+    );
+  }
+
   html = html.replace(
     /<meta property="og:title" content="[^"]*"\s*\/?>/,
     `<meta property="og:title" content="${attr(meta.title)}" />`,
