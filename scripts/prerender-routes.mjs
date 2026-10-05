@@ -66,6 +66,7 @@ const ALL = {
   ...ROUTE_SEO,
   ...landingRouteSeo(LANDING_PAGE_META),
   ...locationRouteSeo(WITH_MEMBERS),
+  '/locations': { title: 'Shia Matrimony by City & Country | Shia Rishta', desc: 'Find Shia matrimonial profiles by city or country. Browse verified Shia rishta in Karachi, London, Toronto, Dubai and more. Free to browse.', h1: 'Shia matrimony by location', lede: 'Find Shia matrimonial profiles by city or country. Every location listed has members on Shia Rishta today, and each page links to live, filtered results.', sections: [{ h2: 'Where are members?', p: ['This directory lists only locations that currently have at least one member. Nothing is listed speculatively: a city with no profiles does not get a page, because an empty location page is thin content rather than useful information.', 'Where a location is not listed, nobody on the platform lives there yet.'] }], faq: [] },
 };
 
 /**
@@ -146,8 +147,60 @@ function organizationJsonLd() {
   };
 }
 
+/**
+ * The /locations hub body.
+ *
+ * Its entire job is to link every location page. Before it existed, all 14 were
+ * orphans: present in the sitemap with unique metadata, and reachable from
+ * nothing. A sitemap entry is a hint to a crawler, not a discovery path.
+ */
+function locationsHubHtml() {
+  const parts = ['<article class="seo-section">', '<h2>Cities</h2>', '<ul>'];
+  for (const c of WITH_MEMBERS.cities) {
+    parts.push(
+      `<li><a href="${SITE_URL}/city/${c.slug}">Shia matrimony in ${esc(c.name)}</a>` +
+      ` — <a href="${SITE_URL}/profiles?city=${encodeURIComponent(c.name)}">browse profiles in ${esc(c.name)}</a></li>`
+    );
+  }
+  parts.push('</ul>', '</article>');
+
+  parts.push('<article class="seo-section">', '<h2>Countries</h2>', '<ul>');
+  for (const k of WITH_MEMBERS.countries) {
+    parts.push(
+      `<li><a href="${SITE_URL}/country/${k.slug}">Shia matrimony in ${esc(k.name)}</a>` +
+      ` — <a href="${SITE_URL}/profiles?country=${encodeURIComponent(k.name)}">browse profiles in ${esc(k.name)}</a></li>`
+    );
+  }
+  parts.push('</ul>', '</article>');
+
+  // Grouped by country, so the hub also answers "where are people?"
+  parts.push('<article class="seo-section">', '<h2>Locations grouped by country</h2>');
+  for (const k of WITH_MEMBERS.countries) {
+    const inCountry = WITH_MEMBERS.cities.filter((x) => x.countrySlug === k.slug);
+    if (!inCountry.length) continue;
+    parts.push(`<h3><a href="${SITE_URL}/country/${k.slug}">${esc(k.name)}</a></h3>`, '<ul>');
+    for (const x of inCountry) {
+      parts.push(`<li><a href="${SITE_URL}/city/${x.slug}">${esc(x.name)}</a></li>`);
+    }
+    parts.push('</ul>');
+  }
+  parts.push('</article>');
+
+  // Contextual links to the money pages. A hub that only links siblings is a
+  // directory; one that also routes visitors onward is a funnel.
+  parts.push(
+    '<article class="seo-section">',
+    '<h2>Before you search</h2>',
+    '<p>Photos are private by default: a member can show photos to everyone, only to people they have mutual interest with, or only to matches. Contact details are never published, and a conversation opens only after interest is mutual from both sides. Browsing is free and needs no account.</p>',
+    `<p>Looking for something specific? Try <a href="${SITE_URL}/syed-rishta">Syed rishta</a>, <a href="${SITE_URL}/shia-nikah">what nikah involves</a>, or the <a href="${SITE_URL}/profile-guide">profile guide</a>.</p>`,
+    '</article>'
+  );
+
+  return parts.join('\n');
+}
+
 /** The no-JS body: this route's own copy, never another route's. */
-function renderBody(meta) {
+function renderBody(meta, route) {
   const parts = [];
 
   // Landmarks first. A crawler — and an AI assistant asked to summarise or cite
@@ -243,6 +296,10 @@ function renderBody(meta) {
   // Location pages must lead to LIVE results, not a static dead end. A page
   // saying "browse Shia profiles in Toronto" and then showing one hardcoded
   // paragraph is exactly the thin-page pattern these pages exist to avoid.
+  // The /locations hub links every location page, so none of them is an orphan.
+  if (route === '/locations') {
+    parts.push(locationsHubHtml());
+  }
   if (meta.liveFilter) {
     parts.push(
       '<p class="seo-cta"><a class="seo-btn" href="' + SITE_URL + meta.liveFilter + '">' +
@@ -353,7 +410,7 @@ async function buildRouteHtml(route, meta, baseHtml) {
       const scripts = inner.match(/<script[\s\S]*?<\/script>/g) || [];
       return (
         `<body${bodyAttrs}>\n` +
-        `    <div id="root"><div class="seo-static">\n${renderBody(meta)}\n    </div></div>\n` +
+        `    <div id="root"><div class="seo-static">\n${renderBody(meta, route)}\n    </div></div>\n` +
         `    ${scripts.join('\n    ')}\n` +
         `  </body>`
       );

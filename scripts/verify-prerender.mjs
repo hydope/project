@@ -14,8 +14,12 @@ import { existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { ROUTE_SEO, SITE_URL } from '../src/data/routeSeo.js';
+import { landingRouteSeo } from '../src/data/landingRouteSeo.js';
+import { CITIES, COUNTRIES, locationRouteSeo } from '../src/data/locationSeo.js';
+import { LANDING_PAGE_META } from '../src/pages/landing/landingPageMeta.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(__dirname, '..');
 const DIST = join(__dirname, '..', 'dist');
 
 let pass = 0;
@@ -41,22 +45,29 @@ if (existsSync(sitemapPath)) {
   const listed = [...sitemap.matchAll(/<loc>https:\/\/shiarishta\.com([^<]*)<\/loc>/g)].map((m) => m[1]);
   const router = await readFile(join(__dirname, '..', 'src', 'routes.jsx'), 'utf8');
   const LANDING = await readFile(join(__dirname, '..', 'src', 'pages', 'landing', 'landingPages.js'), 'utf8').catch(() => '');
-  const ARTICLES = await readFile(join(__dirname, '..', 'src', 'data', 'articleMeta.js'), 'utf8').catch(() => '');
+  const ARTICLES = await import('../src/data/articleMeta.js')
+  .then((m) => m.ARTICLE_META || [])
+  .catch(() => []);
 
-  const stale = listed.filter((p) => {
-    const route = p.replace(/\/$/, '') || '/';
-    // Dynamic segments are listed literally in the sitemap? No — the sitemap
-    // holds concrete article/landing slugs, so match on the first segment.
-    const first = route.split('/')[1];
-    const known =
-      (route in ROUTE_SEO) ||
-      (route !== '/' &&
-        (router.includes(`path: '/${first}'`) ||
-          router.includes(`path: '/${first}/:`) ||
-          LANDING.includes(`'${first}'`) ||
-          ARTICLES.includes(`/${first}`)));
-    return !known;
-  });
+  // Every sitemap URL must be a page that actually ships. Read the SAME merged
+  // manifest the prerenderer and the sitemap generator use, rather than
+  // re-deriving the route set from strings — that is how 14 location pages were
+  // reported as "stale" while genuinely existing.
+  const SNAP = JSON.parse(
+    await readFile(join(ROOT, 'src', 'data', 'locationSnapshot.json'), 'utf8'),
+  );
+  const WITH_MEMBERS = {
+    cities: CITIES.filter((c) => SNAP.cities[c.slug]).map((c) => ({ ...c, count: SNAP.cities[c.slug] })),
+    countries: COUNTRIES.filter((c) => SNAP.countries[c.slug]).map((c) => ({ ...c, count: SNAP.countries[c.slug] })),
+  };
+  const SHIPPED = new Set([
+    ...Object.keys({ ...ROUTE_SEO, ...landingRouteSeo(LANDING_PAGE_META), ...locationRouteSeo(WITH_MEMBERS) })
+      .map((r) => (r === '/' ? '/' : r.replace(/\/$/, ''))),
+    ...ARTICLES.map((a) => `/blog/${a.slug}`),
+  ]);
+  const stale = listed
+    .map((p) => (p.replace(/\/$/, '') || '/'))
+    .filter((route) => !SHIPPED.has(route));
   check('every sitemap URL maps to a real route', stale.length === 0,
     `stale entries: ${stale.join(', ')}`);
 

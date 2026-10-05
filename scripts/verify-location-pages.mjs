@@ -18,6 +18,7 @@ import { fileURLToPath } from 'url';
 import { CITIES, COUNTRIES, findCity, findCountry } from '../src/data/locationSeo.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(__dirname, '..');
 const DIST = join(__dirname, '..', 'dist');
 const SNAP = JSON.parse(
   await readFile(join(__dirname, '..', 'src', 'data', 'locationSnapshot.json'), 'utf8'),
@@ -76,6 +77,32 @@ check('every location page links to a live filtered listing',
   noLiveLink.length === 0, noLiveLink.join(', ') || 'pages exist but none link to live results');
 check('location H1s are unique', new Set(h1s).size === h1s.length,
   'two locations share an H1 — doorway-page shape');
+
+// ── Discovery: nothing may be an orphan ─────────────────────────────────────
+// All 14 location pages existed with unique titles, H1s and self-referencing
+// canonicals — and nothing on the site linked to a single one of them. A sitemap
+// entry is a hint to a crawler, not a discovery path; a page reachable from
+// nothing is the strongest possible signal that it is not part of the site.
+const hubPath = join(DIST, 'locations', 'index.html');
+check('a /locations hub exists', existsSync(hubPath), 'no hub to link the cluster from');
+if (existsSync(hubPath)) {
+  const hub = await readFile(hubPath, 'utf8');
+  const notLinked = expected.filter((r) => !hub.includes(`${r}"`));
+  check('the hub links every location page', notLinked.length === 0,
+    `orphaned: ${notLinked.join(', ')}`);
+  check('the hub also links onward to browse and register',
+    hub.includes('/profiles') && hub.includes('/auth/register'),
+    'a hub that only links siblings is a directory, not a funnel');
+}
+
+// Every page must be reachable from the hub, the homepage, or the sitemap.
+const sitemap = await readFile(join(ROOT, 'public', 'sitemap.xml'), 'utf8');
+const home = await readFile(join(DIST, 'index.html'), 'utf8');
+const hubOrHome = existsSync(hubPath) ? await readFile(hubPath, 'utf8') : '';
+const undiscoverable = expected.filter((r) =>
+  !hubOrHome.includes(`${r}"`) && !home.includes(`${r}"`) && !sitemap.includes(`${r}<`));
+check('no location page is undiscoverable', undiscoverable.length === 0,
+  `in sitemap only, linked from nothing: ${undiscoverable.join(', ')}`);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

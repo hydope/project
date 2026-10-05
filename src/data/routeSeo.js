@@ -23,6 +23,9 @@
 
 export const SHARED_NAV = [
   { href: '/profiles', label: 'Browse profiles' },
+  // The location hub. Without it in the nav, every /city/* and /country/* page
+  // was an orphan — in the sitemap with unique metadata, and linked from nothing.
+  { href: '/locations', label: 'By location' },
   { href: '/about', label: 'About' },
   { href: '/safety', label: 'Safety' },
   { href: '/success-stories', label: 'How it works' },
@@ -82,14 +85,22 @@ export const ROUTE_SEO = {
       },
       {
         h2: 'Who this suits, and who it does not',
-        p: 'This suits Shia Muslims who are genuinely seeking nikah, and families who want to be involved properly rather than discover afterwards that a match happened without them. It suits people who would rather exchange five considered messages with five plausible families than fifty messages with fifty strangers.',
-        p: 'It does not suit someone looking for casual conversation, an open-ended dating experience, or a fast-swiping feed. Those are legitimate things to want and they are simply not what this platform is for. Being clear about that is more useful to a visitor than a larger member list would be.',
+        // Array, not repeated `p:` keys. A second `p:` in the same object
+        // silently overwrites the first — JS object literal duplicate keys — so
+        // roughly 90 words of real copy were being discarded at prerender while
+        // reading correctly in source. ESLint's no-dupe-keys caught it.
+        p: [
+          'This suits Shia Muslims who are genuinely seeking nikah, and families who want to be involved properly rather than discover afterwards that a match happened without them. It suits people who would rather exchange five considered messages with five plausible families than fifty messages with fifty strangers.',
+          'It does not suit someone looking for casual conversation, an open-ended dating experience, or a fast-swiping feed. Those are legitimate things to want and they are simply not what this platform is for. Being clear about that is more useful to a visitor than a larger member list would be.',
+        ],
       },
       {
         h2: 'How photo privacy works in practice',
-        p: 'Every member picks one of three settings, and it applies everywhere without exception. "Everyone" shows photos to any signed-out visitor browsing the directory. "After mutual interest" keeps photos hidden until both people have expressed interest, so a photo is never visible to someone who has only looked. "Matches only" keeps photos hidden until you have actually been matched, which is the strictest option and the default for anyone who has not chosen otherwise.',
-        p: 'In every case the photos themselves stay behind an access check on the server. They are not delivered to the browser and hidden with CSS, which is the usual trick and the reason photos leak on most sites. A locked photo is never sent over the wire at all, so there is nothing in the page source, the network tab or a browser cache to recover.',
-        p: 'Changing a setting takes effect immediately, including mid-conversation. There is no delay, no grace period, and nobody is notified that it changed.',
+        p: [
+          'Every member picks one of three settings, and it applies everywhere without exception. "Everyone" shows photos to any signed-out visitor browsing the directory. "After mutual interest" keeps photos hidden until both people have expressed interest, so a photo is never visible to someone who has only looked. "Matches only" keeps photos hidden until you have actually been matched, which is the strictest option and the default for anyone who has not chosen otherwise.',
+          'In every case the photos themselves stay behind an access check on the server. They are not delivered to the browser and hidden with CSS, which is the usual trick and the reason photos leak on most sites. A locked photo is never sent over the wire at all, so there is nothing in the page source, the network tab or a browser cache to recover.',
+          'Changing a setting takes effect immediately, including mid-conversation. There is no delay, no grace period, and nobody is notified that it changed.',
+        ],
       },
       {
         h2: 'Who can join',
