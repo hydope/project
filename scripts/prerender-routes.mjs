@@ -184,10 +184,21 @@ function renderBody(meta) {
     // structure rather than one undifferentiated run of headings and <p>.
     parts.push('<article class="seo-section">');
     parts.push(`<h2>${esc(section.h2)}</h2>`);
-    if (section.p) parts.push(`<p>${esc(section.p)}</p>`);
+    // `p` may be a string or an array of paragraphs. It only ever accepted a
+    // string, so every second and third paragraph written in routeSeo.js was
+    // silently dropped at prerender — the copy existed but never reached the
+    // page, which is why measured word count sat near 527 no matter how much was
+    // written.
+    const paras = Array.isArray(section.p)
+      ? section.p
+      : section.p
+        ? [section.p]
+        : [];
+    for (const para of paras) parts.push(`<p>${esc(para)}</p>`);
     for (const step of section.steps || []) {
       parts.push(`<h3>${esc(step.h3)}</h3>`);
-      parts.push(`<p>${esc(step.p)}</p>`);
+      const stepParas = Array.isArray(step.p) ? step.p : [step.p];
+      for (const para of stepParas) parts.push(`<p>${esc(para)}</p>`);
     }
     parts.push('</article>');
   }

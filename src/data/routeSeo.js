@@ -65,12 +65,31 @@ export const ROUTE_SEO = {
         p: 'In Shia fiqh a virgin woman’s nikah requires her wali’s consent, so guardian approvals, family-to-family introductions and chaperoned communication are built in from the start. A member can delegate profile management to a parent, guardian or trusted matchmaker.',
       },
       {
+        h2: 'What makes this different from a generic matrimonial site',
+        p: [
+          'Most matrimonial sites take a generic profile form and add a sect dropdown as an afterthought, which leaves families doing the real filtering themselves in the messages. Shia Rishta treats the things a Shia family actually decides on as structured data. Sect and marja are separate fields. Religiosity and prayer practice are their own field rather than a sentence in a biography. Niyaz and syed status are searchable. A family can narrow a large list down to a genuinely plausible shortlist before anyone sends a message.',
+          'Privacy works the same way. A generic site shows a photo gallery, because photos are what make a profile feel alive. Here a photo is the most dangerous thing a profile can carry, so every member chooses one of three tiers: visible to everyone, visible only after mutual interest, or visible only to matches. The default is the most restrictive. That is a deliberate inversion of the usual default, and it is the single most common reason a family chooses a privacy-first platform over a gallery-driven one.',
+          'Messaging is gated on mutual interest, too. On most platforms, sending one message is enough to open an inbox that anyone can fill with messages you never asked for. Here interest has to be mutual before a conversation can start at all, so nobody is ever notified that they were approached and did not reciprocate. That removes the single most common route to harassment on a dating platform.',
+        ],
+      },
+      {
         h2: 'How it works',
         steps: [
-          { h3: '1. Create a profile with your intent', p: 'Set your marriage goals, religious practice, family background and timeline, plus the sect and marja filters that generic matrimonial sites do not carry.' },
-          { h3: '2. Browse and express interest privately', p: 'Search by sect, city, age and practice. Interest is one-sided until it is mutual, so nobody is notified of an unreciprocated approach.' },
-          { h3: '3. Talk once you both agree', p: 'A conversation opens only after mutual interest. Contact exchange and photo unlocks require agreement from both sides.' },
+          { h3: '1. Create a profile with your intent', p: 'Set your marriage goals, religious practice, family background and timeline, plus the sect and marja filters that generic matrimonial sites do not carry. Write what you are looking for plainly: families read dozens of profiles and they can tell within a sentence whether one is serious.' },
+          { h3: '2. Browse and express interest privately', p: 'Search by sect, city, age and practice. Interest is one-sided until it is mutual, so nobody is notified of an unreciprocated approach. Nothing you send is visible to anyone who has not sent something back.' },
+          { h3: '3. Talk once you both agree', p: 'A conversation opens only after mutual interest. Contact exchange and photo unlocks require agreement from both sides. If either person revokes a wali or guardian link at any point, access ends immediately and permanently.' },
         ],
+      },
+      {
+        h2: 'Who this suits, and who it does not',
+        p: 'This suits Shia Muslims who are genuinely seeking nikah, and families who want to be involved properly rather than discover afterwards that a match happened without them. It suits people who would rather exchange five considered messages with five plausible families than fifty messages with fifty strangers.',
+        p: 'It does not suit someone looking for casual conversation, an open-ended dating experience, or a fast-swiping feed. Those are legitimate things to want and they are simply not what this platform is for. Being clear about that is more useful to a visitor than a larger member list would be.',
+      },
+      {
+        h2: 'How photo privacy works in practice',
+        p: 'Every member picks one of three settings, and it applies everywhere without exception. "Everyone" shows photos to any signed-out visitor browsing the directory. "After mutual interest" keeps photos hidden until both people have expressed interest, so a photo is never visible to someone who has only looked. "Matches only" keeps photos hidden until you have actually been matched, which is the strictest option and the default for anyone who has not chosen otherwise.',
+        p: 'In every case the photos themselves stay behind an access check on the server. They are not delivered to the browser and hidden with CSS, which is the usual trick and the reason photos leak on most sites. A locked photo is never sent over the wire at all, so there is nothing in the page source, the network tab or a browser cache to recover.',
+        p: 'Changing a setting takes effect immediately, including mid-conversation. There is no delay, no grace period, and nobody is notified that it changed.',
       },
       {
         h2: 'Who can join',

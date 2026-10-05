@@ -281,6 +281,53 @@ const badOrder = routes.filter((r) => {
 });
 check('the <main> landmark wraps the content, not the navigation', badOrder.length === 0, badOrder.join(', '));
 
+// ── Content depth ────────────────────────────────────────────────────────────
+// A review flagged the homepage at 527 words against an 800-word target. The
+// copy was not missing — renderBody only ever emitted `section.p` as a single
+// string, so every second and third paragraph written in routeSeo.js was
+// silently dropped at prerender. `p` now accepts an array.
+const wordCount = (r) => {
+  const h = docs[r];
+  if (!h) return 0;
+  const b = (h.match(/<body[\s\S]*?<\/body>/) || [''])[0];
+  return (b.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean)).length;
+};
+check('the homepage clears the 800-word content target',
+  wordCount('/') >= 800, `${wordCount('/')} words`);
+// 80 words catches a genuinely broken or near-empty prerendered page. It is
+// deliberately not 250: twelve secondary routes (/terms 229, /about 205,
+// /safety 217, /blog 95, /community 87 and others) are still thin, and a
+// threshold they cannot meet would only train everyone to ignore the check.
+// They are real remaining content work, reported per route by
+// the verifier output itself, not something to paper over with a lower bar.
+const thin = routes.filter((r) => wordCount(r) > 0 && wordCount(r) < 80);
+check('no prerendered route is a near-empty stub', thin.length === 0,
+  thin.map((r) => `/${r.slice(1)}:${wordCount(r)}`).join(', '));
+const REPORT_ONLY = routes
+  .filter((r) => r !== '/' && wordCount(r) < 250)
+  .map((r) => `/${r.slice(1)}=${wordCount(r)}`);
+if (REPORT_ONLY.length) {
+  console.log(`NOTE  still thin (<250 words), content work outstanding: ${REPORT_ONLY.join(' ')}`);
+}
+
+// ── HTTPS enforcement ───────────────────────────────────────────────────────
+// http://shiarishta.com/ returned 200 and served the whole page over plaintext.
+// Only www redirected, and only because the www rule fired first. A network
+// attacker could rewrite the HTML and the JS bundle before the browser saw them.
+const htaccess = await readFile(join(__dirname, '..', 'public', '.htaccess'), 'utf8');
+check('plaintext http:// is redirected to https://',
+  /HTTPS\}\s*!=\s*on[\s\S]{0,200}R=301/.test(htaccess),
+  'no https upgrade rule — http:// still serves the page');
+check('the HTTPS rule is scoped to known hosts',
+  /HTTP_HOST\}\s*\^\(?shiarishta/.test(htaccess),
+  'the https upgrade does not check HTTP_HOST, so X-Forwarded-Proto would be trusted from anywhere');
+check('HSTS is set so browsers stop making plaintext requests',
+  /Strict-Transport-Security/.test(htaccess),
+  'no HSTS header — the window between http:// and the 301 stays open to tampering');
+check('canonical and og:url stay https in the built output',
+  routes.every((r) => docs[r] && !docs[r].includes('http://shiarishta.com')),
+  'a route still self-references over plaintext');
+
 // ── llms.txt ─────────────────────────────────────────────────────────────────
 // It was returning HTTP 200 — the SPA fallback serving index.html — so a status
 // check would have passed while an agent received 13KB of HTML. Assert it is
