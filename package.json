@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5173",
-    "build": "vite build && node scripts/prerender-routes.mjs",
+    "build": "node scripts/refresh-sitemap-dates.mjs && node scripts/build-llms-txt.mjs && vite build && node scripts/prerender-routes.mjs",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "lint": "eslint . --ext .js,.jsx",
     "db:dev": "node scripts/dev-db.mjs",
@@ -20,7 +20,8 @@
     "start": "node scripts/start-local-stack.mjs",
     "verify:prerender": "node scripts/verify-prerender.mjs",
     "verify:seo-shell": "node scripts/verify-seo-shell.mjs",
-    "measure:vitals": "node scripts/measure-vitals.mjs"
+    "measure:vitals": "node scripts/measure-vitals.mjs",
+    "build:llms": "node scripts/build-llms-txt.mjs"
   },
   "engines": {
     "node": ">=20.0.0"

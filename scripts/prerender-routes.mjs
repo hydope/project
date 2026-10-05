@@ -127,12 +127,17 @@ function organizationJsonLd() {
 function renderBody(meta) {
   const parts = [];
 
+  // Landmarks first. A crawler — and an AI assistant asked to summarise or cite
+  // this page — needs to know which part is the navigation, which is the
+  // content, and which is boilerplate. Without <main> the whole document reads
+  // as an undifferentiated blob, and "the article" is genuinely ambiguous.
   parts.push('<header><nav aria-label="Main"><ul>');
   for (const item of SHARED_NAV) {
     parts.push(`<li><a href="${attr(item.href)}">${esc(item.label)}</a></li>`);
   }
   parts.push('</ul></nav></header>');
 
+  parts.push('<main id="main-content">');
   parts.push(`<h1>${esc(meta.h1)}</h1>`);
   parts.push(`<p>${esc(meta.lede)}</p>`);
 
@@ -144,12 +149,18 @@ function renderBody(meta) {
   }
 
   for (const section of meta.sections || []) {
+    // Each section is an <article>: a crawler (and an assistant asked "what does
+    // this page say about photo privacy?") can then point at a specific section
+    // instead of quoting the whole document. It also gives the page real
+    // structure rather than one undifferentiated run of headings and <p>.
+    parts.push('<article class="seo-section">');
     parts.push(`<h2>${esc(section.h2)}</h2>`);
     if (section.p) parts.push(`<p>${esc(section.p)}</p>`);
     for (const step of section.steps || []) {
       parts.push(`<h3>${esc(step.h3)}</h3>`);
       parts.push(`<p>${esc(step.p)}</p>`);
     }
+    parts.push('</article>');
   }
 
   // The FAQ block is rendered from meta.faq, the SAME array the FAQPage schema
@@ -159,13 +170,15 @@ function renderBody(meta) {
   if (meta.faq?.length) {
     parts.push('<h2>Frequently Asked Questions</h2>');
     for (const f of meta.faq) {
+      parts.push(`<article class="seo-faq-item">`);
       parts.push(`<h3>${esc(f.q)}</h3>`);
       parts.push(`<p>${esc(f.a)}</p>`);
+      parts.push('</article>');
     }
   }
 
-  // Legal links repeated in the footer on purpose: a crawler that skips the nav
-  // still finds them.
+  parts.push('</main>');
+
   parts.push(
     '<h2>Contact</h2>' +
       '<p>Questions, privacy requests or takedown requests go through our ' +

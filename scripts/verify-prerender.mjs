@@ -244,5 +244,70 @@ const thinLinks = routes.filter((r) => {
 check('every prerendered route has contextual internal links', thinLinks.length === 0,
   thinLinks.join(', '));
 
+// ── Semantic landmarks ───────────────────────────────────────────────────────
+// A rating site scored AI Readiness 2/4 and reported "no <main> or <article>
+// elements". Correct for the served document: the React app has <main> in
+// LandingLayout, but the prerendered shell — which is what a crawler and most AI
+// assistants actually read — had none, so the whole page was one undifferentiated
+// block with no way to tell navigation from content.
+const noMain = routes.filter((r) => docs[r] && !/<main[\s>]/.test(docs[r]));
+check('every prerendered route exposes a <main> landmark', noMain.length === 0, noMain.join(', '));
+check('every prerendered route exposes an <article> landmark',
+  routes.every((r) => docs[r] && /<article[\s>]/.test(docs[r])),
+  routes.filter((r) => docs[r] && !/<article[\s>]/.test(docs[r])).join(', '));
+const badOrder = routes.filter((r) => {
+  const h = docs[r];
+  if (!h) return false;
+  const b = (h.match(/<body[\s\S]*?<\/body>/) || [''])[0];
+  // Exactly one <main>, opening before <header> closes.
+  return (b.match(/<main[\s>]/g) || []).length !== 1
+    || b.indexOf('<main') < b.indexOf('</header>')
+    || b.indexOf('<main') < 0;
+});
+check('the <main> landmark wraps the content, not the navigation', badOrder.length === 0, badOrder.join(', '));
+
+// ── llms.txt ─────────────────────────────────────────────────────────────────
+// It was returning HTTP 200 — the SPA fallback serving index.html — so a status
+// check would have passed while an agent received 13KB of HTML. Assert it is
+// really a plain-text file in the build output, not a served 200.
+const llmsPath = join(DIST, 'llms.txt');
+const llmsExists = existsSync(llmsPath);
+check('a real llms.txt ships in the build output', llmsExists, 'dist/llms.txt missing');
+if (llmsExists) {
+  const llms = await readFile(llmsPath, 'utf8');
+  check('llms.txt is plain text, not the SPA fallback', !/<!DOCTYPE html/i.test(llms));
+  check('llms.txt states what the site is', /^#\s+\S/m.test(llms));
+  check('llms.txt links the public pages',
+    ['/profiles', '/privacy', '/terms', '/contact'].every((p) => llms.includes(SITE_URL + p)));
+  // The honesty constraint: a build-time file must not claim live figures.
+  check('llms.txt invents no member count or testimonials',
+    !/\b[\d,]+\+?\s+(members|families|couples|testimonials)\b/i.test(llms)
+      && !/\b[45](\.\d)?\s*(\/\s*5|stars?)\b/i.test(llms),
+    'llms.txt asserts a figure it cannot know at build time');
+  // Every public route should be reachable from the brief.
+  const missingFromLlms = Object.keys(ROUTE_SEO)
+    .filter((r) => r !== '/auth/login')
+    .filter((r) => !llms.includes(SITE_URL + (r === '/' ? '/' : r)));
+  check('llms.txt covers every public route', missingFromLlms.length === 0, missingFromLlms.join(', '));
+}
+
+// ── Freshness ────────────────────────────────────────────────────────────────
+// Sitemap <lastmod> was hardcoded to 2026-09-26 and silently drifting. It is now
+// derived from git, so it is a measurement rather than a claim.
+const sitemapOut = join(DIST, 'sitemap.xml');
+if (existsSync(sitemapOut)) {
+  const sm = await readFile(sitemapOut, 'utf8');
+  const dates = [...sm.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1]);
+  check('every sitemap entry has a lastmod', dates.length > 0 && dates.length === sm.split('<url>').length - 1);
+  const stale = dates.filter((d) => {
+    const age = (Date.now() - Date.parse(`${d}T00:00:00Z`)) / 86400000;
+    return Number.isNaN(age) || age > 120;
+  });
+  check('no sitemap lastmod is older than 120 days', stale.length === 0,
+    `stale: ${stale.join(', ')} — a hardcoded date drifts and nothing fails`);
+} else {
+  check('sitemap.xml ships in the build output', false, 'missing');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

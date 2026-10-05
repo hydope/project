@@ -1,0 +1,61 @@
+# Shia Rishta
+
+> Nikah-first Shia matrimony platform. Privacy-first profiles, mutual-interest
+> messaging, and wali / guardian workflows built in. Free to join.
+
+Shia Rishta is for Shia Muslims seeking nikah (Islamic marriage), and for the
+families and walis who support them. It is not a dating app: profiles are created
+with marriage intent, there is no swiping, and privacy defaults are the most
+restrictive available rather than the most permissive.
+
+## Key facts
+
+- Creating a profile, browsing, expressing interest, messaging a match and the
+  guardian tools are all free. There is no payment system and no paid tier.
+- Photos are private by default. A member chooses who sees them: everyone, only
+  people with mutual interest, or only matches.
+- Contact details are never published. A conversation opens only after interest
+  is mutual, so nobody is notified of an unreciprocated approach.
+- A wali or guardian link can be revoked by the member at any time, permanently.
+- Identity verification is reviewed by a person and is never a precondition for
+  browsing.
+
+## Pages
+
+- [Shia Rishta — nikah-first Shia matrimony](https://shiarishta.com/): Nikah-first Shia matrimony. Browse profiles, keep photos private, involve family with wali and guardian tools. Free to join.
+  - **Is Shia Rishta really free?** Yes. Creating a profile, browsing, expressing interest and using guardian tools are all free, and core access is intended to stay free.
+  - **Who can see my photos?** Only the people you choose: everyone, people you have mutual interest with, or only your matches. The default is the most private of those.
+  - **Can my family or wali be involved?** Yes. Wali and guardian workflows are first-class: approvals, family introductions and chaperoned communication. A member can revoke a guardian link permanently at any time.
+  - **Who can join Shia Rishta?** Serious Shia Muslims seeking nikah, along with parents, guardians and trusted matchmakers acting on their behalf.
+  - **When can I start a conversation?** Only after interest is mutual. Nobody is notified of an unreciprocated approach, which removes the most common harassment vector on dating platforms.
+  - **What is the difference from a generic dating app?** It is Shia-specific (sect, marja and practice fields that generic sites do not carry), privacy-first (photo tiers instead of a public gallery) and nikah-first (no swiping culture).
+- [Browse Shia brides and grooms seeking nikah](https://shiarishta.com/profiles): Search verified Shia profiles for nikah — filter by sect, marja, education and location. Serious Shia matrimony with privacy-first profiles. Join free.
+- [Privacy Policy](https://shiarishta.com/privacy): How Shia Rishta collects, encrypts and protects your personal data. Your photos, contact details and guardian links stay under your control.
+- [Terms of Service](https://shiarishta.com/terms): The terms governing your use of Shia Rishta, the nikah-first Shia matrimony platform: who may join, what conduct is not allowed, and what we do not guarantee.
+- [About Shia Rishta](https://shiarishta.com/about): Why Shia Rishta exists: a dignified, nikah-first alternative to swiping for Shia Muslims and their families, built on privacy-first photos and wali involvement.
+- [Safety and verification standards](https://shiarishta.com/safety): How Shia Rishta keeps members safe: identity verification, photo privacy tiers, mutual-interest messaging and human review.
+- [How Shia Rishta works](https://shiarishta.com/success-stories): How Shia Rishta actually works: verified profiles, mutual-interest messaging, privacy controls and family-supported introductions. No invented stories.
+- [Contact Shia Rishta](https://shiarishta.com/contact): Reach the Shia Rishta team with questions, privacy or takedown requests, safety reports and partnership enquiries. Members can also raise a request here.
+- [Nikah and marriage guidance](https://shiarishta.com/blog): Practical guidance on nikah, choosing a spouse, and married life for Shia Muslims — written for serious seekers and their families.
+- [Shia community and guidance](https://shiarishta.com/community): Community guidance and events for Shia Muslims preparing for nikah — the discussions, advice and community that happen before a profile ever does.
+- [Help and support](https://shiarishta.com/support): Get help with your Shia Rishta account, identity verification, privacy settings and messaging. Raising a request from your dashboard gets a faster answer.
+- [Writing a strong Shia rishta profile](https://shiarishta.com/profile-guide): Worked examples of strong Shia marriage profiles: how to write about deen, expectations, family and timeline so real families reach back.
+- [Family introductions and matchmakers](https://shiarishta.com/agents): Family members and matchmakers can create private, photo-free introductions on Shia Rishta — with the person concerned in control throughout.
+- [Create your free account](https://shiarishta.com/auth/register): Create a free Shia Rishta profile for nikah — privacy-first photos, wali and guardian workflows, and no payment required.
+
+## Access and usage
+
+- Member profiles at `/profiles` are public and browsable without an account.
+- Member-only areas (`/dashboard`, `/messages`, `/settings`, `/admin`) require an
+  account and are excluded here on purpose.
+- Privacy requests and takedown requests: https://shiarishta.com/contact
+- Full policy: https://shiarishta.com/privacy
+
+## Accuracy note
+
+Member counts, verification counts and city breakdowns are deliberately NOT stated
+here. They change continuously and cannot be known at build time, so quoting a
+number would go stale and could be wrong within days. The live figures are
+available at https://shiarishta.com/api/profiles/stats and are rendered on the
+homepage. No testimonials or success stories are published because no member has
+consented to one.
