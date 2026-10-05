@@ -3833,9 +3833,9 @@ button, a, input, select, textarea {
 }
 .hp-chip svg { color: var(--color-primary); }
 .hp-chip.c1 { top: 6%; left: -20px; }
-.hp-chip.c2 { top: 24%; right: -22px; animation-delay: 0.7s; }
-.hp-chip.c3 { bottom: 34%; left: -28px; animation-delay: 1.4s; }
-.hp-chip.c4 { bottom: 24%; right: -12px; animation-delay: 2.1s; }
+.hp-chip.c2 { top: 24%; right: -22px; animation-delay: 0.08s; }
+.hp-chip.c3 { bottom: 34%; left: -28px; animation-delay: 0.16s; }
+.hp-chip.c4 { bottom: 24%; right: -12px; animation-delay: 0.24s; }
 @keyframes hp-float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-9px); }

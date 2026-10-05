@@ -98,11 +98,16 @@ export default function Home() {
               <div className="hp-visual-frame">
                 <img src={HERO_IMAGE} alt="Nikah celebration" loading="eager" fetchPriority="high" decoding="async" width="1200" height="800" />
               </div>
+              {/* The stagger below is deliberately tiny (80ms steps, ~240ms total).
+                  It used to be 700ms steps, so the fourth chip waited 2.1s to appear.
+                  These badges sit inside the hero, and LCP is re-recorded each time the
+                  growing hero paints — a decorative badge appearing 2.1s late was pushing
+                  LCP past 5s on a throttled connection. */}
               {HERO_CHIPS.map(({ icon: Icon, label, className }, i) => (
                 <span
                   key={label}
                   className={`hp-chip ${className}`}
-                  style={reduceMotion ? undefined : { animationDelay: `${i * 0.7}s` }}
+                  style={reduceMotion ? undefined : { animationDelay: `${i * 0.08}s` }}
                 >
                   <Icon className="w-4 h-4" aria-hidden="true" /> {label}
                 </span>
