@@ -21,9 +21,29 @@ function routeAI(string $method, array $segments): void
         // missing, which made the panel look permanently broken even after an
         // operator had configured a working key.
         // Reports the model so the admin panel can show which one is active.
+    // Never assign the credential to a local that could reach a response body.
+    // Two separate calls, so no variable holding the key exists in this scope:
+    // the boolean is derived from a function call and the fingerprint is
+    // computed inside aiKeyFingerprint(), which returns only the digest.
     json([
         'available' => aiApiKey() !== '',
         'model' => aiModel(),
+        // A non-reversible fingerprint of the key currently in use.
+        //
+        // Why: after rotating a compromised credential there is no way to tell
+        // whether the new key actually took effect, because nothing exposed
+        // WHICH key is live. The only previous signal was "a key exists". An
+        // operator rotating a burned key had to trust the deploy worked.
+        //
+        // SHA-256 of the key, first 12 hex chars. This reveals nothing useful:
+        // NVIDIA keys are high-entropy random strings, so the digest cannot be
+        // brute-forced or reversed, and it is not a secret that can be replayed.
+        // It is a receipt, not a credential.
+        //
+        // Before rotating, note the current fingerprint. After rotating, it MUST
+        // change — if it does not, the old key is still serving traffic.
+        'keyFingerprint' => aiKeyFingerprint(),
+        'keySource' => aiApiKey() !== '' ? aiApiKeySource() : null,
     ]);
     }
 

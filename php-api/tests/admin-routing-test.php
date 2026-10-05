@@ -518,9 +518,32 @@ check(
 );
 
 // And the parsed $key must never reach a response body.
+//
+// The one legitimate use is hashing it for the fingerprint, so the raw value is
+// stripped from consideration before this runs: hash($key) is a receipt, $key is
+// a credential, and conflating them would either leak the key or forbid the
+// only safe way to expose which key is live.
+// Two legitimate uses of $key inside a json([ payload, both safe:
+//
+//   1. `'available' => $key !== ''` — a boolean comparison, not the value.
+//   2. `substr(hash('sha256', $key), 0, 12)` — the key is the INPUT to a hash.
+//
+// Both are neutralised below before the leak check runs. Only an actual
+// interpolation of the value — 'apiKey' => $key, or "key" => $key — can leak.
+$aiRouteNoHashed = (string)preg_replace_callback(
+    '/hash\(\s*.sha256.\s*,\s*(\$key)\s*\)/',
+    static fn(array $m): string => 'hash(__SHA256__, ' . $m[1] . ')',
+    $aiRoute
+);
+// The boolean comparison yields no key material, so neutralise the token too.
+$aiRouteNoHashed = (string)preg_replace(
+    '/(\$key\s*!==\s*\'\')/',
+    '(__BOOL_CMP__)',
+    $aiRouteNoHashed
+);
 check(
     'AI routes never json() the parsed $key',
-    !preg_match('/json\(\s*\[.*\$key/s', $aiRoute),
+    !preg_match('/json\(\s*\[.*\$key/s', $aiRouteNoHashed),
     'a json() payload may be leaking the credential'
 );
 
@@ -1004,6 +1027,56 @@ check(
     'no call site passes the shell predicate to array_filter un-negated',
     $bareFilterSites === [],
     'inverted filter in: ' . implode(', ', $bareFilterSites)
+);
+
+// ── AI key fingerprint: rotation must be verifiable ──────────────────────────
+// A compromised NVIDIA key had to be rotated, but nothing exposed WHICH key was
+// live in production — the status endpoint reported only "a key exists". An
+// operator rotating a burned key had no way to confirm the rotation took effect
+// short of trusting the deploy.
+//
+// The fingerprint is a SHA-256 prefix. It must never reveal key material, must
+// be stable for a given key (otherwise it cannot serve as a receipt), and must
+// differ for a different key (otherwise it proves nothing).
+$aiSrc = (string)file_get_contents(__DIR__ . '/../routes/ai.php');
+$aiLibSrc = (string)file_get_contents(__DIR__ . '/../lib/ai.php');
+check(
+    'the AI status endpoint exposes a key fingerprint',
+    strpos($aiSrc, 'keyFingerprint') !== false,
+    'no fingerprint — a rotated key cannot be verified as live'
+);
+$aiLibSrc = (string)file_get_contents(__DIR__ . '/../lib/ai.php');
+check(
+    'the fingerprint is a hash prefix, never raw key material',
+    strpos($aiLibSrc, 'substr(hash(') !== false && strpos($aiLibSrc, ', 0, 12') !== false,
+    'the fingerprint is not derived by hashing — check it cannot leak the key'
+);
+check(
+    'the route handler never binds the raw key to a local',
+    strpos($aiSrc, '$key = aiApiKey()') === false,
+    'routes/ai.php holds the credential in scope — it belongs inside aiKeyFingerprint()'
+);
+
+// Behavioural proof of the properties the fingerprint depends on.
+$fpOf = static fn(string $k): string => substr(hash('sha256', $k), 0, 12);
+$k1 = 'nvapi-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+$k2 = 'nvapi-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
+check('the fingerprint is stable for the same key', $fpOf($k1) === $fpOf($k1));
+check('a different key yields a different fingerprint', $fpOf($k1) !== $fpOf($k2));
+check('the fingerprint never contains the key',
+  strpos($fpOf($k1), substr($k1, 0, 6)) === false);
+check('the fingerprint is short enough to be a receipt, not a credential',
+  strlen($fpOf($k1)) === 12);
+
+check(
+    'the fingerprint is produced by the helper, not inline in the route',
+    strpos($aiSrc, "'keyFingerprint' => aiKeyFingerprint()") !== false,
+    'the route should delegate to aiKeyFingerprint() so the key never enters its scope'
+);
+check(
+    'no response field anywhere returns the raw credential',
+    !preg_match("/json\(\s*\[[^\]]*'apiKey'\s*=>\s*\\\$key/s", $aiSrc),
+    'a json() payload is returning $key directly'
 );
 
 // Behavioural check of the predicate itself, run against the exact names pulled

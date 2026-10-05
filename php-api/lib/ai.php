@@ -257,6 +257,31 @@ function aiApiKey(): string
  * single most useful thing to show an operator diagnosing an outage: "you fixed
  * it in the panel" vs "you are still on the empty env var".
  */
+/**
+ * A non-reversible fingerprint of the AI key currently in use.
+ *
+ * Why this exists: after rotating a compromised credential there is no way to
+ * tell whether the new key actually took effect, because nothing exposed WHICH
+ * key was live — only that "a key exists". An operator rotating a burned key
+ * had to trust the deploy worked.
+ *
+ * SHA-256 of the key, first 12 hex chars. This reveals nothing useful: NVIDIA
+ * keys are high-entropy random strings, so the digest cannot be brute-forced or
+ * reversed, and it is not a secret that can be replayed. It is a receipt, not a
+ * credential.
+ *
+ * Before rotating, note the current fingerprint. After rotating, it MUST change.
+ * If it does not, the old key is still serving traffic.
+ *
+ * Deliberately a separate function: the raw key never exists as a local in the
+ * route handler, so it cannot be interpolated into a response by accident.
+ */
+function aiKeyFingerprint(): ?string
+{
+    $key = aiApiKey();
+    return $key !== '' ? substr(hash('sha256', $key), 0, 12) : null;
+}
+
 function aiApiKeySource(): string
 {
     try {

@@ -145,6 +145,11 @@ function AiSettingsPanel({ onChanged }) {
           <code className="px-2 py-1 rounded bg-hover text-muted" title="Stored key — write only">{status.masked}</code>
         )}
         <span className="text-muted">Model: <code className="text-ink">{status?.model || '—'}</code></span>
+        {status?.keyFingerprint && (
+          <span className="text-muted" title="SHA-256 prefix of the key currently in use. Not the key itself. After rotating a compromised key, this value must change.">
+            Active key: <code className="text-ink">#{status.keyFingerprint}</code>
+          </span>
+        )}
         {status?.lastStatus && <span className="text-muted">Last check: {status.lastStatus}</span>}
         {!status?.available && (
           <span className="text-danger">
