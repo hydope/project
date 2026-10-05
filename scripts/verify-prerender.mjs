@@ -146,9 +146,24 @@ check('exactly one #root per document', badRoots.length === 0, badRoots.join(', 
 // gone, because re-adding it would silently restore the layout shift.
 const cssHidden = routes.filter((r) => docs[r] && /\.js\s+\.seo-static\s*\{[^}]*display:\s*none/.test(docs[r]));
 check('no route hides the shell via a CSS class', cssHidden.length === 0, cssHidden.join(', '));
-check('the shell still sits inside #root so React replaces it',
+check(
+    'the shell still sits inside #root so React replaces it',
   routes.every((r) => docs[r]?.includes('<div id="root"><div class="seo-static">')),
   'the shell must be the first child of #root or React cannot replace it');
+
+// ── The hero must never be gated behind an animation ─────────────────────────
+// Measured LCP was 5056ms while React mounted at 2834ms. The 2.2s gap was the
+// hero sitting at opacity:0 until <Reveal>'s 2500ms backstop fired, because the
+// IntersectionObserver's -70px rootMargin never intersected an above-the-fold
+// block. LCP is recorded when the element actually paints, so a cosmetic
+// "animation enhances, never gates" rule became the critical path.
+const reveal = (await readFile(join(__dirname, '..', 'src', 'components', 'Reveal.jsx'), 'utf8'));
+check('Reveal reveals content already in the viewport on mount',
+  /getBoundingClientRect\(\)[\s\S]{0,400}show\(\)/.test(reveal),
+  'Reveal relies solely on IntersectionObserver, so above-the-fold content can stay at opacity 0 until the backstop timer — this is what cost 2.2s of LCP');
+check("Reveal's backstop timer is short enough not to gate LCP",
+  !/setTimeout\(show,\s*(?:[2-9]\d{3}|[1-9]\d{4,})/.test(reveal),
+  'the backstop is long enough to become the critical path for above-the-fold content');
 
 // ── Private routes are NOT prerendered ───────────────────────────────────────
 // A dist/dashboard/ directory would publish the existence of member screens and
