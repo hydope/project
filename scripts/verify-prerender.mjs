@@ -304,6 +304,32 @@ if (llmsExists) {
     .filter((r) => r !== '/auth/login')
     .filter((r) => !llms.includes(SITE_URL + (r === '/' ? '/' : r)));
   check('llms.txt covers every public route', missingFromLlms.length === 0, missingFromLlms.join(', '));
+
+  // Structure. Answer engines weight About / Services / Key pages / Contact
+  // above a flat URL dump, and in that order. Assert the order rather than
+  // hoping a future edit keeps it.
+  const headings = [...llms.matchAll(/^##\s+(.+)$/gm)].map((m) => m[1].trim());
+  const order = ['About', 'Services', 'Key pages', 'Contact'];
+  const idx = order.map((h) => headings.indexOf(h));
+  check('llms.txt has About / Services / Key pages / Contact sections',
+    idx.every((i) => i >= 0), `found: ${headings.join(' | ')}`);
+  check('those sections appear in the order engines weight them',
+    idx.every((v, i) => i === 0 || v > idx[i - 1]), `indices ${idx.join(',')}`);
+
+  // Real topical coverage. The file previously documented only the core routes
+  // and so hid 14 landing pages and 8 articles from the engines reading it.
+  const landingSlugs = [
+    'shia-nikah', 'shia-marriage', 'shia-brides', 'shia-grooms', 'syed-rishta',
+    'shia-matrimonial', 'shia-matrimony-usa', 'shia-matrimony-london',
+  ];
+  const missingLanding = landingSlugs.filter((s) => !llms.includes(`${SITE_URL}/${s}`));
+  check('llms.txt lists the Shia marriage / nikah landing pages', missingLanding.length === 0,
+    missingLanding.join(', '));
+  check('llms.txt names the core topic terms an assistant would match on',
+    ['shia', 'nikah', 'matrimony', 'wali', 'marja', 'sect'].every((t) =>
+      new RegExp(t, 'i').test(llms)));
+  check('llms.txt lists the blog articles', llms.includes(`${SITE_URL}/blog/`),
+    'articles are omitted — they are the citable long-form content');
 }
 
 // ── Freshness ────────────────────────────────────────────────────────────────
