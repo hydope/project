@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-10-05",
+  "source": "https://shiarishta.com/api/profiles",
+  "cities": {
+    "dubai": 1,
+    "lahore": 1,
+    "london": 1,
+    "toronto": 1,
+    "houston": 1,
+    "karachi": 1,
+    "sargodha": 1,
+    "silver-spring": 1,
+    "chicago": 1
+  },
+  "countries": {
+    "uae": 1,
+    "pakistan": 3,
+    "united-kingdom": 1,
+    "canada": 1,
+    "usa": 3
+  },
+  "unmatchedCities": []
+}

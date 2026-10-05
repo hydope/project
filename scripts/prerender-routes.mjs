@@ -31,6 +31,9 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { ROUTE_SEO, SHARED_NAV, SITE_URL } from '../src/data/routeSeo.js';
 import { landingRouteSeo } from '../src/data/landingRouteSeo.js';
+import { CITIES, COUNTRIES, locationRouteSeo } from '../src/data/locationSeo.js';
+import { readFileSync } from 'fs';
+import { fileURLToPath as __f2u } from 'url';
 import { LANDING_PAGE_META } from '../src/pages/landing/landingPageMeta.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -50,7 +53,20 @@ const attr = esc;
 // Landing pages merged into the core routes. Before this they served the homepage
 // document, canonical tag included, which told Google to index each of them AS the
 // homepage - so none of the 14 could rank for their own keywords.
-const ALL = { ...ROUTE_SEO, ...landingRouteSeo(LANDING_PAGE_META) };
+// Location pages come from a committed snapshot of REAL member locations
+// (scripts/snapshot-locations.mjs), not from anything a member typed at signup.
+const SNAP = JSON.parse(
+  readFileSync(join(__dirname, '..', 'src', 'data', 'locationSnapshot.json'), 'utf8'),
+);
+const WITH_MEMBERS = {
+  cities: CITIES.filter((c) => SNAP.cities[c.slug]).map((c) => ({ ...c, count: SNAP.cities[c.slug] })),
+  countries: COUNTRIES.filter((c) => SNAP.countries[c.slug]).map((c) => ({ ...c, count: SNAP.countries[c.slug] })),
+};
+const ALL = {
+  ...ROUTE_SEO,
+  ...landingRouteSeo(LANDING_PAGE_META),
+  ...locationRouteSeo(WITH_MEMBERS),
+};
 
 /**
  * BreadcrumbList for a route. Only real routes appear, and the homepage has
@@ -224,6 +240,16 @@ function renderBody(meta) {
     }
   }
 
+  // Location pages must lead to LIVE results, not a static dead end. A page
+  // saying "browse Shia profiles in Toronto" and then showing one hardcoded
+  // paragraph is exactly the thin-page pattern these pages exist to avoid.
+  if (meta.liveFilter) {
+    parts.push(
+      '<p class="seo-cta"><a class="seo-btn" href="' + SITE_URL + meta.liveFilter + '">' +
+        'View profiles filtered to this location</a></p>'
+    );
+  }
+
   parts.push('</main>');
 
   parts.push(
@@ -344,9 +370,6 @@ async function main() {
   }
   const baseHtml = await readFile(indexPath, 'utf8');
 
-  // Landing pages merged in: before this they served the homepage document,
-  // canonical tag included, which told Google to index each as the homepage.
-  const ALL = { ...ROUTE_SEO, ...landingRouteSeo(LANDING_PAGE_META) };
   const routes = Object.keys(ALL);
   let written = 0;
 
