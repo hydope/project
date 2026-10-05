@@ -98,6 +98,45 @@
       .seo-static nav ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 1rem; }
       .seo-static a { color: #416b5b; }
       .seo-static .seo-price { font-weight: 700; color: #17130f; }
+
+      /* Hero in the shell. Two jobs:
+         1. LCP. The image is the largest contentful element on the page, and
+            here it paints at first paint rather than after 102KB of JS has
+            downloaded and executed.
+         2. CLS. The aspect-ratio reserves the box before the image arrives, and
+            the two-column grid keeps roughly the same footprint as the app's
+            own hero, so replacing shell-with-app barely moves anything.
+         Sizes track the app hero (1200x800 source, two columns) rather than
+         being invented, so the reserved space matches what arrives later. */
+      .seo-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+        gap: clamp(1.5rem, 4vw, 3.5rem);
+        align-items: center;
+        margin-bottom: 2.5rem;
+      }
+      .seo-hero-copy h1 { margin-bottom: 0.85rem; }
+      .seo-cta { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+      .seo-btn, .seo-btn-ghost {
+        display: inline-block;
+        padding: 0.7rem 1.35rem;
+        border-radius: 999px;
+        font-weight: 700;
+        font-size: 0.95rem;
+        text-decoration: none;
+      }
+      .seo-btn { background: #416b5b; color: #fffdf9; }
+      .seo-btn-ghost { border: 1px solid #d9c9b4; color: #17130f; }
+      .seo-hero-img {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1200 / 800;
+        object-fit: cover;
+        border-radius: 18px;
+      }
+      @media (max-width: 720px) {
+        .seo-hero { grid-template-columns: 1fr; }
+      }
       /* No class-based hide rule for the shell. An earlier version had one,
          on the theory that collapsing the shell before React mounts would
          remove a layout shift. Measured after removing it, CLS was unchanged

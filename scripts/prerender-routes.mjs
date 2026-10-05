@@ -138,8 +138,37 @@ function renderBody(meta) {
   parts.push('</ul></nav></header>');
 
   parts.push('<main id="main-content">');
-  parts.push(`<h1>${esc(meta.h1)}</h1>`);
-  parts.push(`<p>${esc(meta.lede)}</p>`);
+
+  // The hero lives in the shell, not only in React.
+  //
+  // LCP is recorded when the largest contentful element paints. With the shell
+  // carrying only text, the app's hero became the LCP element — and it cannot
+  // paint until 102KB of critical JS has downloaded, parsed and executed. That
+  // is what put LCP at ~4.3s on a throttled connection.
+  //
+  // Putting the same hero image and headline into the shell makes the LCP
+  // candidate paint at first paint (~1.9s) instead. The image is preloaded in
+  // index.html with fetchpriority=high, and width/height are declared so the
+  // box is reserved and nothing reflows when the real hero arrives.
+  //
+  // It also cuts CLS, because the prerendered first screen and the app's first
+  // screen now occupy roughly the same space. The badges are omitted here on
+  // purpose: they are decorative, and reproducing them would re-introduce the
+  // entrance animation that was itself an LCP contributor.
+  parts.push(
+    '<section class="seo-hero">',
+    '<div class="seo-hero-copy">',
+    `<h1>${esc(meta.h1)}</h1>`,
+    `<p>${esc(meta.lede)}</p>`,
+    '<p class="seo-cta">',
+    `<a class="seo-btn" href="${SITE_URL}/profiles">Browse profiles</a>`,
+    `<a class="seo-btn-ghost" href="${SITE_URL}/auth/register">Create free account</a>`,
+    '</p>',
+    '</div>',
+    '<img class="seo-hero-img" src="/hero-nikah.webp" alt="Nikah celebration" ' +
+      'width="1200" height="800" decoding="async" fetchpriority="high" />',
+    '</section>',
+  );
 
   if (meta.price) {
     parts.push(
