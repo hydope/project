@@ -30,6 +30,8 @@ import { existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { ROUTE_SEO, SHARED_NAV, SITE_URL } from '../src/data/routeSeo.js';
+import { landingRouteSeo } from '../src/data/landingRouteSeo.js';
+import { LANDING_PAGE_META } from '../src/pages/landing/landingPageMeta.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -44,6 +46,11 @@ const esc = (s = '') =>
     .replace(/"/g, '&quot;');
 
 const attr = esc;
+
+// Landing pages merged into the core routes. Before this they served the homepage
+// document, canonical tag included, which told Google to index each of them AS the
+// homepage - so none of the 14 could rank for their own keywords.
+const ALL = { ...ROUTE_SEO, ...landingRouteSeo(LANDING_PAGE_META) };
 
 /**
  * BreadcrumbList for a route. Only real routes appear, and the homepage has
@@ -76,7 +83,7 @@ function breadcrumbJsonLd(pathname) {
  * the page answers would be both useless and a policy risk.
  */
 function faqJsonLd(route) {
-  const meta = ROUTE_SEO[route];
+  const meta = ALL[route];
   if (!meta?.faq?.length) return null;
   return {
     '@context': 'https://schema.org',
@@ -337,11 +344,14 @@ async function main() {
   }
   const baseHtml = await readFile(indexPath, 'utf8');
 
-  const routes = Object.keys(ROUTE_SEO);
+  // Landing pages merged in: before this they served the homepage document,
+  // canonical tag included, which told Google to index each as the homepage.
+  const ALL = { ...ROUTE_SEO, ...landingRouteSeo(LANDING_PAGE_META) };
+  const routes = Object.keys(ALL);
   let written = 0;
 
   for (const route of routes) {
-    const meta = ROUTE_SEO[route];
+    const meta = ALL[route];
     if (!meta.h1) {
       throw new Error(
         `route ${route} has no h1 — a prerendered page without one is the exact defect being fixed.`,

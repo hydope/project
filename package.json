@@ -21,7 +21,8 @@
     "verify:prerender": "node scripts/verify-prerender.mjs",
     "verify:seo-shell": "node scripts/verify-seo-shell.mjs",
     "measure:vitals": "node scripts/measure-vitals.mjs",
-    "build:llms": "node scripts/build-llms-txt.mjs"
+    "build:llms": "node scripts/build-llms-txt.mjs",
+    "verify:landing-seo": "node scripts/verify-landing-seo.mjs"
   },
   "engines": {
     "node": ">=20.0.0"
