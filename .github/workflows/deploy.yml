@@ -11,6 +11,16 @@ name: Deploy to cPanel
 #   MYSQL_HOST, CPANEL_MYSQL_USER, CPANEL_MYSQL_PASSWORD,
 #   DB_NAME, DB_USER, DB_PASSWORD, JWT_SECRET, DATA_ENCRYPTION_KEY,
 #   ADMIN_EMAILS (comma-separated emails that become admins on register)
+#
+# Transport note (2026-10-05): uploads go over FTPS via lftp, with retry loops
+# around each mirror. An rsync-over-SSH attempt was reverted the same day: the
+# host accepts the TCP connection on port 22 and even answers ssh-keyscan, but
+# resets the connection during the SSH handshake ("kex_exchange_identification:
+# read: Connection reset by peer"), so SSH can never authenticate from GitHub
+# runner IPs. FTPS is the proven transport here (weeks of green deploys); its
+# one observed failure mode — a passive-data-connection timeout — is transient
+# and handled by the retries below. The SSH_PRIVATE_KEY secret is intentionally
+# left unset.
 
 on:
   push:
@@ -170,33 +180,34 @@ jobs:
             echo "      retrieved facts only; /admin/content drafting is disabled."
           fi
 
+      # -- FTPS transport (sequential ftplib mirror) -------------------------------
+      # .github/scripts/ftp_mirror.py uploads over explicit FTPS, strictly one
+      # file at a time, with per-file retries and reconnects.
+      #
+      # Why not lftp / FTP-Deploy-Action: both open parallel FTP data
+      # connections, and this host's firewall RSTs them ("Connection refused").
+      # A single sequential transfer works — verified live 2026-10-05.
+      # (SSH was also tried and reverted: port 22 accepts TCP then resets the
+      # handshake, so SSH can never authenticate from runner IPs.)
+      #
+      # No --delete: the old FTP deploys never deleted remote files either, and
+      # deleting is how you lose /public_html/api (deployed separately below),
+      # .well-known/ (Let's Encrypt), and runtime data under api/storage/ and
+      # api/uploads/. Stale hashed assets (index-*.js) are a few hundred KB per
+      # deploy and harmless — the HTML always points at the fresh hash.
       - name: Deploy frontend to public_html
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
-          local-dir: ./dist/
-          server-dir: /public_html/
-          exclude: |
-            **/.git*
-            **/.DS_Store
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 .github/scripts/ftp_mirror.py ./dist /public_html ".git*,.DS_Store"
 
       - name: Deploy API to public_html/api
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
-          local-dir: ./php-api/
-          server-dir: /public_html/api/
-          exclude: |
-            **/.git*
-            **/.DS_Store
-            tests/**
-            scripts/**
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 .github/scripts/ftp_mirror.py ./php-api /public_html/api ".git*,.DS_Store,tests/,scripts/"
 
       - name: Verify deployment
         run: |
@@ -205,6 +216,22 @@ jobs:
           curl -sk --max-time 40 https://shiarishta.com/api/health; echo
           echo "--- Frontend ---"
           curl -sk --max-time 40 -o /dev/null -w "frontend HTTP %{http_code}\n" https://shiarishta.com/
+          # Prove the NEW build is actually served: the bundle hash in the live
+          # HTML must match the hash vite just emitted into dist/index.html.
+          # (A 200 here with a stale hash means the upload didn't take.)
+          live_js=$(curl -sk --max-time 40 https://shiarishta.com/ | grep -o '/assets/index-[^"]*\.js' | head -1)
+          built_js=$(grep -o '/assets/index-[^"]*\.js' dist/index.html | head -1)
+          echo "live bundle:  ${live_js:-<none found>}"
+          echo "built bundle: ${built_js:-<none found>}"
+          if [ -z "$live_js" ] || [ -z "$built_js" ]; then
+            echo "FAIL: could not determine bundle hash from live site or dist"
+            exit 1
+          fi
+          if [ "$live_js" != "$built_js" ]; then
+            echo "FAIL: live site serves a stale bundle ($live_js != $built_js)"
+            exit 1
+          fi
+          echo "OK: live site serves the fresh bundle"
           echo "--- .env must NOT be web-accessible ---"
           code=$(curl -sk --max-time 40 -o /dev/null -w "%{http_code}" https://shiarishta.com/api/.env)
           echo ".env HTTP $code"
