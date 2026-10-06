@@ -408,9 +408,12 @@ async function buildRouteHtml(route, meta, baseHtml) {
     /<body([^>]*)>([\s\S]*?)<\/body>/,
     (match, bodyAttrs, inner) => {
       const scripts = inner.match(/<script[\s\S]*?<\/script>/g) || [];
+      // Branded loader: visible to users while React boots. The seo-static shell
+      // is display:none (for crawlers only). React replaces #root content on mount.
+      const loader = `<div id="app-loader" style="display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100svh;background:#fffaf4;font-family:Inter,system-ui,sans-serif;"><div style="text-align:center;"><div style="font-weight:700;font-size:1.75rem;letter-spacing:-0.02em;color:#1a2e25;margin-bottom:1rem;">Shia Rishta</div><div style="font-size:0.75rem;letter-spacing:0.18em;text-transform:uppercase;color:#6b7a72;margin-bottom:1.5rem;">Nikah Matchmaking</div><div style="width:36px;height:36px;margin:0 auto;border:3px solid #e8ddd0;border-top-color:#2f5d4d;border-radius:50%;animation:sr-spin 0.8s linear infinite;"></div><style>@keyframes sr-spin{to{transform:rotate(360deg);}}</style></div></div>`;
       return (
         `<body${bodyAttrs}>\n` +
-        `    <div id="root"><div class="seo-static">\n${renderBody(meta, route)}\n    </div></div>\n` +
+        `    <div id="root"><div class="seo-static">\n${renderBody(meta, route)}\n    </div>${loader}</div>\n` +
         `    ${scripts.join('\n    ')}\n` +
         `  </body>`
       );
