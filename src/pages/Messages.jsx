@@ -1,8 +1,8 @@
 import { usePageTitle } from '../lib/usePageTitle';
 import { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import Layout from '../layouts/LandingLayout';
+import Layout from '../layouts/MainLayout';
 import { analytics } from '../lib/analytics';
 import { computeCompatibility } from '../lib/compatibility';
 import {
@@ -67,6 +67,7 @@ function Avatar({ name, size = 'w-10 h-10' }) {
 // ── Messages: Request Center + Chats with Chaperone mode ───────────────────
 export default function Messages() {
   usePageTitle('Messages');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [convos, setConvos] = useState([]);
   const [convosLoading, setConvosLoading] = useState(true);
   const [convosError, setConvosError] = useState('');
@@ -79,8 +80,18 @@ export default function Messages() {
   const [requestError, setRequestError] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
-  const [activeId, setActiveId] = useState(null);
+  // Deep-link support: ?c=<conversationId> (e.g. from notifications) opens
+  // that conversation directly. Previously the param was ignored, so
+  // notification taps landed on an empty inbox.
+  const [activeId, setActiveId] = useState(() => searchParams.get('c'));
   const [tab, setTab] = useState('chats'); // 'chats' | 'requests'
+  // Keep the ?c= param in sync when the user opens/closes conversations,
+  // so the URL is shareable and refresh-safe.
+  const selectConvo = (id) => {
+    setActiveId(id);
+    setSearchParams(id ? { c: id } : {}, { replace: true });
+  };
+
   // Requests were buried in a tab nobody opened. When introductions are
   // waiting and no conversation is active, land on Requests so they are
   // impossible to miss.
@@ -202,7 +213,7 @@ export default function Messages() {
           { id: convoId, participantId: userId, participantName: req.name, lastMessage: '', timestamp: new Date().toISOString(), unread: false },
           ...prev.filter((c) => c.id !== convoId),
         ]);
-        setActiveId(convoId);
+        selectConvo(convoId);
         setTab('chats');
       } else {
         await api.withdrawInterest(userId);
@@ -237,7 +248,7 @@ export default function Messages() {
         delete next[convo.id];
         return next;
       });
-      if (activeId === convo.id) setActiveId(null);
+      if (activeId === convo.id) selectConvo(null);
       setNotice({ ok: true, text: `${name} is blocked — the conversation was removed and messaging is off.` });
       analytics.track('member_blocked', { thread: convo.id });
       setConfirmBlock(null);
@@ -299,7 +310,7 @@ export default function Messages() {
           </div>
 
           {tab === 'chats' ? (
-            <ConversationList convos={filteredConvos} activeId={activeId} onSelect={setActiveId}
+            <ConversationList convos={filteredConvos} activeId={activeId} onSelect={selectConvo}
               loading={convosLoading} error={convosError} />
           ) : (
             <>
@@ -316,7 +327,7 @@ export default function Messages() {
         {/* ── Chat pane ── */}
         <div className={`flex-1 flex-col ${activeId ? 'flex' : 'hidden md:flex'}`}>
           {activeConvo ? (
-            <ChatPane convo={activeConvo} messages={messages} onBack={() => setActiveId(null)}
+            <ChatPane convo={activeConvo} messages={messages} onBack={() => selectConvo(null)}
               onSend={sendMessage} onBlock={handleBlock} messagesEndRef={messagesEndRef}
               loading={threadLoading} error={threadError} sendError={sendError} sending={sending}
               disappearingAfter={disappearingByConvo[activeId] || 0}

@@ -6,6 +6,7 @@ import Seo from './components/Seo';
 // Route-based code splitting — each page loads only when visited,
 // keeping the first paint tiny and the app fast on every device.
 const Home = lazy(() => import('./pages/Home'));
+const CityPage = lazy(() => import('./pages/CityPage'));
 const Profiles = lazy(() => import('./pages/Profiles').then((m) => ({ default: m.BrowseProfiles })));
 const Favourites = lazy(() => import('./pages/Profiles').then((m) => ({ default: m.Favourites })));
 const Profile = lazy(() => import('./pages/Profile'));
@@ -167,6 +168,8 @@ const router = createBrowserRouter([
   { path: '/shia-matrimony-bay-area', element: <LazyRoute component={LandingPage} /> },
   { path: '/shia-matrimony-atlanta', element: <LazyRoute component={LandingPage} /> },
   { path: '/shia-matrimony-seattle', element: <LazyRoute component={LandingPage} /> },
+  { path: '/city/:slug', element: <LazyRoute component={CityPage} /> },
+  { path: '/country/:slug', element: <LazyRoute component={CityPage} /> },
     { path: '/community', element: <LazyRoute component={Community} /> },
     { path: '/matchmaker', element: <LazyRoute component={Matchmaker} /> },
     { path: '/biodata-maker', element: <LazyRoute component={BiodataMaker} /> },

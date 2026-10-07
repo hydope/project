@@ -122,11 +122,19 @@ function aiPlatformFacts(): array
                 . "and it never deletes your data.",
         ],
         [
-            'w' => ['introduction', 'draft', 'proposal', 'family meeting', 'matchmaker', 'ask for hand'],
+            'w' => ['introduction', 'draft', 'proposal', 'family meeting', 'ask for hand'],
             'x' => "Only verified matchmakers and guardians can open an introduction. A matchmaker proposes to women; a guardian "
                 . "can propose on behalf of a male family member.\n\nAn introduction is a private draft with a one-time claim "
                 . "link. It never becomes a public profile until the family member claims it. Members cannot self-promote to "
                 . "either role — an admin grants it.",
+        ],
+        [
+            'w' => ['matchmaker page', 'what is matchmaker', 'submit profile', 'matchmaker feature'],
+            'x' => "The Matchmaker page (/matchmaker) lets you submit a profile for someone you know who is looking for a rishta — "
+                . "a family member, friend, or client. Fill in their details and submit for review.\n\nEvery submission is reviewed "
+                . "by our team: approved profiles go live on the site, and anything not reviewed within 7 days is removed automatically. "
+                . "You need a free account to submit — sign up or sign in first, then fill the form.\n\nNote: matchmaker accounts may "
+                . "only list female profiles.",
         ],
         [
             'w' => ['how are you', 'who are you', 'what can you do', 'hello', 'hi', 'salam', 'assalam'],

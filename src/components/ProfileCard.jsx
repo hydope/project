@@ -235,9 +235,23 @@ export default function ProfileCard({ profile, className = '' }) {
           )}
           <p className="flex items-center gap-1 text-xs truncate" style={{ color: 'var(--color-ink-secondary)' }}>
             <MapPin className="w-3 h-3 flex-shrink-0" />
-            {/* Both fields were interpolated unconditionally, so a member with
-                no city rendered a bare ", " next to the pin. */}
-            {[profile.city, profile.country].filter(Boolean).join(', ') || 'Location not shared'}
+            {/* City links to the indexable city landing page (e.g. /city/hyderabad)
+                so every profile maps to one canonical location page. */}
+            {profile.city ? (
+              <>
+                <Link
+                  to={`/city/${profile.city.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                  className="hover:underline font-medium"
+                  style={{ color: 'var(--color-primary)' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {profile.city}
+                </Link>
+                {profile.country ? `, ${profile.country}` : ''}
+              </>
+            ) : (
+              profile.country || 'Location not shared'
+            )}
           </p>
 
           {/* A teaser payload (what a signed-out visitor gets) carries only
