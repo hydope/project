@@ -235,22 +235,34 @@ export default function ProfileCard({ profile, className = '' }) {
           )}
           <p className="flex items-center gap-1 text-xs truncate" style={{ color: 'var(--color-ink-secondary)' }}>
             <MapPin className="w-3 h-3 flex-shrink-0" />
-            {/* City links to the indexable city landing page (e.g. /city/hyderabad)
-                so every profile maps to one canonical location page. */}
-            {profile.city ? (
+            {/* City and country link to indexable landing pages (e.g. /city/hyderabad,
+                /country/india) so every profile maps to canonical location pages. */}
+            {profile.city || profile.country ? (
               <>
-                <Link
-                  to={`/city/${profile.city.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
-                  className="hover:underline font-medium"
-                  style={{ color: 'var(--color-primary)' }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {profile.city}
-                </Link>
-                {profile.country ? `, ${profile.country}` : ''}
+                {profile.city ? (
+                  <Link
+                    to={`/city/${profile.city.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`}
+                    className="hover:underline font-medium"
+                    style={{ color: 'var(--color-primary)' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {profile.city}
+                  </Link>
+                ) : null}
+                {profile.city && profile.country ? ', ' : null}
+                {profile.country ? (
+                  <Link
+                    to={`/country/${profile.country.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`}
+                    className="hover:underline"
+                    style={{ color: 'var(--color-primary)' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {profile.country}
+                  </Link>
+                ) : null}
               </>
             ) : (
-              profile.country || 'Location not shared'
+              'Location not shared'
             )}
           </p>
 

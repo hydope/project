@@ -26,9 +26,10 @@ import ProfileCard from '../components/ProfileCard';
  */
 export default function CityPage() {
   const { slug } = useParams();
+  const isCountry = window.location.pathname.startsWith('/country/');
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [cityName, setCityName] = useState('');
+  const [locationName, setLocationName] = useState('');
 
   // Derive display name from slug: "new-york" -> "New York"
   const displayName = slug
@@ -36,29 +37,46 @@ export default function CityPage() {
     .map(w => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
 
+  const kind = isCountry ? 'country' : 'city';
+  const Kind = isCountry ? 'Country' : 'City';
+
   usePageTitle(`Shia Rishta in ${displayName} | Shia Nikah Match`);
 
   useEffect(() => {
     setLoading(true);
-    http.get(`/api/profiles?city=${encodeURIComponent(displayName)}&limit=24`)
+    http.get(`/api/profiles?${kind}=${encodeURIComponent(displayName)}&limit=24`)
       .then(r => {
         const list = Array.isArray(r) ? r : (r.profiles || r.data || []);
         setProfiles(list);
-        if (list.length > 0 && list[0].city) setCityName(list[0].city);
+        if (list.length > 0 && list[0][kind]) setLocationName(list[0][kind]);
       })
       .catch(() => setProfiles([]))
       .finally(() => setLoading(false));
-  }, [slug, displayName]);
+  }, [slug, displayName, kind]);
 
-  const name = cityName || displayName;
+  const name = locationName || displayName;
   const count = profiles.length;
+
+  // 10 SEO keyword variations, adapted for city vs country
+  const kw = {
+    rishta: `Shia Rishta in ${name}`,
+    nikah: `Shia Nikah in ${name}`,
+    marriage: `Shia Marriage in ${name}`,
+    matrimony: `Shia Matrimony in ${name}`,
+    brides: `${name} Shia Brides`,
+    grooms: `${name} Shia Grooms`,
+    shaadi: `Shia Shaadi in ${name}`,
+    find: `Find Shia Rishta ${name}`,
+    matrimonial: `${name} Shia Matrimonial`,
+    match: `Shia Nikah Match ${name}`,
+  };
 
   return (
     <Layout>
       <Seo
-        title={`Shia Rishta in ${name} | Shia Nikah, Marriage & Matrimony`}
-        description={`Find Shia rishta in ${name}. Verified Shia nikah, marriage and matrimony profiles — ${name} Shia brides and grooms seeking a serious match. Free to browse.`}
-        canonical={`https://shiarishta.com/city/${slug}`}
+        title={`${kw.rishta} | ${kw.nikah}, ${kw.marriage} & ${kw.matrimony}`}
+        description={`${kw.find}. Verified ${kw.nikah.toLowerCase()}, ${kw.marriage.toLowerCase()} and ${kw.matrimony.toLowerCase()} profiles — ${kw.brides} and ${kw.grooms} seeking a serious match. Free to browse.`}
+        canonical={`https://shiarishta.com/${isCountry ? 'country' : 'city'}/${slug}`}
       />
       <main className="max-w-6xl mx-auto px-4 py-8">
         <nav className="text-xs mb-4" style={{ color: 'var(--color-ink-tertiary)' }} aria-label="Breadcrumb">
@@ -72,11 +90,11 @@ export default function CityPage() {
         <header className="mb-8">
           <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest mb-2"
             style={{ color: 'var(--color-primary)' }}>
-            <MapPin className="w-3.5 h-3.5" /> Shia Matrimony
+            <MapPin className="w-3.5 h-3.5" /> {kw.matrimony}
           </p>
           {/* H1 — keyword variation #2 */}
           <h1 className="text-3xl font-bold mb-3" style={{ color: 'var(--color-ink)' }}>
-            Shia Nikah in {name}
+            {kw.nikah}
           </h1>
           <p className="text-sm max-w-2xl leading-relaxed" style={{ color: 'var(--color-ink-secondary)' }}>
             Find verified Shia matrimonial profiles in {name}. Every profile below is from
@@ -94,7 +112,7 @@ export default function CityPage() {
           <div className="text-center py-12">
             <Users className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--color-ink-tertiary)' }} />
             <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--color-ink)' }}>
-              Shia Marriage in {name} — Be the First
+              {kw.marriage} — Be the First
             </h2>
             <p className="text-sm mb-4" style={{ color: 'var(--color-ink-secondary)' }}>
               No {name} Shia matrimonial profiles yet. Create your free profile and put {name} on the map.
@@ -105,7 +123,7 @@ export default function CityPage() {
           <>
             {/* H2 — keyword variation #4 */}
             <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-ink)' }}>
-              Shia Matrimony in {name} — {count} Profile{count === 1 ? '' : 's'}
+              {kw.matrimony} — {count} Profile{count === 1 ? '' : 's'}
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {profiles.map(p => <ProfileCard key={p.id} profile={p} />)}
@@ -117,7 +135,7 @@ export default function CityPage() {
         <section className="mt-12 grid md:grid-cols-2 gap-6">
           <div className="p-6 rounded-2xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
             <h2 className="text-lg font-bold mb-3" style={{ color: 'var(--color-ink)' }}>
-              Shia Marriage in {name}
+              {kw.marriage}
             </h2>
             <p className="text-sm leading-relaxed" style={{ color: 'var(--color-ink-secondary)' }}>
               Looking for a Shia marriage in {name}? ShiaRishta connects verified Shia Muslims
@@ -128,7 +146,7 @@ export default function CityPage() {
           </div>
           <div className="p-6 rounded-2xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
             <h2 className="text-lg font-bold mb-3" style={{ color: 'var(--color-ink)' }}>
-              {name} Shia Brides &amp; {name} Shia Grooms
+              {kw.brides} & {kw.grooms}
             </h2>
             <p className="text-sm leading-relaxed" style={{ color: 'var(--color-ink-secondary)' }}>
               Browse {name} Shia brides and {name} Shia grooms in one place. Filter by age,
@@ -141,7 +159,7 @@ export default function CityPage() {
         {/* CTA — keyword variation #10 */}
         <section className="mt-6 p-8 rounded-2xl text-center" style={{ background: 'var(--color-primary-subtle)', border: '1px solid var(--color-border)' }}>
           <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--color-ink)' }}>
-            Your Shia Nikah Match in {name} Starts Here
+            Your {kw.match} Starts Here
           </h2>
           <p className="text-sm mb-4" style={{ color: 'var(--color-ink-secondary)' }}>
             Join free — browse {name} profiles, express interest, and begin your nikah journey.

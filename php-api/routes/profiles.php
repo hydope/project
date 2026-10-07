@@ -478,14 +478,16 @@ function profilesList(): void
     if ($searchable($marja, 'marja')) { $where[] = 'p.marja = ?'; $params[] = $marja; }
     if ($searchable($syedStatus, 'syed')) { $where[] = 'p.syed_status = ?'; $params[] = $syedStatus; }
     if ($modesty !== null && $modesty !== '' && $modesty !== 'Any') { $where[] = 'p.modesty = ?'; $params[] = $modesty; }
-    if ($searchable($country, 'country')) { $where[] = 'p.country = ?'; $params[] = $country; }
+    if ($searchable($country, 'country')) { $where[] = 'LOWER(p.country) = LOWER(?)'; $params[] = $country; }
     // Exact city filter. `search` does a LIKE across city as part of a free-text
     // query, which is not the same thing: searching "Lahore" in a profile named
     // "Lahore Kid" would match, and a city called "Springfield" would match
     // "Springfield Gardens". A /city/<slug> page needs the city and only the
     // city, or it would advertise a location page containing strangers.
+    // Case-insensitive so "Hyderabad", "hyderabad", "HYDERABAD" all map to
+    // the same /city/hyderabad page automatically.
     $city = $_GET['city'] ?? null;
-    if ($searchable($city, 'city')) { $where[] = 'p.city = ?'; $params[] = $city; }
+    if ($searchable($city, 'city')) { $where[] = 'LOWER(p.city) = LOWER(?)'; $params[] = $city; }
     if ($searchable($photoAccess, 'photo')) { $where[] = 'p.photos_visibility = ?'; $params[] = $photoAccess; }
     $verifiedOnly = ($_GET['verifiedOnly'] ?? 'false') === 'true';
     if ($verifiedOnly) { $where[] = 'p.is_verified = 1'; }
@@ -836,6 +838,14 @@ function profileUpdate(): void
         $v = in_array($key, ['age', 'heightCm'], true) && $b[$key] !== null && $b[$key] !== ''
             ? (int)$b[$key]
             : ($b[$key] === '' ? null : $b[$key]);
+        // Normalize city/country: trim, collapse whitespace, title-case each
+        // word so "hyderabad", "HYDERABAD", "  hyderabad " all become
+        // "Hyderabad" and map to the same /city/hyderabad SEO page.
+        if (in_array($key, ['city', 'country'], true) && is_string($v)) {
+            $v = trim((string)preg_replace('/\s+/', ' ', $v));
+            $v = mb_convert_case($v, MB_CASE_TITLE, 'UTF-8');
+            if ($v === '') $v = null;
+        }
         if ($col === 'display_name' && ($v === null || trim((string)$v) === '')) continue;
         $sets[] = "{$col} = ?";
         $values[] = $v;
