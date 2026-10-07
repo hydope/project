@@ -1,0 +1,22 @@
+name: Daily Blog Queue
+# Generates one SEO-targeted blog post per day from the blog_queue backlog
+# via POST /api/ai/queue-run (service-key authed). The endpoint picks the
+# next queued long-tail topic, generates the article with the NVIDIA model,
+# and schedules it for the next free day (lazy publication picks it up).
+on:
+  schedule:
+    - cron: '15 9 * * *' # 09:15 UTC daily
+  workflow_dispatch:
+jobs:
+  queue-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run one queued blog post
+        env:
+          BLOG_CRON_KEY: ${{ secrets.BLOG_CRON_KEY }}
+        run: |
+          RESP=$(curl -s --max-time 120 -X POST https://shiarishta.com/api/ai/queue-run \
+            -H "X-Blog-Cron-Key: $BLOG_CRON_KEY" \
+            -H "Content-Type: application/json" -d '{}')
+          echo "$RESP"
+          echo "$RESP" | grep -q '"ok":true' && echo "QUEUE_RUN_OK" || echo "QUEUE_RUN_EMPTY_OR_FAILED"

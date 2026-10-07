@@ -59,6 +59,16 @@ function routeAI(string $method, array $segments): void
         return;
     }
 
+    // POST /api/ai/queue-run — autonomous daily blog queue. Authenticated by a
+    // service key (X-Blog-Cron-Key header vs BLOG_CRON_KEY env), NOT by admin
+    // session, so the scheduled GitHub workflow can trigger it. Picks the next
+    // queued topic, generates the article, and schedules it for the next free
+    // day. Safe to call when the queue is empty (returns ok:false, reason).
+    if ($method === 'POST' && $action === 'queue-run') {
+        aiQueueRun();
+        return;
+    }
+
     // GET /api/ai/blog-topics — curated + AI topic suggestions for the blog
     // queue. Interactive: the admin picks a suggestion and it becomes a draft.
     if ($method === 'GET' && $action === 'blog-topics') {
@@ -675,4 +685,137 @@ function aiAutoSchedule(): void
     }
 
     json(['ok' => true, 'scheduled' => $scheduled, 'count' => count($scheduled)]);
+}
+/**
+ * POST /api/ai/queue-run — one autonomous blog post per call.
+ *
+ * Service-key auth (X-Blog-Cron-Key vs BLOG_CRON_KEY env) so a scheduled job
+ * can trigger it without an admin session. Flow:
+ *   1. Take the oldest 'queued' blog_queue row.
+ *   2. Generate the article with the same prompt/shape as the admin
+ *      "generate post" flow (SEO-tuned: keyword woven into title/opening).
+ *   3. Insert into blog_posts as 'scheduled' for the next free day 09:00 UTC
+ *      (lazy publication picks it up — no separate publisher needed).
+ *   4. Mark the queue row 'done' (or 'failed' if generation/parse failed).
+ *
+ * Idempotent per call: one topic per call, and a failed generation marks the
+ * row failed rather than retrying forever.
+ */
+function aiQueueRun(): void
+{
+    $key = $_SERVER['HTTP_X_BLOG_CRON_KEY'] ?? '';
+    $want = (string)($_ENV['BLOG_CRON_KEY'] ?? getenv('BLOG_CRON_KEY') ?? '');
+    if ($want === '' || !hash_equals($want, (string)$key)) {
+        json(['error' => 'Unauthorized'], 401);
+    }
+
+    $row = db()->query(
+        "SELECT * FROM blog_queue WHERE status = 'queued' ORDER BY position ASC LIMIT 1"
+    )->fetch();
+    if (!$row) {
+        json(['ok' => false, 'reason' => 'queue_empty']);
+    }
+    $qid = (string)$row['id'];
+
+    $mark = function (string $status) use ($qid): void {
+        db()->prepare('UPDATE blog_queue SET status = ? WHERE id = ?')->execute([$status, $qid]);
+    };
+
+    // Recently published titles so we do not repeat an angle.
+    $existing = [];
+    try {
+        foreach (db()->query('SELECT title FROM blog_posts ORDER BY created_at DESC LIMIT 15')->fetchAll() as $r) {
+            $existing[] = (string)$r['title'];
+        }
+    } catch (Throwable) {
+    }
+
+    $topic = (string)$row['topic'];
+    $angle = (string)($row['angle'] ?? '');
+    $keyword = (string)$row['keyword'];
+    $category = (string)($row['category'] ?? 'Guidance');
+
+    $system = "You write for Shia Rishta, a Shia Muslim marriage platform that publishes long-form guidance "
+        . "articles for people searching for a spouse.\n\n"
+        . "Voice: warm, specific, respectful, never preachy. British-leaning international English. "
+        . "Assume a Muslim reader who takes faith seriously; reference Islamic practice where natural but do "
+        . "not lecture or quote scripture as authority.\n\n"
+        . "SEO: this article targets the search query \"" . $keyword . "\". Work the query naturally into "
+        . "the title and the opening paragraph, then write for humans — no keyword stuffing, no repetitive "
+        . "phrasing.\n\n"
+        . "Return STRICT JSON with keys: title, excerpt, category, readTime, body.\n"
+        . "'excerpt' is one sentence under 160 characters. 'category' must be exactly \"" . $category . "\". "
+        . "'readTime' is like '5 min'. 'body' is an ARRAY of objects, each {\"t\": \"p\"|\"h2\", "
+        . "\"x\": \"...\"} — never markdown fences.\n\n"
+        . "Write a focused piece of roughly 500 words, 5-8 paragraphs with an h2 heading or two. "
+        . "Do not invent statistics, user counts or claims about the site's features beyond what is stated.\n\n"
+        . ($existing ? "Recently published (do not repeat these angles): " . implode(' | ', $existing) . "\n\n" : '')
+        . "TOPIC: " . $topic . ($angle !== '' ? "\nANGLE: " . $angle : '')
+        . "\nAUDIENCE: members seeking a serious marriage\n\nReturn only the JSON object.";
+
+    $raw = aiComplete(
+        [['role' => 'system', 'content' => $system]],
+        ['temperature' => 0.9, 'max_tokens' => 1200, 'timeout' => 45]
+    );
+    if ($raw === null) {
+        $mark('failed');
+        json(['ok' => false, 'reason' => 'generation_failed', 'topic' => $topic]);
+    }
+    $post = parseGeneratedPost($raw);
+    if ($post === null) {
+        $mark('failed');
+        json(['ok' => false, 'reason' => 'parse_failed', 'topic' => $topic]);
+    }
+
+    $title = sanitizeText((string)($post['title'] ?? $topic), 160);
+    $excerpt = sanitizeText((string)($post['excerpt'] ?? ''), 300);
+    $readTime = sanitizeText((string)($post['readTime'] ?? '5 min'), 16);
+    $blocks = [];
+    foreach ((array)($post['body'] ?? []) as $b) {
+        if (!is_array($b)) continue;
+        $t = in_array($b['t'] ?? '', ['p', 'h2'], true) ? $b['t'] : 'p';
+        $x = sanitizeText((string)($b['x'] ?? ''), 4000);
+        if ($x !== '') $blocks[] = ['t' => $t, 'x' => $x];
+    }
+    if (!$blocks) {
+        $mark('failed');
+        json(['ok' => false, 'reason' => 'empty_body', 'topic' => $topic]);
+    }
+
+    // Next free day at 09:00 UTC (same rule as the admin auto-scheduler).
+    $last = db()->query(
+        "SELECT GREATEST(
+            COALESCE(MAX(scheduled_for), '1970-01-01'),
+            COALESCE(MAX(published_at), '1970-01-01')
+        ) AS last_day FROM blog_posts WHERE status IN ('scheduled','published')"
+    )->fetch();
+    $cursor = new DateTimeImmutable($last['last_day'] ?? '1970-01-01', new DateTimeZone('UTC'));
+    $today = new DateTimeImmutable('today', new DateTimeZone('UTC'));
+    if ($cursor < $today) $cursor = $today;
+    $slot = $cursor->modify('+1 day')->setTime(9, 0, 0)->format('Y-m-d H:i:s');
+
+    $id = uuid();
+    $slug = aiSlugify($title);
+    // Slug collision guard — append a short suffix rather than failing.
+    try {
+        $chk = db()->prepare('SELECT id FROM blog_posts WHERE slug = ? LIMIT 1');
+        $chk->execute([$slug]);
+        if ($chk->fetch()) $slug .= '-' . substr($id, 0, 8);
+    } catch (Throwable) {
+    }
+
+    db()->prepare(
+        'INSERT INTO blog_posts
+            (id, slug, title, excerpt, category, read_time, body, status, scheduled_for,
+             published_at, author_email, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP())'
+    )->execute([
+        $id, $slug, $title, $excerpt, $category, $readTime,
+        json_encode($blocks, JSON_UNESCAPED_UNICODE),
+        'scheduled', $slot, null, 'queue@shiarishta.com',
+    ]);
+
+    $mark('done');
+    auditLog('post.queue_generated', 'blog_post', $id, ['slug' => $slug, 'keyword' => $keyword, 'scheduled_for' => $slot]);
+    json(['ok' => true, 'id' => $id, 'slug' => $slug, 'title' => $title, 'keyword' => $keyword, 'scheduled_for' => $slot]);
 }

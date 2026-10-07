@@ -49,6 +49,7 @@ function migrateSchema(): void
     migrateAddFavouritesTable();
     migrateAddAppSettingsTable();
     migrateAddDisappearingAndMatchmaker();
+    migrateAddBlogQueueTable();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -553,5 +554,85 @@ function migrateAddNotificationsTable(): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     } catch (Throwable $e) {
         error_log('[api] migration (notifications table) issue: ' . $e->getMessage());
+    }
+}
+
+// Autonomous blog queue. Holds a long-tail SEO topic backlog; the daily cron
+// endpoint picks the next queued topic, generates the article via the AI
+// provider and schedules it. Seeded once — re-runs only top up topics that
+// were never seeded (by keyword), so hand-added topics are never wiped.
+function migrateAddBlogQueueTable(): void
+{
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS blog_queue (
+          id         CHAR(36)     NOT NULL PRIMARY KEY,
+          position   INT          NOT NULL DEFAULT 0,
+          topic      VARCHAR(160) NOT NULL,
+          angle      VARCHAR(200) DEFAULT NULL,
+          category   VARCHAR(40)  NOT NULL DEFAULT 'Guidance',
+          keyword    VARCHAR(160) NOT NULL,
+          status     VARCHAR(16)  NOT NULL DEFAULT 'queued',
+          created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY uq_blog_queue_keyword (keyword),
+          KEY idx_blog_queue_status (status, position)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Throwable $e) {
+        error_log('[api] migration (blog_queue table) issue: ' . $e->getMessage());
+        return;
+    }
+
+    // 30 long-tail SEO topics — one per day for a month. Each targets a real
+    // search query in the Shia matrimony niche that a new domain can
+    // realistically rank for (city + niche terms the big sites ignore).
+    $topics = [
+        ['Shia matrimony in Houston: a practical rishta guide for Texas', 'Mosques, communities and how to search well', 'Guidance', 'shia matrimony houston'],
+        ['Shia matrimony in Chicago: finding your rishta in Illinois', 'Where the community gathers + profile tips', 'Guidance', 'shia matrimony chicago'],
+        ['Shia matrimony in New York: tri-state rishta guide', 'NY, NJ and CT community overview', 'Guidance', 'shia matrimony new york'],
+        ['Shia matrimony in Dallas-Fort Worth', 'DFW mosques, events and searching smart', 'Guidance', 'shia matrimony dallas'],
+        ['Shia matrimony in Los Angeles', 'SoCal Shia community and rishta advice', 'Guidance', 'shia matrimony los angeles'],
+        ['Shia rishta in Dearborn, Michigan: America\'s Shia heartland', 'Why Dearborn leads + how outsiders connect', 'Community', 'shia rishta dearborn'],
+        ['Shia matrimony in London: a UK rishta guide', 'Centres, events and online searching', 'Guidance', 'shia matrimony london'],
+        ['Shia matrimony in Toronto: a Canadian rishta guide', 'GTA community and practical tips', 'Guidance', 'shia matrimony toronto'],
+        ['Syed rishta in the USA: what Syed families actually look for', 'Lineage, expectations and respect', 'Community', 'syed rishta usa'],
+        ['Shia matrimony in the San Francisco Bay Area', 'Bay Area community guide', 'Guidance', 'shia matrimony bay area'],
+        ['Shia nikah requirements: the complete checklist', 'Every requirement explained simply', 'Guidance', 'shia nikah requirements'],
+        ['How to write a Shia marriage biodata that gets responses', 'Format, wording and a full sample', 'Profiles', 'shia marriage biodata format'],
+        ['Questions to ask a potential Shia spouse before saying yes', 'Faith, family and lifestyle questions', 'Guidance', 'questions to ask potential spouse shia'],
+        ['Marja in Shia marriage: why scholars matter in spouse search', 'Explainer for younger members', 'Guidance', 'marja shia marriage'],
+        ['Wali consent in Shia nikah: the rules explained simply', 'When it is required and how it works', 'Guidance', 'wali consent shia nikah'],
+        ['Mehr in Shia nikah: the complete guide', 'Meaning, amounts and common mistakes', 'Guidance', 'mehr shia nikah'],
+        ['Istikhara for marriage: the Shia method step by step', 'How to do it and how to read the answer', 'Community', 'istikhara for marriage shia'],
+        ['Duas for finding a righteous spouse', 'Arabic, transliteration and translation', 'Community', 'duas for marriage shia'],
+        ['Red flags in online rishta conversations', 'Safety-first guide with real examples', 'Safety', 'rishta red flags'],
+        ['How to verify someone you met on a matrimony site', 'Step-by-step verification checklist', 'Safety', 'verify matrimony profile'],
+        ['Keeping photos private while searching for a spouse', 'Privacy tiers explained', 'Safety', 'matrimony photo privacy'],
+        ['Long-distance Shia rishta: making it work across continents', 'USA, UK, Gulf and India perspectives', 'Community', 'long distance rishta'],
+        ['Shia second marriage: guidance for divorcees and widows', 'Faith, family and fresh starts', 'Community', 'shia second marriage'],
+        ['How to talk to your parents about your rishta choice', 'Respectful conversation guide', 'Guidance', 'convince parents rishta'],
+        ['First message examples that actually get replies', 'Respectful openers, not pickup lines', 'Profiles', 'first message matrimony examples'],
+        ['What to put in your matrimony profile bio', 'Before-and-after examples', 'Profiles', 'matrimony profile bio examples'],
+        ['Shia wedding traditions: the complete guide', 'From nikah to walima', 'Community', 'shia wedding traditions'],
+        ['How long should a Shia engagement be?', 'Balancing caution and momentum', 'Guidance', 'shia engagement period'],
+        ['Staying safe on Shia matchmaking sites', 'Scams, catfishing and privacy', 'Safety', 'online shia matchmaking safety'],
+        ['Niyaz and Syed status in rishta: explained respectfully', 'What it means and what it does not', 'Community', 'syed status rishta meaning'],
+    ];
+
+    try {
+        $have = [];
+        foreach (db()->query('SELECT keyword FROM blog_queue')->fetchAll() as $r) {
+            $have[(string)$r['keyword']] = true;
+        }
+        $ins = db()->prepare(
+            'INSERT INTO blog_queue (id, position, topic, angle, category, keyword, status)
+             VALUES (?,?,?,?,?,?,\'queued\')'
+        );
+        $pos = 0;
+        foreach ($topics as $t) {
+            $pos++;
+            if (isset($have[$t[3]])) continue;
+            $ins->execute([uuid(), $pos, $t[0], $t[1], $t[2], $t[3]]);
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (blog_queue seed) issue: ' . $e->getMessage());
     }
 }
