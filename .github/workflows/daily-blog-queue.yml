@@ -30,37 +30,14 @@ jobs:
           echo "Topic: $TOPIC_ID"
 
           # 2. Generate via NVIDIA (runner has reliable egress; the shared host does not)
-          GEN_JSON=$(echo "$TOPIC_JSON" | python3 -c "
-          import json,sys
-          t = json.load(sys.stdin)['topic']
-          system = (
-            'Write a Shia Muslim marriage guidance article as STRICT JSON: '
-            '{"title": "...", "excerpt": "...", "category": "' + t['category'] + '", '
-            '"readTime": "5 min", "body": [{"t": "p"|"h2", "x": "..."}]}. '
-            'No markdown fences, only the JSON object.\n'
-            'Target search query "' + t['keyword'] + '" naturally in title + opening. '
-            'Warm, respectful tone. ~500 words, 5-8 paragraphs, one or two h2 headings. '
-            'Excerpt: one sentence, under 160 chars. Do not invent statistics.\n'
-            'TOPIC: ' + t['topic'] + (' | ANGLE: ' + t['angle'] if t['angle'] else '')
-          )
-          print(json.dumps({'system': system}))
-          ")
-          echo "$GEN_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['system'])" > /tmp/system_prompt.txt
-
-          python3 << 'PYEOF2'
-          import json
-          with open('/tmp/system_prompt.txt') as f:
-              system = f.read()
-          payload = {
-              'model': 'nvidia/nemotron-3.5-lightning-30b-a3b',
-              'messages': [{'role': 'system', 'content': system}],
-              'max_tokens': 1200, 'temperature': 0.9, 'stream': False
-          }
-          with open('/tmp/nvidia_payload.json', 'w') as f:
-              json.dump(payload, f)
-          PYEOF2
+          echo "$TOPIC_JSON" > /tmp/topic.json
+          python3 .github/scripts/build_prompt.py /tmp/topic.json > /tmp/gen.json
+          python3 -c "import json,sys; print(json.load(open('/tmp/gen.json'))['system'])" > /tmp/system_prompt.txt
+          python3 .github/scripts/build_payload.py /tmp/system_prompt.txt /tmp/nvidia_payload.json
 
           NVIDIA_RESP=$(curl -s --max-time 180 --retry 2 -X POST https://integrate.api.nvidia.com/v1/chat/completions \
             -H "Authorization: Bearer $NVIDIA_API_KEY" \
             -H "Content-Type: application/json" \
             -d @/tmp/nvidia_payload.json)
+
+          POST_JSON=$(echo "$NVIDIA_RESP" | python3 .github/scripts/parse_post.py)
