@@ -2232,6 +2232,12 @@ select.input {
   transition: color 0.15s ease;
 }
 .site-footer-legal a:hover { color: #fff; }
+.site-footer-fazier-badge {
+  display: inline-flex; align-items: center;
+  opacity: 0.85; transition: opacity 0.15s ease;
+}
+.site-footer-fazier-badge:hover { opacity: 1; }
+.site-footer-fazier-badge img { display: block; height: 28px; width: auto; }
 .site-footer-social { display: flex; align-items: center; gap: 0.6rem; }
 .site-footer-social-link {
   display: inline-flex; align-items: center; justify-content: center;
