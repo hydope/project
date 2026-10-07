@@ -28,29 +28,40 @@ function routeCommunity(string $method, array $segments): void
 // replies in one transaction.
 function communityDeletePost(string $postId): void
 {
-    $user = requireAuthUser();
-    $probe = db()->prepare('SELECT id, user_id FROM posts WHERE id = ? LIMIT 1');
-    $probe->execute([$postId]);
-    $post = $probe->fetch();
-    if (!$post) {
-        je('Post not found.', 404);
-    }
-    // Author can delete their own post; admins can delete any post.
-    $isAdmin = !empty($user['is_admin']);
-    if (!$isAdmin && (string)$post['user_id'] !== (string)$user['uid']) {
-        je('You can only delete your own posts.', 403);
-    }
-    $pdo = db();
-    $pdo->beginTransaction();
     try {
-        $pdo->prepare('DELETE FROM replies WHERE post_id = ?')->execute([$postId]);
-        $pdo->prepare('DELETE FROM posts WHERE id = ?')->execute([$postId]);
-        $pdo->commit();
+        $user = requireAuthUser();
+        $probe = db()->prepare('SELECT id, user_id FROM posts WHERE id = ? LIMIT 1');
+        $probe->execute([$postId]);
+        $post = $probe->fetch();
+        if (!$post) {
+            je('Post not found.', 404);
+        }
+        // Author can delete their own post; admins can delete any post.
+        $isAdmin = !empty($user['is_admin']);
+        if (!$isAdmin && (string)$post['user_id'] !== (string)$user['uid']) {
+            je('You can only delete your own posts.', 403);
+        }
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare('DELETE FROM replies WHERE post_id = ?')->execute([$postId]);
+            $pdo->prepare('DELETE FROM posts WHERE id = ?')->execute([$postId]);
+            // Also clean up likes and reports for this post
+            try { $pdo->prepare('DELETE FROM post_likes WHERE post_id = ?')->execute([$postId]); } catch (Throwable) {}
+            try { $pdo->prepare('DELETE FROM reports WHERE target_type = ? AND target_id = ?')->execute(['post', $postId]); } catch (Throwable) {}
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+        json(['ok' => true, 'id' => $postId]);
     } catch (Throwable $e) {
-        $pdo->rollBack();
-        throw $e;
+        // Never return a bare 500 — the admin needs to know what went wrong.
+        error_log('[community] delete post failed: ' . $e->getMessage());
+        $code = (int)($e->getCode() ?: 500);
+        if ($code < 400 || $code >= 600) $code = 500;
+        je('Could not delete post: ' . $e->getMessage(), $code);
     }
-    json(['ok' => true, 'id' => $postId]);
 }
 
 // DELETE /api/community/reply/:id — admin moderation: remove one reply.

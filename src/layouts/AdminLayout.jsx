@@ -44,17 +44,43 @@ export default function AdminLayout({ children }) {
     navigate('/admin/login', { replace: true });
   };
 
-  // Theme tokens — dark (default) or light
+  // Theme tokens — dark (default) or light. These are set as CSS variables
+  // on the container so admin pages using text-ink, bg-primary, etc.
+  // render correctly in both modes (previously light-theme variables on a
+  // dark background made everything look like unstyled text).
   const t = light ? {
     bg: '#f6f8fa', fg: '#1f2328', sidebar: '#ffffff', border: '#d0d7de',
     muted: '#59636e', accent: '#0969da', danger: '#cf222e',
+    surface: '#ffffff', elevated: '#ffffff', hover: '#eaeef2',
   } : {
     bg: '#0d1117', fg: '#e6edf3', sidebar: '#010409', border: '#21262d',
     muted: '#8b949e', accent: '#388bfd', danger: '#f85149',
+    surface: '#161b22', elevated: '#161b22', hover: '#1c2128',
+  };
+
+  const cssVars = {
+    background: t.bg,
+    color: t.fg,
+    '--color-ink': t.fg,
+    '--color-ink-secondary': t.muted,
+    '--color-ink-tertiary': t.muted,
+    '--color-muted': t.muted,
+    '--color-border': t.border,
+    '--color-line': t.border,
+    '--color-surface': t.surface,
+    '--color-elevated': t.elevated,
+    '--color-hover': t.hover,
+    '--color-primary': t.accent,
+    '--color-primary-subtle': light ? 'rgba(9,105,218,0.1)' : 'rgba(56,139,253,0.12)',
+    '--color-danger': t.danger,
+    '--color-success': light ? '#1a7f37' : '#3fb950',
+    '--color-warning': light ? '#9a6700' : '#d29922',
+    '--bg': t.bg,
+    '--border': t.border,
   };
 
   return (
-    <div className="min-h-screen flex" style={{ background: t.bg, color: t.fg }}>
+    <div className="min-h-screen flex" style={cssVars}>
       <aside className="w-60 flex-shrink-0 hidden md:flex flex-col" style={{ background: t.sidebar, borderRight: `1px solid ${t.border}` }}>
         <div className="px-5 py-5" style={{ borderBottom: `1px solid ${t.border}` }}>
           <p className="text-[10px] font-bold tracking-[0.2em]" style={{ color: t.danger }}>ADMIN CONSOLE</p>
