@@ -320,6 +320,9 @@ function renderBody(meta, route) {
       '<a href="/terms">Terms of use</a> &middot; ' +
       '<a href="/safety">Safety</a> &middot; ' +
       '<a href="/contact">Contact</a>' +
+      '</p><p><a href="https://fazier.com" rel="noopener">' +
+      '<img src="https://fazier.com/api/v1//public/badges/launch_badges.svg?badge_type=launched&amp;theme=light" ' +
+      'alt="Featured on Fazier" width="120" height="36" loading="lazy"></a>' +
       '</p></footer>',
   );
 
