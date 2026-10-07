@@ -69,6 +69,22 @@ function routeAI(string $method, array $segments): void
         return;
     }
 
+    // GET /api/ai/queue-next — returns the next queued topic for external
+    // generation (GitHub Actions calls NVIDIA directly because the shared host
+    // cannot reliably reach the NVIDIA API). Marks the topic 'in_progress'.
+    if ($method === 'GET' && $action === 'queue-next') {
+        aiQueueNext();
+        return;
+    }
+
+    // POST /api/ai/queue-save — saves a pre-generated post (from queue-next)
+    // as scheduled. Body: { topic_id, post: { title, excerpt, category,
+    // readTime, body: [{t, x}] } }.
+    if ($method === 'POST' && $action === 'queue-save') {
+        aiQueueSave();
+        return;
+    }
+
     // GET /api/ai/blog-topics — curated + AI topic suggestions for the blog
     // queue. Interactive: the admin picks a suggestion and it becomes a draft.
     if ($method === 'GET' && $action === 'blog-topics') {
@@ -832,4 +848,134 @@ function aiQueueRun(): void
     $mark('done');
     auditLog('post.queue_generated', 'blog_post', $id, ['slug' => $slug, 'keyword' => $seoTerm, 'scheduled_for' => $slot]);
     json(['ok' => true, 'id' => $id, 'slug' => $slug, 'title' => $title, 'keyword' => $seoTerm, 'scheduled_for' => $slot]);
+}
+
+/**
+ * GET /api/ai/queue-next — fetch the next queued topic for external generation.
+ *
+ * The shared host cannot reliably reach the NVIDIA API, so generation happens
+ * in GitHub Actions (which can). This endpoint hands out the next topic and
+ * marks it 'in_progress' so concurrent runs don't double-claim it.
+ */
+function aiQueueNext(): void
+{
+    $providedKey = $_SERVER['HTTP_X_BLOG_CRON_KEY'] ?? '';
+    $wantKey = (string)($_ENV['BLOG_CRON_KEY'] ?? getenv('BLOG_CRON_KEY') ?? '');
+    if ($wantKey === '' || !hash_equals($wantKey, (string)$providedKey)) {
+        json(['error' => 'Unauthorized'], 401);
+    }
+
+    // Reset stale 'in_progress' (a crashed run shouldn't block the queue forever).
+    db()->exec("UPDATE blog_queue SET status = 'queued' WHERE status = 'in_progress' AND attempts < 3");
+
+    $row = db()->query(
+        "SELECT * FROM blog_queue WHERE status = 'queued' ORDER BY position ASC LIMIT 1"
+    )->fetch();
+    if (!$row) {
+        json(['ok' => false, 'reason' => 'queue_empty']);
+    }
+
+    db()->prepare("UPDATE blog_queue SET status = 'in_progress' WHERE id = ?")
+        ->execute([(string)$row['id']]);
+
+    json(['ok' => true, 'topic' => [
+        'id' => (string)$row['id'],
+        'topic' => (string)$row['topic'],
+        'angle' => (string)($row['angle'] ?? ''),
+        'category' => (string)($row['category'] ?? 'Guidance'),
+        'keyword' => (string)$row['keyword'],
+    ]]);
+}
+
+/**
+ * POST /api/ai/queue-save — save a pre-generated post as scheduled.
+ *
+ * Body: { topic_id, post: { title, excerpt, category, readTime, body: [{t, x}] } }
+ * Validates the shape, finds the next free day, inserts as 'scheduled', and
+ * marks the topic 'done'. On validation failure the topic goes back to
+ * 'queued' with attempts incremented.
+ */
+function aiQueueSave(): void
+{
+    $providedKey = $_SERVER['HTTP_X_BLOG_CRON_KEY'] ?? '';
+    $wantKey = (string)($_ENV['BLOG_CRON_KEY'] ?? getenv('BLOG_CRON_KEY') ?? '');
+    if ($wantKey === '' || !hash_equals($wantKey, (string)$providedKey)) {
+        json(['error' => 'Unauthorized'], 401);
+    }
+
+    $body = requestJson();
+    $topicId = (string)($body['topic_id'] ?? '');
+    $post = $body['post'] ?? null;
+    if ($topicId === '' || !is_array($post)) {
+        json(['ok' => false, 'reason' => 'bad_request'], 400);
+    }
+
+    $row = db()->prepare('SELECT * FROM blog_queue WHERE id = ? LIMIT 1');
+    $row->execute([$topicId]);
+    $topic = $row->fetch();
+    if (!$topic) {
+        json(['ok' => false, 'reason' => 'unknown_topic'], 404);
+    }
+
+    $release = function () use ($topicId, $topic): array {
+        $attempts = (int)($topic['attempts'] ?? 0) + 1;
+        $status = $attempts >= 3 ? 'failed' : 'queued';
+        db()->prepare('UPDATE blog_queue SET status = ?, attempts = ? WHERE id = ?')
+            ->execute([$status, $attempts, $topicId]);
+        return ['attempts' => $attempts, 'will_retry' => $status === 'queued'];
+    };
+
+    $title = sanitizeText((string)($post['title'] ?? ''), 160);
+    $excerpt = sanitizeText((string)($post['excerpt'] ?? ''), 300);
+    $category = sanitizeText((string)($post['category'] ?? 'Guidance'), 40);
+    $readTime = sanitizeText((string)($post['readTime'] ?? '5 min'), 16);
+    $blocks = [];
+    foreach ((array)($post['body'] ?? []) as $b) {
+        if (!is_array($b)) continue;
+        $t = in_array($b['t'] ?? '', ['p', 'h2'], true) ? $b['t'] : 'p';
+        $x = sanitizeText((string)($b['x'] ?? ''), 4000);
+        if ($x !== '') $blocks[] = ['t' => $t, 'x' => $x];
+    }
+    if ($title === '' || !$blocks) {
+        $r = $release();
+        json(['ok' => false, 'reason' => 'invalid_post', 'attempt' => $r['attempts'], 'will_retry' => $r['will_retry']]);
+    }
+
+    // Next free day at 09:00 UTC.
+    $last = db()->query(
+        "SELECT GREATEST(
+            COALESCE(MAX(scheduled_for), '1970-01-01'),
+            COALESCE(MAX(published_at), '1970-01-01')
+        ) AS last_day FROM blog_posts WHERE status IN ('scheduled','published')"
+    )->fetch();
+    $cursor = new DateTimeImmutable($last['last_day'] ?? '1970-01-01', new DateTimeZone('UTC'));
+    $today = new DateTimeImmutable('today', new DateTimeZone('UTC'));
+    if ($cursor < $today) $cursor = $today;
+    $slot = $cursor->modify('+1 day')->setTime(9, 0, 0)->format('Y-m-d H:i:s');
+
+    $id = uuid();
+    $slug = aiSlugify($title);
+    try {
+        $chk = db()->prepare('SELECT id FROM blog_posts WHERE slug = ? LIMIT 1');
+        $chk->execute([$slug]);
+        if ($chk->fetch()) $slug .= '-' . substr($id, 0, 8);
+    } catch (Throwable) {
+    }
+
+    db()->prepare(
+        'INSERT INTO blog_posts
+            (id, slug, title, excerpt, category, read_time, body, status, scheduled_for,
+             published_at, author_email, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP())'
+    )->execute([
+        $id, $slug, $title, $excerpt, $category, $readTime,
+        json_encode($blocks, JSON_UNESCAPED_UNICODE),
+        'scheduled', $slot, null, 'queue@shiarishta.com',
+    ]);
+
+    db()->prepare("UPDATE blog_queue SET status = 'done' WHERE id = ?")->execute([$topicId]);
+    auditLog('post.queue_generated', 'blog_post', $id, [
+        'slug' => $slug, 'keyword' => (string)$topic['keyword'], 'scheduled_for' => $slot, 'via' => 'actions',
+    ]);
+    json(['ok' => true, 'id' => $id, 'slug' => $slug, 'title' => $title, 'scheduled_for' => $slot]);
 }

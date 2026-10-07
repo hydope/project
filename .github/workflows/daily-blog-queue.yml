@@ -1,8 +1,13 @@
 name: Daily Blog Queue
-# Generates one SEO-targeted blog post per day from the blog_queue backlog
-# via POST /api/ai/queue-run (service-key authed). The endpoint picks the
-# next queued long-tail topic, generates the article with the NVIDIA model,
-# and schedules it for the next free day (lazy publication picks it up).
+# Generates one SEO-targeted blog post per day.
+#
+# Two-phase flow: the shared host cannot reliably reach the NVIDIA API, so
+# generation happens HERE on the runner (which can). The API only hands out
+# topics and saves finished posts.
+#
+#   1. GET /api/ai/queue-next  -> next queued topic (service-key authed)
+#   2. Call NVIDIA chat/completions with the topic
+#   3. POST /api/ai/queue-save -> save as scheduled (service-key authed)
 on:
   schedule:
     - cron: '15 9 * * *' # 09:15 UTC daily
@@ -11,12 +16,81 @@ jobs:
   queue-run:
     runs-on: ubuntu-latest
     steps:
-      - name: Run one queued blog post
+      - name: Generate and save one queued blog post
         env:
           BLOG_CRON_KEY: ${{ secrets.BLOG_CRON_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
         run: |
-          RESP=$(curl -s --max-time 120 -X POST https://shiarishta.com/api/ai/queue-run \
+          API="https://shiarishta.com/api/ai"
+
+          # 1. Next topic
+          TOPIC_JSON=$(curl -s --max-time 30 "$API/queue-next" -H "X-Blog-Cron-Key: $BLOG_CRON_KEY")
+          echo "$TOPIC_JSON" | grep -q '"ok":true' || { echo "NO_TOPIC: $TOPIC_JSON"; echo "QUEUE_DONE_OR_EMPTY"; exit 0; }
+          TOPIC_ID=$(echo "$TOPIC_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['topic']['id'])")
+          echo "Topic: $TOPIC_ID"
+
+          # 2. Generate via NVIDIA (runner has reliable egress; the shared host does not)
+          GEN_JSON=$(echo "$TOPIC_JSON" | python3 -c "
+          import json,sys
+          t = json.load(sys.stdin)['topic']
+          system = (
+            'You write for Shia Rishta, a Shia Muslim marriage platform that publishes long-form guidance '
+            'articles for people searching for a spouse.\n\n'
+            'Voice: warm, specific, respectful, never preachy. British-leaning international English. '
+            'Assume a Muslim reader who takes faith seriously; reference Islamic practice where natural but do '
+            'not lecture or quote scripture as authority.\n\n'
+            'SEO: this article targets the search query \"' + t['keyword'] + '\". Work the query naturally into '
+            'the title and the opening paragraph, then write for humans — no keyword stuffing.\n\n'
+            'Return STRICT JSON with keys: title, excerpt, category, readTime, body.\n'
+            '\'excerpt\' is one sentence under 160 characters. \'category\' must be exactly \"' + t['category'] + '\". '
+            '\'readTime\' is like \'5 min\'. \'body\' is an ARRAY of objects, each {\"t\": \"p\"|\"h2\", \"x\": \"...\"} — never markdown fences.\n\n'
+            'Write a focused piece of roughly 500 words, 5-8 paragraphs with an h2 heading or two. '
+            'Do not invent statistics, user counts or claims about the site\'s features.\n\n'
+            'TOPIC: ' + t['topic'] + ('\nANGLE: ' + t['angle'] if t['angle'] else '') + '\nAUDIENCE: members seeking a serious marriage\n\nReturn only the JSON object.'
+          )
+          print(json.dumps({'system': system}))
+          ")
+          SYSTEM_PROMPT=$(echo "$GEN_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['system'])")
+
+          NVIDIA_RESP=$(curl -s --max-time 120 -X POST https://integrate.api.nvidia.com/v1/chat/completions \
+            -H "Authorization: Bearer $NVIDIA_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(python3 -c "
+          import json
+          print(json.dumps({
+            'model': 'nvidia/nemotron-3.5-lightning-30b-a3b',
+            'messages': [{'role': 'system', 'content': '''$SYSTEM_PROMPT'''}],
+            'max_tokens': 1200, 'temperature': 0.9, 'stream': False
+          }))")")
+
+          POST_JSON=$(echo "$NVIDIA_RESP" | python3 -c "
+          import json,sys,re
+          try:
+              d = json.loads(sys.stdin.read())
+              content = d['choices'][0]['message']['content'] or ''
+          except Exception as e:
+              print(json.dumps({'error': 'nvidia_parse_failed'})); sys.exit()
+          # Strip markdown fences if the model added them
+          content = re.sub(r'^\\\`\\\`\\\`(?:json)?\s*', '', content.strip())
+          content = re.sub(r'\s*\\\`\\\`\\\`\$', '', content)
+          try:
+              post = json.loads(content)
+              assert post.get('title') and isinstance(post.get('body'), list)
+              print(json.dumps({'post': post}))
+          except Exception:
+              print(json.dumps({'error': 'post_parse_failed'}))
+          ")
+          echo "$POST_JSON" | grep -q '"post"' || { echo "GENERATION_FAILED: ${POST_JSON:0:200}"; exit 1; }
+
+          # 3. Save
+          SAVE_BODY=$(python3 -c "
+          import json,sys
+          post = json.load(sys.stdin)['post']
+          print(json.dumps({'topic_id': '$TOPIC_ID', 'post': post}))
+          " <<< "$POST_JSON")
+          SAVE_RESP=$(curl -s --max-time 60 -X POST "$API/queue-save" \
             -H "X-Blog-Cron-Key: $BLOG_CRON_KEY" \
-            -H "Content-Type: application/json" -d '{}')
-          echo "$RESP"
-          echo "$RESP" | grep -q '"ok":true' && echo "QUEUE_RUN_OK" || echo "QUEUE_RUN_EMPTY_OR_FAILED"
+            -H "Content-Type: application/json" \
+            -d "$SAVE_BODY")
+          echo "$SAVE_RESP"
+          echo "$SAVE_RESP" | grep -q '"ok":true' && echo "QUEUE_RUN_OK" || { echo "QUEUE_SAVE_FAILED"; exit 1; }
