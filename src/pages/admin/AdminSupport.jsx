@@ -1,4 +1,4 @@
-import Layout from '@/layouts/MainLayout';
+import Layout from '@/layouts/AdminLayout';
 import { useEffect, useState, useCallback } from 'react';
 import { useToast } from '@lib/useToast';
 import { http, useRemote } from '@lib/api/transport';

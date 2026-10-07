@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import Layout from '@/layouts/MainLayout';
+import Layout from '@/layouts/AdminLayout';
 import { useToast } from '@lib/useToast';
 import { http, useRemote } from '@lib/api/transport';
 import { RefreshCw, BadgeCheck, XCircle, Eye, FileText, CheckCheck } from 'lucide-react';

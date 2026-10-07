@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import Layout from '@/layouts/MainLayout';
+import Layout from '@/layouts/AdminLayout';
 import { http } from '@/lib/api/transport';
-import { Search, Users, RefreshCw, X, ShieldCheck, Ban, History, Mail } from 'lucide-react';
+import { Search, Users, RefreshCw, X, ShieldCheck, Ban, History, Mail, Check, Pencil } from 'lucide-react';
 
 /**
  * Member directory â€” searchable, paginated, with a full detail drawer.
@@ -65,6 +65,14 @@ export default function AdminMembers() {
     }
   };
 
+  const [blockTarget, setBlockTarget] = useState(null);
+  const [blockReason, setBlockReason] = useState('');
+  const [blockDuration, setBlockDuration] = useState('permanent');
+  const [blockBusy, setBlockBusy] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({});
+  const [editBusy, setEditBusy] = useState(false);
+
   const unblock = async (id) => {
     try {
       await http.post(`/api/admin/users/${id}/unblock`, {});
@@ -75,15 +83,57 @@ export default function AdminMembers() {
     }
   };
 
-  const block = async (id) => {
-    const reason = window.prompt('Reason for blocking this member (recorded in the audit log):') ?? '';
-    if (reason === null) return; // cancelled
+  const confirmBlock = async () => {
+    if (!blockTarget) return;
+    setBlockBusy(true);
     try {
-      await http.post(`/api/admin/users/${id}/block`, { reason });
+      await http.post(`/api/admin/users/${blockTarget}/block`, { reason: blockReason, duration: blockDuration });
+      setBlockTarget(null); setBlockReason(''); setBlockDuration('permanent');
+      await load();
+      setDetail(await http.get(`/api/admin/user/${blockTarget}`));
+    } catch (e) {
+      setError(e?.message || 'Could not block that member.');
+    } finally {
+      setBlockBusy(false);
+    }
+  };
+
+  const verifyEmail = async (id) => {
+    try {
+      await http.post(`/api/admin/users/${id}/verify-email`, {});
       await load();
       setDetail(await http.get(`/api/admin/user/${id}`));
     } catch (e) {
-      setError(e?.message || 'Could not block that member.');
+      setError(e?.message || 'Could not verify email.');
+    }
+  };
+
+  const openEdit = () => {
+    const u = detail?.user || {};
+    const p = detail?.profile || {};
+    setEditForm({
+      display_name: u.display_name || selected?.display_name || '',
+      city: p.city || '', country: p.country || '', age: p.age || '',
+      bio: p.bio || '', profession: p.profession || '',
+      education_level: p.education_level || '', marital_status: p.marital_status || '',
+      height_cm: p.height_cm || '', photo_url: p.photo_url || '',
+      prayer: p.prayer || '', marja: p.marja || '', languages: p.languages || '', sect: p.sect || '',
+    });
+    setEditOpen(true);
+  };
+
+  const saveEdit = async () => {
+    if (!selected) return;
+    setEditBusy(true);
+    try {
+      await http.patch(`/api/admin/users/${selected.id}`, editForm);
+      setEditOpen(false);
+      await load();
+      setDetail(await http.get(`/api/admin/user/${selected.id}`));
+    } catch (e) {
+      setError(e?.message || 'Could not save changes.');
+    } finally {
+      setEditBusy(false);
     }
   };
 
@@ -191,11 +241,21 @@ export default function AdminMembers() {
                   <Ban className="w-3.5 h-3.5" /> Unblock this member
                 </button>
               ) : (
-                <button onClick={() => block(selected.id)}
+                <button onClick={() => setBlockTarget(selected.id)}
                   className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-danger/40 text-danger hover:bg-danger/10">
-                  <Ban className="w-3.5 h-3.5" /> Block / ban this member
+                  <Ban className="w-3.5 h-3.5" /> Restrict / ban this member
                 </button>
               )}
+              {!selected.email_verified && (
+                <button onClick={() => verifyEmail(selected.id)}
+                  className="mt-3 ml-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-line/30 text-muted">
+                  <Check className="w-3.5 h-3.5" /> Verify email
+                </button>
+              )}
+              <button onClick={openEdit}
+                className="mt-3 ml-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-line/30 text-muted">
+                <Pencil className="w-3.5 h-3.5" /> Edit details
+              </button>
               {detailBusy && <div className="skeleton h-40 rounded-xl mt-4" />}
               {!detailBusy && detail && (
                 <div className="space-y-5 mt-5">
@@ -225,6 +285,90 @@ export default function AdminMembers() {
                 </div>
               )}
             </aside>
+          </div>
+        )}
+
+        {/* Edit user modal */}
+        {editOpen && selected && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-label="Edit member">
+            <div className="absolute inset-0 bg-black/60" onClick={() => !editBusy && setEditOpen(false)} />
+            <div className="relative rounded-2xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto" style={{ background: '#161b22', border: '1px solid #21262d' }}>
+              <h2 className="text-lg font-bold mb-4" style={{ color: '#f0f6fc' }}>Edit member</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ['display_name', 'Display name'], ['city', 'City'], ['country', 'Country'], ['age', 'Age'],
+                  ['profession', 'Profession'], ['education_level', 'Education'], ['marital_status', 'Marital status'],
+                  ['height_cm', 'Height (cm)'], ['prayer', 'Prayer'], ['marja', 'Marja'], ['languages', 'Languages'], ['sect', 'Sect'],
+                ].map(([k, label]) => (
+                  <div key={k}>
+                    <label className="text-[11px] font-semibold block mb-1" style={{ color: '#8b949e' }}>{label}</label>
+                    <input value={editForm[k] || ''} onChange={e => setEditForm(f => ({ ...f, [k]: e.target.value }))}
+                      className="w-full rounded-lg px-3 py-2 text-sm"
+                      style={{ background: '#0d1117', border: '1px solid #21262d', color: '#f0f6fc' }} />
+                  </div>
+                ))}
+                <div className="col-span-2">
+                  <label className="text-[11px] font-semibold block mb-1" style={{ color: '#8b949e' }}>Photo URL</label>
+                  <input value={editForm.photo_url || ''} onChange={e => setEditForm(f => ({ ...f, photo_url: e.target.value }))}
+                    className="w-full rounded-lg px-3 py-2 text-sm"
+                    style={{ background: '#0d1117', border: '1px solid #21262d', color: '#f0f6fc' }} />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-[11px] font-semibold block mb-1" style={{ color: '#8b949e' }}>Bio</label>
+                  <textarea value={editForm.bio || ''} onChange={e => setEditForm(f => ({ ...f, bio: e.target.value }))} rows={3}
+                    className="w-full rounded-lg px-3 py-2 text-sm"
+                    style={{ background: '#0d1117', border: '1px solid #21262d', color: '#f0f6fc' }} />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end mt-5">
+                <button onClick={() => setEditOpen(false)} disabled={editBusy}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold" style={{ color: '#8b949e' }}>Cancel</button>
+                <button onClick={saveEdit} disabled={editBusy}
+                  className="px-4 py-2 rounded-lg text-xs font-bold" style={{ background: '#238636', color: '#fff' }}>
+                  {editBusy ? 'Saving…' : 'Save changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Block dialog — duration + reason, no window.prompt */}
+        {blockTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-label="Restrict member">
+            <div className="absolute inset-0 bg-black/60" onClick={() => !blockBusy && setBlockTarget(null)} />
+            <div className="relative rounded-2xl p-6 w-full max-w-md" style={{ background: '#161b22', border: '1px solid #21262d' }}>
+              <h2 className="text-lg font-bold mb-1" style={{ color: '#f0f6fc' }}>Restrict member</h2>
+              <p className="text-xs mb-4" style={{ color: '#8b949e' }}>Temporary restrictions lift automatically. Permanent bans stay until unblocked.</p>
+              <label className="text-xs font-semibold block mb-1.5" style={{ color: '#c9d1d9' }}>Duration</label>
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {[['24h', '24 hours'], ['7d', '7 days'], ['30d', '30 days'], ['permanent', 'Permanent ban']].map(([v, label]) => (
+                  <button key={v} onClick={() => setBlockDuration(v)}
+                    className="px-3 py-2 rounded-lg text-xs font-semibold"
+                    style={{
+                      background: blockDuration === v ? 'rgba(248,81,73,0.15)' : 'transparent',
+                      border: blockDuration === v ? '1px solid #f85149' : '1px solid #21262d',
+                      color: blockDuration === v ? '#f85149' : '#8b949e',
+                    }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <label className="text-xs font-semibold block mb-1.5" style={{ color: '#c9d1d9' }}>Reason (audit log)</label>
+              <textarea value={blockReason} onChange={e => setBlockReason(e.target.value)} rows={3}
+                placeholder="e.g. Spam messages reported by 3 members"
+                className="w-full rounded-lg px-3 py-2 text-sm mb-4"
+                style={{ background: '#0d1117', border: '1px solid #21262d', color: '#f0f6fc' }} />
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setBlockTarget(null)} disabled={blockBusy}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold" style={{ color: '#8b949e' }}>
+                  Cancel
+                </button>
+                <button onClick={confirmBlock} disabled={blockBusy}
+                  className="px-4 py-2 rounded-lg text-xs font-bold" style={{ background: '#da3633', color: '#fff' }}>
+                  {blockBusy ? 'Applying…' : blockDuration === 'permanent' ? 'Ban permanently' : 'Restrict'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </main>

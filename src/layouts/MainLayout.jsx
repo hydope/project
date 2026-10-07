@@ -6,9 +6,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Moon, Search, Command, X, LayoutDashboard, Users, MessageCircle,
   BookOpen, LifeBuoy, Settings, LogOut, Home, Menu,
-  Shield, ShieldAlert, BarChart3, History, HandHeart, BadgeCheck, KeyRound, UserCheck, Bookmark
+  Shield, ShieldAlert, BarChart3, History, HandHeart, BadgeCheck, KeyRound, UserCheck, Bookmark,
+  HeartHandshake, FileText
 } from 'lucide-react';
-import ThemeMenu from '../components/ThemeMenu';
 // Lazy: the assistant widget + brain load on demand, not in the entry chunk.
 const AIAssistant = lazy(() => import('../components/AIAssistant'));
 const FeedbackWidget = lazy(() => import('../components/FeedbackWidget'));
@@ -204,6 +204,8 @@ function BrandMark() {
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, section: 'Overview' },
   { path: '/profiles', label: 'Browse Profiles', icon: Users, section: 'Overview' },
+  { path: '/matchmaker', label: 'Matchmaker', icon: HeartHandshake, section: 'Overview' },
+  { path: '/biodata-maker', label: 'Biodata Maker', icon: FileText, section: 'Overview' },
   { path: '/settings', label: 'Settings', icon: Settings, section: 'Overview' },
   { path: '/favorites', label: 'Saved Profiles', icon: Bookmark, section: 'Overview' },
   { path: '/messages', label: 'Messages', icon: MessageCircle, section: 'Connect' },
@@ -365,7 +367,6 @@ export default function MainLayout({ children }) {
               <Search className="w-4 h-4 flex-shrink-0" /> Search
               <kbd className="sidebar-kbd">⌘K</kbd>
             </button>
-            <ThemeMenu dark={dark} setDark={setDark} />
           </div>
           {isLoggedIn && user && (
             <div className="flex items-center gap-2.5 px-2 pt-2 mt-1 border-t" style={{ borderColor: 'var(--color-border)' }}>

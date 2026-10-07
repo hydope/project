@@ -57,14 +57,19 @@ export default function Dashboard() {
   const [profiles, setProfiles] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Server profile (has seekingGender). localStorage draft is stale — it was
+  // saved before seekingGender existed, so it cannot be trusted for filtering.
+  const [serverProfile, setServerProfile] = useState(null);
 
   useEffect(() => {
     Promise.all([
       api.getProfiles().catch(() => []),
       api.getConversations().catch(() => []),
-    ]).then(([p, c]) => {
+      api.getProfile('me').catch(() => null),
+    ]).then(([p, c, me]) => {
       setProfiles(p);
       setConversations(c);
+      setServerProfile(me);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -73,9 +78,19 @@ export default function Dashboard() {
     if (!profiles.length) return [];
     // Never show the member their own profile as a match.
     const me = String(user?.uid || '');
-    const myProfile = typeof getMyProfile === 'function' ? getMyProfile() : null;
+    const myProfile = serverProfile || (typeof getMyProfile === 'function' ? getMyProfile() : null);
+    // Hard gender filter: a member seeking women must NEVER see a man (or
+    // vice versa) in "Top matches for you". This is a filter, not a score
+    // tweak — same-gender profiles are excluded entirely.
+    const seeking = myProfile?.seekingGender || myProfile?.seeking_gender || null;
     return profiles
       .filter(p => String(p.id ?? p.user_id ?? p.uid ?? '') !== me)
+      .filter(p => {
+        if (!seeking) return true; // unknown preference: don't hide anyone
+        const g = (p.gender || '').toLowerCase();
+        if (!g) return true; // unknown candidate gender: keep (can't judge)
+        return g === seeking.toLowerCase();
+      })
       .map(p => {
         // Honest score only when the viewer has onboarded; otherwise null.
         let score = null;
@@ -89,7 +104,7 @@ export default function Dashboard() {
       .filter(p => typeof p.score === 'number' && !Number.isNaN(p.score))
       .sort((a, b) => b.score - a.score)
       .slice(0, 4);
-  }, [profiles, user]);
+  }, [profiles, user, serverProfile]);
 
   const topMatch = rankedMatches[0];
   // Single source of truth: the onboarding wizard's scoring model. Falls back

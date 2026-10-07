@@ -284,6 +284,26 @@ export default function Community() {
             </div>
             <div style={{ padding: '1.5rem' }}>
               <input type="text" value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Post title..." className="w-full px-3 py-2 rounded-lg mb-3" style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)', color: 'var(--color-ink)', fontSize: '0.9375rem' }} />
+              {/* Trending starters — tap to fill */}
+              <div className="mb-3">
+                <p className="text-[11px] font-bold mb-1.5" style={{ color: 'var(--color-ink-tertiary)' }}>🔥 TRENDING STARTERS</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    'Unpopular opinion: green flags > red flags…',
+                    'POV: your wali actually likes your match',
+                    'What’s your biggest rishta ick?',
+                    'Rate my biodata 1-10 (be honest)',
+                    'Things I wish I knew before the first meeting',
+                    'Duas that actually worked for me',
+                  ].map(s => (
+                    <button key={s} type="button" onClick={() => setNewTitle(s)}
+                      className="text-[11px] px-2.5 py-1 rounded-full"
+                      style={{ border: '1px solid var(--color-border)', color: 'var(--color-ink-secondary)' }}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <textarea value={newBody} onChange={e => setNewBody(e.target.value)} placeholder="Share your thoughts (optional)..." rows={4} className="w-full px-3 py-2 rounded-lg mb-3 resize-none" style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)', color: 'var(--color-ink)', fontSize: '0.9375rem' }} />
               <label className="flex items-center gap-2 mb-3 cursor-pointer">
                 <input type="checkbox" checked={anonymous} onChange={e => setAnonymous(e.target.checked)} />

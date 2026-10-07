@@ -4,7 +4,7 @@ import {
   Users, UserPlus, MessageCircle, Heart, ShieldCheck, Activity,
   RefreshCw, AlertTriangle
 } from 'lucide-react';
-import Layout from '@/layouts/MainLayout';
+import Layout from '@/layouts/AdminLayout';
 import { http } from '@/lib/api/transport';
 
 // Every number below comes from /api/admin/overview and /api/admin/analytics.

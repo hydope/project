@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import Layout from '@/layouts/MainLayout';
+import Layout from '@/layouts/AdminLayout';
 import { http } from '@/lib/api/transport';
 import { UserCheck, RefreshCw, Check, X, ShieldCheck, Flag, Search } from 'lucide-react';
 

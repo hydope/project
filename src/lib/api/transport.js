@@ -87,6 +87,7 @@ export const http = {
   // two AI routes pass an explicit value rather than inheriting the default.
   post: (path, body, opts) => request(path, { method: 'POST', body: JSON.stringify(body ?? {}), ...(opts || {}) }),
   put: (path, body, opts) => request(path, { method: 'PUT', body: JSON.stringify(body ?? {}), ...(opts || {}) }),
+  patch: (path, body, opts) => request(path, { method: 'PATCH', body: JSON.stringify(body ?? {}), ...(opts || {}) }),
   del: (path, opts) => request(path, { method: 'DELETE', ...(opts || {}) }),
   // Returns the raw Response (not JSON) for binary endpoints. Accepts either a
   // path or an already-absolute URL — apiUrl() output must not be double-prefixed

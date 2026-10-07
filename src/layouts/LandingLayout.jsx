@@ -4,11 +4,9 @@ import { useAuth } from '../lib/auth/AuthContext';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   Menu, X, ArrowRight,
-  Bot, Bell, LayoutDashboard,
+  Bell, LayoutDashboard, HeartHandshake,
   Shield, User, Lock,
 } from 'lucide-react';
-import ThemeMenu from '../components/ThemeMenu';
-import { openAIAssistant } from '../lib/aiAssistant';
 // Lazy: the assistant widget + brain load on demand, not in the entry chunk.
 const AIAssistant = lazy(() => import('../components/AIAssistant'));
 import SiteFooter from '../components/SiteFooter';
@@ -361,7 +359,7 @@ function AccountMenu({ user, logout, open, onClose, onToggle }) {
 }
 
 
-function LandingHeader({ dark, setDark }) {
+function LandingHeader() {
   const { isLoggedIn, user, logout } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -448,11 +446,11 @@ function LandingHeader({ dark, setDark }) {
 
           {/* Secondary actions — right */}
           <div className="landing-header-actions">
-            {/* Utility: AI Assistant */}
-            <button type="button" className="btn btn-ghost btn-sm landing-header-ai" onClick={openAIAssistant} aria-label="Open AI assistant">
-              <Bot className="w-4 h-4" />
-              <span className="hidden sm:inline">AI</span>
-            </button>
+            {/* Matchmaker */}
+            <Link to="/matchmaker" className="btn btn-ghost btn-sm" aria-label="Matchmaker">
+              <HeartHandshake className="w-4 h-4" />
+              <span className="hidden sm:inline">Matchmaker</span>
+            </Link>
 
             {/* Dashboard — directly after AI, members only */}
             {isLoggedIn && (
@@ -466,10 +464,9 @@ function LandingHeader({ dark, setDark }) {
               </Link>
             )}
 
-            {/* Icon group: Notifications + Appearance + Account */}
+            {/* Icon group: Notifications + Account (appearance lives in Account Settings) */}
             <div className="landing-header-icon-group">
               {isLoggedIn && <NotificationsMenu />}
-              <ThemeMenu dark={dark} setDark={setDark} direction="down" />
               {isLoggedIn && <AccountMenu user={user} logout={logout} open={accountMenuOpen} onToggle={() => setAccountMenuOpen(o => !o)} onClose={() => setAccountMenuOpen(false)} />}
             </div>
 
@@ -608,7 +605,7 @@ export default function LandingLayout({ children }) {
 
   return (
     <div className="landing-shell">
-      <LandingHeader dark={dark} setDark={setDark} />
+      <LandingHeader />
       {/* NOTE: page content renders in a plain <main> — never gated behind an
           animation's initial opacity. framer-motion is an enhancement only; if it
           fails or stalls, the page must still be fully visible. */}

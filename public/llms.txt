@@ -87,6 +87,10 @@ all guardian tools are free. There is no payment system and no paid tier.
 
 - [Create your free account](https://shiarishta.com/auth/register) — Create a free Shia Rishta profile for nikah — privacy-first photos, wali and guardian workflows, and no payment required.
 
+- [Matchmaker](https://shiarishta.com/matchmaker) — Know someone looking for a Shia rishta? Submit their profile as a matchmaker. Every submission is reviewed within 7 days.
+
+- [Marriage biodata maker](https://shiarishta.com/biodata-maker) — Create a beautiful Shia marriage biodata online — no account needed. Add photo and details, pick a design, download with watermark.
+
 ### Shia marriage, nikah and location pages
 
 - [shia nikah](https://shiarishta.com/shia-nikah) — Shia nikah: the Islamic marriage contract, its conditions, and who must be present.

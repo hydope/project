@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import Layout from '@/layouts/MainLayout';
+import Layout from '@/layouts/AdminLayout';
 import { http } from '@/lib/api/transport';
 import { Sparkles, RefreshCw, Calendar, Send, Trash2, FileText, Eye, KeyRound, ShieldCheck, Loader2 } from 'lucide-react';
 
@@ -184,17 +184,20 @@ export default function AdminContent() {
   const [generating, setGenerating] = useState(false);
   const [scheduledFor, setScheduledFor] = useState('');
   const [busy, setBusy] = useState(false);
+  const [topics, setTopics] = useState([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [list, status] = await Promise.all([
+      const [list, status, sugg] = await Promise.all([
         http.get('/api/ai/posts'),
         http.get('/api/ai/status').catch(() => ({ available: false })),
+        http.get('/api/ai/blog-topics').catch(() => ({ topics: [] })),
       ]);
       setPosts(list.rows || []);
       setAvailable(list.available !== false);
+      setTopics(sugg.topics || []);
       // `available` means a credential is CONFIGURED, not that the model
       // answers. The two diverge — a reasoning model can accept every request
       // and still return no text — which is why the panel also offers "Test
@@ -347,6 +350,21 @@ export default function AdminContent() {
                 placeholder="e.g. Talking to family about marriage expectations" className="input w-full"
                 disabled={!aiReady || generating} required />
             </div>
+            {/* Topic suggestions — tap one to fill the form */}
+            {topics.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-muted mb-1.5">Suggestions — tap to use</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {topics.slice(0, 8).map((t, i) => (
+                    <button key={i} type="button"
+                      onClick={() => { setTopic(t.topic); setAngle(t.angle || ''); }}
+                      className="text-xs px-2.5 py-1.5 rounded-full border border-line/30 text-muted hover:text-ink hover:border-line/60 text-left">
+                      {t.ai && '✨ '}{t.topic}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <label htmlFor="angle" className="block text-sm font-semibold text-ink mb-1.5">Angle (optional)</label>
               <input id="angle" value={angle} onChange={(e) => setAngle(e.target.value)}

@@ -7,7 +7,7 @@ import { analytics } from '../lib/analytics';
 import { computeCompatibility } from '../lib/compatibility';
 import {
   Send, Search, ArrowLeft, MoreVertical, ShieldCheck, Sparkles, Check, X,
-  MessageCircle, UserPlus, Info, Heart
+  MessageCircle, UserPlus, Info, Heart, Timer
 } from 'lucide-react';
 
 // ── Curated icebreakers — meaningful, marriage-focused conversation starters ─
@@ -25,6 +25,7 @@ const ICEBREAKERS = [
 // There are no demo conversations, no seeded threads, and no scripted members.
 // An empty inbox is an honest empty inbox.
 import { api } from '../lib/api/client';
+import { http } from '../lib/api/transport';
 import { blockMember } from '../lib/api/safety';
 import { ReportFlag } from '../components/ReportFlag';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -70,6 +71,7 @@ export default function Messages() {
   const [convosLoading, setConvosLoading] = useState(true);
   const [convosError, setConvosError] = useState('');
   const [messagesByConvo, setMessagesByConvo] = useState({});
+  const [disappearingByConvo, setDisappearingByConvo] = useState({});
   const [threadLoading, setThreadLoading] = useState(false);
   const [threadError, setThreadError] = useState('');
   const [requests, setRequests] = useState([]);
@@ -316,7 +318,12 @@ export default function Messages() {
           {activeConvo ? (
             <ChatPane convo={activeConvo} messages={messages} onBack={() => setActiveId(null)}
               onSend={sendMessage} onBlock={handleBlock} messagesEndRef={messagesEndRef}
-              loading={threadLoading} error={threadError} sendError={sendError} sending={sending} />
+              loading={threadLoading} error={threadError} sendError={sendError} sending={sending}
+              disappearingAfter={disappearingByConvo[activeId] || 0}
+              onSetDisappearing={async (cid, seconds) => {
+                await http.post(`/api/messages/${encodeURIComponent(cid)}/disappearing`, { seconds });
+                setDisappearingByConvo((prev) => ({ ...prev, [cid]: seconds }));
+              }} />
           ) : (
             <EmptyState hasRequests={requests.length > 0} onOpenRequests={() => setTab('requests')} />
           )}
@@ -487,14 +494,27 @@ function EmptyState({ hasRequests, onOpenRequests }) {
 }
 
 // ── Chat pane: header, icebreakers, composer ────────────────────────────────
-function ChatPane({ convo, messages, onBack, onSend, onBlock, messagesEndRef, loading, error, sendError, sending }) {
+function ChatPane({ convo, messages, onBack, onSend, onBlock, messagesEndRef, loading, error, sendError, sending, disappearingAfter, onSetDisappearing }) {
   const [draft, setDraft] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [compat, setCompat] = useState(null);
+  const [timerBusy, setTimerBusy] = useState(false);
   const name = convo.participantName || 'Member';
   const firstName = name.split(' ')[0];
   const profileId = convo.participantId;
+
+  const setTimer = async (seconds) => {
+    setMenuOpen(false);
+    setTimerBusy(true);
+    try {
+      await onSetDisappearing(convo.id, seconds);
+    } finally {
+      setTimerBusy(false);
+    }
+  };
+
+  const timerLabel = disappearingAfter === 86400 ? '24 hours' : disappearingAfter === 604800 ? '7 days' : 'Off';
 
   // Compatibility at a glance inside the chat — members asked where the match
   // score went after the conversation started. Fetched once per conversation.
@@ -569,6 +589,20 @@ function ChatPane({ convo, messages, onBack, onSend, onBlock, messagesEndRef, lo
               >
                 Block {firstName}
               </button>
+              <div className="my-1" style={{ borderTop: '1px solid var(--color-border)' }} />
+              <p className="px-4 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--color-ink-tertiary)' }}>
+                Disappearing messages · {timerBusy ? '…' : timerLabel}
+              </p>
+              {[{ s: 0, label: 'Off' }, { s: 86400, label: '24 hours' }, { s: 604800, label: '7 days' }].map(o => (
+                <button key={o.s} role="menuitemradio" aria-checked={disappearingAfter === o.s}
+                  disabled={timerBusy}
+                  onClick={() => setTimer(o.s)}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-black/5 flex items-center justify-between"
+                  style={{ color: 'var(--color-ink)' }}>
+                  {o.label}
+                  {disappearingAfter === o.s && <span aria-hidden>✓</span>}
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -584,14 +618,28 @@ function ChatPane({ convo, messages, onBack, onSend, onBlock, messagesEndRef, lo
         </div>
       )}
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-2" role="log" aria-label={`Conversation with ${name}`} aria-live="polite">
+      {/* Messages — constrained width on desktop so the thread doesn't feel
+          zoomed-in on wide screens (WhatsApp Web-style centered column). */}
+      <div className="flex-1 overflow-y-auto py-4" role="log" aria-label={`Conversation with ${name}`} aria-live="polite">
+        <div className="px-3 space-y-2 max-w-2xl mx-auto">
         {loading && <p className="text-center text-xs text-muted py-6" role="status">Loading messages…</p>}
         {error && <p className="text-center text-xs text-muted py-6" role="alert">{error}</p>}
         {!loading && !error && messages.length === 0 && (
-          <p className="text-center text-xs text-muted py-6">No messages yet — say salaam to begin.</p>
+          <div className="text-center py-6">
+            <p className="text-xs text-muted flex items-center justify-center gap-1.5">
+              <ShieldCheck className="w-3 h-3" style={{ color: 'var(--color-success)' }} />
+              Private — only you and {firstName} can read these messages.
+            </p>
+            <p className="text-xs text-muted mt-2">No messages yet — say salaam to begin.</p>
+          </div>
+        )}
+        {disappearingAfter > 0 && messages.length > 0 && (
+          <p className="text-center text-[10px] py-1 flex items-center justify-center gap-1" style={{ color: 'var(--color-ink-tertiary)' }}>
+            <Timer className="w-2.5 h-2.5" /> New messages disappear after {timerLabel.toLowerCase()}.
+          </p>
         )}
         {messages.map(m => <Bubble key={m.id} msg={m} />)}
+        </div>
         <div ref={messagesEndRef} />
       </div>
 

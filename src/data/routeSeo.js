@@ -231,6 +231,26 @@ export const ROUTE_SEO = {
     ],
   },
 
+  '/matchmaker': {
+    title: 'Matchmaker — Add a Rishta Profile | Shia Rishta',
+    desc: 'Know someone looking for a Shia rishta? Submit their profile as a matchmaker. Every submission is reviewed within 7 days.',
+    h1: 'Matchmaker',
+    lede: 'Add a profile for someone you know — family, friends, clients. Our team reviews every submission before it goes live.',
+    sections: [
+      { h2: 'How it works', p: 'Submit the details, we review within 7 days, approved profiles appear in browse. Unreviewed submissions are removed automatically.' },
+    ],
+  },
+
+  '/biodata-maker': {
+    title: 'Free Shia Marriage Biodata Maker | Shia Rishta',
+    desc: 'Create a beautiful Shia marriage biodata online — no account needed. Add photo and details, pick a design, download with watermark.',
+    h1: 'Marriage biodata maker',
+    lede: 'Make a stunning marriage biodata in minutes. Free, no sign-up, download as an image.',
+    sections: [
+      { h2: 'Why use it', p: 'Four elegant templates designed for Shia marriage biodatas, with Bismillah header and family details sections. Your draft saves in your browser.' },
+    ],
+  },
+
   '/support': {
     title: 'Help & Support | Shia Rishta',
     desc: 'Get help with your Shia Rishta account, identity verification, privacy settings and messaging. Raising a request from your dashboard gets a faster answer.',

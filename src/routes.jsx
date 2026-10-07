@@ -54,6 +54,9 @@ const AdminVerifications = lazy(() => import('./pages/admin/AdminVerifications')
 const AdminRoles = lazy(() => import('./pages/admin/AdminRoles'));
 const AdminGuardians = lazy(() => import('./pages/admin/AdminGuardians'));
 const AdminAnalytics = lazy(() => import('./pages/admin/AdminAnalytics'));
+const AdminMatchmaker = lazy(() => import('./pages/admin/AdminMatchmaker'));
+const Matchmaker = lazy(() => import('./pages/Matchmaker'));
+const BiodataMaker = lazy(() => import('./pages/BiodataMaker'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageSkeleton() {
@@ -159,6 +162,8 @@ const router = createBrowserRouter([
   { path: '/duas-for-marriage', element: <LazyRoute component={LandingPage} /> },
   { path: '/shia-matrimony-toronto', element: <LazyRoute component={LandingPage} /> },
     { path: '/community', element: <LazyRoute component={Community} /> },
+    { path: '/matchmaker', element: <LazyRoute component={Matchmaker} /> },
+    { path: '/biodata-maker', element: <LazyRoute component={BiodataMaker} /> },
   { path: '/community/:slug', element: <LazyRoute component={Community} /> },
   { path: '/community/:slug/post/:postId', element: <LazyRoute component={CommunityPost} /> },
   { path: '/contact', element: <LazyRoute component={Contact} /> },
@@ -214,6 +219,7 @@ const router = createBrowserRouter([
           { path: 'roles', element: <LazyRoute component={AdminRoles} /> },
           { path: 'guardians', element: <LazyRoute component={AdminGuardians} /> },
           { path: 'analytics', element: <LazyRoute component={AdminAnalytics} /> },
+          { path: 'matchmaker', element: <LazyRoute component={AdminMatchmaker} /> },
         ],
       },
     ],
