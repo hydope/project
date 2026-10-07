@@ -25,6 +25,7 @@ require __DIR__ . '/routes/admin.php';
 require __DIR__ . '/routes/contact.php';
 require __DIR__ . '/routes/matchmaker.php';
 require __DIR__ . '/routes/sitemap.php';
+require __DIR__ . '/routes/social.php';
 require __DIR__ . '/lib/ai.php';
 require __DIR__ . '/routes/ai.php';
 
@@ -129,6 +130,11 @@ header('X-Request-Id: ' . $requestId);
 try {
     switch ($resource) {
         case 'auth':
+            // Social login lives under /api/auth/social.
+            if ($method === 'POST' && ($rest[0] ?? '') === 'social') {
+                routeSocial($method, $rest);
+                break;
+            }
             routeAuth($method, $rest);
             break;
         case 'profiles':

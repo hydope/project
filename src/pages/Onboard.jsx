@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, ChevronLeft, Check, User, Moon, Landmark, GraduationCap,
   Heart, Shield, ClipboardCheck, Globe, KeyRound, Lock, UserRound,
-  Sparkles, AlertCircle, Save
+  Sparkles, AlertCircle, Save, HeartHandshake
 } from 'lucide-react';
 import Layout from '../layouts/MainLayout';
 import { useAuth } from '../lib/auth/AuthContext';
@@ -211,6 +211,11 @@ export default function Onboard() {
   const [draftRestored, setDraftRestored] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState('');
+  // Role selection (member/guardian/matchmaker) — asked right after account
+  // creation, before the profile steps. Defaults to member.
+  const [role, setRole] = useState('member');
+  const [roleChosen, setRoleChosen] = useState(false);
+  const [roleSaving, setRoleSaving] = useState(false);
 
   const totalSteps = ONBOARDING_STEPS.length;
 
@@ -365,6 +370,58 @@ export default function Onboard() {
   };
 
   const stepProps = { data, update, errors, toggleIn };
+
+  // ── Role selection: shown once, right after account creation ──────────────
+  const chooseRole = async (r) => {
+    setRole(r);
+    setRoleSaving(true);
+    try {
+      await api.post('/users/me/role', { role: r });
+    } catch {
+      // Non-fatal — the role defaults to member server-side; the user can
+      // change it later in Settings.
+    } finally {
+      setRoleSaving(false);
+      setRoleChosen(true);
+    }
+  };
+
+  if (draftReady && !roleChosen && user?.role === 'member') {
+    const options = [
+      { v: 'member', icon: User, title: 'I\'m looking for myself', desc: 'Create your own marriage profile' },
+      { v: 'guardian', icon: Shield, title: 'I\'m a parent / guardian', desc: 'Managing a profile for my child or ward' },
+      { v: 'matchmaker', icon: HeartHandshake, title: 'I\'m a matchmaker', desc: 'I help families find rishtas (female profiles only)' },
+    ];
+    return (
+      <Layout>
+        <main className="max-w-2xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl sm:text-3xl font-bold text-ink">Who is this account for?</h1>
+            <p className="text-sm text-muted mt-2">You can change this later in Settings.</p>
+          </div>
+          <div className="space-y-3">
+            {options.map(o => (
+              <button
+                key={o.v}
+                onClick={() => chooseRole(o.v)}
+                disabled={roleSaving}
+                className="w-full flex items-center gap-4 p-5 rounded-2xl border text-left transition-all hover:border-primary hover:bg-primary/5 disabled:opacity-50"
+                style={{ borderColor: 'var(--color-border)', background: 'var(--color-elevated)' }}
+              >
+                <span className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-primary-soft)', color: 'var(--color-primary)' }}>
+                  <o.icon className="w-6 h-6" />
+                </span>
+                <span>
+                  <span className="block font-semibold text-ink">{o.title}</span>
+                  <span className="block text-sm text-muted mt-0.5">{o.desc}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </main>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>

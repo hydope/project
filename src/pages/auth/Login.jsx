@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { Eye, EyeOff, Mail, Lock, Sparkles, X } from 'lucide-react';
+import SocialLogin from '../../components/SocialLogin';
 
 export default function Login() {
   const { login } = useAuth();
@@ -134,6 +135,8 @@ export default function Login() {
               {loading ? 'Signing in…' : 'Sign In'}
             </button>
           </form>
+
+          <SocialLogin mode="signin" />
 
           <p className="text-center text-sm">
             <Link to="/auth/forgot" className="link-primary font-medium">Forgot password?</Link>

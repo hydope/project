@@ -262,6 +262,8 @@ function migrateAddUserVerificationColumns(): void
         'verified_by'         => 'CHAR(36) DEFAULT NULL',
         'verified_at'         => 'DATETIME DEFAULT NULL',
         'verification_note'   => 'TEXT DEFAULT NULL',
+        'google_id'           => 'VARCHAR(64) DEFAULT NULL',
+        'facebook_id'         => 'VARCHAR(64) DEFAULT NULL',
     ];
 
     try {

@@ -13,8 +13,24 @@ function routeUsers(string $method, array $segments): void
     }
     if ($method === 'DELETE') { userDeleteMe(); return; }
     if ($method === 'PUT')     { userUpdateMe(); return; }
+    if ($method === 'POST' && ($segments[1] ?? '') === 'role') { userSetRole(); return; }
 
     json(['error' => 'Users endpoint not found'], 404);
+}
+
+// POST /api/users/me/role — set the account type chosen after signup.
+// Only member/guardian/matchmaker are allowed; admins are unaffected.
+function userSetRole(): void
+{
+    $user = requireAuthUser();
+    $body = requestJson();
+    $role = trim((string)($body['role'] ?? ''));
+    if (!in_array($role, ['member', 'guardian', 'matchmaker'], true)) {
+        je('Invalid role.', 400);
+    }
+    // Never allow self-promotion to admin through this endpoint.
+    db()->prepare('UPDATE users SET role = ? WHERE id = ?')->execute([$role, (string)$user['uid']]);
+    json(['ok' => true, 'role' => $role]);
 }
 
 function userDeleteMe(): void

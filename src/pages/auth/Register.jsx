@@ -4,11 +4,12 @@ import { useAuth } from '../../lib/auth/AuthContext';
 import { analytics } from '../../lib/analytics';
 import { useRemote } from '../../lib/api/transport';
 import { Eye, EyeOff, Mail, Lock, User, Sparkles, X } from 'lucide-react';
+import SocialLogin from '../../components/SocialLogin';
 
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({ displayName: '', email: '', password: '', confirmPassword: '', sect: '', role: 'member' });
+  const [formData, setFormData] = useState({ displayName: '', email: '', password: '', confirmPassword: '', sect: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,7 +28,7 @@ export default function Register() {
     setLoading(true);
     setError('');
     try {
-      await register({ email: formData.email, password: formData.password, displayName: formData.displayName, sect: formData.sect, role: formData.role });
+      await register({ email: formData.email, password: formData.password, displayName: formData.displayName, sect: formData.sect });
       analytics.track('account_created', { browser_local: true });
       navigate('/onboard');
     } catch (err) {
@@ -134,33 +135,6 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block mb-1.5 text-sm font-medium" style={{ color: 'var(--color-ink-secondary)' }}>I am signing up as</label>
-              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Account type">
-                {[
-                  { v: 'member', label: 'Member', desc: 'Looking for myself' },
-                  { v: 'guardian', label: 'Guardian', desc: 'For my child/ward' },
-                  { v: 'matchmaker', label: 'Matchmaker', desc: 'List profiles for others' },
-                ].map(opt => (
-                  <button
-                    key={opt.v}
-                    type="button"
-                    role="radio"
-                    aria-checked={formData.role === opt.v}
-                    onClick={() => setFormData(d => ({ ...d, role: opt.v }))}
-                    className="rounded-xl px-2 py-3 text-center border transition-colors"
-                    style={{
-                      borderColor: formData.role === opt.v ? 'var(--color-primary)' : 'var(--color-border)',
-                      background: formData.role === opt.v ? 'var(--color-primary-soft)' : 'var(--color-surface)',
-                    }}
-                  >
-                    <span className="block text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>{opt.label}</span>
-                    <span className="block text-[11px] mt-0.5" style={{ color: 'var(--color-ink-faint)' }}>{opt.desc}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
               <label htmlFor="sect" className="block mb-1.5 text-sm font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Sect</label>
               <select
                 id="sect"
@@ -188,6 +162,8 @@ export default function Register() {
               {loading ? 'Creating account…' : 'Create Account'}
             </button>
           </form>
+
+          <SocialLogin mode="signup" />
 
           <p className="text-center text-sm" style={{ color: 'var(--color-ink-secondary)' }}>
             Already have an account?{' '}

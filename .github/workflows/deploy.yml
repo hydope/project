@@ -56,7 +56,10 @@ jobs:
       - name: Build frontend
         run: |
           npm ci
-          VITE_API_URL=https://shiarishta.com npm run build
+          VITE_API_URL=https://shiarishta.com \
+          VITE_GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
+          VITE_FACEBOOK_APP_ID=${{ secrets.FACEBOOK_APP_ID }} \
+          npm run build
 
           # The prerender rewrites every route's <head> and <body>. A silently failing
           # regex would ship 15 identical documents that all claim to be the homepage -
@@ -166,6 +169,10 @@ jobs:
           NVIDIA_API_KEY=${{ secrets.NVIDIA_API_KEY }}
           NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
           NVIDIA_MODEL=nvidia/nemotron-3.5-lightning-30b-a3b
+          # Social login — Google + Facebook OAuth. Blank = buttons hidden.
+          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+          FACEBOOK_APP_ID=${{ secrets.FACEBOOK_APP_ID }}
+          FACEBOOK_APP_SECRET=${{ secrets.FACEBOOK_APP_SECRET }}
           TZ=America/New_York
           EOF
           echo ".env generated with $(wc -l < php-api/.env) lines (values from secrets, not shown)"

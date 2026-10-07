@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { LANDING_PAGE_META } from '../pages/landing/landingPageMeta.js';
 import { ARTICLE_META } from '../data/articleMeta.js';
 import { ROUTE_SEO, SITE_URL } from '../data/routeSeo.js';
+import { SOCIAL_LINKS } from '../data/socialLinks.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-route SEO for the SPA. index.html ships the homepage <head>; this
@@ -146,6 +147,7 @@ function organizationNode() {
     description: 'A nikah-first Shia matrimony platform for serious families, with privacy-protected profiles and wali-supported introductions.',
     areaServed: 'Worldwide',
     knowsAbout: ['Shia Islam', 'Nikah', 'Islamic marriage', 'Wali', 'Matrimony'],
+    sameAs: SOCIAL_LINKS.filter(s => s.url).map(s => s.url),
   };
 }
 

@@ -23,43 +23,116 @@ const TEMPLATES = [
   },
 ];
 
+const LANGUAGES = [
+  { code: 'en', name: 'English', rtl: false },
+  { code: 'ur', name: 'Urdu (اردو)', rtl: true },
+  { code: 'ar', name: 'Arabic (العربية)', rtl: true },
+  { code: 'hi', name: 'Hindi (हिन्दी)', rtl: false },
+  { code: 'fr', name: 'French (Français)', rtl: false },
+  { code: 'es', name: 'Spanish (Español)', rtl: false },
+];
+
+// UI translations for the biodata document itself.
+const I18N = {
+  en: {
+    biodata: 'Biodata',
+    sections: { personal: 'Personal Details', family: 'Family Details', contact: 'Contact Details', partner: 'Partner Preference' },
+    fields: {
+      name: 'Name', dob: 'Date of Birth', age: 'Age', height: 'Height', complexion: 'Complexion',
+      education: 'Education', profession: 'Profession', religion: 'Religion / Sect', marital: 'Marital Status',
+      father: "Father's Name", fatherOcc: "Father's Occupation", mother: "Mother's Name",
+      motherOcc: "Mother's Occupation", siblings: 'Siblings',
+      contactPerson: 'Contact Person', phone: 'Phone', email: 'Email', address: 'Address',
+      preference: 'Looking for',
+    },
+  },
+  ur: {
+    biodata: 'بائیو ڈیٹا',
+    sections: { personal: 'ذاتی معلومات', family: 'خاندانی معلومات', contact: 'رابطے کی تفصیلات', partner: 'شریک حیات کی ترجیح' },
+    fields: {
+      name: 'نام', dob: 'تاریخ پیدائش', age: 'عمر', height: 'قد', complexion: 'رنگت',
+      education: 'تعلیم', profession: 'پیشہ', religion: 'مذہب / مسلک', marital: 'ازدواجی حیثیت',
+      father: 'والد کا نام', fatherOcc: 'والد کا پیشہ', mother: 'والدہ کا نام',
+      motherOcc: 'والدہ کا پیشہ', siblings: 'بہن بھائی',
+      contactPerson: 'رابطہ شخص', phone: 'فون', email: 'ای میل', address: 'پتہ',
+      preference: 'تلاش',
+    },
+  },
+  ar: {
+    biodata: 'السيرة الذاتية للزواج',
+    sections: { personal: 'البيانات الشخصية', family: 'بيانات العائلة', contact: 'بيانات الاتصال', partner: 'مواصفات شريك الحياة' },
+    fields: {
+      name: 'الاسم', dob: 'تاريخ الميلاد', age: 'العمر', height: 'الطول', complexion: 'البشرة',
+      education: 'التعليم', profession: 'المهنة', religion: 'الدين / المذهب', marital: 'الحالة الاجتماعية',
+      father: 'اسم الأب', fatherOcc: 'مهنة الأب', mother: 'اسم الأم',
+      motherOcc: 'مهنة الأم', siblings: 'الإخوة والأخوات',
+      contactPerson: 'جهة الاتصال', phone: 'الهاتف', email: 'البريد الإلكتروني', address: 'العنوان',
+      preference: 'أبحث عن',
+    },
+  },
+  hi: {
+    biodata: 'बायोडाटा',
+    sections: { personal: 'व्यक्तिगत विवरण', family: 'पारिवारिक विवरण', contact: 'संपर्क विवरण', partner: 'जीवनसाथी की प्राथमिकता' },
+    fields: {
+      name: 'नाम', dob: 'जन्म तिथि', age: 'आयु', height: 'ऊंचाई', complexion: 'रंग',
+      education: 'शिक्षा', profession: 'पेशा', religion: 'धर्म / संप्रदाय', marital: 'वैवाहिक स्थिति',
+      father: 'पिता का नाम', fatherOcc: 'पिता का पेशा', mother: 'माता का नाम',
+      motherOcc: 'माता का पेशा', siblings: 'भाई-बहन',
+      contactPerson: 'संपर्क व्यक्ति', phone: 'फोन', email: 'ईमेल', address: 'पता',
+      preference: 'तलाश',
+    },
+  },
+  fr: {
+    biodata: 'Biodata de mariage',
+    sections: { personal: 'Informations personnelles', family: 'Informations familiales', contact: 'Coordonnées', partner: 'Préférences du partenaire' },
+    fields: {
+      name: 'Nom', dob: 'Date de naissance', age: 'Âge', height: 'Taille', complexion: 'Teint',
+      education: 'Éducation', profession: 'Profession', religion: 'Religion / Secte', marital: 'État civil',
+      father: 'Nom du père', fatherOcc: 'Profession du père', mother: 'Nom de la mère',
+      motherOcc: 'Profession de la mère', siblings: 'Frères et sœurs',
+      contactPerson: 'Personne à contacter', phone: 'Téléphone', email: 'E-mail', address: 'Adresse',
+      preference: 'Recherche',
+    },
+  },
+  es: {
+    biodata: 'Biodata matrimonial',
+    sections: { personal: 'Datos personales', family: 'Datos familiares', contact: 'Datos de contacto', partner: 'Preferencia de pareja' },
+    fields: {
+      name: 'Nombre', dob: 'Fecha de nacimiento', age: 'Edad', height: 'Altura', complexion: 'Tez',
+      education: 'Educación', profession: 'Profesión', religion: 'Religión / Secta', marital: 'Estado civil',
+      father: 'Nombre del padre', fatherOcc: 'Ocupación del padre', mother: 'Nombre de la madre',
+      motherOcc: 'Ocupación de la madre', siblings: 'Hermanos',
+      contactPerson: 'Persona de contacto', phone: 'Teléfono', email: 'Correo electrónico', address: 'Dirección',
+      preference: 'Busco',
+    },
+  },
+};
+
 const SECTIONS = [
   {
-    title: 'Personal Details',
+    key: 'personal',
     fields: [
-      { key: 'name', label: 'Name' },
-      { key: 'dob', label: 'Date of Birth' },
-      { key: 'age', label: 'Age' },
-      { key: 'height', label: 'Height' },
-      { key: 'complexion', label: 'Complexion' },
-      { key: 'education', label: 'Education' },
-      { key: 'profession', label: 'Profession' },
-      { key: 'religion', label: 'Religion / Sect' },
-      { key: 'marital', label: 'Marital Status' },
+      { key: 'name' }, { key: 'dob' }, { key: 'age' }, { key: 'height' },
+      { key: 'complexion' }, { key: 'education' }, { key: 'profession' },
+      { key: 'religion' }, { key: 'marital' },
     ],
   },
   {
-    title: 'Family Details',
+    key: 'family',
     fields: [
-      { key: 'father', label: "Father's Name" },
-      { key: 'fatherOcc', label: "Father's Occupation" },
-      { key: 'mother', label: "Mother's Name" },
-      { key: 'motherOcc', label: "Mother's Occupation" },
-      { key: 'siblings', label: 'Siblings' },
+      { key: 'father' }, { key: 'fatherOcc' }, { key: 'mother' },
+      { key: 'motherOcc' }, { key: 'siblings' },
     ],
   },
   {
-    title: 'Contact Details',
+    key: 'contact',
     fields: [
-      { key: 'contactPerson', label: 'Contact Person' },
-      { key: 'phone', label: 'Phone' },
-      { key: 'email', label: 'Email' },
-      { key: 'address', label: 'Address' },
+      { key: 'contactPerson' }, { key: 'phone' }, { key: 'email' }, { key: 'address' },
     ],
   },
   {
-    title: 'Partner Preference',
-    fields: [{ key: 'preference', label: 'Looking for', type: 'textarea' }],
+    key: 'partner',
+    fields: [{ key: 'preference', type: 'textarea' }],
   },
 ];
 
@@ -67,7 +140,8 @@ const DRAFT_KEY = 'shiarishta_biodata_draft_v1';
 
 export default function BiodataMaker() {
   usePageTitle('Marriage Biodata Maker');
-  const [template, setTemplate] = useState('gold');
+  const [template, setTemplate] = useState('essential');
+  const [lang, setLang] = useState('en');
   const [data, setData] = useState({ religion: 'Shia Muslim' });
   const [photo, setPhoto] = useState(null);
   const [saved, setSaved] = useState(false);
@@ -77,7 +151,7 @@ export default function BiodataMaker() {
   useEffect(() => {
     try {
       const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
-      if (d) { setData(d.data || {}); setTemplate(d.template || 'gold'); setPhoto(d.photo || null); }
+      if (d) { setData(d.data || {}); setTemplate(d.template || 'essential'); setPhoto(d.photo || null); setLang(d.lang || 'en'); }
     } catch { /* ignore */ }
   }, []);
 
@@ -93,7 +167,7 @@ export default function BiodataMaker() {
 
   const saveDraft = () => {
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ data, template, photo }));
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ data, template, photo, lang }));
       setSaved(true);
     } catch { /* storage full */ }
   };
@@ -138,7 +212,7 @@ export default function BiodataMaker() {
         </div>
 
         {/* Templates */}
-        <div className="flex gap-3 justify-center mb-8 flex-wrap">
+        <div className="flex gap-3 justify-center mb-6 flex-wrap">
           {TEMPLATES.map(x => (
             <button key={x.id} onClick={() => { setTemplate(x.id); setSaved(false); }}
               className="px-4 py-2.5 rounded-xl text-left transition-all"
@@ -150,6 +224,24 @@ export default function BiodataMaker() {
               <p className="text-[11px]" style={{ color: 'var(--color-ink-tertiary)' }}>{x.desc}</p>
             </button>
           ))}
+        </div>
+
+        {/* Language */}
+        <div className="flex items-center justify-center gap-3 mb-8">
+          <label htmlFor="biodata-lang" className="text-sm font-semibold" style={{ color: 'var(--color-ink-secondary)' }}>
+            Biodata language:
+          </label>
+          <select
+            id="biodata-lang"
+            value={lang}
+            onChange={e => { setLang(e.target.value); setSaved(false); }}
+            className="input px-4 py-2 rounded-xl text-sm"
+            style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', minWidth: 180 }}
+          >
+            {LANGUAGES.map(l => (
+              <option key={l.code} value={l.code}>{l.name}</option>
+            ))}
+          </select>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-8">
@@ -177,12 +269,12 @@ export default function BiodataMaker() {
             </div>
 
             {SECTIONS.map(s => (
-              <div key={s.title} className="card p-5">
-                <h2 className="font-bold mb-3" style={{ color: 'var(--color-ink)' }}>{s.title}</h2>
+              <div key={s.key} className="card p-5">
+                <h2 className="font-bold mb-3" style={{ color: 'var(--color-ink)' }}>{I18N[lang].sections[s.key]}</h2>
                 <div className="space-y-3">
                   {s.fields.map(f => (
                     <div key={f.key}>
-                      <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--color-ink-secondary)' }}>{f.label}</label>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--color-ink-secondary)' }}>{I18N[lang].fields[f.key]}</label>
                       {f.type === 'textarea' ? (
                         <textarea value={data[f.key] || ''} onChange={e => set(f.key, e.target.value)} rows={2} className="input w-full text-sm" />
                       ) : (
@@ -210,7 +302,7 @@ export default function BiodataMaker() {
               <Sparkles className="w-3.5 h-3.5" /> LIVE PREVIEW
             </p>
             <div className="overflow-auto rounded-xl" style={{ border: '1px solid var(--color-border)', maxHeight: '80vh' }}>
-              <BiodataPreview ref={previewRef} template={t} data={data} photo={photo} />
+              <BiodataPreview ref={previewRef} template={t} data={data} photo={photo} lang={lang} />
             </div>
           </div>
         </div>
@@ -272,13 +364,17 @@ function Watermark({ dark }) {
 }
 
 // Forwarded ref so the download button can serialize this exact DOM.
-const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, photo }, ref) {
+const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, photo, lang = 'en' }, ref) {
   const dark = t.id === 'midnight';
   const hasName = !!data.name;
+  const tr = I18N[lang] || I18N.en;
+  const rtl = (LANGUAGES.find(l => l.code === lang)?.rtl) || false;
+  const dir = rtl ? 'rtl' : 'ltr';
 
   const sections = SECTIONS.map(s => ({
     ...s,
-    rows: s.fields.filter(f => data[f.key]),
+    title: tr.sections[s.key],
+    rows: s.fields.filter(f => data[f.key]).map(f => ({ ...f, label: tr.fields[f.key] })),
   })).filter(s => s.rows.length > 0);
 
   const bismillah = (
@@ -290,10 +386,10 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
   // ── ESSENTIAL: ultra-clean, minimal ──────────────────────────────
   if (t.id === 'essential') {
     return (
-      <div ref={ref} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, padding: '64px 72px 90px', position: 'relative', fontFamily: '-apple-system, "Segoe UI", sans-serif' }}>
+      <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, padding: '64px 72px 90px', position: 'relative', fontFamily: '-apple-system, "Segoe UI", sans-serif' }}>
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           {bismillah}
-          <h1 style={{ fontSize: 28, fontWeight: 300, letterSpacing: 8, textTransform: 'uppercase', margin: '8px 0 0', color: t.ink }}>Biodata</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 300, letterSpacing: 8, textTransform: 'uppercase', margin: '8px 0 0', color: t.ink }}>{tr.biodata}</h1>
           <div style={{ width: 40, height: 2, background: t.accent, margin: '16px auto 0' }} />
         </div>
         {hasName && (
@@ -318,13 +414,13 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
   // ── NOOR: ivory & emerald ────────────────────────────────────────
   if (t.id === 'noor') {
     return (
-      <div ref={ref} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
+      <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
         <div style={{ height: 10, background: `linear-gradient(90deg, ${t.accent}, #1a7a52, ${t.accent})` }} />
         <div style={{ padding: '48px 64px 90px' }}>
           <div style={{ textAlign: 'center', marginBottom: 30 }}>
             {bismillah}
             <div style={{ display: 'inline-block', border: `1px solid ${t.accent}`, padding: '10px 36px', marginTop: 8 }}>
-              <h1 style={{ fontSize: 26, fontWeight: 400, letterSpacing: 6, margin: 0, color: t.accent }}>BIODATA</h1>
+              <h1 style={{ fontSize: 26, fontWeight: 400, letterSpacing: 6, margin: 0, color: t.accent }}>{tr.biodata}</h1>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start' }}>
@@ -353,7 +449,7 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
   // ── SAHARA: warm editorial ───────────────────────────────────────
   if (t.id === 'sahara') {
     return (
-      <div ref={ref} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
+      <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
         <div style={{ padding: '56px 64px 90px' }}>
           <p style={{ fontSize: 11, letterSpacing: 4, textTransform: 'uppercase', color: t.muted, margin: '0 0 8px' }}>Marriage Biodata</p>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -385,13 +481,13 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
 
   // ── MIDNIGHT: dark luxury ───────────────────────────────────────
   return (
-    <div ref={ref} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
+    <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
       <div style={{ position: 'absolute', inset: 18, border: '1px solid rgba(212,175,106,0.35)', pointerEvents: 'none' }} />
       <div style={{ padding: '64px 72px 90px' }}>
         <div style={{ textAlign: 'center', marginBottom: 34 }}>
           <p style={{ fontSize: 20, color: t.accent, margin: '0 0 10px' }}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</p>
           <p style={{ fontSize: 11, letterSpacing: 5, textTransform: 'uppercase', color: t.muted, margin: '0 0 6px' }}>In the name of Allah</p>
-          <h1 style={{ fontSize: 30, fontWeight: 400, letterSpacing: 10, color: t.accent, margin: 0 }}>BIODATA</h1>
+          <h1 style={{ fontSize: 30, fontWeight: 400, letterSpacing: 10, color: t.accent, margin: 0 }}>{tr.biodata}</h1>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 16 }}>
             <div style={{ width: 60, height: 1, background: 'rgba(212,175,106,0.4)' }} />
             <div style={{ width: 7, height: 7, transform: 'rotate(45deg)', background: t.accent }} />

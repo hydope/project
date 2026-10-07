@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS users (
   verified_by             CHAR(36)     DEFAULT NULL,
   verified_at             DATETIME     DEFAULT NULL,
   verification_note       TEXT         DEFAULT NULL,
+  google_id               VARCHAR(64)  DEFAULT NULL,
+  facebook_id             VARCHAR(64)  DEFAULT NULL,
   created_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_email (email),
   KEY idx_users_role (role),
