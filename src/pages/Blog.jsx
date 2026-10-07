@@ -1,15 +1,47 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '../layouts/LandingLayout';
 import { Clock, ArrowRight, TrendingUp, Bookmark, Sparkles } from 'lucide-react';
-import { articles } from '../data/articles.js';
+import { articles as staticArticles } from '../data/articles.js';
 
 const categories = ['All', 'Guidance', 'Family', 'Tips', 'Safety', 'Guardians'];
 
 export default function Blog() {
   const [activeCategory, setActiveCategory] = useState('All');
   const [bookmarked, setBookmarked] = useState(new Set());
-  const filtered = activeCategory === 'All' ? articles : articles.filter(a => a.category === activeCategory);
+  const [dbPosts, setDbPosts] = useState([]);
+
+  // Published posts from the database (admin panel + queue) merge with
+  // static articles. Previously only static articles showed, so anything
+  // published from the admin panel was invisible here.
+  useEffect(() => {
+    import('../lib/api/transport.js').then(({ http }) =>
+      http.get('/api/ai/posts?limit=50')
+        .then(r => {
+          const rows = Array.isArray(r) ? r : (r.rows || []);
+          setDbPosts(rows.map(p => ({
+            id: p.id,
+            slug: p.slug,
+            title: p.title,
+            excerpt: p.excerpt,
+            category: p.category || 'Guidance',
+            image: '/og-cover.jpg',
+            date: (p.published_at || p.created_at || '').slice(0, 10),
+            readTime: p.read_time || '5 min',
+          })));
+        })
+        .catch(() => {})
+    );
+  }, []);
+
+  // DB posts first (newest), then static. De-dupe by slug.
+  const seen = new Set();
+  const all = [...dbPosts, ...staticArticles].filter(a => {
+    if (seen.has(a.slug)) return false;
+    seen.add(a.slug);
+    return true;
+  });
+  const filtered = activeCategory === 'All' ? all : all.filter(a => a.category === activeCategory);
   const toggleBookmark = (id) => setBookmarked(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   return (

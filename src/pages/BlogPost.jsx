@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Layout from '../layouts/LandingLayout';
 import { Clock, ArrowLeft } from 'lucide-react';
 import NotFound from './NotFound';
+import { usePageTitle } from '../lib/usePageTitle';
 
 // articles.js holds all eight full-length articles — dynamically imported so
 // it ships as its own async chunk instead of bloating the shared entry chunk.
@@ -26,16 +27,18 @@ export default function BlogPost() {
   }, []);
   const article = articles?.find((a) => a.slug === slug);
 
-  // Database posts (created via admin panel) aren't in the static bundle.
-  // If the slug isn't a static article, try the API before 404ing.
+  // Only 404 after we've checked BOTH static articles and the database.
+  // dbChecked tracks whether the DB lookup has completed (or was skipped
+  // because a static article matched).
+  const [dbChecked, setDbChecked] = useState(false);
   useEffect(() => {
-    if (!articles || article) return;
+    if (!articles || article) { setDbChecked(true); return; }
     setDbLoading(true);
     import('../lib/api/transport.js').then(({ http }) =>
       http.get(`/api/ai/posts/${encodeURIComponent(slug)}`)
         .then(r => setDbPost(r?.post || r || null))
         .catch(() => setDbPost(null))
-        .finally(() => setDbLoading(false))
+        .finally(() => { setDbLoading(false); setDbChecked(true); })
     );
   }, [articles, article, slug]);
 
@@ -54,6 +57,8 @@ export default function BlogPost() {
       text: b.x,
     })),
   } : null);
+
+  usePageTitle(post ? post.title : 'Article');
 
   useEffect(() => {
     if (!post) return;
@@ -86,7 +91,7 @@ export default function BlogPost() {
     return () => document.getElementById('article-jsonld')?.remove();
   }, [post]);
 
-  if (!articles || dbLoading) {
+  if (!articles || dbLoading || !dbChecked) {
     return (
       <Layout>
         <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
@@ -100,7 +105,7 @@ export default function BlogPost() {
     );
   }
 
-  if (!post && articles && !dbLoading) return <NotFound />;
+  if (!post && dbChecked) return <NotFound />;
   if (!post) return null;
 
   return (
