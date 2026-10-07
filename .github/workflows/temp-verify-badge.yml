@@ -1,0 +1,20 @@
+name: Temp - Verify Fazier Badge Live
+on: workflow_dispatch
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check badge in live homepage HTML
+        run: |
+          for i in 1 2 3; do
+            HTML=$(curl -sL --max-time 30 https://shiarishta.com/)
+            if echo "$HTML" | grep -q "launch_badges"; then
+              echo "BADGE_LIVE_YES"
+              echo "$HTML" | grep -o 'fazier[^"]*launch_badges[^"]*' | head -2
+              exit 0
+            fi
+            echo "attempt $i: badge not found, retrying in 20s"
+            sleep 20
+          done
+          echo "BADGE_LIVE_NO"
+          exit 1
