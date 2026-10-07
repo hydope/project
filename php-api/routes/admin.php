@@ -290,6 +290,13 @@ function routeAdmin(string $method, array $segments): void
     // Audit trail — immutable, read-only.
     if ($method === 'GET' && $action === 'audit') { adminAuditList(); return; }
 
+    // Matchmaker profile submissions queue.
+    if ($action === 'matchmaker') {
+        array_shift($segments);
+        routeAdminMatchmaker($method, $segments);
+        return;
+    }
+
     // Member search with pagination. The old adminUsers() returned a flat
     // LIMIT 100 list with no way to find anybody and no way to page.
     if ($method === 'GET' && $action === 'users') { adminUsers(); return; }
@@ -366,6 +373,18 @@ function routeAdmin(string $method, array $segments): void
     // favourites and messaging everywhere visibleProfile() is used.
     if ($method === 'POST' && $action === 'users' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === 'block') {
         adminBlockUser((string)$segments[1]);
+        return;
+    }
+    // POST /api/admin/users/:id/verify-email — mark a member's email as
+    // verified from the admin portal (e.g. they confirmed via another
+    // channel, or the verification mail never arrived).
+    if ($method === 'POST' && $action === 'users' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === 'verify-email') {
+        adminVerifyEmail((string)$segments[1]);
+        return;
+    }
+    // PATCH /api/admin/users/:id — edit a member's name, photo and details.
+    if ($method === 'PATCH' && $action === 'users' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === null) {
+        adminUpdateUser((string)$segments[1]);
         return;
     }
 
@@ -1339,13 +1358,24 @@ function adminBlockUser(string $userId): void
     }
     $body = requestJson();
     $reason = trim((string)($body['reason'] ?? ''));
+    // duration: '24h' | '7d' | '30d' | 'permanent' (default). Temporary blocks
+    // lapse automatically via blocked_until; permanent sets it NULL.
+    $duration = (string)($body['duration'] ?? 'permanent');
+    $seconds = ['24h' => 86400, '7d' => 604800, '30d' => 2592000][$duration] ?? null;
+    $blockedUntil = $seconds ? date('Y-m-d H:i:s', time() + $seconds) : null;
     try {
-        db()->prepare('UPDATE profiles SET is_blocked = 1 WHERE user_id = ?')->execute([$userId]);
+        db()->prepare('UPDATE profiles SET is_blocked = 1, blocked_until = ?, block_reason = ? WHERE user_id = ?')
+            ->execute([$blockedUntil, $reason !== '' ? $reason : null, $userId]);
     } catch (Throwable) { /* target may have no profile row */ }
 
-    auditLog('user.blocked', 'user', $userId, ['email' => (string)$row['email'], 'reason' => $reason]);
+    auditLog('user.blocked', 'user', $userId, [
+        'email' => (string)$row['email'],
+        'reason' => $reason,
+        'duration' => $duration,
+        'blocked_until' => $blockedUntil,
+    ]);
 
-    json(['ok' => true, 'id' => $row['id'], 'email' => $row['email']]);
+    json(['ok' => true, 'id' => $row['id'], 'email' => $row['email'], 'duration' => $duration, 'blocked_until' => $blockedUntil]);
 }
 
 // POST /api/admin/users/:id/unblock — clear a moderation block so the member's
@@ -1359,11 +1389,71 @@ function adminUnblockUser(string $userId): void
         je('Member not found.', 404);
     }
     try {
-        db()->prepare('UPDATE profiles SET is_blocked = 0 WHERE user_id = ?')->execute([$userId]);
+        db()->prepare('UPDATE profiles SET is_blocked = 0, blocked_until = NULL, block_reason = NULL WHERE user_id = ?')->execute([$userId]);
     } catch (Throwable) { /* target may have no profile row */ }
 
     auditLog('user.unblocked', 'user', $userId, ['email' => (string)$row['email']]);
 
     json(['ok' => true, 'id' => $row['id'], 'email' => $row['email']]);
 }
+
+// POST /api/admin/users/:id/verify-email — mark a member's email verified.
+function adminVerifyEmail(string $userId): void
+{
+    $probe = db()->prepare('SELECT id, email FROM users WHERE id = ? LIMIT 1');
+    $probe->execute([$userId]);
+    $row = $probe->fetch();
+    if (!$row) {
+        je('Member not found.', 404);
+    }
+    db()->prepare('UPDATE users SET email_verified = 1 WHERE id = ?')->execute([$userId]);
+    auditLog('user.email_verified', 'user', $userId, ['email' => (string)$row['email']]);
+    json(['ok' => true, 'id' => $row['id'], 'email' => $row['email']]);
+}
+
+// PATCH /api/admin/users/:id — edit a member's name, photo and profile details.
+// Only whitelisted fields; every change is audit-logged.
+function adminUpdateUser(string $userId): void
+{
+    $probe = db()->prepare('SELECT id, email FROM users WHERE id = ? LIMIT 1');
+    $probe->execute([$userId]);
+    $row = $probe->fetch();
+    if (!$row) {
+        je('Member not found.', 404);
+    }
+    $body = requestJson();
+    // display_name lives on users; everything else on profiles.
+    $allowed = [
+        'display_name', 'city', 'country', 'age', 'bio', 'profession',
+        'education_level', 'marital_status', 'height_cm', 'photo_url',
+        'prayer', 'marja', 'languages', 'sect',
+    ];
+    $uSets = []; $uVals = []; $pSets = []; $pVals = []; $changed = [];
+    foreach ($allowed as $field) {
+        if (!array_key_exists($field, $body)) continue;
+        $val = $body[$field];
+        if (is_string($val)) $val = trim($val);
+        if (($field === 'age' || $field === 'height_cm') && ($val === '' || $val === null)) $val = null;
+        if ($val !== null && ($field === 'age' || $field === 'height_cm')) $val = (int)$val;
+        if ($field === 'display_name') { $uSets[] = "$field = ?"; $uVals[] = $val; }
+        else { $pSets[] = "$field = ?"; $pVals[] = $val; }
+        $changed[] = $field;
+    }
+    if (!$changed) {
+        je('Nothing to update.', 400);
+    }
+    if ($uSets) {
+        $uVals[] = $userId;
+        db()->prepare('UPDATE users SET ' . implode(', ', $uSets) . ' WHERE id = ?')->execute($uVals);
+    }
+    if ($pSets) {
+        $pVals[] = $userId;
+        try {
+            db()->prepare('UPDATE profiles SET ' . implode(', ', $pSets) . ' WHERE user_id = ?')->execute($pVals);
+        } catch (Throwable) { /* no profile row yet */ }
+    }
+    auditLog('user.updated', 'user', $userId, ['email' => (string)$row['email'], 'fields' => $changed]);
+    json(['ok' => true, 'id' => $row['id'], 'updated' => $changed]);
+}
+
 

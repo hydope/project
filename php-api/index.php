@@ -23,6 +23,7 @@ require __DIR__ . '/routes/wali.php';
 require __DIR__ . '/routes/drafts.php';
 require __DIR__ . '/routes/admin.php';
 require __DIR__ . '/routes/contact.php';
+require __DIR__ . '/routes/matchmaker.php';
 require __DIR__ . '/lib/ai.php';
 require __DIR__ . '/routes/ai.php';
 
@@ -138,6 +139,9 @@ try {
         case 'messages':
             requireAuthUser();
             routeMessages($method, $rest);
+            break;
+        case 'matchmaker':
+            routeMatchmaker($method, $rest);
             break;
         case 'community':
             routeCommunity($method, $rest);

@@ -48,6 +48,7 @@ function migrateSchema(): void
     migrateAddContactSpamColumn();
     migrateAddFavouritesTable();
     migrateAddAppSettingsTable();
+    migrateAddDisappearingAndMatchmaker();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -139,6 +140,18 @@ function migrateAddProfileColumns(): void
         // why browse/matching could not honor it and members saw same-gender
         // profiles ranked as top matches.
         'seeking_gender'       => "VARCHAR(20) DEFAULT NULL",
+        // Temporary restriction: when set and in the future, the block is
+        // active; when it passes, the block lapses automatically. NULL means
+        // a permanent ban (or no block when is_blocked = 0).
+        'blocked_until'        => "DATETIME DEFAULT NULL",
+        // Human-readable reason for the current block, shown to the member
+        // and recorded in the audit log.
+        'block_reason'         => "VARCHAR(255) DEFAULT NULL",
+        // Matchmaker-submitted profile: 1 when this row was added by a
+        // matchmaker and approved by an admin. matchmaker_by is the
+        // submitter's user id (interests go to them).
+        'is_matchmaker'        => "TINYINT(1) NOT NULL DEFAULT 0",
+        'matchmaker_by'        => "CHAR(36) DEFAULT NULL",
     ];
 
     try {
@@ -196,6 +209,15 @@ function migrateClearStaleNvidiaKey(): void
         error_log('[api] migration: cleared stale admin-panel NVIDIA key; env secret now active');
     } catch (Throwable $e) {
         error_log('[api] migration: nvidia key clear — ' . substr($e->getMessage(), 0, 100));
+    }
+    // A stale panel model override (e.g. the slow ultra-550b) would pin the
+    // assistant to a model that times out on shared hosting, ignoring the
+    // NVIDIA_MODEL env. Clear it once so the env/default (fast lightning)
+    // takes effect. Operators can still set a model in /admin/content after.
+    try {
+        db()->prepare('DELETE FROM app_settings WHERE setting_key = ?')->execute(['nvidia_model']);
+    } catch (Throwable $e) {
+        error_log('[api] migration: nvidia model clear — ' . substr($e->getMessage(), 0, 100));
     }
 }
 
@@ -317,6 +339,59 @@ function migrateAddAppSettingsTable(): void
         );
     } catch (Throwable $e) {
         error_log('[api] migration: app_settings — ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+// Disappearing messages + matchmaker profiles.
+//
+// conversations.disappearing_after: seconds after which messages vanish
+// (0 = off, 86400 = 24h, 604800 = 7 days). messages.expires_at is stamped at
+// send time; expired rows are purged lazily when the thread loads (no cron
+// on shared hosting).
+//
+// matchmaker_profiles: profiles submitted by matchmakers. They stay invisible
+// until an admin approves; if nobody approves within 7 days they are deleted
+// automatically (lazy purge on admin queue load + on public browse).
+function migrateAddDisappearingAndMatchmaker(): void
+{
+    try {
+        $cols = [];
+        foreach (db()->query('SHOW COLUMNS FROM conversations')->fetchAll() as $c) {
+            $cols[] = $c['Field'];
+        }
+        if (!in_array('disappearing_after', $cols, true)) {
+            db()->exec('ALTER TABLE conversations ADD COLUMN disappearing_after INT NOT NULL DEFAULT 0');
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration: conversations.disappearing_after — ' . substr($e->getMessage(), 0, 100));
+    }
+    try {
+        $cols = [];
+        foreach (db()->query('SHOW COLUMNS FROM messages')->fetchAll() as $c) {
+            $cols[] = $c['Field'];
+        }
+        if (!in_array('expires_at', $cols, true)) {
+            db()->exec('ALTER TABLE messages ADD COLUMN expires_at DATETIME DEFAULT NULL');
+            db()->exec('ALTER TABLE messages ADD KEY idx_messages_expires (expires_at)');
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration: messages.expires_at — ' . substr($e->getMessage(), 0, 100));
+    }
+    try {
+        db()->exec(
+            "CREATE TABLE IF NOT EXISTS matchmaker_profiles (
+                id          CHAR(36)     NOT NULL PRIMARY KEY,
+                submitted_by CHAR(36)    NOT NULL,
+                payload     MEDIUMTEXT   NOT NULL,
+                status      VARCHAR(20)  NOT NULL DEFAULT 'pending',
+                created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                reviewed_at DATETIME     DEFAULT NULL,
+                reviewed_by CHAR(36)     DEFAULT NULL,
+                KEY idx_mm_status (status, created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    } catch (Throwable $e) {
+        error_log('[api] migration: matchmaker_profiles — ' . substr($e->getMessage(), 0, 100));
     }
 }
 

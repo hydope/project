@@ -114,8 +114,13 @@ export default function Messages() {
   loadThread.current = async (cid, silent = false) => {
     if (!silent) { setThreadLoading(true); setThreadError(''); }
     try {
-      const msgs = await api.getMessages(cid);
-      const normalized = (Array.isArray(msgs) ? msgs : []).map((m) => ({
+      const res = await api.getMessages(cid);
+      // Server returns { messages, disappearing_after }; be tolerant of the
+      // legacy bare-array shape too.
+      const msgs = Array.isArray(res) ? res : (res?.messages ?? []);
+      const disappearing = Array.isArray(res) ? 0 : (res?.disappearing_after ?? 0);
+      setDisappearingByConvo((prev) => ({ ...prev, [cid]: disappearing }));
+      const normalized = msgs.map((m) => ({
         id: m.id,
         sender: m.senderId === 'me' ? 'me' : 'them',
         text: m.text,

@@ -312,17 +312,15 @@ function aiModel(): string
     }
     if ($override !== '') return $override;
     // Default model is chosen for SHARED-HOSTING latency, not raw capability.
-//
-// The host kills any request past roughly 60s and answers with an HTML error
-// page. A long-form draft on the previous default (moonshotai/kimi-k3) took
-// ~75s and was killed every time; nemotron-3-ultra produces a comparable
-// article in ~36s, inside the limit. `reasoning_effort` is likewise off by
-// default — on kimi-k3 it returned an empty completion in 12s, which the
-// client could not distinguish from a working reply.
-//
-// Operators can still change this at runtime from /admin/content with no
-// redeploy, at the cost of whatever latency the host enforces.
-return (string)(getenv('NVIDIA_MODEL') ?: 'nvidia/nemotron-3-ultra-550b-a55b');
+    //
+    // The host kills any request past roughly 60s and answers with an HTML error
+    // page. nemotron-3.5-lightning-30b-a3b is a small, fast model that completes
+    // a 500-word draft inside the limit; the previous ultra-550b default was
+    // too slow and caused timeouts.
+    //
+    // Operators can still change this at runtime from /admin/content with no
+    // redeploy, at the cost of whatever latency the host enforces.
+    return (string)(getenv('NVIDIA_MODEL') ?: 'nvidia/nemotron-3.5-lightning-30b-a3b');
 }
 
 /**
@@ -397,8 +395,14 @@ function aiComplete(array $messages, array $opts = []): ?string
         if ($body === false || $err !== '' || $status < 200 || $status >= 300) {
             error_log('[ai] NVIDIA call failed: attempt=' . $attempt . ' status=' . $status
                 . ($err !== '' ? ' err=' . substr($err, 0, 80) : ''));
-            // Transport/HTTP failures are not worth an immediate retry — they
-            // will fail the same way. Only empty bodies are retried.
+            // Rate limits (429) and transient upstream errors (5xx) are worth
+            // one retry with backoff — NVIDIA's free tier throttles bursts, and
+            // without this the second generation in a row always failed.
+            $retryable = $status === 429 || ($status >= 500 && $status < 600);
+            if ($retryable && $attempt < 2) {
+                sleep(3);
+                continue;
+            }
             return null;
         }
 

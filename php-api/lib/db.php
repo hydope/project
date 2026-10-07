@@ -159,7 +159,7 @@ function mutualInterest(string $a, string $b): bool
  */
 function profilesStats(): void
 {
-    $rows = db()->query('SELECT display_name, city, visibility, is_blocked FROM profiles WHERE is_blocked = 0')->fetchAll();
+    $rows = db()->query('SELECT display_name, city, visibility, is_blocked FROM profiles WHERE (is_blocked = 0 OR (blocked_until IS NOT NULL AND blocked_until <= NOW()))')->fetchAll();
     // Negate. array_filter KEEPS rows whose callback returns TRUE, and
     // isTestShellRow() returns true FOR THE SHELLS — so passing it straight
     // through would count 48 QA shells as "members" and report the top cities as
@@ -182,7 +182,7 @@ function profilesStats(): void
         $v = db()->query(
             'SELECT COUNT(*) AS n FROM verifications v
                JOIN profiles p ON p.user_id = v.user_id
-              WHERE v.status = \'approved\' AND p.is_blocked = 0'
+              WHERE v.status = \'approved\' AND (p.is_blocked = 0 OR (p.blocked_until IS NOT NULL AND p.blocked_until <= NOW()))'
         )->fetch();
         $verified = (int)($v['n'] ?? 0);
     } catch (Throwable $e) {
@@ -201,11 +201,23 @@ function profilesStats(): void
     ]);
 }
 
+// A moderation block is active when is_blocked is set AND (it is permanent —
+// blocked_until NULL — or the expiry is still in the future). Temporary
+// restrictions lapse automatically; every read path must use this instead of
+// checking is_blocked alone.
+function blockIsActive(array $row): bool
+{
+    if (empty($row['is_blocked'])) return false;
+    $until = (string)($row['blocked_until'] ?? '');
+    if ($until === '') return true; // permanent
+    return strtotime($until) > time();
+}
+
 // Node's visibleProfile(): privacy tiers + blocks enforced here, not in the UI.
 // $viewer is the decoded JWT (or null). Returns null when the row must be hidden.
 function visibleProfile(array $row, ?array $viewer): ?array
 {
-    if (!empty($row['is_blocked'])) {
+    if (blockIsActive($row)) {
         return null;
     }
     $ownerId = (string)($row['user_id'] ?? $row['id'] ?? '');

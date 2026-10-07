@@ -10,9 +10,11 @@ function routeMessages(string $method, array $segments): void
     $id = $segments[0] ?? null;
 
     if ($method === 'GET' && $id === null) { messagesList(); return; }
-    if ($method === 'GET' && $id !== null) { messageThread($id); return; }
+    if ($method === 'GET' && $id !== null && ($segments[1] ?? null) === null) { messageThread($id); return; }
     if ($method === 'POST' && $id === null) { startConversation(); return; }
-    if ($method === 'POST' && $id !== null) { sendMessage($id); return; }
+    if ($method === 'POST' && $id !== null && ($segments[1] ?? null) === null) { sendMessage($id); return; }
+    // POST /api/messages/:id/disappearing { seconds: 0|86400|604800 }
+    if ($method === 'POST' && $id !== null && ($segments[1] ?? null) === 'disappearing') { setDisappearing($id); return; }
 
     json(['error' => 'Messages endpoint not found'], 404);
 }
@@ -95,6 +97,13 @@ function messageThread(string $id): void
         je('This conversation is unavailable.', 403);
     }
 
+    // Lazy purge: disappearing messages are deleted when the thread loads.
+    // (No cron on shared hosting, so expiry is enforced on read.)
+    try {
+        db()->prepare('DELETE FROM messages WHERE conversation_id = ? AND expires_at IS NOT NULL AND expires_at <= NOW()')
+            ->execute([$id]);
+    } catch (Throwable) { /* column may not exist yet */ }
+
     $msgStmt = db()->prepare('SELECT id, sender_id, body, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT 500');
     $msgStmt->execute([$id]);
     $rows = $msgStmt->fetchAll();
@@ -109,7 +118,7 @@ function messageThread(string $id): void
         ];
     }
 
-    json($out);
+    json(['messages' => $out, 'disappearing_after' => (int)($thread['disappearing_after'] ?? 0)]);
 }
 
 function startConversation(): void
@@ -197,8 +206,17 @@ function sendMessage(string $id): void
 
     $msgId = uuid();
     // Encrypted at rest (AES-256-GCM). Decrypted only for the two participants.
-    $stmt = db()->prepare('INSERT INTO messages (id, conversation_id, sender_id, body) VALUES (?, ?, ?, ?)');
-    $stmt->execute([$msgId, $id, $user['uid'], encAtRest($body)]);
+    // Disappearing timer: stamp expiry from the conversation's setting.
+    $disappearing = (int)($row['disappearing_after'] ?? 0);
+    $expiresAt = $disappearing > 0 ? date('Y-m-d H:i:s', time() + $disappearing) : null;
+    try {
+        $stmt = db()->prepare('INSERT INTO messages (id, conversation_id, sender_id, body, expires_at) VALUES (?, ?, ?, ?, ?)');
+        $stmt->execute([$msgId, $id, $user['uid'], encAtRest($body), $expiresAt]);
+    } catch (Throwable) {
+        // Column may not exist yet on an unmigrated database.
+        $stmt = db()->prepare('INSERT INTO messages (id, conversation_id, sender_id, body) VALUES (?, ?, ?, ?)');
+        $stmt->execute([$msgId, $id, $user['uid'], encAtRest($body)]);
+    }
 
     // Notify the recipient so the notification bell deep-links to the chat.
     try {
@@ -219,5 +237,34 @@ function sendMessage(string $id): void
         'text' => decAtRest($saved['body']),
         'timestamp' => $saved['created_at'],
     ], 201);
+}
+
+// POST /api/messages/:id/disappearing { seconds: 0|86400|604800 } — either
+// participant can set the disappearing timer. Applies to messages sent after
+// the change; already-sent messages keep their original expiry.
+function setDisappearing(string $id): void
+{
+    $user = requireAuthUser();
+    $stmt = db()->prepare('SELECT * FROM conversations WHERE id = ? LIMIT 1');
+    $stmt->execute([$id]);
+    $thread = $stmt->fetch();
+    if (!$thread) {
+        je('Conversation not found.', 404);
+    }
+    if ($thread['user_a'] !== (string)$user['uid'] && $thread['user_b'] !== (string)$user['uid']) {
+        je('Not your conversation.', 403);
+    }
+    $body = requestJson();
+    $seconds = (int)($body['seconds'] ?? -1);
+    if (!in_array($seconds, [0, 86400, 604800], true)) {
+        je('Choose off, 24 hours or 7 days.', 400);
+    }
+    try {
+        db()->prepare('UPDATE conversations SET disappearing_after = ? WHERE id = ?')
+            ->execute([$seconds, $id]);
+    } catch (Throwable) {
+        je('Disappearing messages are not available yet. Try again shortly.', 503);
+    }
+    json(['ok' => true, 'disappearing_after' => $seconds]);
 }
 

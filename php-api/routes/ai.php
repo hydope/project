@@ -59,6 +59,14 @@ function routeAI(string $method, array $segments): void
         return;
     }
 
+    // GET /api/ai/blog-topics — curated + AI topic suggestions for the blog
+    // queue. Interactive: the admin picks a suggestion and it becomes a draft.
+    if ($method === 'GET' && $action === 'blog-topics') {
+        requireAdminUser();
+        aiBlogTopics();
+        return;
+    }
+
     // GET /api/ai/posts/:slug — a public, single published post.
     if ($method === 'GET' && $action === 'posts' && count($segments) === 2) {
         aiGetPost((string)$segments[1]);
@@ -66,15 +74,15 @@ function routeAI(string $method, array $segments): void
     }
 
     if ($segments === [] || $action === 'posts') {
-        if ($method === 'GET') { aiListPosts(); return; }
-        if ($method === 'POST') { requireAdminUser(); aiCreatePost(); return; }
-    }
-
-    // POST /api/ai/posts/auto-schedule — schedule draft posts one per day.
-    if ($method === 'POST' && $action === 'posts' && ($segments[1] ?? null) === 'auto-schedule') {
-        requireAdminUser();
-        aiAutoSchedule();
-        return;
+        // NOTE: more specific /posts/* routes must be checked BEFORE this
+        // general block, otherwise they are swallowed by aiCreatePost().
+        if ($method === 'POST' && ($segments[1] ?? null) === 'auto-schedule') {
+            requireAdminUser();
+            aiAutoSchedule();
+            return;
+        }
+        if ($method === 'GET' && count($segments) <= 1) { aiListPosts(); return; }
+        if ($method === 'POST' && count($segments) <= 1) { requireAdminUser(); aiCreatePost(); return; }
     }
 
     if ($action === 'posts' && count($segments) >= 2) {
@@ -140,6 +148,67 @@ function aiChat(): void
 }
 
 // ── Admin content: AI-drafted blog posts with scheduling ─────────────────────
+
+/** GET /api/ai/blog-topics — topic suggestions for the blog queue. */
+function aiBlogTopics(): void
+{
+    // Curated evergreen topics that rank for real search queries in this niche.
+    $curated = [
+        ['topic' => 'How to write an Islamic marriage biodata that gets responses', 'angle' => 'Practical checklist with examples', 'category' => 'Guidance'],
+        ['topic' => 'Shia marriage: questions to ask before saying yes', 'angle' => 'Faith, family and lifestyle questions', 'category' => 'Guidance'],
+        ['topic' => 'How to involve your wali in online matchmaking', 'angle' => 'Balancing tradition and modern platforms', 'category' => 'Guidance'],
+        ['topic' => 'Red flags in online rishta conversations', 'angle' => 'Safety-first guide with examples', 'category' => 'Safety'],
+        ['topic' => 'How to verify someone you met on a matrimony site', 'angle' => 'Step-by-step verification checklist', 'category' => 'Safety'],
+        ['topic' => 'Keeping photos private while searching for a spouse', 'angle' => 'Privacy features explained', 'category' => 'Safety'],
+        ['topic' => 'Syed marriages: what families actually look for', 'angle' => 'Cultural expectations, respectfully covered', 'category' => 'Community'],
+        ['topic' => 'Long-distance rishta: making it work across continents', 'angle' => 'USA, UK, Gulf and India perspectives', 'category' => 'Community'],
+        ['topic' => 'What to put in your matrimony profile bio', 'angle' => 'Before/after examples', 'category' => 'Profiles'],
+        ['topic' => 'First message examples that get replies', 'angle' => 'Respectful openers, not pickup lines', 'category' => 'Profiles'],
+        ['topic' => 'Marja and marriage: why scholars matter in spouse search', 'angle' => 'Explainer for younger members', 'category' => 'Guidance'],
+        ['topic' => 'Duas for finding a righteous spouse', 'angle' => 'With Arabic, transliteration and meaning', 'category' => 'Community'],
+    ];
+    // Exclude topics already covered.
+    $existing = [];
+    try {
+        foreach (db()->query('SELECT title FROM blog_posts ORDER BY created_at DESC LIMIT 40')->fetchAll() as $r) {
+            $existing[] = strtolower((string)$r['title']);
+        }
+    } catch (Throwable) { /* ignore */ }
+    $fresh = array_values(array_filter($curated, function ($t) use ($existing) {
+        foreach ($existing as $e) {
+            if ($e !== '' && stripos($t['topic'], substr($e, 0, 20)) !== false) return false;
+        }
+        return true;
+    }));
+
+    // Ask the model for 4 fresh, trending angles to keep the queue surprising.
+    $aiTopics = [];
+    $raw = aiComplete(
+        [['role' => 'system', 'content' => 'You suggest blog topics for Shia Rishta, a Shia Muslim marriage platform. Return STRICT JSON: an array of 4 objects with keys "topic" (under 70 chars, SEO-friendly, something people actually search), "angle" (under 80 chars), "category" (one of: Guidance, Safety, Community, Profiles). Topics must be fresh, specific and respectful. Return only the JSON array.']],
+        ['temperature' => 0.9, 'max_tokens' => 400, 'timeout' => 30]
+    );
+    if (is_string($raw)) {
+        $start = strpos($raw, '[');
+        $end = strrpos($raw, ']');
+        if ($start !== false && $end !== false && $end > $start) {
+            $decoded = json_decode(substr($raw, $start, $end - $start + 1), true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $t) {
+                    if (is_array($t) && !empty($t['topic'])) {
+                        $aiTopics[] = [
+                            'topic' => sanitizeText((string)$t['topic'], 90),
+                            'angle' => sanitizeText((string)($t['angle'] ?? ''), 100),
+                            'category' => sanitizeText((string)($t['category'] ?? 'Guidance'), 20),
+                            'ai' => true,
+                        ];
+                    }
+                }
+            }
+        }
+    }
+
+    json(['ok' => true, 'topics' => array_merge($aiTopics, $fresh)]);
+}
 
 /** POST /api/ai/generate-post { topic, angle, audience } */
 function aiGeneratePost(): void

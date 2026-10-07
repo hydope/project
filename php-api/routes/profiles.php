@@ -242,11 +242,11 @@ function imageIsComplete(string $bytes, string $mime): bool
 // photos takes effect immediately for any link that was already shared.
 function photoServe(string $id): void
 {
-    $stmt = db()->prepare('SELECT user_id, photo_url, photos_visibility, visibility, is_blocked FROM profiles WHERE user_id = ? LIMIT 1');
+    $stmt = db()->prepare('SELECT user_id, photo_url, photos_visibility, visibility, is_blocked, blocked_until FROM profiles WHERE user_id = ? LIMIT 1');
     $stmt->execute([$id]);
     $row = $stmt->fetch();
 
-    if (!$row || !empty($row['is_blocked']) || (string)($row['photo_url'] ?? '') === '') {
+    if (!$row || blockIsActive($row) || (string)($row['photo_url'] ?? '') === '') {
         je('Not found.', 404);
     }
 
@@ -450,7 +450,7 @@ function profilesList(): void
 {
     $viewer = currentUser();
     $params = [];
-    $where = ['p.is_blocked = 0'];
+    $where = ['(p.is_blocked = 0 OR (p.blocked_until IS NOT NULL AND p.blocked_until <= NOW()))'];
 
     $minAge = $_GET['minAge'] ?? null;
     $maxAge = $_GET['maxAge'] ?? null;
@@ -612,7 +612,7 @@ function favouritesList(): void
             'SELECT p.*, f.created_at AS fav_created_at
                FROM favourites f
                JOIN profiles p ON p.user_id = f.profile_id
-              WHERE f.user_id = ? AND p.is_blocked = 0
+              WHERE f.user_id = ? AND (p.is_blocked = 0 OR (p.blocked_until IS NOT NULL AND p.blocked_until <= NOW()))
               ORDER BY f.created_at DESC
               LIMIT 200'
         );
@@ -650,7 +650,7 @@ function favouriteAdd(string $id): void
     if ((string)$id === (string)$user['uid']) {
         je('You cannot save your own profile.', 400);
     }
-    $probe = db()->prepare('SELECT user_id, is_demo FROM profiles WHERE user_id = ? AND is_blocked = 0 LIMIT 1');
+    $probe = db()->prepare('SELECT user_id, is_demo, blocked_until FROM profiles WHERE user_id = ? AND (is_blocked = 0 OR (blocked_until IS NOT NULL AND blocked_until <= NOW())) LIMIT 1');
     $probe->execute([$id]);
     $target = $probe->fetch();
     if (!$target) {
