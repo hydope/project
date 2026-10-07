@@ -350,6 +350,7 @@ function ConversationList({ convos, activeId, onSelect, loading, error }) {
   if (loading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center" role="status">
+        <div className="w-8 h-8 rounded-full animate-pulse mb-3" style={{ background: 'var(--color-primary-subtle)' }} />
         <p className="text-sm text-muted">Loading conversations…</p>
       </div>
     );
@@ -365,9 +366,14 @@ function ConversationList({ convos, activeId, onSelect, loading, error }) {
   if (convos.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-        <MessageCircle className="w-8 h-8 mb-3" style={{ color: 'var(--color-ink-tertiary)' }} />
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+          style={{ background: 'var(--color-primary-subtle)' }}>
+          <MessageCircle className="w-7 h-7" style={{ color: 'var(--color-primary)' }} />
+        </div>
         <p className="text-sm font-semibold text-ink">No conversations yet</p>
-        <p className="text-xs text-muted mt-1">When you and another member both express interest, your conversation appears here.</p>
+        <p className="text-xs text-muted mt-1.5 leading-relaxed max-w-[220px]">
+          When you and another member both express interest, your conversation appears here.
+        </p>
       </div>
     );
   }
@@ -377,20 +383,37 @@ function ConversationList({ convos, activeId, onSelect, loading, error }) {
         <motion.button key={c.id} role="listitem" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.04, duration: 0.25 }} onClick={() => onSelect(c.id)}
           aria-current={activeId === c.id ? 'true' : undefined}
-          className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-150 hover:shadow-md ${activeId === c.id ? 'border-2 border-primary' : 'border-transparent hover:border-border'}`}
-          style={{ background: activeId === c.id ? 'var(--color-primary-subtle)' : 'var(--color-surface)' }}>
+          className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-150 text-left ${
+            activeId === c.id
+              ? 'shadow-sm'
+              : 'hover:shadow-sm'
+          }`}
+          style={{
+            background: activeId === c.id ? 'var(--color-primary-subtle)' : 'var(--color-surface)',
+            border: activeId === c.id ? '1px solid var(--color-primary)' : '1px solid transparent',
+          }}>
           <Avatar name={c.participantName} />
           <span className="flex-1 min-w-0">
-            <span className="flex items-center gap-1.5">
+            <span className="flex items-center justify-between gap-2">
               <span className="text-sm font-semibold text-ink truncate">{c.participantName || 'Member'}</span>
+              {c.timestamp && (
+                <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--color-ink-tertiary)' }}>
+                  {timeAgo(c.timestamp)}
+                </span>
+              )}
             </span>
-            <span className="flex items-center gap-1.5 text-xs text-muted mt-0.5">
-              <span className="truncate">{c.lastMessage || 'Say salaam to start the conversation'}</span>
+            <span className="flex items-center justify-between gap-2 mt-0.5">
+              <span className={`text-xs truncate ${c.unread ? 'font-medium text-ink' : 'text-muted'}`}>
+                {c.lastMessage || 'Say salaam to start the conversation'}
+              </span>
+              {c.unread ? (
+                <span className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+                  style={{ background: 'var(--color-primary)' }} aria-label="Unread messages">
+                  {typeof c.unreadCount === 'number' && c.unreadCount > 1 ? c.unreadCount : '•'}
+                </span>
+              ) : null}
             </span>
           </span>
-          {c.unread ? (
-            <span className="badge badge-primary ml-2 flex-shrink-0" aria-label="Unread messages">•</span>
-          ) : null}
         </motion.button>
       ))}
     </div>
@@ -469,23 +492,24 @@ function RequestList({ requests, onRespond, loading }) {
 function EmptyState({ hasRequests, onOpenRequests }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center" style={{ background: 'var(--color-canvas)' }}>
-      <div className="empty-state">
-        <div className="empty-state-icon">
-          <MessageCircle className="w-16 h-16" style={{ color: 'var(--color-primary)' }} />
+      <div className="empty-state max-w-sm">
+        <div className="w-20 h-20 rounded-3xl mx-auto mb-5 flex items-center justify-center"
+          style={{ background: 'var(--color-primary-subtle)' }}>
+          <MessageCircle className="w-10 h-10" style={{ color: 'var(--color-primary)' }} />
         </div>
-        <h1 className="empty-state-title">Your conversations live here</h1>
-        <p className="empty-state-text">
+        <h1 className="empty-state-title text-lg">Your conversations live here</h1>
+        <p className="empty-state-text mt-2 leading-relaxed">
           Every conversation begins with an accepted introduction — intentional, respectful, and protected from the start.
         </p>
         {hasRequests && (
-          <div className="mt-4 flex justify-center">
+          <div className="mt-5 flex justify-center">
             <button onClick={onOpenRequests}
               className="btn btn-primary">
               <UserPlus className="w-3 h-3" /> Review pending requests
             </button>
           </div>
         )}
-        <p className="mt-6 text-xs flex items-center gap-2" style={{ color: 'var(--color-ink-tertiary)' }}>
+        <p className="mt-6 text-xs flex items-center justify-center gap-2" style={{ color: 'var(--color-ink-tertiary)' }}>
           <ShieldCheck className="w-3 h-3" /> Only the two of you can read this · Encrypted at rest · No contact details shared
         </p>
       </div>
@@ -625,12 +649,17 @@ function ChatPane({ convo, messages, onBack, onSend, onBlock, messagesEndRef, lo
         {loading && <p className="text-center text-xs text-muted py-6" role="status">Loading messages…</p>}
         {error && <p className="text-center text-xs text-muted py-6" role="alert">{error}</p>}
         {!loading && !error && messages.length === 0 && (
-          <div className="text-center py-6">
-            <p className="text-xs text-muted flex items-center justify-center gap-1.5">
+          <div className="text-center py-10 px-4">
+            <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center text-lg font-bold"
+              style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)', border: '2px solid var(--color-border)' }}>
+              {initials(name)}
+            </div>
+            <h3 className="text-sm font-semibold text-ink mb-1">Your conversation with {firstName} starts here</h3>
+            <p className="text-xs text-muted flex items-center justify-center gap-1.5 mb-1">
               <ShieldCheck className="w-3 h-3" style={{ color: 'var(--color-success)' }} />
               Private — only you and {firstName} can read these messages.
             </p>
-            <p className="text-xs text-muted mt-2">No messages yet — say salaam to begin.</p>
+            <p className="text-xs text-muted">Say salaam to begin, or tap a starter below.</p>
           </div>
         )}
         {disappearingAfter > 0 && messages.length > 0 && (

@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth/AuthContext';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   Menu, X, ArrowRight,
-  Bell, LayoutDashboard, HeartHandshake,
+  Bell, LayoutDashboard,
   Shield, User, Lock,
 } from 'lucide-react';
 // Lazy: the assistant widget + brain load on demand, not in the entry chunk.
@@ -448,14 +448,6 @@ function LandingHeader() {
 
           {/* Secondary actions — right */}
           <div className="landing-header-actions">
-            {/* Matchmaker — desktop only; on mobile it lives in the menu drawer.
-                The icon-only version on small screens looked like a stray
-                floating button. */}
-            <Link to="/matchmaker" className="btn btn-ghost btn-sm hidden sm:inline-flex" aria-label="Matchmaker">
-              <HeartHandshake className="w-4 h-4" />
-              <span>Matchmaker</span>
-            </Link>
-
             {/* Dashboard — directly after AI, members only */}
             {isLoggedIn && (
               <Link
