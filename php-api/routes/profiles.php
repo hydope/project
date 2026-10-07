@@ -841,8 +841,19 @@ function profileUpdate(): void
         // Normalize city/country: trim, collapse whitespace, title-case each
         // word so "hyderabad", "HYDERABAD", "  hyderabad " all become
         // "Hyderabad" and map to the same /city/hyderabad SEO page.
+        // Also handles "Hyderabad, India" typed into the city field: splits
+        // into city="Hyderabad", country="India" so it doesn't fragment into
+        // a separate /city/hyderabad-india page.
         if (in_array($key, ['city', 'country'], true) && is_string($v)) {
             $v = trim((string)preg_replace('/\s+/', ' ', $v));
+            if ($key === 'city' && strpos($v, ',') !== false) {
+                $parts = array_map('trim', explode(',', $v, 2));
+                $v = $parts[0];
+                // If country is empty, fill it from the part after the comma.
+                if (!empty($parts[1]) && empty($b['country'])) {
+                    $b['country'] = $parts[1];
+                }
+            }
             $v = mb_convert_case($v, MB_CASE_TITLE, 'UTF-8');
             if ($v === '') $v = null;
         }
