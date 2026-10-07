@@ -45,54 +45,22 @@ jobs:
           )
           print(json.dumps({'system': system}))
           ")
-          SYSTEM_PROMPT=$(echo "$GEN_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['system'])")
+          echo "$GEN_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['system'])" > /tmp/system_prompt.txt
+
+          python3 << 'PYEOF2'
+          import json
+          with open('/tmp/system_prompt.txt') as f:
+              system = f.read()
+          payload = {
+              'model': 'nvidia/nemotron-3.5-lightning-30b-a3b',
+              'messages': [{'role': 'system', 'content': system}],
+              'max_tokens': 1200, 'temperature': 0.9, 'stream': False
+          }
+          with open('/tmp/nvidia_payload.json', 'w') as f:
+              json.dump(payload, f)
+          PYEOF2
 
           NVIDIA_RESP=$(curl -s --max-time 180 --retry 2 -X POST https://integrate.api.nvidia.com/v1/chat/completions \
             -H "Authorization: Bearer $NVIDIA_API_KEY" \
             -H "Content-Type: application/json" \
-            -d "$(python3 -c "
-          import json
-          print(json.dumps({
-            'model': 'nvidia/nemotron-3.5-lightning-30b-a3b',
-            'messages': [{'role': 'system', 'content': '''$SYSTEM_PROMPT'''}],
-            'max_tokens': 1200, 'temperature': 0.9, 'stream': False
-          }))")")
-
-          POST_JSON=$(echo "$NVIDIA_RESP" | python3 -c "
-          import json,sys,re
-          try:
-              d = json.loads(sys.stdin.read())
-              content = d['choices'][0]['message']['content'] or ''
-          except Exception as e:
-              print(json.dumps({'error': 'nvidia_parse_failed'})); sys.exit()
-          # The model sometimes wraps the JSON in fences or adds preamble text.
-          # Extract the outermost {...} block instead of assuming clean output.
-          content = content.strip()
-          start = content.find('{')
-          end = content.rfind('}')
-          if start >= 0 and end > start:
-              content = content[start:end+1]
-          # Strip markdown fences if the model added them
-          content = re.sub(r'^\`\`\`(?:json)?\s*', '', content.strip())
-          content = re.sub(r'\s*\`\`\`\$', '', content)
-          try:
-              post = json.loads(content)
-              assert post.get('title') and isinstance(post.get('body'), list)
-              print(json.dumps({'post': post}))
-          except Exception as e:
-              print(json.dumps({'error': 'post_parse_failed', 'hint': content[:200]}))
-          ")
-          echo "$POST_JSON" | grep -q '"post"' || { echo "GENERATION_FAILED: ${POST_JSON:0:200}"; exit 1; }
-
-          # 3. Save
-          SAVE_BODY=$(python3 -c "
-          import json,sys
-          post = json.load(sys.stdin)['post']
-          print(json.dumps({'topic_id': '$TOPIC_ID', 'post': post}))
-          " <<< "$POST_JSON")
-          SAVE_RESP=$(curl -s --max-time 60 -X POST "$API/queue-save" \
-            -H "X-Blog-Cron-Key: $BLOG_CRON_KEY" \
-            -H "Content-Type: application/json" \
-            -d "$SAVE_BODY")
-          echo "$SAVE_RESP"
-          echo "$SAVE_RESP" | grep -q '"ok":true' && echo "QUEUE_RUN_OK" || { echo "QUEUE_SAVE_FAILED"; exit 1; }
+            -d @/tmp/nvidia_payload.json)
