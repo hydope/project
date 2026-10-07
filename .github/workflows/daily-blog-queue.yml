@@ -70,15 +70,22 @@ jobs:
               content = d['choices'][0]['message']['content'] or ''
           except Exception as e:
               print(json.dumps({'error': 'nvidia_parse_failed'})); sys.exit()
+          # The model sometimes wraps the JSON in fences or adds preamble text.
+          # Extract the outermost {...} block instead of assuming clean output.
+          content = content.strip()
+          start = content.find('{')
+          end = content.rfind('}')
+          if start >= 0 and end > start:
+              content = content[start:end+1]
           # Strip markdown fences if the model added them
-          content = re.sub(r'^\\\`\\\`\\\`(?:json)?\s*', '', content.strip())
-          content = re.sub(r'\s*\\\`\\\`\\\`\$', '', content)
+          content = re.sub(r'^\`\`\`(?:json)?\s*', '', content.strip())
+          content = re.sub(r'\s*\`\`\`\$', '', content)
           try:
               post = json.loads(content)
               assert post.get('title') and isinstance(post.get('body'), list)
               print(json.dumps({'post': post}))
-          except Exception:
-              print(json.dumps({'error': 'post_parse_failed'}))
+          except Exception as e:
+              print(json.dumps({'error': 'post_parse_failed', 'hint': content[:200]}))
           ")
           echo "$POST_JSON" | grep -q '"post"' || { echo "GENERATION_FAILED: ${POST_JSON:0:200}"; exit 1; }
 
