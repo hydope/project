@@ -154,6 +154,18 @@ function migrateAddProfileColumns(): void
     } catch (Throwable $e) {
         error_log('[api] migration (columns) issue: ' . $e->getMessage());
     }
+
+    // Backfill for existing members: on a nikah platform the overwhelmingly
+    // common case is seeking the opposite gender. Members can change it in
+    // onboarding/settings; without this, everyone existing would see no
+    // gender default until they re-saved their profile. Runs after the column
+    // additions above so the column is guaranteed to exist.
+    try {
+        db()->exec("UPDATE profiles SET seeking_gender = 'female' WHERE seeking_gender IS NULL AND gender = 'male'");
+        db()->exec("UPDATE profiles SET seeking_gender = 'male' WHERE seeking_gender IS NULL AND gender = 'female'");
+    } catch (Throwable $e) {
+        error_log('[api] migration: seeking_gender backfill — ' . substr($e->getMessage(), 0, 120));
+    }
 }
 
 // wali_links. Present in db/schema.sql, so a fresh install creates it on the
