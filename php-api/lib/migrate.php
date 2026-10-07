@@ -45,6 +45,7 @@ function migrateSchema(): void
     migrateAddWaliLinksTable();
     migrateAddUserVerificationColumns();
     migrateAddBlogPostsTable();
+    migrateAddBlogImageColumn();
     migrateAddContactSpamColumn();
     migrateAddFavouritesTable();
     migrateAddAppSettingsTable();
@@ -452,6 +453,18 @@ function migrateAddBlogPostsTable(): void
         );
     } catch (Throwable $e) {
         error_log('[api] migration: blog_posts — ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+function migrateAddBlogImageColumn(): void
+{
+    try {
+        $cols = db()->query("SHOW COLUMNS FROM blog_posts LIKE 'image_url'")->fetchAll();
+        if (!$cols) {
+            db()->exec("ALTER TABLE blog_posts ADD COLUMN image_url VARCHAR(500) DEFAULT NULL AFTER excerpt");
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration: blog_posts.image_url — ' . substr($e->getMessage(), 0, 120));
     }
 }
 

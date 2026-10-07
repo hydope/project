@@ -442,7 +442,13 @@ function LandingHeader() {
           {/* Primary nav — centered */}
           <nav className="landing-nav" aria-label="Main navigation">
             {landingLinks.map(l => (
-              <Link key={l.href} to={l.href}>{l.label}</Link>
+              <Link
+                key={l.href}
+                to={l.href}
+                className={location.pathname === l.href ? 'active' : ''}
+              >
+                {l.label}
+              </Link>
             ))}
           </nav>
 

@@ -143,7 +143,7 @@ export default function ProfileCard({ profile, className = '' }) {
               style={{ objectPosition: 'center top', position: 'relative', zIndex: 1 }}
             />
           )}
-          {/* Elegant fallback monogram */}
+          {/* Elegant fallback monogram — two initials, brand gradient, decorative ring */}
           <div
             aria-hidden={hasPhoto || undefined}
             role={hasPhoto ? undefined : 'img'}
@@ -152,14 +152,27 @@ export default function ProfileCard({ profile, className = '' }) {
                 ? `Photos of ${profile.displayName} are private`
                 : `${profile.displayName} has not added a photo`
             }
-            className="absolute inset-0 flex items-center justify-center text-4xl font-bold select-none"
+            className="absolute inset-0 flex items-center justify-center select-none"
             style={{
-              background: 'linear-gradient(160deg, #134e39 0%, #0c1220 70%)',
-              color: 'rgba(212,175,105,0.35)',
+              background: 'linear-gradient(150deg, #1a5c40 0%, #0d1f16 55%, #0a0f1a 100%)',
               zIndex: 0,
             }}
           >
-            {(profile.displayName || '?').trim()[0]?.toUpperCase()}
+            {/* Decorative concentric rings */}
+            <div className="absolute w-28 h-28 rounded-full" style={{ border: '1px solid rgba(212,175,105,0.25)' }} />
+            <div className="absolute w-32 h-32 rounded-full" style={{ border: '1px solid rgba(212,175,105,0.12)' }} />
+            <div className="absolute w-24 h-24 rounded-full flex items-center justify-center"
+              style={{ background: 'rgba(212,175,105,0.08)', border: '1px solid rgba(212,175,105,0.35)' }}>
+              <span className="text-3xl font-bold tracking-wide" style={{ color: '#d4af69', fontFamily: 'Georgia, serif' }}>
+                {(() => {
+                  const name = (profile.displayName || '?').trim();
+                  const parts = name.split(/\s+/);
+                  return parts.length > 1
+                    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+                    : name.slice(0, 2).toUpperCase();
+                })()}
+              </span>
+            </div>
           </div>
           {/* Bottom gradient scrim */}
           <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent" />

@@ -312,7 +312,31 @@ export default function Profile() {
                   </h1>
                   <p className="text-sm mt-1 flex items-center gap-1.5" style={{ color: 'var(--color-ink-secondary)' }}>
                     <MapPin className="w-3.5 h-3.5" />
-                    {[profile.city, profile.country].filter(Boolean).join(', ') || 'Location not set'}
+                    {profile.city || profile.country ? (
+                      <>
+                        {profile.city ? (
+                          <Link
+                            to={`/city/${profile.city.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`}
+                            className="hover:underline font-medium"
+                            style={{ color: 'var(--color-primary)' }}
+                          >
+                            {profile.city}
+                          </Link>
+                        ) : null}
+                        {profile.city && profile.country ? ', ' : null}
+                        {profile.country ? (
+                          <Link
+                            to={`/country/${profile.country.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`}
+                            className="hover:underline"
+                            style={{ color: 'var(--color-primary)' }}
+                          >
+                            {profile.country}
+                          </Link>
+                        ) : null}
+                      </>
+                    ) : (
+                      'Location not set'
+                    )}
                   </p>
                 </div>
                 <div className="flex gap-2">

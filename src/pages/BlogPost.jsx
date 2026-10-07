@@ -48,7 +48,7 @@ export default function BlogPost() {
     title: dbPost.title,
     excerpt: dbPost.excerpt,
     category: dbPost.category,
-    image: '/og-cover.jpg',
+    image: dbPost.image_url || '/og-cover.jpg',
     date: (dbPost.published_at || dbPost.created_at || '').slice(0, 10),
     readTime: dbPost.read_time || '5 min',
     // DB body is [{t:'p'|'h2', x:'...'}]; convert to the static article blocks.

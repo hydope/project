@@ -451,7 +451,7 @@ function normaliseSchedule(?string $when): ?string
 function aiListPosts(): void
 {
     $includeAll = !empty(currentUser()['isAdmin']);
-    $sql = 'SELECT id, slug, title, excerpt, category, read_time, status, created_at,
+    $sql = 'SELECT id, slug, title, excerpt, image_url, category, read_time, status, created_at,
                    scheduled_for, published_at
               FROM blog_posts';
     if (!$includeAll) {
@@ -481,7 +481,7 @@ function aiListPosts(): void
 function aiGetPost(string $slug): void
 {
     $st = db()->prepare(
-        "SELECT id, slug, title, excerpt, category, read_time, body, published_at
+        "SELECT id, slug, title, excerpt, image_url, category, read_time, body, published_at
            FROM blog_posts
           WHERE slug = ? AND status = 'published'
             AND (scheduled_for IS NULL OR scheduled_for <= UTC_TIMESTAMP())
@@ -529,14 +529,15 @@ function aiCreatePost(): void
     $category = sanitizeText($draft['category'] ?? 'Guidance', 40);
     $readTime = sanitizeText($draft['readTime'] ?? '5 min', 16);
     $excerpt = sanitizeText($draft['excerpt'] ?? '', 300);
+    $imageUrl = substr(trim((string)($draft['imageUrl'] ?? $draft['image_url'] ?? '')), 0, 500) ?: null;
 
     db()->prepare(
         'INSERT INTO blog_posts
-            (id, slug, title, excerpt, category, read_time, body, status, scheduled_for,
+            (id, slug, title, excerpt, image_url, category, read_time, body, status, scheduled_for,
              published_at, author_email, created_at, updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP())'
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP())'
     )->execute([
-        $id, $slug, $title, $excerpt, $category, $readTime,
+        $id, $slug, $title, $excerpt, $imageUrl, $category, $readTime,
         json_encode($blocks, JSON_UNESCAPED_UNICODE),
         $status,
         $status === 'scheduled' ? $schedule : null,

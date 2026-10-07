@@ -25,7 +25,7 @@ export default function Blog() {
             title: p.title,
             excerpt: p.excerpt,
             category: p.category || 'Guidance',
-            image: '/og-cover.jpg',
+            image: p.image_url || '/og-cover.jpg',
             date: (p.published_at || p.created_at || '').slice(0, 10),
             readTime: p.read_time || '5 min',
           })));

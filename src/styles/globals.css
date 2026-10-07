@@ -1403,13 +1403,36 @@ select.input {
 }
 
 .landing-nav a {
-  padding: 0.45rem 0.85rem;
+  padding: 0.5rem 0.9rem;
   border-radius: var(--radius-md);
   font-size: 0.8125rem;
   font-weight: 550;
   color: var(--color-ink-secondary);
-  transition: all var(--transition-fast);
+  transition: color 0.18s ease, background 0.18s ease, transform 0.18s ease;
   text-decoration: none;
+  position: relative;
+}
+
+.landing-nav a:hover {
+  color: var(--color-ink);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+.landing-nav a.active {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.landing-nav a.active::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--color-primary);
 }
 
 .landing-header-actions {

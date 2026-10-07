@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/layouts/AdminLayout';
 import { http } from '@/lib/api/transport';
-import { Sparkles, RefreshCw, Calendar, Send, Trash2, FileText, Eye, KeyRound, ShieldCheck, Loader2 } from 'lucide-react';
+import { Sparkles, RefreshCw, Calendar, Send, Trash2, FileText, Eye, KeyRound, ShieldCheck, Loader2, Image as ImageIcon } from 'lucide-react';
 
 /**
  * Admin content desk — AI-drafted blog posts with scheduling.
@@ -394,6 +394,27 @@ export default function AdminContent() {
             </div>
             <textarea value={draft.excerpt} onChange={(e) => setDraft({ ...draft, excerpt: e.target.value })}
               className="input w-full mb-3" rows={2} aria-label="Excerpt" />
+
+            {/* Cover image: URL or file upload. Shows a live preview. */}
+            <div className="mb-3">
+              <div className="flex flex-wrap gap-2 mb-2">
+                <input value={draft.imageUrl || ''} onChange={(e) => setDraft({ ...draft, imageUrl: e.target.value })}
+                  className="input flex-1 min-w-[200px]" placeholder="Cover image URL (https://…)" aria-label="Cover image URL" />
+                <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-line/30 text-muted cursor-pointer hover:border-primary">
+                  <ImageIcon className="w-3.5 h-3.5" /> Upload
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    const rd = new FileReader();
+                    rd.onload = () => setDraft(d => ({ ...d, imageUrl: rd.result }));
+                    rd.readAsDataURL(f);
+                  }} />
+                </label>
+              </div>
+              {(draft.imageUrl) && (
+                <img src={draft.imageUrl} alt="Cover preview" className="w-full max-h-48 object-cover rounded-lg border border-line/20" />
+              )}
+            </div>
 
             <div className="max-h-72 overflow-y-auto rounded-lg border border-line/20 bg-elevated p-4 mb-4 space-y-3">
               {draft.body.map((b, i) => (

@@ -39,15 +39,18 @@ const TRUST_BADGES = [
 
 const PLATFORM_LINKS = [
   { to: '/profiles', label: 'Browse Profiles' },
+  { to: '/matchmaker', label: 'Matchmaker' },
+  { to: '/biodata-maker', label: 'Biodata Maker' },
   { to: '/success-stories', label: 'Success Stories' },
   { to: '/auth/register', label: 'Create Profile' },
-  { to: '/profile-guide', label: 'Profile Guide' },
   { to: '/about', label: 'About Us' },
 ];
 
 const RESOURCE_LINKS = [
   { to: '/blog', label: 'Guidance Blog' },
   { to: '/community', label: 'Community' },
+  { to: '/nikah-checklist', label: 'Nikah Checklist' },
+  { to: '/duas-for-marriage', label: 'Duas for Marriage' },
   { to: '/safety', label: 'Safety Center' },
   { to: '/support', label: 'Help & Support' },
   { to: '/contact', label: 'Contact Us' },
@@ -180,21 +183,6 @@ export default function SiteFooter({ compact = false }) {
             <Link to="/privacy">Privacy</Link>
             <Link to="/terms">Terms</Link>
             <Link to="/safety">Safety</Link>
-            <a
-              href="https://fazier.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Shia Rishta on Fazier"
-              className="site-footer-fazier-badge"
-            >
-              <img
-                src="https://fazier.com/api/v1//public/badges/launch_badges.svg?badge_type=launched&theme=light"
-                alt="Featured on Fazier"
-                loading="lazy"
-                width="120"
-                height="36"
-              />
-            </a>
             <span className="site-footer-lang">
               <Globe className="w-3.5 h-3.5" aria-hidden="true" /> English
             </span>
