@@ -45,6 +45,11 @@ CREATE TABLE IF NOT EXISTS profiles (
   photos_visibility  VARCHAR(16)  NOT NULL DEFAULT 'members',
   is_verified        TINYINT(1)   NOT NULL DEFAULT 0,
   is_blocked         TINYINT(1)   NOT NULL DEFAULT 0,
+  blocked_until      DATETIME     DEFAULT NULL,
+  block_reason       VARCHAR(255) DEFAULT NULL,
+  seeking_gender     VARCHAR(20)  DEFAULT NULL,
+  is_matchmaker      TINYINT(1)   NOT NULL DEFAULT 0,
+  matchmaker_by      CHAR(36)     DEFAULT NULL,
   introduced_by      CHAR(36)     DEFAULT NULL,
   introduced_at      DATETIME     DEFAULT NULL,
   religiosity        VARCHAR(60)  DEFAULT NULL,
@@ -87,10 +92,11 @@ CREATE TABLE IF NOT EXISTS interests (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS conversations (
-  id         CHAR(36) NOT NULL PRIMARY KEY,
-  user_a     CHAR(36) NOT NULL,
-  user_b     CHAR(36) NOT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  id                CHAR(36) NOT NULL PRIMARY KEY,
+  user_a            CHAR(36) NOT NULL,
+  user_b            CHAR(36) NOT NULL,
+  created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  disappearing_after INT NOT NULL DEFAULT 0,
   UNIQUE KEY uq_conversation (user_a, user_b),
   KEY idx_conv_user_a (user_a),
   KEY idx_conv_user_b (user_b)
@@ -102,7 +108,20 @@ CREATE TABLE IF NOT EXISTS messages (
   sender_id       CHAR(36) NOT NULL,
   body            TEXT     NOT NULL,
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  KEY idx_messages_conv (conversation_id, created_at)
+  expires_at      DATETIME DEFAULT NULL,
+  KEY idx_messages_conv (conversation_id, created_at),
+  KEY idx_messages_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS matchmaker_profiles (
+  id           CHAR(36)   NOT NULL PRIMARY KEY,
+  submitted_by CHAR(36)   NOT NULL,
+  payload      MEDIUMTEXT NOT NULL,
+  status       VARCHAR(20) NOT NULL DEFAULT 'pending',
+  created_at   DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at  DATETIME   DEFAULT NULL,
+  reviewed_by  CHAR(36)   DEFAULT NULL,
+  KEY idx_mm_status (status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS communities (
