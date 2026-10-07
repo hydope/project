@@ -460,11 +460,14 @@ function LandingHeader() {
               </Link>
             )}
 
-            {/* Icon group: Notifications + Account (appearance lives in Account Settings) */}
-            <div className="landing-header-icon-group">
-              {isLoggedIn && <NotificationsMenu />}
-              {isLoggedIn && <AccountMenu user={user} logout={logout} open={accountMenuOpen} onToggle={() => setAccountMenuOpen(o => !o)} onClose={() => setAccountMenuOpen(false)} />}
-            </div>
+            {/* Icon group: Notifications + Account (appearance lives in Account Settings).
+                Only rendered when logged in — an empty pill looks like a stray dot. */}
+            {isLoggedIn && (
+              <div className="landing-header-icon-group">
+                <NotificationsMenu />
+                <AccountMenu user={user} logout={logout} open={accountMenuOpen} onToggle={() => setAccountMenuOpen(o => !o)} onClose={() => setAccountMenuOpen(false)} />
+              </div>
+            )}
 
             {/* Auth CTA — visitors */}
             {!isLoggedIn && (
