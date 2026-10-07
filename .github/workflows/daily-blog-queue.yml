@@ -34,25 +34,20 @@ jobs:
           import json,sys
           t = json.load(sys.stdin)['topic']
           system = (
-            'You write for Shia Rishta, a Shia Muslim marriage platform that publishes long-form guidance '
-            'articles for people searching for a spouse.\n\n'
-            'Voice: warm, specific, respectful, never preachy. British-leaning international English. '
-            'Assume a Muslim reader who takes faith seriously; reference Islamic practice where natural but do '
-            'not lecture or quote scripture as authority.\n\n'
-            'SEO: this article targets the search query \"' + t['keyword'] + '\". Work the query naturally into '
-            'the title and the opening paragraph, then write for humans — no keyword stuffing.\n\n'
-            'Return STRICT JSON with keys: title, excerpt, category, readTime, body.\n'
-            '\'excerpt\' is one sentence under 160 characters. \'category\' must be exactly \"' + t['category'] + '\". '
-            '\'readTime\' is like \'5 min\'. \'body\' is an ARRAY of objects, each {\"t\": \"p\"|\"h2\", \"x\": \"...\"} — never markdown fences.\n\n'
-            'Write a focused piece of roughly 500 words, 5-8 paragraphs with an h2 heading or two. '
-            'Do not invent statistics, user counts or claims about the site\'s features.\n\n'
-            'TOPIC: ' + t['topic'] + ('\nANGLE: ' + t['angle'] if t['angle'] else '') + '\nAUDIENCE: members seeking a serious marriage\n\nReturn only the JSON object.'
+            'Write a Shia Muslim marriage guidance article as STRICT JSON: '
+            '{"title": "...", "excerpt": "...", "category": "' + t['category'] + '", '
+            '"readTime": "5 min", "body": [{"t": "p"|"h2", "x": "..."}]}. '
+            'No markdown fences, only the JSON object.\n'
+            'Target search query "' + t['keyword'] + '" naturally in title + opening. '
+            'Warm, respectful tone. ~500 words, 5-8 paragraphs, one or two h2 headings. '
+            'Excerpt: one sentence, under 160 chars. Do not invent statistics.\n'
+            'TOPIC: ' + t['topic'] + (' | ANGLE: ' + t['angle'] if t['angle'] else '')
           )
           print(json.dumps({'system': system}))
           ")
           SYSTEM_PROMPT=$(echo "$GEN_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['system'])")
 
-          NVIDIA_RESP=$(curl -s --max-time 120 -X POST https://integrate.api.nvidia.com/v1/chat/completions \
+          NVIDIA_RESP=$(curl -s --max-time 180 --retry 2 -X POST https://integrate.api.nvidia.com/v1/chat/completions \
             -H "Authorization: Bearer $NVIDIA_API_KEY" \
             -H "Content-Type: application/json" \
             -d "$(python3 -c "
