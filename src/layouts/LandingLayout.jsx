@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth/AuthContext';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
@@ -13,6 +13,7 @@ import { openAIAssistant } from '../lib/aiAssistant';
 const AIAssistant = lazy(() => import('../components/AIAssistant'));
 import SiteFooter from '../components/SiteFooter';
 import BrandLockup from '../components/BrandLockup';
+const FeedbackWidget = lazy(() => import('../components/FeedbackWidget'));
 import { applyIsDark, readIsDark, writeIsDark } from '../lib/theme';
 import { http } from '../lib/api/transport';
 
@@ -40,6 +41,29 @@ function NotificationsMenu() {
   const rootRef = useRef(null);
   const buttonRef = useRef(null);
   const { isLoggedIn } = useAuth();
+  const navigate = useNavigate();
+
+  // Deep link for each notification type — tapping one takes the member to
+  // the exact thing it is about, instead of landing on a dead list.
+  const targetFor = (n) => {
+    switch (n.type) {
+      case 'interest': return n.refId ? `/profiles/${n.refId}` : '/messages';
+      case 'match': return '/messages';
+      case 'message': return '/messages';
+      default: return '/dashboard';
+    }
+  };
+
+  const openNotification = async (n) => {
+    setOpen(false);
+    // Mark this one read (best-effort) then navigate.
+    try {
+      await http.post('/api/profiles/notifications/read', {});
+    } catch { /* ignore */ }
+    setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, isRead: true } : x));
+    setUnreadCount(prev => Math.max(0, prev - 1));
+    navigate(targetFor(n));
+  };
 
   const fetchNotifications = async () => {
     if (!isLoggedIn) return;
@@ -145,17 +169,20 @@ function NotificationsMenu() {
           ) : (
             <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
               {notifications.map(n => (
-                <div key={n.id} style={{
-                  padding: '8px',
-                  borderBottom: '1px solid var(--color-border)',
-                  background: n.isRead ? 'transparent' : 'var(--color-primary-subtle)'
-                }}>
+                <button key={n.id} onClick={() => openNotification(n)}
+                  className="w-full text-left hover:bg-black/5 transition-colors"
+                  style={{
+                    padding: '8px',
+                    borderBottom: '1px solid var(--color-border)',
+                    background: n.isRead ? 'transparent' : 'var(--color-primary-subtle)',
+                    cursor: 'pointer',
+                  }}>
                   <p className="text-xs font-semibold" style={{ color: 'var(--color-ink)' }}>{n.title}</p>
                   {n.body && <p className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>{n.body}</p>}
                   <p className="text-[10px]" style={{ color: 'var(--color-ink-tertiary)' }}>
                     {new Date(n.createdAt).toLocaleDateString()}
                   </p>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -597,6 +624,11 @@ export default function LandingLayout({ children }) {
       {/* AI Assistant FAB */}
       <Suspense fallback={null}>
         <AIAssistant />
+      </Suspense>
+
+      {/* Feedback widget — bottom-left, clear of the AI assistant FAB */}
+      <Suspense fallback={null}>
+        <FeedbackWidget />
       </Suspense>
 
       {/* Mobile nav styles */}

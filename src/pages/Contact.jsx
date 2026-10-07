@@ -128,8 +128,17 @@ export default function Contact() {
                   </div>
                   <div>
                     <label htmlFor="contactSubject" className="text-xs font-semibold text-ink mb-1.5 block">Subject *</label>
-                    <input id="contactSubject" name="subject" value={formData.subject} onChange={handleChange} required
-                      placeholder="How can we help?" className={inputCls} disabled={status === 'sending'} />
+                    <select id="contactSubject" name="subject" value={formData.subject} onChange={handleChange} required
+                      className={inputCls} disabled={status === 'sending'}>
+                      <option value="" disabled>How can we help?</option>
+                      <option value="Feedback: App review">Feedback: App review</option>
+                      <option value="Feedback: Feature request">Feedback: Feature request</option>
+                      <option value="Feedback: Report a problem">Feedback: Report a problem</option>
+                      <option value="Feedback: General">Feedback: General feedback</option>
+                      <option value="Support question">Support question</option>
+                      <option value="Privacy concern">Privacy concern</option>
+                      <option value="Other">Other</option>
+                    </select>
                   </div>
                   <div>
                     <label htmlFor="contactMessage" className="text-xs font-semibold text-ink mb-1.5 block">Message *</label>

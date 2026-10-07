@@ -437,6 +437,19 @@ export default function Settings() {
                     file (EXIF/GPS) is stripped before it is stored.
                   </p>
                   <PhotoUpload />
+                  <label className="flex items-center gap-3 mt-3 text-sm">
+                    <span className="font-medium text-ink">Who can see this photo</span>
+                    <select
+                      value={privacy.photoVisibility}
+                      onChange={e => setPrivacy(p => ({ ...p, photoVisibility: e.target.value }))}
+                      aria-label="Who can see your photo"
+                      className="px-3 py-2 rounded-lg border border-line/30 bg-base text-sm text-ink">
+                      <option value="public">Public — anyone</option>
+                      <option value="members">Members only</option>
+                      <option value="private">Private — only me</option>
+                    </select>
+                  </label>
+                  <p className="text-xs text-muted mt-1.5">Applies when you press “Save privacy” above.</p>
                 </div>
 
                 <div className="pt-2 border-t border-line/10 mt-6">

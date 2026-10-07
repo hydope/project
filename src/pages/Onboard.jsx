@@ -309,6 +309,7 @@ export default function Onboard() {
         displayName: data.displayName,
         age: data.age === '' ? null : parseInt(data.age, 10),
         gender: data.gender,
+        seekingGender: data.seekingGender,
         city: data.city,
         country: data.country,
         heightCm: heightMatch ? parseInt(heightMatch[1], 10) : null,

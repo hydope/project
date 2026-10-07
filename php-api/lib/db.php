@@ -279,6 +279,7 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'displayName' => $row['display_name'] ?? null,
             'age' => $row['age'] ?? null,
             'gender' => $row['gender'] ?? null,
+            'seekingGender' => $row['seeking_gender'] ?? null,
             'city' => $row['city'] ?? null,
             'country' => $row['country'] ?? null,
             'sect' => $row['sect'] ?? null,

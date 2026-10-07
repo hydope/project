@@ -20,6 +20,7 @@ export const MARJA_OPTIONS = [
   'Ayatollah al-Hakim',
   'Ayatollah al-Sadr (via wakeel)',
   'Not following a specific Marja yet',
+  "I don't know what a Marja' is yet",
   'Prefer not to say'
 ];
 

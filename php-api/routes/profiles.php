@@ -733,6 +733,9 @@ function profileUpdate(): void
     if (!empty($b['gender']) && !in_array($b['gender'], ['male', 'female'], true)) {
         je('Invalid gender.', 400);
     }
+    if (!empty($b['seekingGender']) && !in_array($b['seekingGender'], ['male', 'female'], true)) {
+        je('Invalid seekingGender.', 400);
+    }
     // Visibility vocabulary: the onboarding wizard speaks the product's UX
     // language (profile: public/limited/hidden; photos: public/request/match)
     // while the server enforces a 3-tier model (public/members/private).
@@ -778,7 +781,7 @@ function profileUpdate(): void
         }
     }
 
-    $cols = ['display_name', 'displayName', 'age', 'gender', 'city', 'country',
+    $cols = ['display_name', 'displayName', 'age', 'gender', 'seekingGender', 'city', 'country',
         'sect', 'profession', 'bio', 'expectations', 'aboutFamily',
         'visibility', 'photos_visibility', 'photosVisibility',
         'contact_visibility', 'contactVisibility',
@@ -827,6 +830,7 @@ function profileUpdate(): void
             'heightCm' => 'height_cm',
             'photoUrl' => 'photo_url',
             'syedStatus' => 'syed_status',
+            'seekingGender' => 'seeking_gender',
             default => $key,
         };
         $v = in_array($key, ['age', 'heightCm'], true) && $b[$key] !== null && $b[$key] !== ''

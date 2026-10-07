@@ -1,8 +1,10 @@
 import { usePageTitle } from '../lib/usePageTitle';
 import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Layout from '../layouts/LandingLayout';
 import { analytics } from '../lib/analytics';
+import { computeCompatibility } from '../lib/compatibility';
 import {
   Send, Search, ArrowLeft, MoreVertical, ShieldCheck, Sparkles, Check, X,
   MessageCircle, UserPlus, Info, Heart
@@ -77,6 +79,12 @@ export default function Messages() {
   const [sendError, setSendError] = useState('');
   const [activeId, setActiveId] = useState(null);
   const [tab, setTab] = useState('chats'); // 'chats' | 'requests'
+  // Requests were buried in a tab nobody opened. When introductions are
+  // waiting and no conversation is active, land on Requests so they are
+  // impossible to miss.
+  useEffect(() => {
+    if (!requestsLoading && requests.length > 0 && !activeId) setTab('requests');
+  }, [requestsLoading, requests.length, activeId]);
   const [search, setSearch] = useState('');
   const [notice, setNotice] = useState(null); // { ok, text } — transient safety confirmations
   // In-app block confirmation replaces window.confirm() (auto-dismissed by
@@ -99,29 +107,54 @@ export default function Messages() {
     return () => { alive = false; };
   }, []);
 
-  // Load the thread when a conversation is opened.
+  // Load the thread when a conversation is opened, then keep it fresh.
+  // Previously the thread loaded exactly once — new messages from the other
+  // person never appeared until a full page reload.
+  const loadThread = useRef(null);
+  loadThread.current = async (cid, silent = false) => {
+    if (!silent) { setThreadLoading(true); setThreadError(''); }
+    try {
+      const msgs = await api.getMessages(cid);
+      const normalized = (Array.isArray(msgs) ? msgs : []).map((m) => ({
+        id: m.id,
+        sender: m.senderId === 'me' ? 'me' : 'them',
+        text: m.text,
+        time: timeAgo(m.timestamp),
+      }));
+      setMessagesByConvo((prev) => {
+        const existing = prev[cid] || [];
+        const seen = new Set(existing.map((m) => m.id));
+        const merged = [...existing];
+        for (const m of normalized) {
+          if (!seen.has(m.id)) { merged.push(m); seen.add(m.id); }
+        }
+        // Keep chronological order by id fallback
+        return { ...prev, [cid]: merged };
+      });
+    } catch {
+      if (!silent) setThreadError('Could not load these messages.');
+    } finally {
+      if (!silent) setThreadLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (!activeId || messagesByConvo[activeId]) return;
-    let alive = true;
-    setThreadLoading(true);
-    setThreadError('');
-    api.getMessages(activeId)
-      .then((msgs) => {
-        if (!alive) return;
-        setMessagesByConvo((prev) => ({
-          ...prev,
-          [activeId]: (Array.isArray(msgs) ? msgs : []).map((m) => ({
-            id: m.id,
-            sender: m.senderId === 'me' ? 'me' : 'them',
-            text: m.text,
-            time: timeAgo(m.timestamp),
-          })),
-        }));
-      })
-      .catch(() => { if (alive) setThreadError('Could not load these messages.'); })
-      .finally(() => { if (alive) setThreadLoading(false); });
-    return () => { alive = false; };
+    if (!activeId) return;
+    // Only do the full loading state the first time this thread opens.
+    if (!messagesByConvo[activeId]) loadThread.current(activeId, false);
+    const poll = setInterval(() => loadThread.current(activeId, true), 8000);
+    return () => clearInterval(poll);
   }, [activeId]);
+
+  // Keep the conversation list (unread badges, last message) fresh too.
+  useEffect(() => {
+    const poll = setInterval(() => {
+      api.getConversations()
+        .then((list) => setConvos(Array.isArray(list) ? list : []))
+        .catch(() => {});
+    }, 20000);
+    return () => clearInterval(poll);
+  }, []);
 
   const activeConvo = convos.find((c) => c.id === activeId) || null;
   const messages = activeId ? (messagesByConvo[activeId] || []) : [];
@@ -453,22 +486,46 @@ function ChatPane({ convo, messages, onBack, onSend, onBlock, messagesEndRef, lo
   const [draft, setDraft] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [compat, setCompat] = useState(null);
   const name = convo.participantName || 'Member';
   const firstName = name.split(' ')[0];
+  const profileId = convo.participantId;
+
+  // Compatibility at a glance inside the chat — members asked where the match
+  // score went after the conversation started. Fetched once per conversation.
+  useEffect(() => {
+    if (!profileId) return;
+    let alive = true;
+    api.getProfile(profileId)
+      .then((p) => {
+        if (!alive || !p) return;
+        try {
+          const c = computeCompatibility(p);
+          if (alive && c) setCompat(c.overall);
+        } catch { /* no score, no chip */ }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [profileId]);
 
   return (
     <div className="flex-1 flex flex-col min-w-0" style={{ background: 'var(--color-canvas)' }}>
-      {/* Header */}
+      {/* Header — avatar + name link straight to the member's profile */}
       <header className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
         <button onClick={onBack} aria-label="Back to conversations"
           className="btn btn-ghost btn-sm md:hidden">
           <ArrowLeft className="w-3 h-3" />
         </button>
-        <Avatar name={name} size="w-9 h-9" />
-        <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-semibold text-ink truncate">{name}</h2>
-          <p className="text-xs text-muted truncate">Private conversation</p>
-        </div>
+        <Link to={profileId ? `/profiles/${profileId}` : '#'} aria-label={`View ${name}'s profile`}
+          className="flex items-center gap-3 flex-1 min-w-0 rounded-lg hover:opacity-80 transition-opacity">
+          <Avatar name={name} size="w-9 h-9" />
+          <div className="flex-1 min-w-0 text-left">
+            <h2 className="text-sm font-semibold text-ink truncate">{name}</h2>
+            <p className="text-xs text-muted truncate">
+              Private conversation{typeof compat === 'number' ? ` · ${compat}% match` : ''}
+            </p>
+          </div>
+        </Link>
         {/* NOTE: there is deliberately no "invite chaperone" control here.
             An earlier version had one, but it only flipped local React state —
             it never called the API, granted nobody access, and told the user
@@ -592,12 +649,12 @@ function Bubble({ msg }) {
   const mine = msg.sender === 'me';
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-      <div className="max-w-[80%] md:max-w-[65%]">
-        <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${mine ? 'rounded-br-md bg-primary text-white' : 'rounded-bl-md'}`}
+      <div className="max-w-[85%] sm:max-w-[75%] md:max-w-[65%]">
+        <div className={`px-3 py-1.5 rounded-2xl text-[13px] sm:text-sm leading-relaxed ${mine ? 'rounded-br-md bg-primary text-white' : 'rounded-bl-md'}`}
           style={mine ? undefined : { background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-ink)' }}>
           {msg.text}
         </div>
-        <span className={`text-[10px] mt-1 block ${mine ? 'text-right' : ''}`} style={{ color: 'var(--color-ink-tertiary)' }}>{msg.time}</span>
+        <span className={`text-[10px] mt-0.5 block ${mine ? 'text-right' : ''}`} style={{ color: 'var(--color-ink-tertiary)' }}>{msg.time}</span>
       </div>
     </motion.div>
   );

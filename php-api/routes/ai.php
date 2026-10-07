@@ -70,6 +70,13 @@ function routeAI(string $method, array $segments): void
         if ($method === 'POST') { requireAdminUser(); aiCreatePost(); return; }
     }
 
+    // POST /api/ai/posts/auto-schedule — schedule draft posts one per day.
+    if ($method === 'POST' && $action === 'posts' && ($segments[1] ?? null) === 'auto-schedule') {
+        requireAdminUser();
+        aiAutoSchedule();
+        return;
+    }
+
     if ($action === 'posts' && count($segments) >= 2) {
         requireAdminUser();
         $id = (string)$segments[1];
@@ -553,4 +560,50 @@ function aiDeletePost(string $id): void
     db()->prepare('DELETE FROM blog_posts WHERE id = ?')->execute([$id]);
     auditLog('post.deleted', 'blog_post', $id, ['slug' => $post['slug']]);
     json(['ok' => true]);
+}
+
+/**
+ * POST /api/ai/posts/auto-schedule — schedule draft posts, one per day.
+ *
+ * Takes the oldest drafts (up to `count`, default 7) and schedules them for
+ * 09:00 UTC on consecutive days, starting after the last already-scheduled or
+ * published post. Idempotent: drafts that are already scheduled/published are
+ * never touched, and days that already have a post are skipped.
+ */
+function aiAutoSchedule(): void
+{
+    $body = requestJson();
+    $count = max(1, min(30, (int)($body['count'] ?? 7)));
+
+    // Find the latest date that already has a post going live, so we never
+    // double-book a day.
+    $last = db()->query(
+        "SELECT GREATEST(
+            COALESCE(MAX(scheduled_for), '1970-01-01'),
+            COALESCE(MAX(published_at), '1970-01-01')
+        ) AS last_day FROM blog_posts WHERE status IN ('scheduled','published')"
+    )->fetch();
+    $cursor = new DateTimeImmutable($last['last_day'] ?? '1970-01-01', new DateTimeZone('UTC'));
+    $today = new DateTimeImmutable('today', new DateTimeZone('UTC'));
+    if ($cursor < $today) $cursor = $today;
+
+    $drafts = db()->prepare(
+        "SELECT id, title FROM blog_posts WHERE status = 'draft' ORDER BY created_at ASC LIMIT ?"
+    );
+    $drafts->bindValue(1, $count, PDO::PARAM_INT);
+    $drafts->execute();
+    $rows = $drafts->fetchAll();
+
+    $scheduled = [];
+    foreach ($rows as $d) {
+        // Next free day at 09:00 UTC.
+        $cursor = $cursor->modify('+1 day')->setTime(9, 0, 0);
+        $slot = $cursor->format('Y-m-d H:i:s');
+        db()->prepare("UPDATE blog_posts SET status = 'scheduled', scheduled_for = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?")
+            ->execute([$slot, $d['id']]);
+        $scheduled[] = ['id' => $d['id'], 'title' => $d['title'], 'scheduled_for' => $slot];
+        auditLog('post.auto_scheduled', 'blog_post', (string)$d['id'], ['scheduled_for' => $slot]);
+    }
+
+    json(['ok' => true, 'scheduled' => $scheduled, 'count' => count($scheduled)]);
 }

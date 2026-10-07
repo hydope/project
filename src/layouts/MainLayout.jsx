@@ -11,6 +11,7 @@ import {
 import ThemeMenu from '../components/ThemeMenu';
 // Lazy: the assistant widget + brain load on demand, not in the entry chunk.
 const AIAssistant = lazy(() => import('../components/AIAssistant'));
+const FeedbackWidget = lazy(() => import('../components/FeedbackWidget'));
 import BrandLockup from '../components/BrandLockup';
 
 // ── Command Palette — Full-text search across navigation + actions ───────────
@@ -435,6 +436,11 @@ export default function MainLayout({ children }) {
       {/* AI Assistant FAB + drawer — member pages get it too, not just landing */}
       <Suspense fallback={null}>
         <AIAssistant />
+      </Suspense>
+
+      {/* Feedback widget — bottom-left, clear of the AI assistant FAB */}
+      <Suspense fallback={null}>
+        <FeedbackWidget />
       </Suspense>
     </div>
   );

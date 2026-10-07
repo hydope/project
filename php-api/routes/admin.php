@@ -361,6 +361,13 @@ function routeAdmin(string $method, array $segments): void
         adminUnblockUser((string)$segments[1]);
         return;
     }
+    // POST /api/admin/users/:id/block — ban a member from the platform.
+    // Sets profiles.is_blocked = 1, which hides them from browse, search,
+    // favourites and messaging everywhere visibleProfile() is used.
+    if ($method === 'POST' && $action === 'users' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === 'block') {
+        adminBlockUser((string)$segments[1]);
+        return;
+    }
 
     json(['error' => 'Admin endpoint not found'], 404);
 }
@@ -1171,6 +1178,14 @@ function applyVerification(string $userId, string $decision, ?string $note, arra
           WHERE id = ?'
     )->execute([$next, (string)($actor['uid'] ?? ''), $note, $userId]);
 
+    // The profile badge reads profiles.is_verified, not users.verification_status.
+    // Without this sync, an admin approval never showed the verified check on
+    // the member's card — verification looked broken.
+    try {
+        db()->prepare('UPDATE profiles SET is_verified = ? WHERE user_id = ?')
+            ->execute([$decision === 'approve' ? 1 : 0, $userId]);
+    } catch (Throwable) { /* member may have no profile row yet */ }
+
     auditLog('account.' . $decision . 'd', 'user', $userId, [
         'from' => $row['verification_status'],
         'to' => $next,
@@ -1303,6 +1318,34 @@ function adminSetRole(string $userId): void
     ]);
 
     json(['ok' => true, 'id' => $row['id'], 'email' => $row['email'], 'role' => $role]);
+}
+
+// POST /api/admin/users/:id/block — ban a member from the platform.
+// Sets profiles.is_blocked = 1, which hides them from browse, search,
+// favourites and messaging everywhere visibleProfile() is used. Audited.
+function adminBlockUser(string $userId): void
+{
+    $probe = db()->prepare('SELECT id, email FROM users WHERE id = ? LIMIT 1');
+    $probe->execute([$userId]);
+    $row = $probe->fetch();
+    if (!$row) {
+        je('Member not found.', 404);
+    }
+    // Never let an admin ban themselves or another admin by accident.
+    $role = db()->prepare('SELECT role FROM users WHERE id = ? LIMIT 1');
+    $role->execute([$userId]);
+    if (in_array((string)($role->fetch()['role'] ?? ''), ['admin', 'superadmin'], true)) {
+        je('Admin accounts cannot be blocked.', 403);
+    }
+    $body = requestJson();
+    $reason = trim((string)($body['reason'] ?? ''));
+    try {
+        db()->prepare('UPDATE profiles SET is_blocked = 1 WHERE user_id = ?')->execute([$userId]);
+    } catch (Throwable) { /* target may have no profile row */ }
+
+    auditLog('user.blocked', 'user', $userId, ['email' => (string)$row['email'], 'reason' => $reason]);
+
+    json(['ok' => true, 'id' => $row['id'], 'email' => $row['email']]);
 }
 
 // POST /api/admin/users/:id/unblock — clear a moderation block so the member's

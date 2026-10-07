@@ -281,6 +281,22 @@ export default function AdminContent() {
     }
   };
 
+  const autoSchedule = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const res = await http.post('/api/ai/posts/auto-schedule', { count: 7 });
+      setFlash(res?.count
+        ? `Scheduled ${res.count} draft${res.count === 1 ? '' : 's'}, one per day.`
+        : 'No drafts to schedule — write or generate some first.');
+      await load();
+    } catch (err) {
+      setError(err?.message || 'Could not auto-schedule.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Layout>
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
@@ -291,10 +307,17 @@ export default function AdminContent() {
               Draft, schedule and publish articles. Nothing goes live without you.
             </p>
           </div>
-          <button onClick={load} disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-elevated text-muted border border-line/20 hover:border-line/40 disabled:opacity-50">
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={autoSchedule} disabled={busy}
+              title="Schedule draft posts automatically, one per day"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-elevated text-muted border border-line/20 hover:border-line/40 disabled:opacity-50">
+              <Calendar className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} /> Auto-schedule 1/day
+            </button>
+            <button onClick={load} disabled={loading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-elevated text-muted border border-line/20 hover:border-line/40 disabled:opacity-50">
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+            </button>
+          </div>
         </header>
 
         {error && (

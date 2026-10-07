@@ -165,7 +165,7 @@ jobs:
           # retrieved platform facts and content drafting is disabled.
           NVIDIA_API_KEY=${{ secrets.NVIDIA_API_KEY }}
           NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
-          NVIDIA_MODEL=moonshotai/kimi-k3
+          NVIDIA_MODEL=nvidia/nemotron-3.5-lightning-30b-a3b
           TZ=America/New_York
           EOF
           echo ".env generated with $(wc -l < php-api/.env) lines (values from secrets, not shown)"

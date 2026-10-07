@@ -75,6 +75,18 @@ export default function AdminMembers() {
     }
   };
 
+  const block = async (id) => {
+    const reason = window.prompt('Reason for blocking this member (recorded in the audit log):') ?? '';
+    if (reason === null) return; // cancelled
+    try {
+      await http.post(`/api/admin/users/${id}/block`, { reason });
+      await load();
+      setDetail(await http.get(`/api/admin/user/${id}`));
+    } catch (e) {
+      setError(e?.message || 'Could not block that member.');
+    }
+  };
+
   return (
     <Layout>
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
@@ -173,10 +185,15 @@ export default function AdminMembers() {
                 className="absolute right-4 top-4 text-muted hover:text-ink"><X className="w-5 h-5" /></button>
               <h2 className="text-lg font-bold text-ink pr-8">{detail?.user?.display_name || selected.display_name}</h2>
               <p className="text-xs text-muted mt-0.5 break-all">{detail?.user?.email || selected.email}</p>
-              {selected.is_blocked && (
+              {selected.is_blocked ? (
                 <button onClick={() => unblock(selected.id)}
                   className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-line/30 text-muted">
                   <Ban className="w-3.5 h-3.5" /> Unblock this member
+                </button>
+              ) : (
+                <button onClick={() => block(selected.id)}
+                  className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-danger/40 text-danger hover:bg-danger/10">
+                  <Ban className="w-3.5 h-3.5" /> Block / ban this member
                 </button>
               )}
               {detailBusy && <div className="skeleton h-40 rounded-xl mt-4" />}

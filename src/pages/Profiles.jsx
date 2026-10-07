@@ -6,6 +6,7 @@ import CuratedMatchFeed from '../components/CuratedMatchFeed.jsx';
 import LoginGate from '../components/LoginGate';
 import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
+import { MARJA_OPTIONS } from '../lib/onboardingData';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -17,8 +18,8 @@ const RELIGIOSITY_FILTERS = ['Any level', 'Very practicing', 'Practicing', 'Mode
 const EDUCATION_FILTERS = ['Any education', "Bachelor's degree", "Master's degree", 'Doctorate', 'Some college'];
 // Marja' is the single most requested Shia filter — it decides which rulings
 // govern a shared household, so it belongs next to sect, not buried.
-// Values MUST match MARJA_OPTIONS in onboardingData.js exactly.
-const MARJA_FILTERS = ['Any marja', 'Ayatollah al-Sistani', 'Ayatollah al-Khamenei', 'Ayatollah al-Shirazi', 'Ayatollah al-Hakim', 'Ayatollah al-Sadr (via wakeel)', 'Not following a specific Marja yet', 'Prefer not to say'];
+// Imported from onboardingData.js so the values can never drift apart.
+const MARJA_FILTERS = ['Any marja', ...MARJA_OPTIONS];
 // Modesty options MUST match MODESTY_OPTIONS_FEMALE/MALE in onboardingData.js exactly.
 // Shown as Hijab options when browsing brides, Beard options for grooms.
 const MODESTY_FILTERS_FEMALE = ['Any', 'Hijab — always observed', 'Hijab — working towards it', 'Modest dress, no hijab yet', 'Prefer not to say'];
@@ -177,6 +178,7 @@ export function Favourites() {
 
 export function BrowseProfiles() {
   usePageTitle('Browse Profiles');
+  const { isLoggedIn } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -184,6 +186,21 @@ export function BrowseProfiles() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(9);
+
+  // Default the gender filter to the signed-in member's seekingGender, so a
+  // woman looking for a husband sees men (not women) ranked as top matches.
+  // Only applies when the member hasn't chosen a gender filter themselves.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let cancelled = false;
+    api.getProfile('me')
+      .then(me => {
+        if (cancelled || !me?.seekingGender) return;
+        setFilters(prev => (prev.gender ? prev : { ...prev, gender: me.seekingGender }));
+      })
+      .catch(() => { /* browse works without it */ });
+    return () => { cancelled = true; };
+  }, [isLoggedIn]);
 
   const view = searchParams.get('view') === 'curated' ? 'curated' : 'grid';
 

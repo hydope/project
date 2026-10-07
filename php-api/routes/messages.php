@@ -200,6 +200,15 @@ function sendMessage(string $id): void
     $stmt = db()->prepare('INSERT INTO messages (id, conversation_id, sender_id, body) VALUES (?, ?, ?, ?)');
     $stmt->execute([$msgId, $id, $user['uid'], encAtRest($body)]);
 
+    // Notify the recipient so the notification bell deep-links to the chat.
+    try {
+        $nm = db()->prepare('SELECT display_name FROM profiles WHERE user_id = ? LIMIT 1');
+        $nm->execute([(string)$user['uid']]);
+        $senderName = $nm->fetch()['display_name'] ?? 'Someone';
+        $preview = mb_substr($body, 0, 80);
+        notifyUser($other, 'message', 'New message from ' . $senderName, $preview, $id);
+    } catch (Throwable $e) { /* notification is best-effort */ }
+
     $fetch = db()->prepare('SELECT id, body, created_at FROM messages WHERE id = ? LIMIT 1');
     $fetch->execute([$msgId]);
     $saved = $fetch->fetch();

@@ -71,6 +71,12 @@ export function computeCompatibility(profile, me = getMyProfile()) {
   // to compare — there is nothing to compute against, so we decline rather than
   // emit a number.
   if (!profile || !me || !me.sect) return null;
+  // Gender honesty: a candidate whose gender is not what the viewer is seeking
+  // can never be a top match. Score them near zero so "Best match" sorting
+  // buries them instead of ranking a same-gender profile first for a member
+  // seeking the opposite gender.
+  const seeking = me.seekingGender || me.seeking_gender;
+  const genderMismatch = seeking && profile.gender && seeking !== profile.gender;
   // ── Faith alignment ──────────────────────────────────────────────────
   let faith = 62;
   if (me?.sect && profile.sect) faith = me.sect === profile.sect ? 95 : 55;
@@ -80,7 +86,7 @@ export function computeCompatibility(profile, me = getMyProfile()) {
     const gap = Math.abs(myR - theirR); // 0–4
     faith = Math.round(faith * 0.6 + (1 - gap / 4) * 100 * 0.4);
   }
-  if (me?.marja && profile.marja) faith = Math.min(100, faith + 4);
+  if (me?.marja && profile.marja && me.marja === profile.marja) faith = Math.min(100, faith + 4);
 
   // ── Shared values (languages, family involvement, children views) ────
   const langRatio = languageOverlap(me?.languages, profile.languages);
@@ -133,8 +139,12 @@ export function computeCompatibility(profile, me = getMyProfile()) {
   if (/wali|family/i.test(profile.halalLifestyle || '') || me?.familyInvolvement === 'wali-required') reasons.push('Family-involved approach');
   if (profile.maritalStatus === 'Never married' && me?.maritalStatus === 'Never married') reasons.push('Both seeking a first marriage');
 
+  // Gender mismatch can never be a top match — clamp the score to the floor
+  // so "Best match" sorting buries these instead of ranking them first.
+  const finalOverall = genderMismatch ? 5 : Math.max(35, Math.min(99, overall || profile.matchScore || 70));
+
   return {
-    overall: Math.max(35, Math.min(99, overall || profile.matchScore || 70)),
+    overall: finalOverall,
     breakdown: { values, lifestyle, faith, timeline },
     reasons: reasons.length ? reasons : ['Strong overall alignment across core dimensions'],
     topReason: reasons[0] || 'Strong overall alignment'

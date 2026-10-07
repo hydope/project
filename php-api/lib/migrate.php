@@ -130,6 +130,11 @@ function migrateAddProfileColumns(): void
         // surfaces it so the UI can badge the card honestly — a demo profile
         // must never be mistakable for someone a member could write to.
         'is_demo'            => "TINYINT(1) NOT NULL DEFAULT 0",
+        // Who the member is looking for ('male' / 'female'). Collected as a
+        // required onboarding field but never persisted until now — which is
+        // why browse/matching could not honor it and members saw same-gender
+        // profiles ranked as top matches.
+        'seeking_gender'       => "VARCHAR(20) DEFAULT NULL",
     ];
 
     try {
