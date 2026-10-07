@@ -1,0 +1,25 @@
+name: Debug NVIDIA Blog Generation
+on:
+  workflow_dispatch:
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test NVIDIA API with blog params
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          echo "Testing with same params as blog queue..."
+          RESP=$(curl -s --max-time 60 -X POST https://integrate.api.nvidia.com/v1/chat/completions \
+            -H "Authorization: Bearer $NVIDIA_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+              "messages": [{"role": "system", "content": "You write for Shia Rishta. Return STRICT JSON with keys: title, excerpt, category, readTime, body. Return only the JSON object."}, {"role": "user", "content": "TOPIC: Test topic for debugging"}],
+              "max_tokens": 1200,
+              "temperature": 0.9,
+              "stream": false
+            }')
+          echo "Response length: ${#RESP}"
+          echo "First 500 chars: ${RESP:0:500}"
+          echo "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print('Has choices:', 'choices' in d); print('Content empty:', not d.get('choices',[{}])[0].get('message',{}).get('content','').strip()); print('Finish reason:', d.get('choices',[{}])[0].get('finish_reason'))" 2>&1 || echo "Failed to parse as JSON"
