@@ -53,7 +53,7 @@ function sitemapXml(): void
 
     // Public, non-blocked member profiles.
     try {
-        $stmt = $pdo->query("SELECT user_id, updated_at FROM profiles WHERE is_blocked = 0 AND is_banned = 0 ORDER BY updated_at DESC LIMIT 5000");
+        $stmt = $pdo->query("SELECT user_id, updated_at FROM profiles WHERE is_blocked = 0 ORDER BY updated_at DESC LIMIT 5000");
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $urls[] = [
                 'loc' => $base . '/profiles/' . rawurlencode((string)$row['user_id']),

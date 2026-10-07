@@ -196,7 +196,7 @@ export default function BiodataMaker() {
     a.click();
   };
 
-  const t = TEMPLATES.find(x => x.id === template);
+  const t = TEMPLATES.find(x => x.id === template) || TEMPLATES[0];
 
   return (
     <Layout>
