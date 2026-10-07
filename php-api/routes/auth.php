@@ -47,6 +47,12 @@ function authRegister(): void
         je('Please select your sect.', 400);
     }
 
+    // Account type selected at signup: member (default), guardian, or matchmaker.
+    $role = trim((string)($payload['role'] ?? 'member'));
+    if (!in_array($role, ['member', 'guardian', 'matchmaker'], true)) {
+        $role = 'member';
+    }
+
     // ADMIN_EMAILS drives is_admin on register — the first-admin bootstrap.
     $adminEmails = adminEmails();
     $isAdmin = in_array($email, $adminEmails, true);
@@ -56,8 +62,8 @@ function authRegister(): void
     $pdo = db();
     try {
         $pdo->beginTransaction();
-        $stmt = $pdo->prepare('INSERT INTO users (id, email, password_hash, display_name, is_admin) VALUES (?, ?, ?, ?, ?)');
-        $stmt->execute([$userId, $email, $hash, $displayName, $isAdmin ? 1 : 0]);
+        $stmt = $pdo->prepare('INSERT INTO users (id, email, password_hash, display_name, is_admin, role) VALUES (?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$userId, $email, $hash, $displayName, $isAdmin ? 1 : 0, $role]);
         $profileStmt = $pdo->prepare('INSERT INTO profiles (user_id, display_name, sect) VALUES (?, ?, ?)');
         $profileStmt->execute([$userId, $displayName, $sect]);
         $pdo->commit();

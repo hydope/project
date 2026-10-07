@@ -37,10 +37,18 @@ function matchmakerSubmit(): void
     if ($name === '') {
         je('A name is required.', 400);
     }
+    $gender = in_array($body['gender'] ?? '', ['male', 'female'], true) ? $body['gender'] : null;
+    // Matchmaker-role accounts may only list female profiles. This keeps the
+    // role focused on its purpose (families listing daughters) and prevents
+    // misuse.
+    $role = (string)($user['role'] ?? '');
+    if ($role === 'matchmaker' && $gender !== 'female') {
+        je('Matchmaker accounts may only submit female profiles.', 403);
+    }
     $payload = [
         'display_name' => $name,
         'age' => isset($body['age']) ? (int)$body['age'] : null,
-        'gender' => in_array($body['gender'] ?? '', ['male', 'female'], true) ? $body['gender'] : null,
+        'gender' => $gender,
         'city' => trim((string)($body['city'] ?? '')),
         'country' => trim((string)($body['country'] ?? '')),
         'bio' => trim((string)($body['bio'] ?? '')),

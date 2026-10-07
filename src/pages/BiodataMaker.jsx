@@ -5,10 +5,22 @@ import { usePageTitle } from '../lib/usePageTitle';
 import { Download, ImagePlus, Save, Sparkles } from 'lucide-react';
 
 const TEMPLATES = [
-  { id: 'gold', name: 'Royal Gold', desc: 'Classic gold border, Bismillah header', bg: '#ffffff', accent: '#b8860b', border: 'gold' },
-  { id: 'maroon', name: 'Maroon Elegance', desc: 'Deep maroon with traditional border', bg: '#ffffff', accent: '#7b1e1e', border: 'maroon' },
-  { id: 'rose', name: 'Blush Rose', desc: 'Soft rose, modern layout with photo', bg: '#c9a0a0', accent: '#ffffff', border: 'none' },
-  { id: 'ink', name: 'Classic Ink', desc: 'Timeless black double border', bg: '#fdfdf8', accent: '#1a1a1a', border: 'ink' },
+  {
+    id: 'essential', name: 'Essential', desc: 'Clean, minimal — just the details',
+    bg: '#ffffff', ink: '#1a1a1a', accent: '#4a4a4a', muted: '#888888',
+  },
+  {
+    id: 'noor', name: 'Noor', desc: 'Ivory & emerald with geometric grace',
+    bg: '#fdfbf7', ink: '#1c2b23', accent: '#0e5c3f', muted: '#8a9a90',
+  },
+  {
+    id: 'sahara', name: 'Sahara', desc: 'Warm sand & bronze, editorial layout',
+    bg: '#faf6f0', ink: '#2c2419', accent: '#9a6b2f', muted: '#a89880',
+  },
+  {
+    id: 'midnight', name: 'Midnight', desc: 'Deep ink with gold foil accents',
+    bg: '#101418', ink: '#f2ede4', accent: '#d4af6a', muted: '#8a8578',
+  },
 ];
 
 const SECTIONS = [
@@ -211,54 +223,200 @@ export default function BiodataMaker() {
   );
 }
 
-function Row({ label, value }) {
+function DetailRow({ label, value, ink, muted }) {
   if (!value) return null;
   return (
-    <div style={{ display: 'flex', gap: 8, marginBottom: 5, fontSize: 13, lineHeight: 1.5 }}>
-      <span style={{ width: 150, flexShrink: 0, fontWeight: 600 }}>{label}</span>
-      <span style={{ flexShrink: 0 }}>:</span>
-      <span>{value}</span>
+    <div style={{ display: 'flex', gap: 12, marginBottom: 7, fontSize: 13.5, lineHeight: 1.55 }}>
+      <span style={{ width: 148, flexShrink: 0, color: muted, fontWeight: 500 }}>{label}</span>
+      <span style={{ color: ink, fontWeight: 500 }}>{value}</span>
     </div>
+  );
+}
+
+function SectionTitle({ children, accent, muted }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, marginTop: 4 }}>
+      <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 3, color: accent, margin: 0, whiteSpace: 'nowrap' }}>
+        {children}
+      </h2>
+      <div style={{ flex: 1, height: 1, background: muted, opacity: 0.4 }} />
+    </div>
+  );
+}
+
+function Watermark({ dark }) {
+  return (
+    <>
+      {/* Diagonal watermark across the page */}
+      <div style={{
+        position: 'absolute', top: '45%', left: '50%', transform: 'translate(-50%,-50%) rotate(-24deg)',
+        fontSize: 64, fontWeight: 800, letterSpacing: 6, whiteSpace: 'nowrap',
+        color: dark ? 'rgba(212,175,106,0.06)' : 'rgba(0,0,0,0.035)',
+        pointerEvents: 'none', userSelect: 'none', fontFamily: 'Georgia, serif',
+      }}>
+        shiarishta.com
+      </div>
+      {/* Footer brand bar */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, padding: '14px 48px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        borderTop: `1px solid ${dark ? 'rgba(212,175,106,0.25)' : 'rgba(0,0,0,0.08)'}`,
+        fontSize: 10.5, letterSpacing: 1.5, textTransform: 'uppercase',
+        color: dark ? 'rgba(212,175,106,0.7)' : '#999',
+      }}>
+        <span>shiarishta.com</span>
+        <span>Shia Nikah Matchmaking</span>
+      </div>
+    </>
   );
 }
 
 // Forwarded ref so the download button can serialize this exact DOM.
 const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, photo }, ref) {
-  const borderStyle =
-    t.border === 'gold' ? { border: '6px double #b8860b', outline: '2px solid #b8860b', outlineOffset: 6 } :
-    t.border === 'maroon' ? { border: '10px solid transparent', borderImage: 'repeating-linear-gradient(45deg, #7b1e1e, #7b1e1e 8px, #d4a017 8px, #d4a017 12px) 10' } :
-    t.border === 'ink' ? { border: '3px solid #1a1a1a', outline: '1px solid #1a1a1a', outlineOffset: 4 } :
-    {};
-  const dark = t.id === 'rose';
+  const dark = t.id === 'midnight';
+  const hasName = !!data.name;
 
-  return (
-    <div ref={ref} style={{ width: 794, minHeight: 1123, background: t.bg, color: dark ? '#fff' : '#1a1a1a', padding: 48, position: 'relative', ...borderStyle, fontFamily: 'Georgia, serif' }}>
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <p style={{ fontSize: 22, marginBottom: 4, color: dark ? '#fff' : t.accent }}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</p>
-        <h1 style={{ fontSize: 34, fontWeight: 'bold', letterSpacing: 2, color: dark ? '#fff' : t.accent }}>Biodata</h1>
-      </div>
+  const sections = SECTIONS.map(s => ({
+    ...s,
+    rows: s.fields.filter(f => data[f.key]),
+  })).filter(s => s.rows.length > 0);
 
-      {photo && (
-        <img src={photo} alt="" style={{ width: 150, height: 180, objectFit: 'cover', float: 'right', marginLeft: 20, marginBottom: 16, border: `3px solid ${dark ? '#fff' : t.accent}` }} />
-      )}
+  const bismillah = (
+    <p style={{ fontSize: 20, margin: '0 0 6px', color: t.accent, fontFamily: 'Georgia, serif' }}>
+      بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
+    </p>
+  );
 
-      {SECTIONS.map(s => {
-        const rows = s.fields.filter(f => data[f.key]);
-        if (!rows.length) return null;
-        return (
-          <div key={s.title} style={{ marginBottom: 22, clear: 'both' }}>
-            <h2 style={{ fontSize: 15, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, color: dark ? '#fff' : t.accent, borderBottom: `2px solid ${dark ? '#fff' : t.accent}`, paddingBottom: 4, marginBottom: 10, display: 'inline-block' }}>
-              {s.title}
-            </h2>
-            {rows.map(f => <Row key={f.key} label={f.label} value={data[f.key]} />)}
+  // ── ESSENTIAL: ultra-clean, minimal ──────────────────────────────
+  if (t.id === 'essential') {
+    return (
+      <div ref={ref} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, padding: '64px 72px 90px', position: 'relative', fontFamily: '-apple-system, "Segoe UI", sans-serif' }}>
+        <div style={{ textAlign: 'center', marginBottom: 36 }}>
+          {bismillah}
+          <h1 style={{ fontSize: 28, fontWeight: 300, letterSpacing: 8, textTransform: 'uppercase', margin: '8px 0 0', color: t.ink }}>Biodata</h1>
+          <div style={{ width: 40, height: 2, background: t.accent, margin: '16px auto 0' }} />
+        </div>
+        {hasName && (
+          <p style={{ textAlign: 'center', fontSize: 22, fontWeight: 600, margin: '0 0 32px' }}>{data.name}</p>
+        )}
+        {photo && (
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <img src={photo} alt="" style={{ width: 140, height: 168, objectFit: 'cover', borderRadius: 4 }} />
           </div>
-        );
-      })}
-
-      {/* Watermark */}
-      <div style={{ position: 'absolute', bottom: 24, left: 0, right: 0, textAlign: 'center', fontSize: 12, letterSpacing: 1, opacity: 0.55, color: dark ? '#fff' : '#888' }}>
-        Made with ♥ on shiarishta.com
+        )}
+        {sections.map(s => (
+          <div key={s.title} style={{ marginBottom: 28 }}>
+            <SectionTitle accent={t.accent} muted={t.muted}>{s.title}</SectionTitle>
+            {s.rows.map(f => <DetailRow key={f.key} label={f.label} value={data[f.key]} ink={t.ink} muted={t.muted} />)}
+          </div>
+        ))}
+        <Watermark dark={false} />
       </div>
+    );
+  }
+
+  // ── NOOR: ivory & emerald ────────────────────────────────────────
+  if (t.id === 'noor') {
+    return (
+      <div ref={ref} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
+        <div style={{ height: 10, background: `linear-gradient(90deg, ${t.accent}, #1a7a52, ${t.accent})` }} />
+        <div style={{ padding: '48px 64px 90px' }}>
+          <div style={{ textAlign: 'center', marginBottom: 30 }}>
+            {bismillah}
+            <div style={{ display: 'inline-block', border: `1px solid ${t.accent}`, padding: '10px 36px', marginTop: 8 }}>
+              <h1 style={{ fontSize: 26, fontWeight: 400, letterSpacing: 6, margin: 0, color: t.accent }}>BIODATA</h1>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start' }}>
+            <div style={{ flex: 1 }}>
+              {hasName && <p style={{ fontSize: 24, fontWeight: 600, margin: '0 0 4px', color: t.ink }}>{data.name}</p>}
+              {data.religion && <p style={{ fontSize: 13, color: t.muted, margin: '0 0 20px', letterSpacing: 1 }}>{data.religion}</p>}
+              {sections.map(s => (
+                <div key={s.title} style={{ marginBottom: 24 }}>
+                  <SectionTitle accent={t.accent} muted={t.muted}>{s.title}</SectionTitle>
+                  {s.rows.filter(f => f.key !== 'name' && f.key !== 'religion').map(f =>
+                    <DetailRow key={f.key} label={f.label} value={data[f.key]} ink={t.ink} muted={t.muted} />
+                  )}
+                </div>
+              ))}
+            </div>
+            {photo && (
+              <img src={photo} alt="" style={{ width: 168, height: 200, objectFit: 'cover', borderRadius: 8, border: `1px solid ${t.accent}`, flexShrink: 0 }} />
+            )}
+          </div>
+        </div>
+        <Watermark dark={false} />
+      </div>
+    );
+  }
+
+  // ── SAHARA: warm editorial ───────────────────────────────────────
+  if (t.id === 'sahara') {
+    return (
+      <div ref={ref} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
+        <div style={{ padding: '56px 64px 90px' }}>
+          <p style={{ fontSize: 11, letterSpacing: 4, textTransform: 'uppercase', color: t.muted, margin: '0 0 8px' }}>Marriage Biodata</p>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div>
+              {bismillah}
+              {hasName && <h1 style={{ fontSize: 38, fontWeight: 400, margin: '6px 0 0', lineHeight: 1.1 }}>{data.name}</h1>}
+            </div>
+            {photo && <img src={photo} alt="" style={{ width: 130, height: 156, objectFit: 'cover', borderRadius: 100, border: `3px solid ${t.accent}` }} />}
+          </div>
+          <div style={{ height: 2, background: t.accent, margin: '20px 0 28px', opacity: 0.6 }} />
+          {sections.map(s => (
+            <div key={s.title} style={{ marginBottom: 26 }}>
+              <h2 style={{ fontSize: 13, fontWeight: 700, letterSpacing: 2.5, textTransform: 'uppercase', color: t.accent, margin: '0 0 12px' }}>{s.title}</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 32px' }}>
+                {s.rows.filter(f => f.key !== 'name').map(f => (
+                  <div key={f.key} style={{ marginBottom: 6 }}>
+                    <p style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 1.5, color: t.muted, margin: '0 0 2px' }}>{f.label}</p>
+                    <p style={{ fontSize: 14, margin: 0, fontWeight: 500 }}>{data[f.key]}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <Watermark dark={false} />
+      </div>
+    );
+  }
+
+  // ── MIDNIGHT: dark luxury ───────────────────────────────────────
+  return (
+    <div ref={ref} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
+      <div style={{ position: 'absolute', inset: 18, border: '1px solid rgba(212,175,106,0.35)', pointerEvents: 'none' }} />
+      <div style={{ padding: '64px 72px 90px' }}>
+        <div style={{ textAlign: 'center', marginBottom: 34 }}>
+          <p style={{ fontSize: 20, color: t.accent, margin: '0 0 10px' }}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</p>
+          <p style={{ fontSize: 11, letterSpacing: 5, textTransform: 'uppercase', color: t.muted, margin: '0 0 6px' }}>In the name of Allah</p>
+          <h1 style={{ fontSize: 30, fontWeight: 400, letterSpacing: 10, color: t.accent, margin: 0 }}>BIODATA</h1>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 16 }}>
+            <div style={{ width: 60, height: 1, background: 'rgba(212,175,106,0.4)' }} />
+            <div style={{ width: 7, height: 7, transform: 'rotate(45deg)', background: t.accent }} />
+            <div style={{ width: 60, height: 1, background: 'rgba(212,175,106,0.4)' }} />
+          </div>
+        </div>
+        {photo && (
+          <div style={{ textAlign: 'center', marginBottom: 28 }}>
+            <img src={photo} alt="" style={{ width: 150, height: 180, objectFit: 'cover', borderRadius: 4, border: `1px solid rgba(212,175,106,0.5)` }} />
+          </div>
+        )}
+        {hasName && <p style={{ textAlign: 'center', fontSize: 26, margin: '0 0 28px', letterSpacing: 1 }}>{data.name}</p>}
+        {sections.map(s => (
+          <div key={s.title} style={{ marginBottom: 26 }}>
+            <h2 style={{ fontSize: 12, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', color: t.accent, margin: '0 0 12px', textAlign: 'center' }}>{s.title}</h2>
+            {s.rows.filter(f => f.key !== 'name').map(f => (
+              <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '7px 0', borderBottom: '1px solid rgba(212,175,106,0.12)', fontSize: 13.5 }}>
+                <span style={{ color: t.muted }}>{f.label}</span>
+                <span style={{ textAlign: 'right', fontWeight: 500 }}>{data[f.key]}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <Watermark dark />
     </div>
   );
 });

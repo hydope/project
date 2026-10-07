@@ -111,6 +111,7 @@ function makeMemberSession(array $row): array
         'displayName' => (string)($row['display_name'] ?? ''),
         'isAdmin' => (bool)($row['is_admin'] ?? false),
         'emailVerified' => (bool)($row['email_verified'] ?? false),
+        'role' => (string)($row['role'] ?? 'member'),
     ];
 }
 

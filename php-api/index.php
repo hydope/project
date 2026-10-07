@@ -24,6 +24,7 @@ require __DIR__ . '/routes/drafts.php';
 require __DIR__ . '/routes/admin.php';
 require __DIR__ . '/routes/contact.php';
 require __DIR__ . '/routes/matchmaker.php';
+require __DIR__ . '/routes/sitemap.php';
 require __DIR__ . '/lib/ai.php';
 require __DIR__ . '/routes/ai.php';
 
@@ -168,6 +169,10 @@ try {
             break;
         case 'ai':
             routeAI($method, $rest);
+            break;
+        case 'sitemap.xml':
+            // Dynamic sitemap — no auth, cacheable. Served at /api/sitemap.xml.
+            sitemapXml();
             break;
         default:
             json(['error' => 'Not found'], 404);

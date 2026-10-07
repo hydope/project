@@ -63,6 +63,7 @@ export default function Matchmaker() {
           Know someone looking for a rishta? Add their profile here. Every submission is
           reviewed by our team — approved profiles go live on the site, and anything
           not reviewed within 7 days is removed automatically.
+          <span className="block mt-2 font-semibold">Matchmaker accounts may only list female profiles.</span>
         </p>
 
         {!isLoggedIn ? (

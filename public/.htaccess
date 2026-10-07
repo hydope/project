@@ -92,6 +92,11 @@ RewriteRule ^20[0-9]{2}/[0-9]{2}/ /blog [R=301,L]
 RewriteRule ^author/ - [G,L]
 RewriteRule ^category/ - [G,L]
 RewriteRule ^tag/ - [G,L]
+# Dynamic sitemap — serves the full indexable URL set (static pages, blog
+# posts, community posts, public profiles) from the API. Must come before the
+# SPA fallback so /sitemap.xml never serves index.html.
+RewriteRule ^sitemap\.xml$ api/sitemap.xml [L]
+
 RewriteRule ^comments/ - [G,L]
 RewriteRule ^feed/?$ - [G,L]
 RewriteRule ^wp-content/ - [G,L]

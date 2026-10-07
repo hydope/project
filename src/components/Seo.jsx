@@ -88,7 +88,7 @@ function resolveMeta(pathname) {
     return {
       title: 'Shia Profile for Nikah | Shia Rishta',
       desc: 'View this verified Shia profile on Shia Rishta — the nikah-first Shia matrimony platform.',
-      index: false,
+      index: true,
     };
   }
   if (pathname.startsWith('/community/')) {
