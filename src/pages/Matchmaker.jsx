@@ -68,10 +68,25 @@ export default function Matchmaker() {
 
         {!isLoggedIn ? (
           <div className="card p-6 text-center">
-            <p className="text-sm mb-4" style={{ color: 'var(--color-ink-secondary)' }}>
-              Sign in to submit a profile as a matchmaker.
+            <HeartHandshake className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--color-primary)' }} />
+            <h2 className="font-bold text-lg mb-2" style={{ color: 'var(--color-ink)' }}>
+              Join to submit a profile
+            </h2>
+            <p className="text-sm mb-5 max-w-md mx-auto" style={{ color: 'var(--color-ink-secondary)' }}>
+              Create a free account or sign in, then submit the profile for review.
+              Our team reviews every submission — approved profiles go live on the site.
             </p>
-            <Link to="/auth/login" className="btn btn-primary">Sign in</Link>
+            <div className="flex gap-3 justify-center flex-wrap">
+              <Link to="/auth/register" className="btn btn-primary">
+                Sign up free
+              </Link>
+              <Link to="/auth/login" className="btn btn-ghost">
+                Sign in
+              </Link>
+            </div>
+            <p className="text-[11px] mt-4" style={{ color: 'var(--color-ink-tertiary)' }}>
+              After signing in you'll be able to fill the form below and submit it for review.
+            </p>
           </div>
         ) : (
           <form onSubmit={submit} className="card p-6 space-y-4 mb-8">

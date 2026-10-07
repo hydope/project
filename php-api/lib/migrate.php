@@ -50,6 +50,7 @@ function migrateSchema(): void
     migrateAddAppSettingsTable();
     migrateAddDisappearingAndMatchmaker();
     migrateAddBlogQueueTable();
+    migrateAddBiodataDraftsTable();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -647,5 +648,24 @@ function migrateAddBlogQueueTable(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (blog_queue seed) issue: ' . $e->getMessage());
+    }
+}
+
+// Biodata drafts. One encrypted draft per member — the biodata holds PII
+// (name, phone, email, address, photo), so the payload is AES-256-GCM
+// encrypted at rest via encAtRest(). Guests never touch this table.
+function migrateAddBiodataDraftsTable(): void
+{
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS biodata_drafts (
+          user_id    CHAR(36)     NOT NULL PRIMARY KEY,
+          data_enc   MEDIUMTEXT   NOT NULL,
+          template   VARCHAR(20)  NOT NULL DEFAULT 'essential',
+          lang       VARCHAR(5)   NOT NULL DEFAULT 'en',
+          updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          CONSTRAINT fk_biodata_drafts_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Throwable $e) {
+        error_log('[api] migration (biodata_drafts table) issue: ' . $e->getMessage());
     }
 }

@@ -2,7 +2,9 @@ import { useState, useRef, useEffect, forwardRef } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '../layouts/LandingLayout';
 import { usePageTitle } from '../lib/usePageTitle';
-import { Download, ImagePlus, Save, Sparkles } from 'lucide-react';
+import { useAuth } from '../lib/auth/AuthContext';
+import { Download, ImagePlus, Save, Sparkles, ZoomIn, ZoomOut, Maximize2, Upload } from 'lucide-react';
+import { http } from '../lib/api/transport';
 
 const TEMPLATES = [
   {
@@ -140,20 +142,75 @@ const DRAFT_KEY = 'shiarishta_biodata_draft_v1';
 
 export default function BiodataMaker() {
   usePageTitle('Marriage Biodata Maker');
+  const { isLoggedIn } = useAuth();
   const [template, setTemplate] = useState('essential');
   const [lang, setLang] = useState('en');
   const [data, setData] = useState({ religion: 'Shia Muslim' });
   const [photo, setPhoto] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const previewRef = useRef(null);
   const fileRef = useRef(null);
 
+  // ── Zoomable preview ──────────────────────────────────────────────
+  // The biodata is a fixed 794px-wide document. On small screens it is
+  // scaled to fit; the user can zoom in/out with controls. transform: scale
+  // doesn't affect layout, so the wrapper gets explicit scaled dimensions.
+  const PREVIEW_W = 794;
+  const [zoomMode, setZoomMode] = useState('fit'); // 'fit' | 'custom'
+  const [customZoom, setCustomZoom] = useState(1);
+  const [wrapWidth, setWrapWidth] = useState(0);
+  const [previewH, setPreviewH] = useState(1123);
+  const wrapRef = useRef(null);
+
   useEffect(() => {
-    try {
-      const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
-      if (d) { setData(d.data || {}); setTemplate(d.template || 'essential'); setPhoto(d.photo || null); setLang(d.lang || 'en'); }
-    } catch { /* ignore */ }
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(es => setWrapWidth(es[0].contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
+
+  // Measure the actual rendered preview height for the scaled wrapper.
+  useEffect(() => {
+    const node = previewRef.current;
+    if (!node) return;
+    const ro = new ResizeObserver(() => setPreviewH(node.offsetHeight || 1123));
+    ro.observe(node);
+    setPreviewH(node.offsetHeight || 1123);
+    return () => ro.disconnect();
+  }, [template, data, photo, lang]);
+
+  const fitScale = wrapWidth > 0 ? Math.min(1, wrapWidth / PREVIEW_W) : 1;
+  const scale = zoomMode === 'fit' ? fitScale : customZoom;
+  const zoomPct = Math.round(scale * 100);
+
+  const zoomIn = () => { setZoomMode('custom'); setCustomZoom(z => Math.min(2, +(z + 0.25).toFixed(2))); };
+  const zoomOut = () => { setZoomMode('custom'); setCustomZoom(z => Math.max(0.25, +(z - 0.25).toFixed(2))); };
+  const zoomFit = () => setZoomMode('fit');
+
+  useEffect(() => {
+    const load = async () => {
+      // Server draft wins for logged-in users; guests use localStorage.
+      if (isLoggedIn) {
+        try {
+          const r = await http.get('/api/biodata/draft');
+          if (r && r.draft) {
+            setData(r.draft.data || {});
+            setTemplate(r.draft.template || 'essential');
+            setPhoto(r.draft.photo || null);
+            setLang(r.draft.lang || 'en');
+            return;
+          }
+        } catch { /* fall through to local */ }
+      }
+      try {
+        const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+        if (d) { setData(d.data || {}); setTemplate(d.template || 'essential'); setPhoto(d.photo || null); setLang(d.lang || 'en'); }
+      } catch { /* ignore */ }
+    };
+    load();
+  }, [isLoggedIn]);
 
   const set = (k, v) => { setData(d => ({ ...d, [k]: v })); setSaved(false); };
 
@@ -165,11 +222,21 @@ export default function BiodataMaker() {
     reader.readAsDataURL(f);
   };
 
-  const saveDraft = () => {
+  const saveDraft = async () => {
+    const payload = { data, template, photo, lang };
+    // Always keep a local copy; logged-in users also get an encrypted
+    // server copy so the draft follows them across devices.
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ data, template, photo, lang }));
-      setSaved(true);
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
     } catch { /* storage full */ }
+    if (isLoggedIn) {
+      setSaving(true);
+      try {
+        await http.post('/api/biodata/draft', payload);
+      } catch { /* server save failed — local copy remains */ }
+      setSaving(false);
+    }
+    setSaved(true);
   };
 
   const download = async () => {
@@ -249,21 +316,33 @@ export default function BiodataMaker() {
           <div className="space-y-6">
             <div className="card p-5">
               <h2 className="font-bold mb-3 flex items-center gap-2" style={{ color: 'var(--color-ink)' }}>
-                <ImagePlus className="w-4 h-4" /> Photo
+                <ImagePlus className="w-4 h-4" /> Photo <span className="text-xs font-normal" style={{ color: 'var(--color-ink-tertiary)' }}>(optional)</span>
               </h2>
               <div className="flex items-center gap-4">
                 {photo ? (
                   <img src={photo} alt="Biodata" className="w-20 h-24 object-cover rounded-lg" style={{ border: '1px solid var(--color-border)' }} />
                 ) : (
-                  <div className="w-20 h-24 rounded-lg flex items-center justify-center text-xs"
+                  <div className="w-20 h-24 rounded-lg flex items-center justify-center text-xs text-center px-1"
                     style={{ background: 'var(--color-canvas)', color: 'var(--color-ink-tertiary)', border: '1px dashed var(--color-border)' }}>
                     No photo
                   </div>
                 )}
-                <div>
-                  <button onClick={() => fileRef.current?.click()} className="btn btn-ghost btn-sm">Choose photo</button>
+                <div className="flex-1">
+                  <button onClick={() => fileRef.current?.click()}
+                    className="btn btn-primary btn-sm flex items-center gap-2">
+                    <Upload className="w-4 h-4" /> {photo ? 'Change photo' : 'Upload photo'}
+                  </button>
                   <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPhoto} />
-                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-ink-tertiary)' }}>Optional. Stored only in your browser.</p>
+                  <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: 'var(--color-ink-tertiary)' }}>
+                    Optional. Fits automatically into your biodata design.
+                    {isLoggedIn ? ' Saved securely to your account.' : ' Stored only in this browser.'}
+                  </p>
+                  {photo && (
+                    <button onClick={() => { setPhoto(null); setSaved(false); }}
+                      className="text-[11px] mt-1 underline" style={{ color: 'var(--color-danger)' }}>
+                      Remove photo
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -286,24 +365,59 @@ export default function BiodataMaker() {
               </div>
             ))}
 
-            <div className="flex gap-3">
-              <button onClick={saveDraft} className="btn btn-ghost flex items-center gap-2">
-                <Save className="w-4 h-4" /> {saved ? 'Draft saved ✓' : 'Save draft'}
+            <div className="flex gap-3 flex-wrap">
+              <button onClick={saveDraft} disabled={saving} className="btn btn-ghost flex items-center gap-2">
+                <Save className="w-4 h-4" /> {saving ? 'Saving…' : saved ? 'Draft saved ✓' : 'Save draft'}
               </button>
               <button onClick={download} className="btn btn-primary flex items-center gap-2">
                 <Download className="w-4 h-4" /> Download image
               </button>
             </div>
+            {isLoggedIn && (
+              <p className="text-[11px] mt-2" style={{ color: 'var(--color-ink-tertiary)' }}>
+                Drafts save securely to your account (encrypted) and sync across your devices.
+              </p>
+            )}
           </div>
 
           {/* Preview */}
-          <div>
-            <p className="text-xs font-bold mb-2 flex items-center gap-1.5" style={{ color: 'var(--color-ink-tertiary)' }}>
-              <Sparkles className="w-3.5 h-3.5" /> LIVE PREVIEW
-            </p>
-            <div className="overflow-auto rounded-xl" style={{ border: '1px solid var(--color-border)', maxHeight: '80vh' }}>
-              <BiodataPreview ref={previewRef} template={t} data={data} photo={photo} lang={lang} />
+          <div className="lg:sticky lg:top-4 self-start w-full min-w-0">
+            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+              <p className="text-xs font-bold flex items-center gap-1.5" style={{ color: 'var(--color-ink-tertiary)' }}>
+                <Sparkles className="w-3.5 h-3.5" /> LIVE PREVIEW
+              </p>
+              <div className="flex items-center gap-1" role="toolbar" aria-label="Preview zoom">
+                <button onClick={zoomOut} disabled={scale <= 0.25} aria-label="Zoom out"
+                  className="btn btn-ghost btn-xs p-1.5">
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </button>
+                <span className="text-[11px] font-semibold min-w-[44px] text-center" style={{ color: 'var(--color-ink-secondary)' }}>
+                  {zoomPct}%
+                </span>
+                <button onClick={zoomIn} disabled={scale >= 2} aria-label="Zoom in"
+                  className="btn btn-ghost btn-xs p-1.5">
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={zoomFit} aria-label="Fit to screen"
+                  className={`btn btn-xs p-1.5 ${zoomMode === 'fit' ? 'btn-primary' : 'btn-ghost'}`}
+                  title="Fit to screen">
+                  <Maximize2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
+            <div ref={wrapRef} className="overflow-auto rounded-xl bg-white"
+              style={{ border: '1px solid var(--color-border)', maxHeight: '82vh', touchAction: 'pan-x pan-y pinch-zoom' }}>
+              <div style={{ width: Math.max(wrapWidth, PREVIEW_W * scale), display: 'flex', justifyContent: 'center' }}>
+                <div style={{ width: PREVIEW_W * scale, height: previewH * scale, position: 'relative', flexShrink: 0 }}>
+                  <div style={{ width: PREVIEW_W, transform: `scale(${scale})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0 }}>
+                    <BiodataPreview ref={previewRef} template={t} data={data} photo={photo} lang={lang} />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p className="text-[11px] mt-2 text-center" style={{ color: 'var(--color-ink-tertiary)' }}>
+              Pinch or use the controls to zoom · preview fits your screen automatically
+            </p>
           </div>
         </div>
 

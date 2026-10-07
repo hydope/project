@@ -390,3 +390,12 @@ CREATE TABLE IF NOT EXISTS notifications (
   KEY idx_notif_user (user_id, created_at),
   KEY idx_notif_unread (user_id, is_read)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS biodata_drafts (
+  user_id    CHAR(36)     NOT NULL PRIMARY KEY,
+  data_enc   MEDIUMTEXT   NOT NULL,
+  template   VARCHAR(20)  NOT NULL DEFAULT 'essential',
+  lang       VARCHAR(5)   NOT NULL DEFAULT 'en',
+  updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_biodata_drafts_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

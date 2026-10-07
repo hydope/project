@@ -24,6 +24,7 @@ require __DIR__ . '/routes/drafts.php';
 require __DIR__ . '/routes/admin.php';
 require __DIR__ . '/routes/contact.php';
 require __DIR__ . '/routes/matchmaker.php';
+require __DIR__ . '/routes/biodata.php';
 require __DIR__ . '/routes/sitemap.php';
 require __DIR__ . '/routes/social.php';
 require __DIR__ . '/lib/ai.php';
@@ -149,6 +150,9 @@ try {
             break;
         case 'matchmaker':
             routeMatchmaker($method, $rest);
+            break;
+        case 'biodata':
+            routeBiodata($method, $rest);
             break;
         case 'community':
             routeCommunity($method, $rest);
