@@ -95,6 +95,10 @@ export default function AdminAudit() {
                             {r.meta.field_count || 0} fields
                             {r.meta.has_photo ? ' · 📷 photo' : ''}
                           </summary>
+                          {r.meta.photo_thumb && (
+                            <img src={r.meta.photo_thumb} alt="Biodata photo"
+                              className="mt-2 w-20 h-24 object-cover rounded-lg border border-line/20" />
+                          )}
                           <dl className="mt-2 space-y-1 max-h-48 overflow-auto pr-2">
                             {Object.entries(r.meta.fields || {}).map(([k, v]) => (
                               <div key={k} className="flex gap-2">

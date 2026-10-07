@@ -170,6 +170,13 @@ function biodataLogCreation(): void
         'fields' => $fields,
     ];
 
+    // Optional photo thumbnail (~160px JPEG). Kept small on purpose: the
+    // audit meta column is TEXT, and the trail is for review, not storage.
+    $thumb = $body['photo_thumb'] ?? null;
+    if (is_string($thumb) && str_starts_with($thumb, 'data:image/') && strlen($thumb) <= 50000) {
+        $meta['photo_thumb'] = $thumb;
+    }
+
     // Actor: signed-in member if any, otherwise the guest IP (hashed for privacy).
     $actorId = '';
     $actorEmail = '';

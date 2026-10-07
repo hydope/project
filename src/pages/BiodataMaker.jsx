@@ -243,10 +243,30 @@ export default function BiodataMaker() {
     const node = previewRef.current;
     if (!node) return;
     // Log the creation to the admin audit trail (count + submitted details).
-    // Fire-and-forget: the download must never wait on it.
+    // Fire-and-forget: the download must never wait on it. A downscaled
+    // thumbnail of the photo is included so admins can see it in the logs.
     try {
+      let photoThumb = null;
+      if (photo) {
+        photoThumb = await new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const maxSide = 160;
+              const r = Math.min(1, maxSide / Math.max(img.width, img.height));
+              const c = document.createElement('canvas');
+              c.width = Math.round(img.width * r);
+              c.height = Math.round(img.height * r);
+              c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+              resolve(c.toDataURL('image/jpeg', 0.7));
+            } catch { resolve(null); }
+          };
+          img.onerror = () => resolve(null);
+          img.src = photo;
+        });
+      }
       http.post('/api/biodata/log', {
-        data, template, lang, has_photo: !!photo,
+        data, template, lang, has_photo: !!photo, photo_thumb: photoThumb,
       }).catch(() => {});
     } catch { /* ignore */ }
     // Render the preview DOM to canvas via SVG foreignObject.
