@@ -71,7 +71,8 @@ function llmsTxt(): void
                 $city = trim((string)$c['city']);
                 $slug = trim(strtolower((string)preg_replace('/[^a-z0-9]+/i', '-', $city)), '-');
                 if ($slug === '') continue;
-                $lines[] = "- [Shia matrimony in $city ({$c['n']} profiles)]({$base}/city/{$slug})";
+                $n = (int)$c['n'];
+                $lines[] = "- [Shia Rishta in $city | Shia Nikah in $city | Shia Marriage in $city ($n profiles)]({$base}/city/{$slug})";
             }
             $lines[] = '';
         }
@@ -89,7 +90,8 @@ function llmsTxt(): void
                 $country = trim((string)$c['country']);
                 $slug = trim(strtolower((string)preg_replace('/[^a-z0-9]+/i', '-', $country)), '-');
                 if ($slug === '') continue;
-                $lines[] = "- [Shia matrimony in $country ({$c['n']} profiles)]({$base}/country/{$slug})";
+                $n = (int)$c['n'];
+                $lines[] = "- [Shia Rishta in $country | Shia Nikah in $country | Shia Marriage in $country ($n profiles)]({$base}/country/{$slug})";
             }
             $lines[] = '';
         }
