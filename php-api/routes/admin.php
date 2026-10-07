@@ -642,6 +642,18 @@ function adminAnalytics(): void
     $memberCounts = $bucketCounts('users');
     $messageCounts = $bucketCounts('messages');
 
+    // Biodata maker usage — from the audit trail (action = 'biodata.created').
+    $biodataCounts = [];
+    try {
+        $stmt = db()->prepare("SELECT DATE(created_at) AS d, COUNT(*) AS n FROM admin_audit
+            WHERE action = 'biodata.created'
+            AND created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY) GROUP BY DATE(created_at)");
+        $stmt->execute();
+        foreach ($stmt->fetchAll() as $r) {
+            $biodataCounts[(string)$r['d']] = (int)$r['n'];
+        }
+    } catch (Throwable) { /* audit table may predate biodata logging */ }
+
     json([
         'range' => $range,
         'charts' => [
@@ -658,6 +670,13 @@ function adminAnalytics(): void
                 'labels' => $labels,
                 'values' => array_map(fn($d) => $messageCounts[$d] ?? 0, $dayKeys),
                 'color' => 'var(--color-accent)',
+            ],
+            [
+                'key' => 'biodataCreated',
+                'title' => 'Biodatas Created',
+                'labels' => $labels,
+                'values' => array_map(fn($d) => $biodataCounts[$d] ?? 0, $dayKeys),
+                'color' => 'var(--color-success)',
             ],
         ],
     ]);

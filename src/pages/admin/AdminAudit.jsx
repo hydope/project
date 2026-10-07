@@ -87,8 +87,28 @@ export default function AdminAudit() {
                       {r.target_type}
                       {r.target_id ? <span className="ml-1 text-faint">{String(r.target_id).slice(0, 12)}</span> : null}
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted max-w-xs truncate">
-                      {r.meta && Object.keys(r.meta).length ? JSON.stringify(r.meta) : '-'}
+                    <td className="px-4 py-3 text-xs text-muted max-w-md">
+                      {r.action === 'biodata.created' && r.meta ? (
+                        <details className="cursor-pointer">
+                          <summary className="hover:text-ink">
+                            {r.meta.template || 'essential'} · {r.meta.lang || 'en'} ·{' '}
+                            {r.meta.field_count || 0} fields
+                            {r.meta.has_photo ? ' · 📷 photo' : ''}
+                          </summary>
+                          <dl className="mt-2 space-y-1 max-h-48 overflow-auto pr-2">
+                            {Object.entries(r.meta.fields || {}).map(([k, v]) => (
+                              <div key={k} className="flex gap-2">
+                                <dt className="text-faint shrink-0 min-w-[90px]">{k}:</dt>
+                                <dd className="text-ink break-words">{String(v)}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        </details>
+                      ) : (
+                        <span className="block truncate max-w-xs">
+                          {r.meta && Object.keys(r.meta).length ? JSON.stringify(r.meta) : '-'}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

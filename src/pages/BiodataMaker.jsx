@@ -242,6 +242,13 @@ export default function BiodataMaker() {
   const download = async () => {
     const node = previewRef.current;
     if (!node) return;
+    // Log the creation to the admin audit trail (count + submitted details).
+    // Fire-and-forget: the download must never wait on it.
+    try {
+      http.post('/api/biodata/log', {
+        data, template, lang, has_photo: !!photo,
+      }).catch(() => {});
+    } catch { /* ignore */ }
     // Render the preview DOM to canvas via SVG foreignObject.
     const w = 794, h = 1123; // A4-ish at 96dpi
     const clone = node.cloneNode(true);

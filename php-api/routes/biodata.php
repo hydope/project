@@ -8,6 +8,13 @@ declare(strict_types=1);
 
 function routeBiodata(string $method, array $segments): void
 {
+    // Public log endpoint: the biodata maker needs no account. Everything
+    // else requires a signed-in member.
+    if ($method === 'POST' && ($segments[0] ?? null) === 'log') {
+        biodataLogCreation();
+        return;
+    }
+
     $user = requireAuthUser();
     $userId = (string)($user['id'] ?? '');
     if ($userId === '') {
@@ -107,4 +114,89 @@ function biodataSaveDraft(string $userId): void
     }
 
     json(['ok' => true, 'saved_at' => gmdate('Y-m-d H:i:s')]);
+}
+
+/**
+ * POST /api/biodata/log — record a biodata creation in the admin audit trail.
+ *
+ * Public (the maker needs no account). Body: { data: {...}, template, lang,
+ * has_photo: bool }. Writes an immutable admin_audit row with action
+ * 'biodata.created' and every submitted field, so admins can count usage and
+ * see exactly what was entered. The photo itself is never logged — only
+ * whether one was attached.
+ *
+ * Rate-limited by IP to keep the audit table clean.
+ */
+function biodataLogCreation(): void
+{
+    // Simple per-IP throttle: max 20 biodata logs per hour.
+    $ip = (string)($_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? '');
+    $ipTag = $ip !== '' ? 'ip:' . substr(hash('sha256', $ip . 'biodata'), 0, 16) : '';
+    try {
+        if ($ipTag !== '') {
+            $n = db()->prepare(
+                "SELECT COUNT(*) c FROM admin_audit
+                 WHERE action = 'biodata.created' AND target_id = ?
+                 AND created_at > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 HOUR)"
+            );
+            $n->execute([$ipTag]);
+            if ((int)($n->fetch()['c'] ?? 0) >= 20) {
+                json(['ok' => true, 'throttled' => true]);
+            }
+        }
+    } catch (Throwable) {
+        // Throttle is best-effort; never block the log on its failure.
+    }
+
+    $body = requestJson();
+    $data = $body['data'] ?? [];
+    if (!is_array($data)) $data = [];
+
+    // Sanitize: flat string map, capped — the audit row should stay readable.
+    $fields = [];
+    foreach ($data as $k => $v) {
+        if (!is_string($k) || !is_string($v)) continue;
+        $k = substr(trim($k), 0, 40);
+        $v = substr(trim($v), 0, 500);
+        if ($k !== '' && $v !== '') $fields[$k] = $v;
+        if (count($fields) >= 40) break;
+    }
+
+    $meta = [
+        'template' => substr((string)($body['template'] ?? 'essential'), 0, 20),
+        'lang' => substr((string)($body['lang'] ?? 'en'), 0, 5),
+        'has_photo' => !empty($body['has_photo']),
+        'field_count' => count($fields),
+        'fields' => $fields,
+    ];
+
+    // Actor: signed-in member if any, otherwise the guest IP (hashed for privacy).
+    $actorId = '';
+    $actorEmail = '';
+    try {
+        $u = currentUser();
+        $actorId = (string)($u['uid'] ?? '');
+        $actorEmail = (string)($u['email'] ?? '');
+    } catch (Throwable) {
+    }
+    $targetId = $actorId !== '' ? 'user:' . $actorId : $ipTag;
+
+    try {
+        db()->prepare(
+            'INSERT INTO admin_audit (id, actor_id, actor_email, action, target_type, target_id, meta, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())'
+        )->execute([
+            uuid(),
+            $actorId,
+            $actorEmail !== '' ? $actorEmail : 'guest',
+            'biodata.created',
+            'biodata',
+            $targetId,
+            json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ]);
+    } catch (Throwable $e) {
+        error_log('[biodata] audit log failed: ' . substr($e->getMessage(), 0, 120));
+    }
+
+    json(['ok' => true]);
 }
