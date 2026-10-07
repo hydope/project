@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth/AuthContext';
 import {
   LayoutDashboard, ShieldAlert, UserCheck, Users, LifeBuoy, BadgeCheck,
   KeyRound, History, BookOpen, BarChart3, LogOut, HeartHandshake, Home,
-  Sun, Moon,
+  Sun, Moon, FileText,
 } from 'lucide-react';
 
 const ADMIN_LINKS = [
@@ -13,6 +13,7 @@ const ADMIN_LINKS = [
   { path: '/admin/verify-accounts', label: 'Verify Accounts', icon: UserCheck },
   { path: '/admin/members', label: 'Members', icon: Users },
   { path: '/admin/matchmaker', label: 'Matchmaker Queue', icon: HeartHandshake },
+  { path: '/admin/biodata', label: 'Biodata Maker', icon: FileText },
   { path: '/admin/verifications', label: 'ID Verifications', icon: BadgeCheck },
   { path: '/admin/guardians', label: 'Guardians', icon: Users },
   { path: '/admin/roles', label: 'Roles', icon: KeyRound },

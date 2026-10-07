@@ -68,9 +68,19 @@ export default function AdminQueue() {
 
   const reportAction = async (id, verb) => {
     setBusy(true);
+    setError('');
     try {
+      const item = items.find(i => i.id === id);
       await http.post(`/api/admin/reports/${id}/${verb}`, {});
       await load();
+      // Tell the admin what actually happened — previously the item just
+      // vanished with no explanation.
+      if (verb === 'action') {
+        const what = item?.kind === 'report' ? 'The reported content was hidden' : 'Action taken';
+        setError(`${what} and the report was marked as actioned.`);
+      } else {
+        setError('Report dismissed — no action taken on the content.');
+      }
     } catch (e) {
       setError(e?.message || 'That action failed.');
     } finally {

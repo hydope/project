@@ -325,7 +325,7 @@ export default function Messages() {
         </div>
 
         {/* ── Chat pane ── */}
-        <div className={`flex-1 flex-col ${activeId ? 'flex' : 'hidden md:flex'}`}>
+        <div className={`flex-1 min-w-0 flex-col ${activeId ? 'flex' : 'hidden md:flex'}`}>
           {activeConvo ? (
             <ChatPane convo={activeConvo} messages={messages} onBack={() => selectConvo(null)}
               onSend={sendMessage} onBlock={handleBlock} messagesEndRef={messagesEndRef}

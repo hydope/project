@@ -17,6 +17,8 @@ function toISO(display) {
 export default function BlogPost() {
   const { slug } = useParams();
   const [articles, setArticles] = useState(null);
+  const [dbPost, setDbPost] = useState(null);
+  const [dbLoading, setDbLoading] = useState(false);
   useEffect(() => {
     let on = true;
     import('../data/articles.js').then((m) => { if (on) setArticles(m.articles); });
@@ -24,16 +26,45 @@ export default function BlogPost() {
   }, []);
   const article = articles?.find((a) => a.slug === slug);
 
+  // Database posts (created via admin panel) aren't in the static bundle.
+  // If the slug isn't a static article, try the API before 404ing.
   useEffect(() => {
-    if (!article) return;
+    if (!articles || article) return;
+    setDbLoading(true);
+    import('../lib/api/transport.js').then(({ http }) =>
+      http.get(`/api/ai/posts/${encodeURIComponent(slug)}`)
+        .then(r => setDbPost(r?.post || r || null))
+        .catch(() => setDbPost(null))
+        .finally(() => setDbLoading(false))
+    );
+  }, [articles, article, slug]);
+
+  // Normalize a DB post to the article shape the template expects.
+  const post = article || (dbPost ? {
+    slug: dbPost.slug,
+    title: dbPost.title,
+    excerpt: dbPost.excerpt,
+    category: dbPost.category,
+    image: '/og-cover.jpg',
+    date: (dbPost.published_at || dbPost.created_at || '').slice(0, 10),
+    readTime: dbPost.read_time || '5 min',
+    // DB body is [{t:'p'|'h2', x:'...'}]; convert to the static article blocks.
+    body: (Array.isArray(dbPost.body) ? dbPost.body : []).map(b => ({
+      type: b.t === 'h2' ? 'h2' : 'p',
+      text: b.x,
+    })),
+  } : null);
+
+  useEffect(() => {
+    if (!post) return;
     const data = {
       '@context': 'https://schema.org',
       '@type': 'Article',
-      headline: article.title,
-      description: article.excerpt,
-      image: `https://shiarishta.com${article.image}`,
-      datePublished: toISO(article.date),
-      dateModified: toISO(article.date),
+      headline: post.title,
+      description: post.excerpt,
+      image: `https://shiarishta.com${post.image}`,
+      datePublished: toISO(post.date),
+      dateModified: toISO(post.date),
       author: {
         '@type': 'Organization',
         name: 'Shia Rishta',
@@ -44,7 +75,7 @@ export default function BlogPost() {
         name: 'Shia Rishta',
         logo: { '@type': 'ImageObject', url: 'https://shiarishta.com/icon-512.png' },
       },
-      mainEntityOfPage: `https://shiarishta.com/blog/${article.slug}`,
+      mainEntityOfPage: `https://shiarishta.com/blog/${post.slug}`,
       inLanguage: 'en',
     };
     const el = document.createElement('script');
@@ -53,9 +84,9 @@ export default function BlogPost() {
     el.textContent = JSON.stringify(data);
     document.head.appendChild(el);
     return () => document.getElementById('article-jsonld')?.remove();
-  }, [article]);
+  }, [post]);
 
-  if (!articles) {
+  if (!articles || dbLoading) {
     return (
       <Layout>
         <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
@@ -69,7 +100,8 @@ export default function BlogPost() {
     );
   }
 
-  if (!article) return <NotFound />;
+  if (!post && articles && !dbLoading) return <NotFound />;
+  if (!post) return null;
 
   return (
     <Layout>
@@ -77,20 +109,20 @@ export default function BlogPost() {
         <Link to="/blog" className="button ghost btn-sm mb-6 inline-flex items-center gap-2">
           <ArrowLeft className="w-4 h-4" /> Back to articles
         </Link>
-        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full" style={{ color: 'var(--color-primary)', background: 'var(--color-primary-subtle)' }}>{article.category}</span>
-        <h1 style={{ fontSize: 'clamp(1.75rem,4vw,2.75rem)', fontWeight: 700, color: 'var(--color-ink)', lineHeight: 1.2, margin: '0.75rem 0 1rem' }}>{article.title}</h1>
+        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full" style={{ color: 'var(--color-primary)', background: 'var(--color-primary-subtle)' }}>{post.category}</span>
+        <h1 style={{ fontSize: 'clamp(1.75rem,4vw,2.75rem)', fontWeight: 700, color: 'var(--color-ink)', lineHeight: 1.2, margin: '0.75rem 0 1rem' }}>{post.title}</h1>
         <div className="flex items-center gap-4 mb-6" style={{ color: 'var(--color-ink-faint)', fontSize: '0.8125rem' }}>
-          <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {article.readTime} read</span>
-          <span>{article.date}</span>
+          <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {post.readTime} read</span>
+          <span>{post.date}</span>
         </div>
         <div className="rounded-2xl overflow-hidden mb-8">
-          <img src={article.image} alt={article.title} className="w-full h-64 sm:h-80 object-cover" loading="eager" />
+          <img src={post.image} alt={post.title} className="w-full h-64 sm:h-80 object-cover" loading="eager" />
         </div>
         <div style={{ color: 'var(--color-ink-secondary)', lineHeight: 1.8, fontSize: '1rem' }}>
-          {article.body.map((b, i) => b.t === 'h2' ? (
-            <h2 key={i} style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-ink)', margin: '2rem 0 0.75rem' }}>{b.x}</h2>
+          {post.body.map((b, i) => (b.type || b.t) === 'h2' ? (
+            <h2 key={i} style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-ink)', margin: '2rem 0 0.75rem' }}>{b.x || b.text}</h2>
           ) : (
-            <p key={i} style={{ marginBottom: '1.25rem' }}>{b.x}</p>
+            <p key={i} style={{ marginBottom: '1.25rem' }}>{b.x || b.text}</p>
           ))}
         </div>
         <div className="mt-8 pt-6" style={{ borderTop: '1px solid var(--color-border)' }}>

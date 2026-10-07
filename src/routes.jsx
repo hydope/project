@@ -51,6 +51,7 @@ const AdminMembers = lazy(() => import('./pages/admin/AdminMembers'));
 const AdminAudit = lazy(() => import('./pages/admin/AdminAudit'));
 const AdminVerifyAccounts = lazy(() => import('./pages/admin/AdminVerifyAccounts'));
 const AdminContent = lazy(() => import('./pages/admin/AdminContent'));
+const AdminBiodata = lazy(() => import('./pages/admin/AdminBiodata'));
 const AdminVerifications = lazy(() => import('./pages/admin/AdminVerifications'));
 const AdminRoles = lazy(() => import('./pages/admin/AdminRoles'));
 const AdminGuardians = lazy(() => import('./pages/admin/AdminGuardians'));
@@ -223,6 +224,7 @@ const router = createBrowserRouter([
           { path: 'members', element: <LazyRoute component={AdminMembers} /> },
           { path: 'audit', element: <LazyRoute component={AdminAudit} /> },
           { path: 'content', element: <LazyRoute component={AdminContent} /> },
+          { path: 'biodata', element: <LazyRoute component={AdminBiodata} /> },
           { path: 'support', element: <LazyRoute component={AdminSupport} /> },
           { path: 'verifications', element: <LazyRoute component={AdminVerifications} /> },
           { path: 'roles', element: <LazyRoute component={AdminRoles} /> },

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import {
   Users, UserPlus, MessageCircle, Heart, ShieldCheck, Activity,
-  RefreshCw, AlertTriangle
+  RefreshCw, AlertTriangle, ArrowRight
 } from 'lucide-react';
 import Layout from '@/layouts/AdminLayout';
 import { http } from '@/lib/api/transport';
@@ -17,12 +18,12 @@ import { http } from '@/lib/api/transport';
 // profiles: an operator acting on them is acting on fiction.
 
 const STAT_CONFIG = [
-  { key: 'totalMembers', label: 'Total Members', icon: Users, color: 'primary' },
-  { key: 'activeProfiles', label: 'Active Profiles', icon: Activity, color: 'success' },
-  { key: 'messagesToday', label: 'Messages (24h)', icon: MessageCircle, color: 'info' },
-  { key: 'livePosts', label: 'Live Posts', icon: Heart, color: 'accent' },
-  { key: 'repliesThisWeek', label: 'Replies (7d)', icon: UserPlus, color: 'danger' },
-  { key: 'openReports', label: 'Open Reports', icon: ShieldCheck, color: 'warning' },
+  { key: 'totalMembers', label: 'Total Members', icon: Users, color: 'primary', link: '/admin/members' },
+  { key: 'activeProfiles', label: 'Active Profiles', icon: Activity, color: 'success', link: '/admin/members' },
+  { key: 'messagesToday', label: 'Messages (24h)', icon: MessageCircle, color: 'info', link: '/admin/analytics' },
+  { key: 'livePosts', label: 'Live Posts', icon: Heart, color: 'accent', link: '/admin/content' },
+  { key: 'repliesThisWeek', label: 'Replies (7d)', icon: UserPlus, color: 'danger', link: '/admin/analytics' },
+  { key: 'openReports', label: 'Open Reports', icon: ShieldCheck, color: 'warning', link: '/admin/queue' },
 ];
 
 const ACTIVITY_META = {
@@ -105,22 +106,24 @@ function StatCard({ stat, value, index, pending }) {
     if (ref.current) observer.observe(ref.current);
     return () => observer.disconnect();
   }, [value]);
+  const Card = stat.link ? Link : 'div';
+  const cardProps = stat.link ? { to: stat.link } : {};
   return (
     <motion.div ref={ref} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.08, duration: 0.4 }}
-      className="bg-elevated rounded-2xl border border-line/20 p-5 hover:border-line/40 hover:-translate-y-0.5 transition-all duration-200 shadow-sm">
-      <div className="flex items-start justify-between mb-3">
-        <span className={`w-10 h-10 rounded-xl flex items-center justify-center ${c.bg}`}>
-          <stat.icon className={`w-5 h-5 ${c.text}`} />
-        </span>
-        {/* The old badge printed a hardcoded +12.5% / -2.1% that was not derived
-            from anything. A trend needs two real samples, which the API does not
-            yet return — so the badge is omitted rather than invented. */}
-      </div>
-      <p className="text-2xl font-bold text-ink">
-        {pending ? <span className="text-muted/40">—</span> : display.toLocaleString()}
-      </p>
-      <p className="text-xs text-muted mt-0.5">{stat.label}</p>
+      transition={{ delay: index * 0.08, duration: 0.4 }}>
+      <Card {...cardProps}
+        className="block bg-elevated rounded-2xl border border-line/20 p-5 hover:border-line/40 hover:-translate-y-0.5 transition-all duration-200 shadow-sm cursor-pointer">
+        <div className="flex items-start justify-between mb-3">
+          <span className={`w-10 h-10 rounded-xl flex items-center justify-center ${c.bg}`}>
+            <stat.icon className={`w-5 h-5 ${c.text}`} />
+          </span>
+          {stat.link && <ArrowRight className="w-4 h-4 text-muted" />}
+        </div>
+        <p className="text-2xl font-bold text-ink">
+          {pending ? <span className="text-muted/40">—</span> : display.toLocaleString()}
+        </p>
+        <p className="text-xs text-muted mt-0.5">{stat.label}</p>
+      </Card>
     </motion.div>
   );
 }
