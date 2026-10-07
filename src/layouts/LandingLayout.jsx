@@ -17,6 +17,8 @@ import { http } from '../lib/api/transport';
 
 const landingLinks = [
   { href: '/profiles', label: 'Profiles' },
+  { href: '/matchmaker', label: 'Matchmaker' },
+  { href: '/biodata-maker', label: 'Biodata Maker' },
   { href: '/blog', label: 'Blog' },
   { href: '/community', label: 'Community' },
   { href: '/contact', label: 'Contact' },
@@ -446,10 +448,12 @@ function LandingHeader() {
 
           {/* Secondary actions — right */}
           <div className="landing-header-actions">
-            {/* Matchmaker */}
-            <Link to="/matchmaker" className="btn btn-ghost btn-sm" aria-label="Matchmaker">
+            {/* Matchmaker — desktop only; on mobile it lives in the menu drawer.
+                The icon-only version on small screens looked like a stray
+                floating button. */}
+            <Link to="/matchmaker" className="btn btn-ghost btn-sm hidden sm:inline-flex" aria-label="Matchmaker">
               <HeartHandshake className="w-4 h-4" />
-              <span className="hidden sm:inline">Matchmaker</span>
+              <span>Matchmaker</span>
             </Link>
 
             {/* Dashboard — directly after AI, members only */}
