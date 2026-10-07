@@ -18,8 +18,8 @@ const TEMPLATES = [
     bg: '#faf6f0', ink: '#2c2419', accent: '#9a6b2f', muted: '#a89880',
   },
   {
-    id: 'midnight', name: 'Midnight', desc: 'Deep ink with gold foil accents',
-    bg: '#101418', ink: '#f2ede4', accent: '#d4af6a', muted: '#8a8578',
+    id: 'wilayat', name: 'Wilayat', desc: 'Ya Ali & Ya Fatima — light Shia elegance',
+    bg: '#f8faf9', ink: '#1e2b26', accent: '#0e6b4f', muted: '#8aa39a',
   },
 ];
 
@@ -480,39 +480,60 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
   }
 
   // ── MIDNIGHT: dark luxury ───────────────────────────────────────
+  // ── WILAYAT: light Shia elegance — Ya Ali & Ya Fatima ──────────────────
   return (
     <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
-      <div style={{ position: 'absolute', inset: 18, border: '1px solid rgba(212,175,106,0.35)', pointerEvents: 'none' }} />
-      <div style={{ padding: '64px 72px 90px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 34 }}>
-          <p style={{ fontSize: 20, color: t.accent, margin: '0 0 10px' }}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</p>
-          <p style={{ fontSize: 11, letterSpacing: 5, textTransform: 'uppercase', color: t.muted, margin: '0 0 6px' }}>In the name of Allah</p>
-          <h1 style={{ fontSize: 30, fontWeight: 400, letterSpacing: 10, color: t.accent, margin: 0 }}>{tr.biodata}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 16 }}>
-            <div style={{ width: 60, height: 1, background: 'rgba(212,175,106,0.4)' }} />
-            <div style={{ width: 7, height: 7, transform: 'rotate(45deg)', background: t.accent }} />
-            <div style={{ width: 60, height: 1, background: 'rgba(212,175,106,0.4)' }} />
+      {/* Corner invocations */}
+      <div style={{ position: 'absolute', top: 28, left: 36, textAlign: 'center', pointerEvents: 'none' }}>
+        <p style={{ fontSize: 19, color: t.accent, margin: 0, fontWeight: 600 }}>یَا عَلِي</p>
+        <p style={{ fontSize: 10, color: t.muted, margin: '2px 0 0', letterSpacing: 1 }}>Ya Ali (a.s.)</p>
+      </div>
+      <div style={{ position: 'absolute', top: 28, right: 36, textAlign: 'center', pointerEvents: 'none' }}>
+        <p style={{ fontSize: 19, color: t.accent, margin: 0, fontWeight: 600 }}>یَا فَاطِمَة</p>
+        <p style={{ fontSize: 10, color: t.muted, margin: '2px 0 0', letterSpacing: 1 }}>Ya Fatima (s.a.)</p>
+      </div>
+      {/* Soft double frame */}
+      <div style={{ position: 'absolute', inset: 16, border: `1px solid ${t.accent}`, opacity: 0.35, pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', inset: 22, border: `1px solid ${t.accent}`, opacity: 0.18, pointerEvents: 'none' }} />
+
+      <div style={{ padding: '72px 72px 90px' }}>
+        <div style={{ textAlign: 'center', marginBottom: 30 }}>
+          <p style={{ fontSize: 21, color: t.accent, margin: '0 0 8px' }}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</p>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14, marginTop: 6 }}>
+            <div style={{ width: 44, height: 1, background: t.accent, opacity: 0.5 }} />
+            <h1 style={{ fontSize: 27, fontWeight: 400, letterSpacing: 7, color: t.ink, margin: 0 }}>{tr.biodata}</h1>
+            <div style={{ width: 44, height: 1, background: t.accent, opacity: 0.5 }} />
           </div>
+          <p style={{ fontSize: 11, letterSpacing: 3, color: t.muted, margin: '10px 0 0', textTransform: 'uppercase' }}>
+            In the name of Allah, the Most Gracious, the Most Merciful
+          </p>
         </div>
+
         {photo && (
-          <div style={{ textAlign: 'center', marginBottom: 28 }}>
-            <img src={photo} alt="" style={{ width: 150, height: 180, objectFit: 'cover', borderRadius: 4, border: `1px solid rgba(212,175,106,0.5)` }} />
+          <div style={{ textAlign: 'center', marginBottom: 26 }}>
+            <img src={photo} alt="" style={{ width: 148, height: 178, objectFit: 'cover', borderRadius: 8, border: `2px solid ${t.accent}` }} />
           </div>
         )}
-        {hasName && <p style={{ textAlign: 'center', fontSize: 26, margin: '0 0 28px', letterSpacing: 1 }}>{data.name}</p>}
+        {hasName && (
+          <p style={{ textAlign: 'center', fontSize: 25, fontWeight: 600, margin: '0 0 6px', color: t.ink }}>{data.name}</p>
+        )}
+        {data.religion && (
+          <p style={{ textAlign: 'center', fontSize: 12.5, letterSpacing: 2, color: t.muted, margin: '0 0 26px', textTransform: 'uppercase' }}>{data.religion}</p>
+        )}
+
         {sections.map(s => (
-          <div key={s.title} style={{ marginBottom: 26 }}>
-            <h2 style={{ fontSize: 12, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', color: t.accent, margin: '0 0 12px', textAlign: 'center' }}>{s.title}</h2>
-            {s.rows.filter(f => f.key !== 'name').map(f => (
-              <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '7px 0', borderBottom: '1px solid rgba(212,175,106,0.12)', fontSize: 13.5 }}>
-                <span style={{ color: t.muted }}>{f.label}</span>
-                <span style={{ textAlign: 'right', fontWeight: 500 }}>{data[f.key]}</span>
+          <div key={s.title} style={{ marginBottom: 24, background: '#ffffff', borderRadius: 10, padding: '18px 22px', border: '1px solid rgba(14,107,79,0.12)' }}>
+            <h2 style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2.5, textTransform: 'uppercase', color: t.accent, margin: '0 0 12px' }}>{s.title}</h2>
+            {s.rows.filter(f => f.key !== 'name' && f.key !== 'religion').map(f => (
+              <div key={f.key} style={{ display: 'flex', gap: 14, padding: '5px 0', fontSize: 13.5 }}>
+                <span style={{ width: 150, flexShrink: 0, color: t.muted }}>{f.label}</span>
+                <span style={{ fontWeight: 500 }}>{data[f.key]}</span>
               </div>
             ))}
           </div>
         ))}
       </div>
-      <Watermark dark />
+      <Watermark dark={false} />
     </div>
   );
 });

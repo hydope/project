@@ -204,11 +204,11 @@ function BrandMark() {
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, section: 'Overview' },
   { path: '/profiles', label: 'Browse Profiles', icon: Users, section: 'Overview' },
+  { path: '/biodata-maker', label: 'Biodata Maker', icon: FileText, section: 'Overview' },
   { path: '/favorites', label: 'Saved Profiles', icon: Bookmark, section: 'Overview' },
   { path: '/messages', label: 'Messages', icon: MessageCircle, section: 'Connect' },
   { path: '/drafts', label: 'Introductions', icon: HandHeart, section: 'Connect' },
   { path: '/matchmaker', label: 'Matchmaker', icon: HeartHandshake, section: 'Tools' },
-  { path: '/biodata-maker', label: 'Biodata Maker', icon: FileText, section: 'Tools' },
   { path: '/blog', label: 'Guidance', icon: BookOpen, section: 'Learn' },
   { path: '/community', label: 'Community', icon: Users, section: 'Learn' },
   { path: '/settings', label: 'Settings', icon: Settings, section: 'Account' },
