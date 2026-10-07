@@ -581,6 +581,19 @@ function migrateAddBlogQueueTable(): void
         return;
     }
 
+    // Additive: attempts column for retry logic (older installs lack it).
+    try {
+        $cols = [];
+        foreach (db()->query('SHOW COLUMNS FROM blog_queue')->fetchAll() as $c) {
+            $cols[(string)$c['Field']] = true;
+        }
+        if (!isset($cols['attempts'])) {
+            db()->exec('ALTER TABLE blog_queue ADD COLUMN attempts INT NOT NULL DEFAULT 0');
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (blog_queue attempts) issue: ' . $e->getMessage());
+    }
+
     // 30 long-tail SEO topics — one per day for a month. Each targets a real
     // search query in the Shia matrimony niche that a new domain can
     // realistically rank for (city + niche terms the big sites ignore).

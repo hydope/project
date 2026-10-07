@@ -371,6 +371,7 @@ CREATE TABLE IF NOT EXISTS blog_queue (
   category   VARCHAR(40)  NOT NULL DEFAULT 'Guidance',
   keyword    VARCHAR(160) NOT NULL,
   status     VARCHAR(16)  NOT NULL DEFAULT 'queued',
+  attempts   INT          NOT NULL DEFAULT 0,
   created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_blog_queue_keyword (keyword),
   KEY idx_blog_queue_status (status, position)

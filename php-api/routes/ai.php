@@ -721,6 +721,20 @@ function aiQueueRun(): void
         db()->prepare('UPDATE blog_queue SET status = ? WHERE id = ?')->execute([$status, $qid]);
     };
 
+    // Retry logic: a transient NVIDIA failure (throttle/timeout) should not
+    // permanently kill a topic. Increment attempts; only mark 'failed' after
+    // 3 failures, otherwise leave it queued for tomorrow's run.
+    $fail = function () use ($qid, $row): array {
+        $attempts = (int)($row['attempts'] ?? 0) + 1;
+        if ($attempts >= 3) {
+            db()->prepare("UPDATE blog_queue SET status = 'failed', attempts = ? WHERE id = ?")
+                ->execute([$attempts, $qid]);
+            return ['permanent' => true, 'attempts' => $attempts];
+        }
+        db()->prepare('UPDATE blog_queue SET attempts = ? WHERE id = ?')->execute([$attempts, $qid]);
+        return ['permanent' => false, 'attempts' => $attempts];
+    };
+
     // Recently published titles so we do not repeat an angle.
     $existing = [];
     try {
@@ -758,13 +772,13 @@ function aiQueueRun(): void
         ['temperature' => 0.9, 'max_tokens' => 1200, 'timeout' => 45]
     );
     if ($raw === null) {
-        $mark('failed');
-        json(['ok' => false, 'reason' => 'generation_failed', 'topic' => $topic]);
+        $r = $fail();
+        json(['ok' => false, 'reason' => 'generation_failed', 'topic' => $topic, 'attempt' => $r['attempts'], 'will_retry' => !$r['permanent']]);
     }
     $post = parseGeneratedPost($raw);
     if ($post === null) {
-        $mark('failed');
-        json(['ok' => false, 'reason' => 'parse_failed', 'topic' => $topic]);
+        $r = $fail();
+        json(['ok' => false, 'reason' => 'parse_failed', 'topic' => $topic, 'attempt' => $r['attempts'], 'will_retry' => !$r['permanent']]);
     }
 
     $title = sanitizeText((string)($post['title'] ?? $topic), 160);
@@ -778,8 +792,8 @@ function aiQueueRun(): void
         if ($x !== '') $blocks[] = ['t' => $t, 'x' => $x];
     }
     if (!$blocks) {
-        $mark('failed');
-        json(['ok' => false, 'reason' => 'empty_body', 'topic' => $topic]);
+        $r = $fail();
+        json(['ok' => false, 'reason' => 'empty_body', 'topic' => $topic, 'attempt' => $r['attempts'], 'will_retry' => !$r['permanent']]);
     }
 
     // Next free day at 09:00 UTC (same rule as the admin auto-scheduler).
