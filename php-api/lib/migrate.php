@@ -196,6 +196,15 @@ function migrateAddProfileColumns(): void
 // afterwards; that path is untouched.
 function migrateClearStaleNvidiaKey(): void
 {
+    // A stale panel model override (e.g. the slow ultra-550b) would pin the
+    // assistant to a model that times out on shared hosting, ignoring the
+    // NVIDIA_MODEL env. Clear it so the env/default (fast lightning) takes
+    // effect. Runs unconditionally — not gated on the key check below.
+    try {
+        db()->prepare('DELETE FROM app_settings WHERE setting_key = ?')->execute(['nvidia_model']);
+    } catch (Throwable $e) {
+        error_log('[api] migration: nvidia model clear — ' . substr($e->getMessage(), 0, 100));
+    }
     try {
         $row = db()->prepare('SELECT value_enc FROM app_settings WHERE setting_key = ? LIMIT 1');
         $row->execute(['nvidia_api_key']);
@@ -209,15 +218,6 @@ function migrateClearStaleNvidiaKey(): void
         error_log('[api] migration: cleared stale admin-panel NVIDIA key; env secret now active');
     } catch (Throwable $e) {
         error_log('[api] migration: nvidia key clear — ' . substr($e->getMessage(), 0, 100));
-    }
-    // A stale panel model override (e.g. the slow ultra-550b) would pin the
-    // assistant to a model that times out on shared hosting, ignoring the
-    // NVIDIA_MODEL env. Clear it once so the env/default (fast lightning)
-    // takes effect. Operators can still set a model in /admin/content after.
-    try {
-        db()->prepare('DELETE FROM app_settings WHERE setting_key = ?')->execute(['nvidia_model']);
-    } catch (Throwable $e) {
-        error_log('[api] migration: nvidia model clear — ' . substr($e->getMessage(), 0, 100));
     }
 }
 
