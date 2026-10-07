@@ -732,7 +732,7 @@ function aiQueueRun(): void
 
     $topic = (string)$row['topic'];
     $angle = (string)($row['angle'] ?? '');
-    $keyword = (string)$row['keyword'];
+    $seoTerm = (string)$row['keyword'];
     $category = (string)($row['category'] ?? 'Guidance');
 
     $system = "You write for Shia Rishta, a Shia Muslim marriage platform that publishes long-form guidance "
@@ -740,7 +740,7 @@ function aiQueueRun(): void
         . "Voice: warm, specific, respectful, never preachy. British-leaning international English. "
         . "Assume a Muslim reader who takes faith seriously; reference Islamic practice where natural but do "
         . "not lecture or quote scripture as authority.\n\n"
-        . "SEO: this article targets the search query \"" . $keyword . "\". Work the query naturally into "
+        . "SEO: this article targets the search query \"" . $seoTerm . "\". Work the query naturally into "
         . "the title and the opening paragraph, then write for humans — no keyword stuffing, no repetitive "
         . "phrasing.\n\n"
         . "Return STRICT JSON with keys: title, excerpt, category, readTime, body.\n"
@@ -816,6 +816,6 @@ function aiQueueRun(): void
     ]);
 
     $mark('done');
-    auditLog('post.queue_generated', 'blog_post', $id, ['slug' => $slug, 'keyword' => $keyword, 'scheduled_for' => $slot]);
-    json(['ok' => true, 'id' => $id, 'slug' => $slug, 'title' => $title, 'keyword' => $keyword, 'scheduled_for' => $slot]);
+    auditLog('post.queue_generated', 'blog_post', $id, ['slug' => $slug, 'keyword' => $seoTerm, 'scheduled_for' => $slot]);
+    json(['ok' => true, 'id' => $id, 'slug' => $slug, 'title' => $title, 'keyword' => $seoTerm, 'scheduled_for' => $slot]);
 }

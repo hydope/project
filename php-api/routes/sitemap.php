@@ -19,6 +19,9 @@ function sitemapXml(): void
         '/shia-matrimony-new-york', '/shia-matrimony-london',
         '/shia-matrimonial', '/shia-marriage', '/shia-nikah',
         '/nikah-checklist', '/duas-for-marriage', '/shia-matrimony-toronto',
+        '/shia-matrimony-dearborn', '/shia-matrimony-dallas',
+        '/shia-matrimony-los-angeles', '/shia-matrimony-bay-area',
+        '/shia-matrimony-atlanta', '/shia-matrimony-seattle',
         '/terms', '/privacy', '/contact', '/success-stories', '/faq',
     ];
     foreach ($static as $p) {

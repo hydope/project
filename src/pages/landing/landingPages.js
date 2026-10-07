@@ -604,6 +604,222 @@ Object.assign(LANDING_PAGES, {
       { to: '/guardians', label: 'How wali workflows work' },
     ],
   },
+
+  'shia-matrimony-dearborn': {
+    title: 'Shia Matrimony Dearborn | Find Shia Rishta in Michigan – Shia Rishta',
+    desc: 'Shia rishta in Dearborn and Detroit: verified Shia brides and grooms in America\u2019s densest Shia community, with wali-involved introductions. Join free.',
+    h1: 'Shia Matrimony in Dearborn',
+    breadcrumb: 'Dearborn',
+    intro: [
+      'Dearborn holds one of the densest Shia Muslim populations in the United States — Lebanese, Iraqi, Yemeni and South Asian families living side by side, anchored by institutions like the Islamic Center of America. Paradoxically, that density can make rishta harder, not easier: families tend to search inside their own sub-community and never meet compatible matches one neighborhood over.',
+      'Shia Rishta opens the whole Dearborn–Detroit metro to your family\u2019s search while keeping the process properly Shia: verified profiles, marja and practice filters, wali involvement from the first conversation, and photo privacy your family controls.',
+    ],
+    sections: [
+      {
+        h2: 'Across sub-communities, not just inside one',
+        body: [
+          'Dearborn\u2019s Shia community is not one community but several — Arab and Desi, Lebanese and Iraqi, each with its own networks. A rishta that crosses those lines used to depend on chance introductions. Structured search by marja, practice level, language and family background lets your family consider the whole metro on equal terms, with the same seriousness they would bring to a referral from a trusted elder.',
+        ],
+      },
+      {
+        h2: 'Built for how Dearborn families actually decide',
+        body: [
+          'In this community, the family\u2019s word carries weight and the wali\u2019s role is not symbolic. Guardian workflows let parents and walis see, approve and participate — family-to-family introductions happen inside the platform, not around it. Nothing about the process asks a family to set aside how they have always done things.',
+        ],
+      },
+    ],
+    faqs: [
+      { q: 'Does it cover Detroit and the wider metro?', a: 'Yes — search Dearborn, Detroit, and the surrounding Michigan suburbs together, or narrow to one area. Many matches span the metro.' },
+      { q: 'Can Arab and Desi families both use it?', a: 'Absolutely. Language, cultural background and marja are all searchable fields, so each family searches on its own terms — and cross-community matches happen naturally.' },
+      { q: 'How involved can our wali be?', a: 'Fully. Link your wali or guardian to the profile for approvals and family-to-family messaging from the very first step.' },
+    ],
+    related: [
+      { to: '/shia-matrimony-usa', label: 'Shia matrimony across the USA' },
+      { to: '/shia-matrimony-chicago', label: 'Shia matrimony in Chicago' },
+      { to: '/shia-brides', label: 'Browse Shia brides' },
+      { to: '/syed-rishta', label: 'Syed rishta profiles' },
+    ],
+  },
+
+  'shia-matrimony-dallas': {
+    title: 'Shia Matrimony Dallas | Find Shia Rishta in DFW Texas – Shia Rishta',
+    desc: 'Shia rishta in Dallas–Fort Worth: verified Shia brides and grooms across Texas, with wali-involved introductions and privacy-first profiles. Join free.',
+    h1: 'Shia Matrimony in Dallas',
+    breadcrumb: 'Dallas',
+    intro: [
+      'The Dallas–Fort Worth metroplex is one of the fastest-growing Shia communities in America — young professionals, new families, and a constant inflow from other cities and abroad. But DFW\u2019s sheer sprawl works against rishta: someone in Plano and someone in Arlington may as well live in different cities, and community networks have not kept pace with the growth.',
+      'Shia Rishta collapses that distance. Search verified Shia profiles across the entire metroplex — and across Texas — with filters for marja, practice, and family background, and bring your wali into every conversation from the start.',
+    ],
+    sections: [
+      {
+        h2: 'One search across the whole metroplex',
+        body: [
+          'DFW\u2019s Shia families are spread from Richardson to Irving to Fort Worth, and the right match is rarely in your own suburb. Location-aware search covers the full metro, so a family in Frisco can seriously consider a profile in Mansfield without either side treating distance as a disqualifier. When the match is in Houston or Chicago instead, the same structured process carries over.',
+        ],
+      },
+      {
+        h2: 'For a young, professional community',
+        body: [
+          'Dallas\u2019s Shia demographic skews young and career-driven — which means time is scarce and intentionality matters. Detailed profiles with deen specifics let busy people assess compatibility quickly; mutual-interest-only messaging means every conversation starts from genuine alignment rather than small talk that goes nowhere.',
+        ],
+      },
+    ],
+    faqs: [
+      { q: 'Which areas does it cover?', a: 'All of DFW — Dallas, Fort Worth, Plano, Irving, Arlington, Richardson, Frisco and beyond — plus statewide search across Texas.' },
+      { q: 'I\u2019m new to Dallas. Will I find people here?', a: 'Yes. A large share of DFW\u2019s Shia community arrived in the last decade, so profiles from fellow newcomers are common — and the search works the same for lifelong Texans.' },
+      { q: 'Is my family\u2019s privacy protected?', a: 'Photos are private by default with tiers your family controls, contact details are never published, and messaging requires mutual interest.' },
+    ],
+    related: [
+      { to: '/shia-matrimony-houston', label: 'Shia matrimony in Houston' },
+      { to: '/shia-matrimony-usa', label: 'Shia matrimony across the USA' },
+      { to: '/shia-grooms', label: 'Find a Shia groom' },
+      { to: '/guardians', label: 'How wali workflows work' },
+    ],
+  },
+
+  'shia-matrimony-los-angeles': {
+    title: 'Shia Matrimony Los Angeles | Find Shia Rishta in SoCal – Shia Rishta',
+    desc: 'Shia rishta in Los Angeles: verified Shia brides and grooms across Southern California, with wali-involved introductions and privacy-first profiles. Join free.',
+    h1: 'Shia Matrimony in Los Angeles',
+    breadcrumb: 'Los Angeles',
+    intro: [
+      'Los Angeles has one of the most diverse Shia communities in the country — Persian, Arab, South Asian and convert families spread from the Westside to the Valley to Orange County. LA\u2019s geography is the enemy of rishta: an hour\u2019s drive each way turns community events into rare occasions, and families end up searching far too narrowly.',
+      'Shia Rishta makes the whole of Southern California searchable in one place. Verified profiles, Shia-specific filters, and wali-involved introductions — so a family in Irvine can meet a match in Glendale without traffic deciding their future.',
+    ],
+    sections: [
+      {
+        h2: 'Diversity is the point, not the problem',
+        body: [
+          'LA\u2019s Shia community spans languages, cultures and levels of practice in a way few American cities match. That richness only helps if families can search across it honestly — marja, sect, language, and practice stated upfront, so a Persian family and a Pakistani family can recognize a genuine match instead of talking past each other for weeks.',
+        ],
+      },
+      {
+        h2: 'Serious process for a distracted city',
+        body: [
+          'LA rewards the casual; rishta punishes it. The platform\u2019s structure — verified intent, guardian visibility, mutual-interest gating — keeps the search serious in a city full of distractions. Every conversation begins with both sides having chosen it, which is the opposite of how the generic apps work here.',
+        ],
+      },
+    ],
+    faqs: [
+      { q: 'Does it cover Orange County and the Valley?', a: 'Yes — all of the LA metro including Orange County, the San Fernando Valley, and the Inland Empire, with statewide reach when you want it.' },
+      { q: 'We\u2019re a Persian family. Will we find matches?', a: 'Yes. Language and cultural background are searchable fields, and LA\u2019s Persian Shia community is well represented — alongside Arab, Desi and other backgrounds.' },
+      { q: 'How do video introductions work?', a: 'Private, family-present video introductions are built in — useful across LA\u2019s distances and essential when the match is in another city entirely.' },
+    ],
+    related: [
+      { to: '/shia-matrimony-usa', label: 'Shia matrimony across the USA' },
+      { to: '/shia-matrimony-bay-area', label: 'Shia matrimony in the Bay Area' },
+      { to: '/shia-brides', label: 'Browse Shia brides' },
+      { to: '/shia-matrimony-houston', label: 'Shia matrimony in Houston' },
+    ],
+  },
+
+  'shia-matrimony-bay-area': {
+    title: 'Shia Matrimony Bay Area | Find Shia Rishta in San Francisco – Shia Rishta',
+    desc: 'Shia rishta in the San Francisco Bay Area: verified Shia brides and grooms, wali-involved introductions, privacy-first profiles. Join free.',
+    h1: 'Shia Matrimony in the Bay Area',
+    breadcrumb: 'Bay Area',
+    intro: [
+      'The Bay Area\u2019s Shia community is small, accomplished, and scattered — engineers and physicians spread from San Jose to Fremont to San Francisco, with community life competing against some of the most demanding careers on earth. In a community this size, everyone knows everyone, which makes discretion not a luxury but a requirement.',
+      'Shia Rishta gives Bay Area families a private, structured way to search: verified profiles across the region, photo privacy enforced server-side, and wali workflows that keep the process dignified in a community where reputations travel fast.',
+    ],
+    sections: [
+      {
+        h2: 'Discretion for a small community',
+        body: [
+          'When the community is a few hundred families, a public profile is effectively a public announcement. Three-tier photo privacy means a member reveals themselves gradually, only to serious prospects — and locked photos are never sent to the browser at all, so there is nothing to screenshot from a page source or cache. For Bay Area families, that engineering matters as much as the policy.',
+        ],
+      },
+      {
+        h2: 'Efficient search for demanding schedules',
+        body: [
+          'Nobody in the Bay Area has time for six months of vague chatting. Structured profiles carry the deen details that actually decide compatibility — marja, practice, family expectations — so two busy people can reach the family-introduction stage in weeks, with guardians looped in throughout.',
+        ],
+      },
+    ],
+    faqs: [
+      { q: 'How private is it really?', a: 'Photos default to the strictest tier and locked photos never leave the server. Contact details are never published. In a small community, that is the whole point.' },
+      { q: 'Does it cover San Jose and Fremont?', a: 'Yes — the full Bay Area from San Jose through Fremont to San Francisco and the Peninsula, plus Sacramento and beyond on request.' },
+      { q: 'We\u2019re open to matches outside California too.', a: 'Worldwide search is built in. Many Bay Area matches end up spanning coasts — the video and guardian tools handle it.' },
+    ],
+    related: [
+      { to: '/shia-matrimony-los-angeles', label: 'Shia matrimony in Los Angeles' },
+      { to: '/shia-matrimony-usa', label: 'Shia matrimony across the USA' },
+      { to: '/shia-grooms', label: 'Find a Shia groom' },
+      { to: '/safety', label: 'Safety center' },
+    ],
+  },
+
+  'shia-matrimony-atlanta': {
+    title: 'Shia Matrimony Atlanta | Find Shia Rishta in Georgia – Shia Rishta',
+    desc: 'Shia rishta in Atlanta: verified Shia brides and grooms across Georgia, with wali-involved introductions and privacy-first profiles. Join free.',
+    h1: 'Shia Matrimony in Atlanta',
+    breadcrumb: 'Atlanta',
+    intro: [
+      'Atlanta\u2019s Shia community has grown quietly but steadily — South Asian and Arab families drawn by the city\u2019s growth, many of them transplants from the Northeast, Texas, or abroad. Transplant communities face a specific rishta problem: the family networks that produce matches are back in the old city, and the new city\u2019s networks are still forming.',
+      'Shia Rishta bridges both worlds. Search verified profiles across Atlanta and Georgia while staying connected to family networks elsewhere — wali workflows span time zones, and family-to-family introductions work the same whether everyone is in Marietta or spread across three continents.',
+    ],
+    sections: [
+      {
+        h2: 'For families building new networks',
+        body: [
+          'When your rishta network is still the one from Chicago or Karachi, Atlanta can feel thin. The platform acts as the network you have not built yet: searchable, verified, and structured around the criteria your family actually uses — marja, practice, education, and family background — rather than whoever happens to attend the same center.',
+        ],
+      },
+      {
+        h2: 'Southern growth, Shia standards',
+        body: [
+          'Atlanta\u2019s appeal — space, pace, opportunity — does not change what a Shia family needs from rishta: verified intent, guardian involvement, and privacy. Every profile states marriage intent upfront; every conversation requires mutual interest; every introduction can include the wali. The setting is new. The standards are not.',
+        ],
+      },
+    ],
+    faqs: [
+      { q: 'We just moved to Atlanta. Is there a community here?', a: 'A growing one — and the platform connects you to it immediately, plus to the networks you left behind. Many Atlanta matches involve one family elsewhere.' },
+      { q: 'Can our relatives back home participate?', a: 'Yes. Guardian tools work across borders and time zones, so family in Pakistan, India, or the Gulf stays part of every step.' },
+      { q: 'Is Shia Rishta free in Atlanta?', a: 'Yes — creating a profile, searching, and expressing interest are free. The platform exists to serve the community, not to charge families for the search.' },
+    ],
+    related: [
+      { to: '/shia-matrimony-usa', label: 'Shia matrimony across the USA' },
+      { to: '/shia-matrimony-houston', label: 'Shia matrimony in Houston' },
+      { to: '/shia-brides', label: 'Browse Shia brides' },
+      { to: '/guardians', label: 'How wali workflows work' },
+    ],
+  },
+
+  'shia-matrimony-seattle': {
+    title: 'Shia Matrimony Seattle | Find Shia Rishta in the Pacific Northwest – Shia Rishta',
+    desc: 'Shia rishta in Seattle: verified Shia brides and grooms across Washington, with wali-involved introductions and privacy-first profiles. Join free.',
+    h1: 'Shia Matrimony in Seattle',
+    breadcrumb: 'Seattle',
+    intro: [
+      'Seattle\u2019s Shia community is small and relatively young — tech workers and their families, many far from the extended networks that traditionally arranged matches. In a community this size, the rishta pool can feel like a dozen families you already know, which is nobody\u2019s idea of a real search.',
+      'Shia Rishta widens the pool without widening the exposure: verified profiles across Seattle, the Pacific Northwest, and — when your family is open to it — the whole country, with photo privacy and guardian workflows keeping the process as discreet as a small community requires.',
+    ],
+    sections: [
+      {
+        h2: 'Beyond the dozen families you know',
+        body: [
+          'A small community means limited options and zero privacy if you search openly. The platform solves both: search far beyond the local circle — Portland, the Bay Area, or nationwide — while three-tier photo privacy and mutual-interest-only messaging keep your search invisible to everyone you have not chosen.',
+        ],
+      },
+      {
+        h2: 'Distance, handled properly',
+        body: [
+          'Most Seattle rishtas will involve distance — that is the reality of a small community. Structured video introductions, staged information sharing, and family-to-family messaging across time zones make a Seattle–Chicago or Seattle–Toronto courtship as serious and supervised as one across the street.',
+        ],
+      },
+    ],
+    faqs: [
+      { q: 'The community here is tiny. Will this actually help?', a: 'That is exactly the problem it solves — your searchable pool becomes national, not just the families at your local center, while your privacy stays local-grade.' },
+      { q: 'How does long-distance rishta work here?', a: 'Video introductions with family present, guardian-approved messaging stages, and structured steps from interest to family meeting — built for distance from day one.' },
+      { q: 'Is it really private?', a: 'Yes. Locked photos are never delivered to the browser, contact details are never public, and nobody is notified of an unreciprocated approach.' },
+    ],
+    related: [
+      { to: '/shia-matrimony-bay-area', label: 'Shia matrimony in the Bay Area' },
+      { to: '/shia-matrimony-usa', label: 'Shia matrimony across the USA' },
+      { to: '/shia-grooms', label: 'Find a Shia groom' },
+      { to: '/safety', label: 'Safety center' },
+    ],
+  },
 });
 
 export default LANDING_PAGES;

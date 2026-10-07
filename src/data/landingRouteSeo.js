@@ -82,6 +82,30 @@ const LANDING_BODY = {
     h1: 'Duas and supplications for marriage',
     more: 'Supplications to read before nikah, for the couple and for their families. The duas recited for marriage are well established and are part of the nikah itself rather than something added to it. Religious practice is personal, and the structured fields on a profile exist so families can state what they follow rather than infer it.',
   },
+  'shia-matrimony-dearborn': {
+    h1: 'Shia matrimony in Dearborn and Detroit',
+    more: 'Dearborn holds one of the densest Shia Muslim populations in the United States, yet families tend to search inside their own sub-community and miss compatible matches nearby. Structured search across the whole metro — by marja, practice, language and background — with wali involvement and photo privacy throughout.',
+  },
+  'shia-matrimony-dallas': {
+    h1: 'Shia matrimony in Dallas–Fort Worth',
+    more: 'DFW is one of the fastest-growing Shia communities in America, but its sprawl works against rishta. One search across the entire metroplex — verified profiles, marja and practice filters, wali-involved introductions — built for a young, professional community where time is scarce.',
+  },
+  'shia-matrimony-los-angeles': {
+    h1: 'Shia matrimony in Los Angeles',
+    more: 'LA has one of the most diverse Shia communities in the country, spread across an unforgiving geography. Search all of Southern California in one place — Persian, Arab, South Asian and convert families — with honest filters for marja, language and practice, and introductions your wali joins from the start.',
+  },
+  'shia-matrimony-bay-area': {
+    h1: 'Shia matrimony in the San Francisco Bay Area',
+    more: 'A small, accomplished, scattered community where discretion is a requirement, not a luxury. Verified profiles across the Bay Area with photo privacy enforced server-side — locked photos are never delivered to the browser — and efficient, guardian-visible search for demanding schedules.',
+  },
+  'shia-matrimony-atlanta': {
+    h1: 'Shia matrimony in Atlanta',
+    more: 'Atlanta\u2019s Shia community is growing fast, full of transplants whose rishta networks are still back in the old city. Search Atlanta and Georgia while staying connected to family elsewhere — wali workflows span time zones, and family-to-family introductions work across continents.',
+  },
+  'shia-matrimony-seattle': {
+    h1: 'Shia matrimony in Seattle',
+    more: 'A small, young community where the local rishta pool can feel like a dozen families you already know. Widen the search to the Pacific Northwest and nationwide while keeping small-community discretion — photo privacy, mutual-interest messaging, and structured long-distance courtship.',
+  },
 };
 
 export function landingRouteSeo(meta = {}) {
