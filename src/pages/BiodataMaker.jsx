@@ -301,7 +301,7 @@ export default function BiodataMaker() {
           </h1>
           <p className="text-sm max-w-xl mx-auto" style={{ color: 'var(--color-ink-secondary)' }}>
             Create a beautiful Shia marriage biodata in minutes — no account needed.
-            Add a photo and details, pick a design, and download it with the ShiaRishta watermark.
+            Add a photo and details, pick a design, and download a polished biodata — free, with a discreet ShiaRishta credit.
           </p>
         </div>
 
@@ -478,27 +478,50 @@ function SectionTitle({ children, accent, muted }) {
 }
 
 function Watermark({ dark }) {
+  const gold = 'rgba(212,175,106,';
+  const ink = dark ? gold : 'rgba(0,0,0,';
   return (
     <>
-      {/* Diagonal watermark across the page */}
+      {/* Subtle repeated pattern — visible only on close inspection, never
+          competing with content. Replaces the old loud diagonal stamp. */}
       <div style={{
-        position: 'absolute', top: '45%', left: '50%', transform: 'translate(-50%,-50%) rotate(-24deg)',
-        fontSize: 64, fontWeight: 800, letterSpacing: 6, whiteSpace: 'nowrap',
-        color: dark ? 'rgba(212,175,106,0.06)' : 'rgba(0,0,0,0.035)',
-        pointerEvents: 'none', userSelect: 'none', fontFamily: 'Georgia, serif',
+        position: 'absolute', inset: 0, overflow: 'hidden',
+        pointerEvents: 'none', userSelect: 'none',
       }}>
-        shiarishta.com
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} style={{
+            position: 'absolute',
+            top: `${18 + i * 22}%`, left: '50%',
+            transform: 'translateX(-50%)',
+            fontSize: 11, letterSpacing: 8, whiteSpace: 'nowrap',
+            color: dark ? `${gold}0.10)` : 'rgba(0,0,0,0.025)',
+            fontFamily: 'Georgia, serif', fontStyle: 'italic',
+          }}>
+            shiarishta.com
+          </div>
+        ))}
       </div>
-      {/* Footer brand bar */}
+      {/* Refined footer brand bar — part of the design, not an afterthought */}
       <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0, padding: '14px 48px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        borderTop: `1px solid ${dark ? 'rgba(212,175,106,0.25)' : 'rgba(0,0,0,0.08)'}`,
-        fontSize: 10.5, letterSpacing: 1.5, textTransform: 'uppercase',
-        color: dark ? 'rgba(212,175,106,0.7)' : '#999',
+        position: 'absolute', bottom: 0, left: 0, right: 0, padding: '16px 48px 14px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+        borderTop: `1px solid ${dark ? `${gold}0.22)` : 'rgba(0,0,0,0.07)'}`,
       }}>
-        <span>shiarishta.com</span>
-        <span>Shia Nikah Matchmaking</span>
+        <span style={{
+          width: 28, height: 1,
+          background: dark ? `${gold}0.4)` : 'rgba(0,0,0,0.15)',
+        }} />
+        <span style={{
+          fontSize: 10, letterSpacing: 3, textTransform: 'uppercase',
+          color: dark ? `${gold}0.75)` : '#a8a29e',
+          fontFamily: 'Georgia, serif', fontWeight: 500, whiteSpace: 'nowrap',
+        }}>
+          shiarishta.com
+        </span>
+        <span style={{
+          width: 28, height: 1,
+          background: dark ? `${gold}0.4)` : 'rgba(0,0,0,0.15)',
+        }} />
       </div>
     </>
   );
