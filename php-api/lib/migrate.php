@@ -7,6 +7,10 @@ function migrateSchema(): void
     if ($done) return;
     $done = true;
 
+    // Runs before the marker gate below: it is naturally idempotent (no-op
+    // once the stale key is gone) and must not wait for a schema.sql change.
+    migrateClearStaleNvidiaKey();
+
     // Fast path: once a full migration has succeeded, a marker file lets us
     // skip all the SHOW COLUMNS / SHOW TABLES probes on every request.
     // (This was adding 5-6 DB round-trips to EVERY API call on shared hosting.)
@@ -165,6 +169,33 @@ function migrateAddProfileColumns(): void
         db()->exec("UPDATE profiles SET seeking_gender = 'male' WHERE seeking_gender IS NULL AND gender = 'female'");
     } catch (Throwable $e) {
         error_log('[api] migration: seeking_gender backfill — ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+// One-time: clear a stale NVIDIA key stored via /admin/content.
+//
+// The panel key takes precedence over the NVIDIA_API_KEY env secret. A dead
+// key was sitting in app_settings (fingerprint 065f8465ef9b) while a fresh,
+// working key shipped via the GitHub secret — so the assistant kept failing
+// despite a valid credential being deployed. This clears the panel copy once
+// (only when its fingerprint matches the known-dead one), letting the env
+// secret take over. An operator can still paste a new key in /admin/content
+// afterwards; that path is untouched.
+function migrateClearStaleNvidiaKey(): void
+{
+    try {
+        $row = db()->prepare('SELECT value_enc FROM app_settings WHERE setting_key = ? LIMIT 1');
+        $row->execute(['nvidia_api_key']);
+        $stored = $row->fetch();
+        $enc = (string)($stored['value_enc'] ?? '');
+        if ($enc === '') return;
+        $key = trim(decAtRest($enc));
+        if ($key === '') return;
+        if (substr(hash('sha256', $key), 0, 12) !== '065f8465ef9b') return;
+        db()->prepare('DELETE FROM app_settings WHERE setting_key = ?')->execute(['nvidia_api_key']);
+        error_log('[api] migration: cleared stale admin-panel NVIDIA key; env secret now active');
+    } catch (Throwable $e) {
+        error_log('[api] migration: nvidia key clear — ' . substr($e->getMessage(), 0, 100));
     }
 }
 
