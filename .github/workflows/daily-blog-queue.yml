@@ -16,6 +16,7 @@ jobs:
   queue-run:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Generate and save one queued blog post
         env:
           BLOG_CRON_KEY: ${{ secrets.BLOG_CRON_KEY }}
