@@ -96,6 +96,9 @@ RewriteRule ^tag/ - [G,L]
 # posts, community posts, public profiles) from the API. Must come before the
 # SPA fallback so /sitemap.xml never serves index.html.
 RewriteRule ^sitemap\.xml$ api/sitemap.xml [L]
+# Dynamic llms.txt — served from the live database (blog posts, cities,
+# countries) so AI crawlers see everything, not just build-time content.
+RewriteRule ^llms\.txt$ api/llms.txt [L]
 
 RewriteRule ^comments/ - [G,L]
 RewriteRule ^feed/?$ - [G,L]

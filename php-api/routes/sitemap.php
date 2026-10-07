@@ -66,6 +66,42 @@ function sitemapXml(): void
         }
     } catch (Throwable $e) { /* skip */ }
 
+    // City pages — every city with at least one active profile gets a
+    // crawlable /city/:slug page. Slug matches the frontend's slugify:
+    // lowercase, non-alphanumeric runs become a single dash.
+    try {
+        $stmt = $pdo->query("SELECT DISTINCT city FROM profiles WHERE is_blocked = 0 AND city IS NOT NULL AND city != '' LIMIT 500");
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $city = trim((string)$row['city']);
+            if ($city === '') continue;
+            $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', $city));
+            $slug = trim($slug, '-');
+            if ($slug === '') continue;
+            $urls[] = [
+                'loc' => $base . '/city/' . rawurlencode($slug),
+                'lastmod' => date('Y-m-d'),
+                'priority' => '0.7',
+            ];
+        }
+    } catch (Throwable $e) { /* skip */ }
+
+    // Country pages — same treatment.
+    try {
+        $stmt = $pdo->query("SELECT DISTINCT country FROM profiles WHERE is_blocked = 0 AND country IS NOT NULL AND country != '' LIMIT 200");
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $country = trim((string)$row['country']);
+            if ($country === '') continue;
+            $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', $country));
+            $slug = trim($slug, '-');
+            if ($slug === '') continue;
+            $urls[] = [
+                'loc' => $base . '/country/' . rawurlencode($slug),
+                'lastmod' => date('Y-m-d'),
+                'priority' => '0.7',
+            ];
+        }
+    } catch (Throwable $e) { /* skip */ }
+
     $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
     $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
     foreach ($urls as $u) {

@@ -26,6 +26,7 @@ require __DIR__ . '/routes/contact.php';
 require __DIR__ . '/routes/matchmaker.php';
 require __DIR__ . '/routes/biodata.php';
 require __DIR__ . '/routes/sitemap.php';
+require __DIR__ . '/routes/llms.php';
 require __DIR__ . '/routes/social.php';
 require __DIR__ . '/lib/ai.php';
 require __DIR__ . '/routes/ai.php';
@@ -183,6 +184,11 @@ try {
         case 'sitemap.xml':
             // Dynamic sitemap — no auth, cacheable. Served at /api/sitemap.xml.
             sitemapXml();
+            break;
+        case 'llms.txt':
+            // Dynamic llms.txt — no auth, cacheable. Served at /api/llms.txt.
+            // The static /llms.txt is served directly; this is the live fallback.
+            llmsTxt();
             break;
         default:
             json(['error' => 'Not found'], 404);

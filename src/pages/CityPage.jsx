@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Layout from '../layouts/LandingLayout';
 import { usePageTitle } from '../lib/usePageTitle';
+import Seo from '../components/Seo';
 import { http } from '../lib/api/transport';
 import { MapPin, Users } from 'lucide-react';
 import ProfileCard from '../components/ProfileCard';
@@ -45,6 +46,11 @@ export default function CityPage() {
 
   return (
     <Layout>
+      <Seo
+        title={`Shia Matrimony in ${name} — Shia Rishta | Shia Rishta`}
+        description={`Find verified Shia matrimonial profiles in ${name}. Browse Shia brides and grooms in ${name} seeking nikah. Free to browse.`}
+        canonical={`https://shiarishta.com/city/${slug}`}
+      />
       <main className="max-w-6xl mx-auto px-4 py-8">
         <nav className="text-xs mb-4" style={{ color: 'var(--color-ink-tertiary)' }}>
           <Link to="/" className="hover:underline">Home</Link>
