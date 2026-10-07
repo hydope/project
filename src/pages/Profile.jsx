@@ -311,7 +311,8 @@ export default function Profile() {
                     {profile.is_verified && <BadgeCheck className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />}
                   </h1>
                   <p className="text-sm mt-1 flex items-center gap-1.5" style={{ color: 'var(--color-ink-secondary)' }}>
-                    <MapPin className="w-3.5 h-3.5" /> {profile.location || 'Location not set'}
+                    <MapPin className="w-3.5 h-3.5" />
+                    {[profile.city, profile.country].filter(Boolean).join(', ') || 'Location not set'}
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -375,12 +376,22 @@ export default function Profile() {
               </div>
             )}
 
-            {compat && (
+            {compat ? (
               <div className="p-5 rounded-2xl" style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)' }}>
                 <h2 className="text-base font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--color-ink)' }}>
                   <Heart className="w-4 h-4" style={{ color: 'var(--color-primary)' }} /> Compatibility
                 </h2>
                 <CompatibilityIndex profile={profile} />
+              </div>
+            ) : (
+              <div className="p-5 rounded-2xl" style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)' }}>
+                <h2 className="text-base font-semibold mb-2 flex items-center gap-2" style={{ color: 'var(--color-ink)' }}>
+                  <Heart className="w-4 h-4" style={{ color: 'var(--color-primary)' }} /> Compatibility
+                </h2>
+                <p className="text-sm" style={{ color: 'var(--color-ink-secondary)' }}>
+                  Complete your profile (especially sect and what you're seeking) to see your compatibility score with this member.
+                </p>
+                <Link to="/onboard" className="btn btn-primary btn-sm mt-3">Complete my profile</Link>
               </div>
             )}
 
