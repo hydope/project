@@ -360,6 +360,22 @@ CREATE TABLE IF NOT EXISTS blog_posts (
   KEY idx_blog_published (published_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Autonomous blog queue: long-tail SEO topic backlog. The daily cron
+-- endpoint takes the next 'queued' row, generates the article and schedules
+-- it. Seeded by migrateAddBlogQueueTable(); schema kept in sync here.
+CREATE TABLE IF NOT EXISTS blog_queue (
+  id         CHAR(36)     NOT NULL PRIMARY KEY,
+  position   INT          NOT NULL DEFAULT 0,
+  topic      VARCHAR(160) NOT NULL,
+  angle      VARCHAR(200) DEFAULT NULL,
+  category   VARCHAR(40)  NOT NULL DEFAULT 'Guidance',
+  keyword    VARCHAR(160) NOT NULL,
+  status     VARCHAR(16)  NOT NULL DEFAULT 'queued',
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_blog_queue_keyword (keyword),
+  KEY idx_blog_queue_status (status, position)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- In-app notifications (interests, messages, introductions).
 CREATE TABLE IF NOT EXISTS notifications (
   id         CHAR(36)     NOT NULL PRIMARY KEY,

@@ -703,9 +703,9 @@ function aiAutoSchedule(): void
  */
 function aiQueueRun(): void
 {
-    $key = $_SERVER['HTTP_X_BLOG_CRON_KEY'] ?? '';
-    $want = (string)($_ENV['BLOG_CRON_KEY'] ?? getenv('BLOG_CRON_KEY') ?? '');
-    if ($want === '' || !hash_equals($want, (string)$key)) {
+    $providedKey = $_SERVER['HTTP_X_BLOG_CRON_KEY'] ?? '';
+    $wantKey = (string)($_ENV['BLOG_CRON_KEY'] ?? getenv('BLOG_CRON_KEY') ?? '');
+    if ($wantKey === '' || !hash_equals($wantKey, (string)$providedKey)) {
         json(['error' => 'Unauthorized'], 401);
     }
 
