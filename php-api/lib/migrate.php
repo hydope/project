@@ -51,6 +51,7 @@ function migrateSchema(): void
     migrateAddDisappearingAndMatchmaker();
     migrateAddBlogQueueTable();
     migrateAddBiodataDraftsTable();
+    migrateAuditMetaToMediumtext();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -667,5 +668,20 @@ function migrateAddBiodataDraftsTable(): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     } catch (Throwable $e) {
         error_log('[api] migration (biodata_drafts table) issue: ' . $e->getMessage());
+    }
+}
+
+// Audit log storage: meta was TEXT (64KB) — too small once biodata logs
+// started carrying photo data. MEDIUMTEXT gives 16MB of headroom.
+function migrateAuditMetaToMediumtext(): void
+{
+    try {
+        $col = db()->query("SHOW COLUMNS FROM admin_audit LIKE 'meta'")->fetch();
+        $type = strtolower((string)($col['Type'] ?? ''));
+        if ($type !== '' && !str_contains($type, 'mediumtext')) {
+            db()->exec('ALTER TABLE admin_audit MODIFY meta MEDIUMTEXT DEFAULT NULL');
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (admin_audit meta mediumtext) issue: ' . $e->getMessage());
     }
 }

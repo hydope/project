@@ -252,13 +252,13 @@ export default function BiodataMaker() {
           const img = new Image();
           img.onload = () => {
             try {
-              const maxSide = 160;
+              const maxSide = 600;
               const r = Math.min(1, maxSide / Math.max(img.width, img.height));
               const c = document.createElement('canvas');
               c.width = Math.round(img.width * r);
               c.height = Math.round(img.height * r);
               c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-              resolve(c.toDataURL('image/jpeg', 0.7));
+              resolve(c.toDataURL('image/jpeg', 0.8));
             } catch { resolve(null); }
           };
           img.onerror = () => resolve(null);

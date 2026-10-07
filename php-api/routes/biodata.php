@@ -170,10 +170,11 @@ function biodataLogCreation(): void
         'fields' => $fields,
     ];
 
-    // Optional photo thumbnail (~160px JPEG). Kept small on purpose: the
-    // audit meta column is TEXT, and the trail is for review, not storage.
+    // Optional photo (~600px JPEG). The audit meta column is MEDIUMTEXT, so
+    // there's room for a clear image — still downscaled from the original to
+    // keep the audit trail lean.
     $thumb = $body['photo_thumb'] ?? null;
-    if (is_string($thumb) && str_starts_with($thumb, 'data:image/') && strlen($thumb) <= 50000) {
+    if (is_string($thumb) && str_starts_with($thumb, 'data:image/') && strlen($thumb) <= 500000) {
         $meta['photo_thumb'] = $thumb;
     }
 

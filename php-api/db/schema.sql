@@ -319,7 +319,7 @@ CREATE TABLE IF NOT EXISTS admin_audit (
   action      VARCHAR(64)  NOT NULL,
   target_type VARCHAR(32)  NOT NULL,
   target_id   VARCHAR(255) DEFAULT NULL,
-  meta        TEXT         DEFAULT NULL,
+  meta        MEDIUMTEXT  DEFAULT NULL,
   created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_audit_created (created_at),
   KEY idx_audit_target (target_type, target_id),
