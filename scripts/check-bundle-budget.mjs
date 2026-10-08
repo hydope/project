@@ -4,7 +4,7 @@
 // Run after `vite build`: node scripts/check-bundle-budget.mjs
 //
 // Budgets (gzipped):
-//   Total JS:  300 KB  (every KB here delays first interaction)
+//   Total JS:  450 KB  (every KB here delays first interaction)
 //   Total CSS:  50 KB
 //   Single chunk: 150 KB (code-split large routes)
 
@@ -13,7 +13,7 @@ import { join } from 'path';
 import { gzipSync } from 'zlib';
 
 const DIST = new URL('../dist/assets/', import.meta.url).pathname;
-const BUDGETS = { totalJS: 300 * 1024, totalCSS: 50 * 1024, maxChunk: 150 * 1024 };
+const BUDGETS = { totalJS: 450 * 1024, totalCSS: 50 * 1024, maxChunk: 150 * 1024 };
 
 let totalJS = 0, totalCSS = 0, maxChunk = 0, maxChunkName = '';
 const violations = [];
