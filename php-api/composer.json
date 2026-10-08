@@ -1,0 +1,1 @@
+{"autoload":{"files":["lib/bootstrap.php","lib/validate.php","lib/compatibility.php"]},"require-dev":{"phpunit/phpunit":"^10.0"}}

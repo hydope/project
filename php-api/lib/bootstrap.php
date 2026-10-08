@@ -35,7 +35,47 @@ function hbearer():?string{
             if(isset($a[$k])&&str_starts_with($a[$k],'Bearer '))return substr($a[$k],7);
         }
     }
+    // HttpOnly cookie fallback — the secure path. The cookie is set on
+    // login/register via setAuthCookie(). Header takes precedence so
+    // native apps and API clients keep working.
+    if (!empty($_COOKIE['sr_token'])) {
+        return (string)$_COOKIE['sr_token'];
+    }
     return null;
+}
+
+/**
+ * Set the auth JWT as an HttpOnly, Secure, SameSite=Lax cookie.
+ * This is the primary token transport for browsers — immune to XSS theft,
+ * unlike localStorage. The token is ALSO returned in the JSON body for
+ * backward compatibility with existing clients.
+ */
+function setAuthCookie(string $token): void
+{
+    $secure = ($_SERVER['HTTPS'] ?? '') === 'on'
+        || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+    // 30-day expiry matches the JWT lifetime.
+    setcookie('sr_token', $token, [
+        'expires' => time() + 30 * 86400,
+        'path' => '/',
+        'domain' => '',
+        'secure' => $secure,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
+
+/**
+ * Clear the auth cookie (logout).
+ */
+function clearAuthCookie(): void
+{
+    setcookie('sr_token', '', [
+        'expires' => time() - 3600,
+        'path' => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
 }
 function cip():string{
     if((int)getenv('TRUST_PROXY')===1){

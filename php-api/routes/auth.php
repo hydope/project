@@ -81,9 +81,11 @@ function authRegister(): void
     ]);
 
     $userRow = ['id' => $userId, 'email' => $email, 'display_name' => $displayName, 'is_admin' => $isAdmin, 'email_verified' => false];
+    $token = signSession($userRow);
+    setAuthCookie($token);
     json([
         'user' => makeMemberSession($userRow),
-        'token' => signSession($userRow),
+        'token' => $token,
     ], 201);
 }
 
@@ -105,6 +107,8 @@ function authLogin(): void
     $token = signSession($user);
     // Track this login so the Security tab can list active sessions.
     recordSession((string)$user['id'], $token);
+    // HttpOnly cookie: XSS-proof token storage for browsers.
+    setAuthCookie($token);
 
     json([
         'user' => makeMemberSession($user),
@@ -118,6 +122,7 @@ function authLogout(): void
     // stops showing a signed-out device.
     requireAuthUser();
     dropSession();
+    clearAuthCookie();
     json(['ok' => true]);
 }
 

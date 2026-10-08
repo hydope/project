@@ -694,32 +694,13 @@ function adminReports(): void
 // POST /api/admin/reports/:id/action — hide the target + mark actioned
 function adminReportAction(string $reportId): void
 {
-    $stmt = db()->prepare('SELECT * FROM reports WHERE id = ? LIMIT 1');
-    $stmt->execute([$reportId]);
-    $report = $stmt->fetch();
-    if (!$report) {
-        je('Report not found.', 404);
+    $admin = currentUser();
+    try {
+        $result = AdminService::actionReport($reportId, (string)$admin['uid']);
+        json(['ok' => true, 'action' => $result['action'], 'target_type' => $result['target_type']]);
+    } catch (RuntimeException $e) {
+        je($e->getMessage(), 404);
     }
-
-    $type = (string)$report['target_type'];
-    $targetId = (string)$report['target_id'];
-    if ($type === 'post') {
-        db()->prepare('UPDATE posts SET is_hidden = 1 WHERE id = ?')->execute([$targetId]);
-    } elseif ($type === 'reply') {
-        db()->prepare('UPDATE replies SET is_hidden = 1 WHERE id = ?')->execute([$targetId]);
-    } elseif ($type === 'profile' || $type === 'user') {
-        try {
-            db()->prepare('UPDATE profiles SET is_blocked = 1 WHERE user_id = ?')->execute([$targetId]);
-        } catch (Throwable) { /* target may have no profile row */ }
-    }
-    db()->prepare("UPDATE reports SET status = 'actioned' WHERE id = ?")->execute([$reportId]);
-
-    auditLog('report.actioned', 'report', $reportId, [
-        'targetType' => $type,
-        'targetId' => $targetId,
-    ]);
-
-    json(['ok' => true]);
 }
 
 // POST /api/admin/reports/:id/dismiss
