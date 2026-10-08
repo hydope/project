@@ -34,7 +34,7 @@ class AuthService
         }
 
         logInfo('User registered', ['user_id' => $userId, 'role' => $role]);
-        return [$userId, jwtEncode(['uid' => $userId, 'email' => $email])];
+        return [$userId, signSession(['id' => $userId, 'email' => $email])];
     }
 
     /**
@@ -58,7 +58,7 @@ class AuthService
                 ->execute([password_hash($password, PASSWORD_BCRYPT), $user['id']]);
         }
 
-        $token = jwtEncode(['uid' => $user['id'], 'email' => $user['email']]);
+        $token = signSession($user);
         logInfo('User logged in', ['user_id' => $user['id']]);
         return [$user, $token];
     }

@@ -699,6 +699,9 @@ function adminReportAction(string $reportId): void
         $result = AdminService::actionReport($reportId, (string)$admin['uid']);
         json(['ok' => true, 'action' => $result['action'], 'target_type' => $result['target_type']]);
     } catch (RuntimeException $e) {
+        // The test harness signals json() via RuntimeException('JSON_CAPTURED') —
+        // that is success, not a report error. Let it bubble.
+        if ($e->getMessage() === 'JSON_CAPTURED') throw $e;
         je($e->getMessage(), 404);
     }
 }

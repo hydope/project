@@ -128,6 +128,10 @@ final class StubDb
         $GLOBALS['sql_seen'][] = $sql;
         return new StubStmt($sql);
     }
+    public function beginTransaction(): bool { return true; }
+    public function commit(): bool { return true; }
+    public function rollBack(): bool { return true; }
+    public function inTransaction(): bool { return false; }
 }
 /**
  * Per-test SQL response table. StubStmt serves these rows instead of its default
@@ -139,6 +143,7 @@ function db(): StubDb { return new StubDb(); }
 require_once __DIR__ . '/../routes/admin.php';
 require_once __DIR__ . '/../lib/ai.php';
 require_once __DIR__ . '/../routes/ai.php';
+require_once __DIR__ . '/../lib/AdminService.php';
 
 $pass = 0;
 $fail = 0;
