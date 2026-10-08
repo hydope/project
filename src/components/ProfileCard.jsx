@@ -186,7 +186,12 @@ export default function ProfileCard({ profile, className = '' }) {
                 >
                   <Lock className="w-4 h-4" />
                 </div>
-                <p className="text-[11px] font-semibold">{profile.photoAccess === 'match' ? '💍 After match' : '👁️ After interest'}</p>
+                <p className="text-[11px] font-semibold">
+                  {profile.photosVisibility === 'match' ? '💍 After match'
+                    : profile.photosVisibility === 'request' ? '👁️ After interest'
+                    : profile.photosVisibility === 'private' ? '🔒 Private'
+                    : '👁️ Members only'}
+                </p>
                 <p className="text-[9px] opacity-60">Private until mutual step</p>
               </div>
             </div>
