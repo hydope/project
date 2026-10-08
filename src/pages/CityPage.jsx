@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import Layout from '../layouts/LandingLayout';
 import { usePageTitle } from '../lib/usePageTitle';
 import Seo from '../components/Seo';
@@ -26,7 +26,8 @@ import ProfileCard from '../components/ProfileCard';
  */
 export default function CityPage() {
   const { slug } = useParams();
-  const isCountry = window.location.pathname.startsWith('/country/');
+  const location = useLocation();
+  const isCountry = location.pathname.startsWith('/country/');
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [locationName, setLocationName] = useState('');
