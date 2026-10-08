@@ -80,17 +80,23 @@ class ChunkErrorBoundary extends Component {
   constructor(props) {
     super(props);
     this.state = { failed: false, retrying: false };
+    // If we reloaded for this route already, don't loop forever.
+    this.reloadKey = `chunk-retry:${window.location.pathname}`;
   }
   static getDerivedStateFromError() {
     return { failed: true };
   }
   componentDidCatch(error) {
-    // If this looks like a stale-chunk failure and we haven't retried yet,
-    // reload once — the new deployment's chunks will then load cleanly.
-    const msg = String(error?.message || '');
-    if (!this.state.retrying && /dynamically imported module|chunk|import\(\)/i.test(msg)) {
+    // On ANY lazy-route failure, reload once with a cache-buster. Deploys
+    // ship new hashed chunks frequently; a stale HTML/JS mix is the
+    // overwhelming cause of these errors. One reload with a fresh URL
+    // resolves it. Guarded by sessionStorage so it never loops.
+    if (!this.state.retrying && !sessionStorage.getItem(this.reloadKey)) {
+      sessionStorage.setItem(this.reloadKey, '1');
       this.setState({ retrying: true });
-      window.location.reload();
+      const url = new URL(window.location.href);
+      url.searchParams.set('_r', Date.now().toString(36));
+      window.location.replace(url.toString());
     }
   }
   render() {
