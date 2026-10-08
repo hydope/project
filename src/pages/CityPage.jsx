@@ -60,6 +60,7 @@ export default function CityPage() {
   // 10 SEO keyword variations, adapted for city vs country
   const kw = {
     rishta: `Shia Rishta in ${name}`,
+    rishtay: `Shia Rishtay in ${name}`,
     nikah: `Shia Nikah in ${name}`,
     marriage: `Shia Marriage in ${name}`,
     matrimony: `Shia Matrimony in ${name}`,
@@ -100,7 +101,7 @@ export default function CityPage() {
             Find verified Shia matrimonial profiles in {name}. Every profile below is from
             a member in {name} seeking a serious nikah match. Browse {name} Shia brides and
             grooms, filter by what matters to you, and connect with respect.
-            Your {name} Shia shaadi starts with a single verified rishta.
+            Your {name} Shia shaadi starts with a single verified rishta — explore {kw.rishtay.toLowerCase()} today.
           </p>
         </header>
 
