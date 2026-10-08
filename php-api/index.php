@@ -151,12 +151,13 @@ try {
         if ($action === 'reset')   rateCheck('reset:ip', cip(), 10, 3600, 'Too many attempts. Try again in an hour.');
         if ($action === 'resend-verification') rateCheck('resend:ip', cip(), 5, 3600, 'Too many verification requests. Try again in an hour.');
     }
-    // Read limiter: profile listing/search is the hottest endpoint and the
-    // easiest to scrape. 120 requests per 5 minutes per IP is generous for
-    // humans, painful for scrapers.
-    if ($method === 'GET' && in_array($resource, ['profiles', 'search'], true)) {
-        rateCheck('read:profiles', cip(), 120, 300, 'Too many requests. Please slow down.');
-    }
+    // Read limiter: DISABLED 2026-10-07 — cip() returns the shared proxy IP
+    // when TRUST_PROXY isn't set, so the bucket was shared across all users
+    // and blocked legitimate traffic. Re-enable only after fixing client IP
+    // detection behind Cloudflare.
+    // if ($method === 'GET' && in_array($resource, ['profiles', 'search'], true)) {
+    //     rateCheck('read:profiles', cip(), 120, 300, 'Too many requests. Please slow down.');
+    // }
     // Sitemap and llms.txt are crawler targets — 30 per hour per IP.
     if ($method === 'GET' && in_array($resource, ['sitemap', 'llms'], true)) {
         rateCheck('read:crawler', cip(), 30, 3600, 'Crawl rate exceeded. Please slow down.');
