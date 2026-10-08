@@ -86,12 +86,26 @@ function llmsTxt(): void
         $countries = $stmt->fetchAll(PDO::FETCH_ASSOC);
         if ($countries) {
             $lines[] = '## Shia rishta by country';
+            // Alternate country names for AI search: USA -> United States, America etc.
+            $countryAliases = [
+                'usa' => ['United States', 'America'],
+                'united-states' => ['USA', 'America'],
+                'uk' => ['United Kingdom', 'Britain', 'England'],
+                'united-kingdom' => ['UK', 'Britain', 'England'],
+                'uae' => ['United Arab Emirates'],
+                'united-arab-emirates' => ['UAE'],
+                'saudi-arabia' => ['Saudi', 'KSA'],
+            ];
             foreach ($countries as $c) {
                 $country = trim((string)$c['country']);
                 $slug = trim(strtolower((string)preg_replace('/[^a-z0-9]+/i', '-', $country)), '-');
                 if ($slug === '') continue;
                 $n = (int)$c['n'];
-                $lines[] = "- [Shia Rishta in $country | Shia Rishtay in $country | Shia Nikah in $country | Shia Marriage in $country ($n profiles)]({$base}/country/{$slug})";
+                $label = "Shia Rishta in $country | Shia Rishtay in $country | Shia Nikah in $country | Shia Marriage in $country";
+                foreach ($countryAliases[$slug] ?? [] as $alt) {
+                    $label .= " | Shia Rishta in $alt";
+                }
+                $lines[] = "- [$label ($n profiles)]({$base}/country/{$slug})";
             }
             $lines[] = '';
         }
