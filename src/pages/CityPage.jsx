@@ -71,8 +71,8 @@ export default function CityPage() {
   const altKw = aliases.map(a => `Shia Rishta in ${a}`);
 
   const titleTag = altName
-    ? `${kw.rishta} | ${kw.nikah} | Shia Rishta in ${altName}`
-    : `${kw.rishta} | ${kw.nikah}, ${kw.marriage} & ${kw.matrimony}`;
+    ? `${kw.rishta} | Shia Rishta in ${altName} | ${kw.rishtay}`
+    : `${kw.rishta} | ${kw.rishtay} | ${kw.nikah}`;
 
   return (
     <Layout>
@@ -100,7 +100,7 @@ export default function CityPage() {
               <MapPin className="w-4 h-4" /> {kw.matrimony}
             </p>
             <h1 className="text-3xl md:text-4xl font-bold mb-3" style={{ color: 'var(--color-ink)' }}>
-              {kw.nikah}
+              {kw.rishta}
             </h1>
             <p className="text-sm max-w-2xl leading-relaxed mb-4" style={{ color: 'var(--color-ink-secondary)' }}>
               {kw.find}. Browse verified {name} Shia brides and grooms seeking a serious nikah match.
@@ -181,22 +181,20 @@ export default function CityPage() {
           </div>
         </section>
 
-        {/* Country aliases as visible tags — also crawlable */}
-        {altKw.length > 0 && (
-          <section className="mt-6 p-6 rounded-2xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-            <h2 className="text-base font-bold mb-3" style={{ color: 'var(--color-ink)' }}>
-              Also searched as
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              {[kw.rishta, ...altKw].map((t, i) => (
-                <span key={i} className="px-3 py-1.5 rounded-full text-xs font-medium"
-                  style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}>
-                  {t}
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* All 11 keyword tags + country name variations — crawlable by Google & AI */}
+        <section className="mt-6 p-6 rounded-2xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+          <h2 className="text-base font-bold mb-3" style={{ color: 'var(--color-ink)' }}>
+            Popular searches
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {[kw.rishta, kw.rishtay, kw.nikah, kw.marriage, kw.matrimony, kw.brides, kw.grooms, kw.shaadi, kw.find, kw.matrimonial, kw.match, ...altKw].map((t, i) => (
+              <span key={i} className="px-3 py-1.5 rounded-full text-xs font-medium"
+                style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}>
+                {t}
+              </span>
+            ))}
+          </div>
+        </section>
 
         {/* CTA */}
         <section className="mt-6 p-8 rounded-3xl text-center" style={{ background: 'var(--color-primary-subtle)', border: '1px solid var(--color-border)' }}>

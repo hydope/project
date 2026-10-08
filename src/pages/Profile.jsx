@@ -310,32 +310,32 @@ export default function Profile() {
                     {profile.displayName}, {profile.age}
                     {profile.is_verified && <BadgeCheck className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />}
                   </h1>
-                  <p className="text-sm mt-1 flex items-center gap-1.5" style={{ color: 'var(--color-ink-secondary)' }}>
-                    <MapPin className="w-3.5 h-3.5" />
+                  <p className="text-[15px] mt-1.5 flex items-center gap-2" style={{ color: 'var(--color-ink-secondary)' }}>
+                    <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-primary)' }} />
                     {profile.city || profile.country ? (
-                      <>
+                      <span>
                         {profile.city ? (
                           <Link
                             to={`/city/${profile.city.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`}
-                            className="hover:underline font-medium"
+                            className="hover:underline font-semibold"
                             style={{ color: 'var(--color-primary)' }}
                           >
                             {profile.city}
                           </Link>
                         ) : null}
-                        {profile.city && profile.country ? ', ' : null}
+                        {profile.city && profile.country ? <span className="mx-1.5" style={{ color: 'var(--color-ink-tertiary)' }}>·</span> : null}
                         {profile.country ? (
                           <Link
                             to={`/country/${profile.country.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`}
                             className="hover:underline"
-                            style={{ color: 'var(--color-primary)' }}
+                            style={{ color: 'var(--color-ink-secondary)' }}
                           >
                             {profile.country}
                           </Link>
                         ) : null}
-                      </>
+                      </span>
                     ) : (
-                      'Location not set'
+                      <span style={{ color: 'var(--color-ink-tertiary)' }}>Location not set</span>
                     )}
                   </p>
                 </div>
