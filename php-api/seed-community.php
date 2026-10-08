@@ -30,7 +30,7 @@ try {
     // 1. Delete the QA test post and its replies
     $qaId = 'e6782107-ed97-4343-9666-20d0a8647f39';
     $pdo->prepare('DELETE FROM replies WHERE post_id = ?')->execute([$qaId]);
-    $pdo->prepare('DELETE FROM post_likes WHERE post_id = ?')->execute([$qaId]);
+    try { $pdo->prepare('DELETE FROM post_likes WHERE post_id = ?')->execute([$qaId]); } catch (Throwable $e) {}
     $deleted = $pdo->prepare('DELETE FROM posts WHERE id = ?')->execute([$qaId]);
     $log[] = 'QA post deleted: ' . ($deleted ? 'yes' : 'not found');
 
