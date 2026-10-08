@@ -1,0 +1,64 @@
+name: Deploy to Staging
+
+# Staging deploys from the `staging` branch to shiarishta.com/staging/.
+# Push to staging → verify → merge to main → production.
+# This is the safety net: every production deploy should first pass staging.
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: PHP syntax gate
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+
+      - name: Lint PHP
+        run: |
+          find php-api -name "*.php" -exec php -l {} \; | grep -v "No syntax errors" && exit 1 || echo "PHP lint passed"
+
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to staging directory
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          python3 .github/scripts/ftp_mirror.py \
+            --local dist/ \
+            --remote /public_html/staging/ \
+            --server "$FTP_SERVER" \
+            --username "$FTP_USERNAME" \
+            --password "$FTP_PASSWORD"
+
+      - name: Deploy staging API
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          python3 .github/scripts/ftp_mirror.py \
+            --local php-api/ \
+            --remote /public_html/staging/api/ \
+            --server "$FTP_SERVER" \
+            --username "$FTP_USERNAME" \
+            --password "$FTP_PASSWORD"
+
+      - name: Verify staging health
+        run: |
+          sleep 10
+          curl -sf https://shiarishta.com/staging/api/health | grep -q '"ok":true' \
+            && echo "Staging health: OK" \
+            || (echo "Staging health check FAILED" && exit 1)

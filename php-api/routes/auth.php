@@ -27,31 +27,23 @@ function routeAuth(string $method, array $segments): void
 function authRegister(): void
 {
     $payload = requestJson();
-    $email = strtolower(trim((string)($payload['email'] ?? '')));
-    $password = (string)($payload['password'] ?? '');
-    $displayName = trim((string)($payload['displayName'] ?? '')) ?: explode('@', $email)[0];
-
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        je('Enter a valid email address.', 400);
+    $v = validate($payload, [
+        'email'       => 'required|email|max:320',
+        'password'    => 'required|min:8|max:128',
+        'displayName' => 'max:60',
+        'sect'        => 'required|in:Ithna Ashari (Twelver),Ismaili,Bohra (Dawoodi),Zaydi,Alevi,Other / Prefer not to say',
+        'role'        => 'in:member,guardian,matchmaker',
+    ]);
+    if (!$v->ok) {
+        je($v->firstError(), 400);
     }
-    if (strlen($password) < 8) {
-        je('Password must be at least 8 characters.', 400);
-    }
-    if (mb_strlen($displayName) > 60) {
-        je('Display name is too long.', 400);
-    }
-    // Sect is required at registration — Shia Rishta is a Shia matrimonial platform.
-    $sect = trim((string)($payload['sect'] ?? ''));
-    $validSects = ['Ithna Ashari (Twelver)', 'Ismaili', 'Bohra (Dawoodi)', 'Zaydi', 'Alevi', 'Other / Prefer not to say'];
-    if (!in_array($sect, $validSects, true)) {
-        je('Please select your sect.', 400);
-    }
+    $email = strtolower((string)$v->get('email'));
+    $password = (string)$v->get('password');
+    $displayName = $v->get('displayName') ?: explode('@', $email)[0];
+    $sect = (string)$v->get('sect');
 
     // Account type selected at signup: member (default), guardian, or matchmaker.
-    $role = trim((string)($payload['role'] ?? 'member'));
-    if (!in_array($role, ['member', 'guardian', 'matchmaker'], true)) {
-        $role = 'member';
-    }
+    $role = $v->get('role') ?: 'member';
 
     // ADMIN_EMAILS drives is_admin on register — the first-admin bootstrap.
     $adminEmails = adminEmails();

@@ -1,3 +1,8 @@
+// ──── DEPRECATED — DO NOT IMPORT ─────────────────────────────────────────────
+// This localStorage simulator is dead code (zero imports). The canonical API
+// path is: pages/components → client.js → repository.js → transport.js → PHP.
+// This file is kept for reference only and will be deleted.
+// ─────────────────────────────────────────────────────────────────────────────
 // ──── Backend Service Layer (localStorage-based) ──────────────────────────────
 // Simulates a real REST API with persistence. Replace with a real Node.js/Express
 // adapter to point the frontend at a production server.

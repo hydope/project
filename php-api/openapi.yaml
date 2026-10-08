@@ -1,0 +1,222 @@
+openapi: 3.0.3
+info:
+  title: ShiaRishta API
+  version: 1.0.0
+  description: |
+    Shia matrimony platform API. All endpoints are prefixed with /api.
+    Versioned: /api/v1/... is canonical; bare /api/... routes to v1.
+
+    Authentication: Bearer <redacted> in Authorization header.
+servers:
+  - url: https://shiarishta.com/api
+    description: Production
+  - url: http://127.0.0.1:8888/api
+    description: Local development
+
+paths:
+  /v1/auth/register:
+    post:
+      summary: Register a new account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, sect]
+              properties:
+                email: { type: string, format: email, maxLength: 320 }
+                password: { type: string, minLength: 8, maxLength: 128 }
+                displayName: { type: string, maxLength: 60 }
+                sect:
+                  type: string
+                  enum: [Ithna Ashari (Twelver), Ismaili, Bohra (Dawoodi), Zaydi, Alevi, Other / Prefer not to say]
+                role:
+                  type: string
+                  enum: [member, guardian, matchmaker]
+                  default: member
+      responses:
+        '200':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  token: { type: string }
+                  user: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /v1/auth/login:
+    post:
+      summary: Sign in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  token: { type: string }
+                  user: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/profiles:
+    get:
+      summary: List profiles with filters
+      parameters:
+        - name: city
+          in: query
+          schema: { type: string }
+          description: Exact city match (case-insensitive)
+        - name: country
+          in: query
+          schema: { type: string }
+          description: Exact country match (case-insensitive)
+        - name: limit
+          in: query
+          schema: { type: integer, default: 24, maximum: 100 }
+        - name: sect
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Profile list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profiles: { type: array, items: { $ref: '#/components/schemas/Profile' } }
+                  total: { type: integer }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /v1/profiles/{id}:
+    get:
+      summary: Get a single profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/compatibility/{profileId}:
+    get:
+      summary: Server-side compatibility score
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Compatibility score
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  score:
+                    type: object
+                    nullable: true
+                    properties:
+                      overall: { type: integer, minimum: 0, maximum: 100 }
+                      breakdown:
+                        type: object
+                        properties:
+                          values: { type: integer }
+                          lifestyle: { type: integer }
+                          faith: { type: integer }
+                          timeline: { type: integer }
+                      reasons: { type: array, items: { type: string } }
+                      topReason: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        displayName: { type: string }
+        isAdmin: { type: boolean }
+        role: { type: string }
+
+    Profile:
+      type: object
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        age: { type: integer, nullable: true }
+        gender: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        country: { type: string, nullable: true }
+        sect: { type: string, nullable: true }
+        profession: { type: string, nullable: true }
+        bio: { type: string, nullable: true }
+        photosVisibility: { type: string, enum: [public, members, request, match, private] }
+        photosLocked: { type: boolean }
+        photo: { type: string, nullable: true }
+        is_verified: { type: boolean }
+
+  responses:
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+    Unauthorized:
+      description: Missing or invalid token
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+    RateLimited:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }

@@ -5,6 +5,9 @@
 declare(strict_types=1);
 
 require __DIR__ . '/lib/bootstrap.php';
+require __DIR__ . '/lib/logger.php';
+require __DIR__ . '/lib/validate.php';
+require __DIR__ . '/lib/ProfileService.php';
 require __DIR__ . '/lib/db.php';
 require __DIR__ . '/lib/jwt.php';
 require __DIR__ . '/lib/util.php';
@@ -22,6 +25,7 @@ require __DIR__ . '/routes/verifications.php';
 require __DIR__ . '/routes/wali.php';
 require __DIR__ . '/routes/drafts.php';
 require __DIR__ . '/routes/admin.php';
+require __DIR__ . '/routes/compatibility.php';
 require __DIR__ . '/routes/contact.php';
 require __DIR__ . '/routes/matchmaker.php';
 require __DIR__ . '/routes/biodata.php';
@@ -30,6 +34,21 @@ require __DIR__ . '/routes/llms.php';
 require __DIR__ . '/routes/social.php';
 require __DIR__ . '/lib/ai.php';
 require __DIR__ . '/routes/ai.php';
+
+// ── Global error handler: structured log + safe 500 ─────────────────────────
+// Without this, a fatal error returns a blank 500 with nothing in the logs.
+set_exception_handler(function (Throwable $e) {
+    logError('Uncaught exception', [
+        'message' => $e->getMessage(),
+        'file' => basename($e->getFile()),
+        'line' => $e->getLine(),
+    ]);
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json');
+    }
+    echo json_encode(['error' => 'Something went wrong. Please try again.']);
+});
 
 // ── Security headers (helmet-equivalent, zero dependencies) ─────────────────
 header('X-Content-Type-Options: nosniff');
@@ -96,8 +115,17 @@ if ($segments === [] || $segments === ['health'] || $segments === ['api', 'healt
 if (($segments[0] ?? '') === 'api') {
     array_shift($segments);
 }
+// ── API versioning ────────────────────────────────────────────────────────────
+// /api/v1/... is the canonical prefix. Bare /api/... (no version) routes to
+// v1 for backward compatibility. When v2 ships with breaking changes, add
+// `case 'v2'` here and keep v1 handlers untouched.
+$apiVersion = 'v1';
+if (($segments[0] ?? '') === 'v1' || ($segments[0] ?? '') === 'v2') {
+    $apiVersion = array_shift($segments);
+}
+header('X-API-Version: ' . $apiVersion);
 if ($segments === []) {
-    json(['service' => 'shiarishta-php-api', 'status' => 'ok'], 200);
+    json(['service' => 'shiarishta-php-api', 'status' => 'ok', 'version' => $apiVersion], 200);
 }
 
 $resource = strtolower((string)$segments[0]);
@@ -119,10 +147,20 @@ try {
         if ($action === 'reset')   rateCheck('reset:ip', cip(), 10, 3600, 'Too many attempts. Try again in an hour.');
         if ($action === 'resend-verification') rateCheck('resend:ip', cip(), 5, 3600, 'Too many verification requests. Try again in an hour.');
     }
+    // Read limiter: profile listing/search is the hottest endpoint and the
+    // easiest to scrape. 120 requests per 5 minutes per IP is generous for
+    // humans, painful for scrapers.
+    if ($method === 'GET' && in_array($resource, ['profiles', 'search'], true)) {
+        rateCheck('read:profiles', cip(), 120, 300, 'Too many requests. Please slow down.');
+    }
+    // Sitemap and llms.txt are crawler targets — 30 per hour per IP.
+    if ($method === 'GET' && in_array($resource, ['sitemap', 'llms'], true)) {
+        rateCheck('read:crawler', cip(), 30, 3600, 'Crawl rate exceeded. Please slow down.');
+    }
     // Write limiter for every other mutating resource.
     writeRateCheck();
 } catch (Throwable $e) {
-    error_log('[api] rate limiter error: ' . $e->getMessage());
+    logWarn('Rate limiter error', ['error' => $e->getMessage()]);
 }
 
 // ── Dispatch ───────────────────────────────────────────────────────────────
@@ -141,6 +179,9 @@ try {
             break;
         case 'profiles':
             routeProfiles($method, $rest);
+            break;
+        case 'compatibility':
+            routeCompatibility($method, $rest);
             break;
         case 'users':
             routeUsers($method, $rest);
