@@ -1,9 +1,10 @@
 <IfModule mod_headers.c>
-  # Entry points — always revalidate. The JS/CSS they reference is
-  # content-hashed, so a fresh index.html is the only thing standing
-  # between a deploy and the user seeing it.
+  # Entry points — NEVER cache. index.html is ~2KB; always fetch fresh so a
+  # deploy's new hashed bundles are picked up immediately. `no-cache` alone
+  # allows 304 revalidation which can serve stale HTML if mtimes are off —
+  # `no-store` eliminates that entire class of bug.
   <FilesMatch "^(index\.html|sw\.js)$">
-    Header set Cache-Control "no-cache"
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
   </FilesMatch>
   # Unhashed brand assets — revalidate every time (tiny files).
   <FilesMatch "^(icon\.svg|favicon\.svg|manifest\.webmanifest)$">

@@ -22,6 +22,11 @@ allowedEnvVars.forEach(key => {
 
 export default defineConfig({
   plugins: [react()],
+  // Build ID — injected into the bundle so the app can detect when the
+  // server has a newer deploy than the running code (stale chunk guard).
+  define: {
+    '__BUILD_ID__': JSON.stringify(new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')),
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
