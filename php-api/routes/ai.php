@@ -451,9 +451,16 @@ function normaliseSchedule(?string $when): ?string
 function aiListPosts(): void
 {
     $includeAll = !empty(currentUser()['isAdmin']);
-    $sql = 'SELECT id, slug, title, excerpt, image_url, category, read_time, status, created_at,
+    // image_url was added by a later migration; if it hasn't run yet in
+    // production, selecting it kills the whole query. Detect the column first.
+    $hasImageUrl = false;
+    try {
+        $hasImageUrl = (bool)db()->query("SHOW COLUMNS FROM blog_posts LIKE 'image_url'")->fetch();
+    } catch (Throwable $e) { /* assume missing */ }
+    $imgCol = $hasImageUrl ? 'image_url, ' : '';
+    $sql = "SELECT id, slug, title, excerpt, {$imgCol}category, read_time, status, created_at,
                    scheduled_for, published_at
-              FROM blog_posts';
+              FROM blog_posts";
     if (!$includeAll) {
         $sql .= " WHERE status = 'published' AND (scheduled_for IS NULL OR scheduled_for <= UTC_TIMESTAMP())";
     }
@@ -480,8 +487,13 @@ function aiListPosts(): void
 /** GET /api/ai/posts/:slug — a single published post with its body. */
 function aiGetPost(string $slug): void
 {
+    $hasImageUrl = false;
+    try {
+        $hasImageUrl = (bool)db()->query("SHOW COLUMNS FROM blog_posts LIKE 'image_url'")->fetch();
+    } catch (Throwable $e) { /* assume missing */ }
+    $imgCol = $hasImageUrl ? 'image_url, ' : '';
     $st = db()->prepare(
-        "SELECT id, slug, title, excerpt, image_url, category, read_time, body, published_at
+        "SELECT id, slug, title, excerpt, {$imgCol}category, read_time, body, published_at
            FROM blog_posts
           WHERE slug = ? AND status = 'published'
             AND (scheduled_for IS NULL OR scheduled_for <= UTC_TIMESTAMP())
