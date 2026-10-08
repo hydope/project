@@ -88,13 +88,18 @@ function llmsTxt(): void
             $lines[] = '## Shia rishta by country';
             // Alternate country names for AI search: USA -> United States, America etc.
             $countryAliases = [
-                'usa' => ['United States', 'America'],
-                'united-states' => ['USA', 'America'],
-                'uk' => ['United Kingdom', 'Britain', 'England'],
+                'usa' => ['United States', 'America', 'US'],
+                'united-states' => ['USA', 'America', 'US'],
+                'us' => ['USA', 'United States', 'America'],
+                'uk' => ['United Kingdom', 'Britain', 'England', 'Great Britain'],
                 'united-kingdom' => ['UK', 'Britain', 'England'],
-                'uae' => ['United Arab Emirates'],
-                'united-arab-emirates' => ['UAE'],
-                'saudi-arabia' => ['Saudi', 'KSA'],
+                'uae' => ['United Arab Emirates', 'Emirates'],
+                'united-arab-emirates' => ['UAE', 'Emirates'],
+                'saudi-arabia' => ['Saudi', 'KSA', 'Kingdom of Saudi Arabia'],
+                'south-korea' => ['Korea', 'Republic of Korea'],
+                'netherlands' => ['Holland'],
+                'new-zealand' => ['NZ'],
+                'south-africa' => ['SA', 'RSA'],
             ];
             foreach ($countries as $c) {
                 $country = trim((string)$c['country']);
