@@ -4,6 +4,8 @@
 // The script deletes itself after a successful run.
 declare(strict_types=1);
 
+header('Content-Type: application/json');
+
 $TOKEN = '654360278b376bdad534cbbb8c4a8815';
 
 if (($_GET['token'] ?? '') !== $TOKEN) {
@@ -12,10 +14,23 @@ if (($_GET['token'] ?? '') !== $TOKEN) {
     exit;
 }
 
-require __DIR__ . '/lib/db.php';
-require __DIR__ . '/lib/util.php';
+try {
+    require __DIR__ . '/lib/db.php';
+    require __DIR__ . '/lib/util.php';
+} catch (Throwable $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'require failed', 'msg' => $e->getMessage()]);
+    exit;
+}
 
-$pdo = db();
+try {
+    $pdo = db();
+} catch (Throwable $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'db() failed', 'msg' => $e->getMessage()]);
+    exit;
+}
+
 $log = [];
 
 try {
