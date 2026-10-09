@@ -29,6 +29,7 @@ require __DIR__ . '/routes/verifications.php';
 require __DIR__ . '/routes/wali.php';
 require __DIR__ . '/routes/drafts.php';
 require __DIR__ . '/routes/admin.php';
+require __DIR__ . '/routes/analytics.php';
 require __DIR__ . '/routes/compatibility.php';
 require __DIR__ . '/routes/contact.php';
 require __DIR__ . '/routes/matchmaker.php';
@@ -163,7 +164,15 @@ try {
         rateCheck('read:crawler', cip(), 30, 3600, 'Crawl rate exceeded. Please slow down.');
     }
     // Write limiter for every other mutating resource.
-    writeRateCheck();
+    // EXEMPTION: the analytics beacon (POST /api/analytics/collect) fires on
+    // every page view by design. It must NOT consume the shared 'write' bucket
+    // — cip() is the shared Cloudflare proxy IP, so 30/min would 429 every
+    // visitor (the 2026-10-07 incident). The endpoint enforces its own
+    // per-visitor-day bucket inside routeAnalytics().
+    $isBeacon = $method === 'POST' && $resource === 'analytics' && ($rest[0] ?? '') === 'collect';
+    if (!$isBeacon) {
+        writeRateCheck();
+    }
 } catch (Throwable $e) {
     logWarn('Rate limiter error', ['error' => $e->getMessage()]);
 }
@@ -220,6 +229,9 @@ try {
             break;
         case 'admin':
             routeAdmin($method, $rest);
+            break;
+        case 'analytics':
+            routeAnalytics($method, $rest);
             break;
         case 'contact':
             routeContact($method, $rest);

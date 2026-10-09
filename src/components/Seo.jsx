@@ -4,6 +4,7 @@ import { LANDING_PAGE_META } from '../pages/landing/landingPageMeta.js';
 import { ARTICLE_META } from '../data/articleMeta.js';
 import { ROUTE_SEO, SITE_URL } from '../data/routeSeo.js';
 import { SOCIAL_LINKS } from '../data/socialLinks.js';
+import { trackPageView, beaconPageView } from '../lib/analytics.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-route SEO for the SPA. index.html ships the homepage <head>; this
@@ -75,13 +76,17 @@ function upsertLinkCanonical(href) {
 }
 
 function resolveMeta(pathname) {
-  if (PUBLIC_META[pathname]) return { ...PUBLIC_META[pathname], index: true };
+  // Trailing-slash normalization: /blog/ must resolve exactly like /blog.
+  // Without this, /blog/ fell into the /blog/ article branch, matched no
+  // article, and the tab showed "Page Not Found".
+  const path = pathname.replace(/\/+$/, '') || '/';
+  if (PUBLIC_META[path]) return { ...PUBLIC_META[path], index: true };
   // SEO landing pages — meta comes from the hand-written page data.
-  const landing = LANDING_PAGE_META[pathname.replace(/^\/+/, '')];
+  const landing = LANDING_PAGE_META[path.replace(/^\/+/, '')];
   if (landing) return { title: landing.title, desc: landing.desc, index: true };
   // Blog articles — each has a crawlable URL and unique meta.
-  if (pathname.startsWith('/blog/')) {
-    const article = ARTICLE_META.find((a) => `/blog/${a.slug}` === pathname);
+  if (path.startsWith('/blog/')) {
+    const article = ARTICLE_META.find((a) => `/blog/${a.slug}` === path);
     if (article) {
       return {
         title: `${article.title} | Shia Rishta Blog`,
@@ -91,24 +96,24 @@ function resolveMeta(pathname) {
     }
     return { title: 'Page Not Found | Shia Rishta', desc: '', index: false };
   }
-  if (pathname.startsWith('/profiles/')) {
+  if (path.startsWith('/profiles/')) {
     return {
       title: 'Shia Profile for Nikah | Shia Rishta',
       desc: 'View this verified Shia profile on Shia Rishta — the nikah-first Shia matrimony platform.',
       index: true,
     };
   }
-  if (pathname.startsWith('/community/')) {
+  if (path.startsWith('/community/')) {
     return {
       title: 'Community Post | Shia Rishta',
       desc: 'Community guidance for Shia Muslims on Shia Rishta.',
       index: true,
     };
   }
-  if (PRIVATE_TITLES[pathname]) {
-    return { title: PRIVATE_TITLES[pathname], desc: '', index: false };
+  if (PRIVATE_TITLES[path]) {
+    return { title: PRIVATE_TITLES[path], desc: '', index: false };
   }
-  if (NOINDEX_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+  if (NOINDEX_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`))) {
     return { title: 'Shia Rishta', desc: '', index: false };
   }
   // Unknown route → the NotFound page.
@@ -207,6 +212,11 @@ function faqNode(pathname) {
   };
 }
 
+// Tracks whether the initial full-page-load page_view (fired automatically by
+// the gtag config in index.html) has already happened, so the SPA only sends
+// manual page_view events on client-side navigations.
+let seoFirstPageViewDone = false;
+
 export default function Seo() {
   const { pathname } = useLocation();
 
@@ -234,6 +244,19 @@ export default function Seo() {
     } else {
       document.getElementById('shia-rishta-jsonld')?.remove();
     }
+
+    // ── Pageview tracking ──────────────────────────────────────────────
+    // GA4: the gtag config in index.html already fired the automatic
+    // page_view for this full page load, so only fire on client-side
+    // navigations (avoids double-counting the landing page).
+    if (seoFirstPageViewDone) {
+      trackPageView(pathname, meta.title);
+    } else {
+      seoFirstPageViewDone = true;
+    }
+    // First-party SEO analytics beacon — every page view, including the
+    // first. Fire-and-forget; never blocks rendering.
+    beaconPageView(pathname);
   }, [pathname]);
 
   return null;

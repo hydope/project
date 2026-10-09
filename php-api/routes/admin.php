@@ -334,6 +334,7 @@ function routeAdmin(string $method, array $segments): void
     if ($method === 'GET' && $action === 'overview') { adminOverview(); return; }
     if ($method === 'GET' && $action === 'health') { adminHealth(); return; }
     if ($method === 'GET' && $action === 'analytics') { adminAnalytics(); return; }
+    if ($method === 'GET' && $action === 'seo') { adminSeoAnalytics(); return; }
     if ($method === 'GET' && $action === 'queue') { adminModerationQueue(); return; }
     if ($method === 'GET' && $action === 'verification-queue') { adminVerificationQueue(); return; }
     // POST /verify/bulk — segments are ['verify', 'bulk'], so the verb is at
@@ -679,6 +680,178 @@ function adminAnalytics(): void
                 'color' => 'var(--color-success)',
             ],
         ],
+    ]);
+}
+
+// GET /api/admin/seo?range=7d|30d — the SEO & Growth dashboard dataset.
+//
+// First-party analytics from the pageviews beacon (POST /api/analytics/collect)
+// plus real product aggregates. Everything here is a real COUNT from the
+// database — no sample data, no estimates. Google Analytics 4 runs in parallel
+// via the gtag snippet (measurement ID G-KNR7541E3G); its own numbers live in
+// the GA console, linked from the dashboard.
+function adminSeoAnalytics(): void
+{
+    $range = ($_GET['range'] ?? '') === '30d' ? '30d' : '7d';
+    $days = $range === '30d' ? 30 : 7;
+
+    $labels = [];
+    $dayKeys = [];
+    for ($i = $days; $i >= 0; $i--) {
+        $ts = time() - ($i * 86400);
+        $labels[] = date('M d', $ts);
+        $dayKeys[] = date('Y-m-d', $ts);
+    }
+    $since = date('Y-m-d', time() - ($days * 86400));
+    $prevSince = date('Y-m-d', time() - (2 * $days * 86400));
+    $prevUntil = date('Y-m-d', time() - (($days + 1) * 86400));
+
+    // Day-bucketed traffic. pageviews may not exist yet on old installs —
+    // degrade to zeros rather than 500ing the dashboard.
+    $pvSeries = array_fill_keys($dayKeys, 0);
+    $uvSeries = array_fill_keys($dayKeys, 0);
+    try {
+        $stmt = db()->prepare(
+            "SELECT DATE(created_at) AS d, COUNT(*) AS n, COUNT(DISTINCT visitor_hash) AS u
+             FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)
+             GROUP BY DATE(created_at)"
+        );
+        $stmt->execute();
+        foreach ($stmt->fetchAll() as $r) {
+            $d = (string)$r['d'];
+            if (isset($pvSeries[$d])) {
+                $pvSeries[$d] = (int)$r['n'];
+                $uvSeries[$d] = (int)$r['u'];
+            }
+        }
+    } catch (Throwable) { /* table missing — dashboard shows zeros */ }
+
+    $scalar = function (string $sql, array $params = []): int {
+        try {
+            $stmt = db()->prepare($sql);
+            $stmt->execute($params);
+            return (int)($stmt->fetchColumn() ?? 0);
+        } catch (Throwable) {
+            return 0;
+        }
+    };
+
+    // Overview counts: current window vs the previous equal window, for deltas.
+    $visitors = $scalar(
+        "SELECT COUNT(DISTINCT visitor_hash) FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+    $prevVisitors = $scalar(
+        "SELECT COUNT(DISTINCT visitor_hash) FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
+         AND created_at < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+    $pageviews = $scalar(
+        "SELECT COUNT(*) FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+    $prevPageviews = $scalar(
+        "SELECT COUNT(*) FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
+         AND created_at < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+    $members = $scalar(
+        "SELECT COUNT(*) FROM users WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+    $prevMembers = $scalar(
+        "SELECT COUNT(*) FROM users WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
+         AND created_at < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+    $biodatas = $scalar(
+        "SELECT COUNT(*) FROM admin_audit WHERE action = 'biodata.created'
+         AND created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+    $prevBiodatas = $scalar(
+        "SELECT COUNT(*) FROM admin_audit WHERE action = 'biodata.created'
+         AND created_at >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
+         AND created_at < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+    $messages = $scalar(
+        "SELECT COUNT(*) FROM messages WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+    $prevMessages = $scalar(
+        "SELECT COUNT(*) FROM messages WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
+         AND created_at < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+    $posts = $scalar(
+        "SELECT COUNT(*) FROM blog_posts WHERE status = 'published'
+         AND COALESCE(published_at, created_at) >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+    $prevPosts = $scalar(
+        "SELECT COUNT(*) FROM blog_posts WHERE status = 'published'
+         AND COALESCE(published_at, created_at) >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
+         AND COALESCE(published_at, created_at) < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+
+    $delta = fn(int $cur, int $prev): ?float =>
+        $prev > 0 ? round((($cur - $prev) / $prev) * 100, 1) : ($cur > 0 ? 100.0 : null);
+
+    // Top pages, top referrers, device split — current window only.
+    $topPages = [];
+    $referrers = [];
+    $devices = [];
+    try {
+        $stmt = db()->prepare(
+            "SELECT path, COUNT(*) AS views, COUNT(DISTINCT visitor_hash) AS visitors
+             FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)
+             GROUP BY path ORDER BY views DESC LIMIT 12"
+        );
+        $stmt->execute();
+        $topPages = array_map(fn($r) => [
+            'path' => (string)$r['path'],
+            'views' => (int)$r['views'],
+            'visitors' => (int)$r['visitors'],
+        ], $stmt->fetchAll());
+
+        $stmt = db()->prepare(
+            "SELECT referrer_host, COUNT(*) AS views
+             FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)
+             AND referrer_host IS NOT NULL
+             GROUP BY referrer_host ORDER BY views DESC LIMIT 10"
+        );
+        $stmt->execute();
+        $referrers = array_map(fn($r) => [
+            'host' => (string)$r['referrer_host'],
+            'views' => (int)$r['views'],
+        ], $stmt->fetchAll());
+
+        $stmt = db()->prepare(
+            "SELECT device, COUNT(*) AS views
+             FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)
+             GROUP BY device ORDER BY views DESC"
+        );
+        $stmt->execute();
+        $devices = array_map(fn($r) => [
+            'device' => (string)$r['device'],
+            'views' => (int)$r['views'],
+        ], $stmt->fetchAll());
+    } catch (Throwable) { /* table missing — sections render empty */ }
+
+    json([
+        'range' => $range,
+        'since' => $since,
+        'ga' => [
+            'measurementId' => 'G-KNR7541E3G',
+            'propertyUrl' => 'https://analytics.google.com/analytics/web/#/a324835995p453783207/',
+            'status' => 'connected',
+        ],
+        'overview' => [
+            ['key' => 'visitors', 'label' => 'Unique visitors', 'value' => $visitors, 'delta' => $delta($visitors, $prevVisitors)],
+            ['key' => 'pageviews', 'label' => 'Pageviews', 'value' => $pageviews, 'delta' => $delta($pageviews, $prevPageviews)],
+            ['key' => 'members', 'label' => 'New members', 'value' => $members, 'delta' => $delta($members, $prevMembers)],
+            ['key' => 'biodatas', 'label' => 'Biodatas created', 'value' => $biodatas, 'delta' => $delta($biodatas, $prevBiodatas)],
+            ['key' => 'messages', 'label' => 'Messages sent', 'value' => $messages, 'delta' => $delta($messages, $prevMessages)],
+            ['key' => 'posts', 'label' => 'Posts published', 'value' => $posts, 'delta' => $delta($posts, $prevPosts)],
+        ],
+        'traffic' => [
+            'labels' => $labels,
+            'pageviews' => array_values($pvSeries),
+            'visitors' => array_values($uvSeries),
+        ],
+        'topPages' => $topPages,
+        'referrers' => $referrers,
+        'devices' => $devices,
     ]);
 }
 

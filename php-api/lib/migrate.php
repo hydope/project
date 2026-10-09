@@ -53,6 +53,7 @@ function migrateSchema(): void
     migrateAddBlogQueueTable();
     migrateAddBiodataDraftsTable();
     migrateAuditMetaToMediumtext();
+    migrateAddPageviewsTable();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -696,5 +697,28 @@ function migrateAuditMetaToMediumtext(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (admin_audit meta mediumtext) issue: ' . $e->getMessage());
+    }
+}
+
+// First-party pageview log — powers the admin SEO & Growth dashboard.
+// Privacy design: NO ip, NO user agent, NO full referrer URL is stored.
+// visitor_hash is a day-scoped sha256(ip + ua + date): enough to count unique
+// visitors per day, useless for identifying anyone afterwards.
+function migrateAddPageviewsTable(): void
+{
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS pageviews (
+          id            BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+          path          VARCHAR(255) NOT NULL,
+          referrer_host VARCHAR(255) DEFAULT NULL,
+          device        VARCHAR(16)  NOT NULL DEFAULT 'desktop',
+          visitor_hash  CHAR(64)     NOT NULL,
+          created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          KEY idx_pv_created (created_at),
+          KEY idx_pv_path (path, created_at),
+          KEY idx_pv_ref (referrer_host, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Throwable $e) {
+        error_log('[api] migration (pageviews) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }

@@ -1,16 +1,53 @@
-// ── Analytics event queue ────────────────────────────────────────────────────
-// Records behavioral events (profile_viewed, interest_sent, message_sent,
-// account_created, waitlist_joined) so funnel metrics become possible.
+// ── Analytics ────────────────────────────────────────────────────────────────
+// Two channels, both honest about what they do:
 //
-// HONESTY CONTRACT: events are queued in this browser only. There is NO
-// network call anywhere in this module — no analytics service is connected,
-// so none is claimed. When a server endpoint exists, add it in `flush()`
-// and delete this comment.
+// 1. Google Analytics 4 (gtag.js, measurement ID G-KNR7541E3G) — loaded via the
+//    snippet in index.html. trackPageView() fires manual page_view events on
+//    SPA route changes; the initial page_view per full load is automatic.
+// 2. First-party pageview beacon — beaconPageView() POSTs {path, referrer} to
+//    /api/analytics/collect (fire-and-forget via sendBeacon). Powers the admin
+//    SEO & Growth dashboard. The server stores NO ip, NO user agent, NO full
+//    referrer URL — only a day-scoped anonymous visitor hash.
 //
+// The event queue below is the legacy in-browser funnel recorder (local only).
 // Storage is injectable so unit tests can run in plain Node without a DOM.
 
 const QUEUE_KEY = 'shiarishta_events_v1';
 const MAX_EVENTS = 500;
+
+export const GA_MEASUREMENT_ID = 'G-KNR7541E3G';
+
+/** GA4 page_view for SPA navigations. No-op when gtag is blocked/missing. */
+export function trackPageView(path, title) {
+  try {
+    if (typeof window === 'undefined' || typeof window.gtag !== 'function') return false;
+    window.gtag('event', 'page_view', {
+      page_path: path,
+      page_title: title || (typeof document !== 'undefined' ? document.title : ''),
+      page_location: window.location.origin + path,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** First-party pageview beacon. Fire-and-forget — never blocks rendering. */
+export function beaconPageView(path) {
+  try {
+    if (typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function') return false;
+    const payload = JSON.stringify({
+      path,
+      referrer: typeof document !== 'undefined' ? document.referrer || '' : '',
+    });
+    return navigator.sendBeacon(
+      '/api/analytics/collect',
+      new Blob([payload], { type: 'application/json' })
+    );
+  } catch {
+    return false;
+  }
+}
 
 export function createAnalytics(storage = globalThis.localStorage) {
   const readQueue = () => {
