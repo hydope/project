@@ -85,6 +85,21 @@ function routeAI(string $method, array $segments): void
         return;
     }
 
+    // POST /api/ai/publish-due — flip scheduled posts whose time has arrived
+    // to published. Service-key authed. Called by the daily workflow before
+    // generating new posts.
+    if ($method === 'POST' && $action === 'publish-due') {
+        aiPublishDue();
+        return;
+    }
+
+    // GET /api/ai/scheduled-count — how many posts are currently scheduled
+    // (pending). Service-key authed. The workflow uses this to top up to 30.
+    if ($method === 'GET' && $action === 'scheduled-count') {
+        aiScheduledCount();
+        return;
+    }
+
     // GET /api/ai/blog-topics — curated + AI topic suggestions for the blog
     // queue. Interactive: the admin picks a suggestion and it becomes a draft.
     if ($method === 'GET' && $action === 'blog-topics') {
@@ -991,4 +1006,60 @@ function aiQueueSave(): void
         'slug' => $slug, 'keyword' => (string)$topic['keyword'], 'scheduled_for' => $slot, 'via' => 'actions',
     ]);
     json(['ok' => true, 'id' => $id, 'slug' => $slug, 'title' => $title, 'scheduled_for' => $slot]);
+}
+
+/**
+ * POST /api/ai/publish-due — flip scheduled posts whose time has arrived.
+ *
+ * Service-key authed. Finds all blog_posts with status='scheduled' and
+ * scheduled_for <= now, flips them to 'published' and stamps published_at.
+ * This is the "automatic publishing" — without it, scheduled posts sit in
+ * limbo forever and never appear on the public blog.
+ */
+function aiPublishDue(): void
+{
+    $providedKey = $_SERVER['HTTP_X_BLOG_CRON_KEY'] ?? '';
+    $wantKey = (string)($_ENV['BLOG_CRON_KEY'] ?? getenv('BLOG_CRON_KEY') ?? '');
+    if ($wantKey === '' || !hash_equals($wantKey, (string)$providedKey)) {
+        json(['error' => 'Unauthorized'], 401);
+    }
+
+    $stmt = db()->prepare(
+        "SELECT id, slug, title FROM blog_posts
+          WHERE status = 'scheduled' AND scheduled_for <= UTC_TIMESTAMP()"
+    );
+    $stmt->execute();
+    $due = $stmt->fetchAll();
+
+    $published = [];
+    foreach ($due as $row) {
+        $id = (string)$row['id'];
+        db()->prepare(
+            "UPDATE blog_posts SET status = 'published', published_at = UTC_TIMESTAMP()
+              WHERE id = ? AND status = 'scheduled'"
+        )->execute([$id]);
+        auditLog('post.auto_published', 'blog_post', $id, ['slug' => (string)$row['slug']]);
+        $published[] = (string)$row['title'];
+    }
+
+    json(['ok' => true, 'published_count' => count($published), 'titles' => $published]);
+}
+
+/**
+ * GET /api/ai/scheduled-count — how many posts are awaiting their slot.
+ *
+ * Service-key authed. The daily workflow tops up to 30 scheduled posts.
+ */
+function aiScheduledCount(): void
+{
+    $providedKey = $_SERVER['HTTP_X_BLOG_CRON_KEY'] ?? '';
+    $wantKey = (string)($_ENV['BLOG_CRON_KEY'] ?? getenv('BLOG_CRON_KEY') ?? '');
+    if ($wantKey === '' || !hash_equals($wantKey, (string)$providedKey)) {
+        json(['error' => 'Unauthorized'], 401);
+    }
+
+    $n = (int)db()->query(
+        "SELECT COUNT(*) AS n FROM blog_posts WHERE status = 'scheduled'"
+    )->fetch()['n'];
+    json(['ok' => true, 'scheduled' => $n, 'target' => 30, 'deficit' => max(0, 30 - $n)]);
 }

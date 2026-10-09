@@ -177,6 +177,8 @@ export default function AdminContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [flash, setFlash] = useState('');
+  // 'scheduled' = pending queue (auto-published when due), 'published' = live archive
+  const [postTab, setPostTab] = useState('scheduled');
 
   const [topic, setTopic] = useState('');
   const [angle, setAngle] = useState('');
@@ -447,20 +449,43 @@ export default function AdminContent() {
         )}
 
         <section>
-          <h2 className="text-base font-bold text-ink mb-3">Posts</h2>
-          {!available ? (
-            <p className="text-sm text-muted">Post storage is not available on this database yet.</p>
-          ) : loading && !posts.length ? (
-            <div className="space-y-2">{[0, 1].map((i) => <div key={i} className="skeleton h-14 rounded-xl" />)}</div>
-          ) : !posts.length ? (
-            <div className="empty-state">
-              <div className="text-muted mb-3 flex justify-center"><FileText className="w-12 h-12" /></div>
-              <h3 className="empty-state-title">No posts yet</h3>
-              <p className="empty-state-text">Write one above and it will appear here as a draft you can schedule.</p>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold text-ink">Posts</h2>
+            <div className="flex rounded-lg border border-line/30 overflow-hidden text-xs font-semibold">
+              {[
+                { id: 'scheduled', label: `Scheduled (${posts.filter(p => p.status === 'scheduled').length})` },
+                { id: 'published', label: `Published (${posts.filter(p => p.status === 'published').length})` },
+                { id: 'draft', label: `Drafts (${posts.filter(p => p.status === 'draft').length})` },
+              ].map((t) => (
+                <button key={t.id} onClick={() => setPostTab(t.id)}
+                  className={`px-3 py-1.5 ${postTab === t.id ? 'bg-primary text-white' : 'text-muted hover:text-ink'}`}>
+                  {t.label}
+                </button>
+              ))}
             </div>
-          ) : (
+          </div>
+          {(() => {
+            const visible = posts.filter((p) => p.status === postTab);
+            if (!available) return <p className="text-sm text-muted">Post storage is not available on this database yet.</p>;
+            if (loading && !posts.length) return <div className="space-y-2">{[0, 1].map((i) => <div key={i} className="skeleton h-14 rounded-xl" />)}</div>;
+            if (!visible.length) return (
+              <div className="empty-state">
+                <div className="text-muted mb-3 flex justify-center"><FileText className="w-12 h-12" /></div>
+                <h3 className="empty-state-title">
+                  {postTab === 'scheduled' ? 'No scheduled posts' : postTab === 'published' ? 'Nothing published yet' : 'No drafts'}
+                </h3>
+                <p className="empty-state-text">
+                  {postTab === 'scheduled'
+                    ? 'The daily queue tops this up to 30 automatically — one goes live each day at 09:00 UTC.'
+                    : postTab === 'published'
+                      ? 'Scheduled posts move here automatically once their go-live time arrives.'
+                      : 'Write one above and it will appear here as a draft you can schedule.'}
+                </p>
+              </div>
+            );
+            return (
             <ul className="space-y-2">
-              {posts.map((p) => (
+              {visible.map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-line/20 bg-elevated p-4">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-ink truncate">{p.title}</p>
@@ -493,7 +518,8 @@ export default function AdminContent() {
                 </li>
               ))}
             </ul>
-          )}
+            );
+          })()}
         </section>
       </main>
     </Layout>

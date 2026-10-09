@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/auth/AuthContext';
+import Seo from '../components/Seo';
 import {
   LayoutDashboard, ShieldAlert, UserCheck, Users, LifeBuoy, BadgeCheck,
   KeyRound, History, BookOpen, BarChart3, LogOut, HeartHandshake, Home,
@@ -81,6 +82,8 @@ export default function AdminLayout({ children }) {
   };
 
   return (
+    <>
+      <Seo />
     <div className="min-h-screen flex" style={cssVars}>
       <aside className="w-60 flex-shrink-0 hidden md:flex flex-col" style={{ background: t.sidebar, borderRight: `1px solid ${t.border}` }}>
         <div className="px-5 py-5" style={{ borderBottom: `1px solid ${t.border}` }}>
@@ -162,5 +165,6 @@ export default function AdminLayout({ children }) {
         </main>
       </div>
     </div>
+    </>
   );
 }

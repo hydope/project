@@ -46,6 +46,12 @@ const PRIVATE_TITLES = {
   '/messages': 'Your Messages | Shia Rishta',
   '/onboard': 'Complete Your Profile | Shia Rishta',
   '/settings': 'Settings | Shia Rishta',
+  '/admin': 'Admin Dashboard | Shia Rishta',
+  '/admin/content': 'Blog & Content | Shia Rishta Admin',
+  '/admin/members': 'Members | Shia Rishta Admin',
+  '/admin/moderation': 'Moderation | Shia Rishta Admin',
+  '/admin/biodata': 'Biodata Maker | Shia Rishta Admin',
+  '/admin/verifications': 'Verifications | Shia Rishta Admin',
 };
 
 function upsertMeta(selector, attrs) {
