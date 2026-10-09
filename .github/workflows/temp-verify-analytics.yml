@@ -1,0 +1,16 @@
+name: TEMP verify analytics beacon (delete after use)
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /api/analytics/collect 4x
+        run: |
+          for i in 1 2 3 4; do
+            code=$(curl -s -o /tmp/body -w "%{http_code}" -X POST \
+              -H "Content-Type: application/json" \
+              -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+              -d '{"path":"/verify-probe","referrer":"https://www.google.com/"}' \
+              https://shiarishta.com/api/analytics/collect)
+            echo "attempt $i -> HTTP $code body: $(cat /tmp/body)"
+          done
