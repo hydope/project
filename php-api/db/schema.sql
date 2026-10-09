@@ -399,3 +399,15 @@ CREATE TABLE IF NOT EXISTS biodata_drafts (
   updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_biodata_drafts_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS pageviews (
+  id            BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  path          VARCHAR(255) NOT NULL,
+  referrer_host VARCHAR(255) DEFAULT NULL,
+  device        VARCHAR(16)  NOT NULL DEFAULT 'desktop',
+  visitor_hash  CHAR(64)     NOT NULL,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_pv_created (created_at),
+  KEY idx_pv_path (path, created_at),
+  KEY idx_pv_ref (referrer_host, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
