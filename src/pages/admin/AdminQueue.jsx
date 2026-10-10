@@ -15,6 +15,7 @@ export default function AdminQueue() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [note, setNote] = useState('');
   const [selected, setSelected] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -40,9 +41,12 @@ export default function AdminQueue() {
 
   const act = async (id, verb) => {
     setBusy(true);
+    setError('');
+    setSuccess('');
     try {
       await http.post(`/api/admin/verifications/${id}/${verb}`, { note });
       await load();
+      setSuccess(`Verification ${verb}d.`);
     } catch (e) {
       setError(e?.message || 'That action failed.');
     } finally {
@@ -54,11 +58,12 @@ export default function AdminQueue() {
     if (!verIds.length) return;
     setBusy(true);
     setError('');
+    setSuccess('');
     try {
       const res = await http.post('/api/admin/verifications/bulk', { ids: verIds, verb, note });
       setNote('');
       await load();
-      if (res?.affected) setError(`${res.affected} verification(s) ${verb}d.`);
+      if (res?.affected) setSuccess(`${res.affected} verification(s) ${verb}d.`);
     } catch (e) {
       setError(e?.message || 'Bulk action failed.');
     } finally {
@@ -69,6 +74,7 @@ export default function AdminQueue() {
   const reportAction = async (id, verb) => {
     setBusy(true);
     setError('');
+    setSuccess('');
     try {
       const item = items.find(i => i.id === id);
       await http.post(`/api/admin/reports/${id}/${verb}`, {});
@@ -77,9 +83,9 @@ export default function AdminQueue() {
       // vanished with no explanation.
       if (verb === 'action') {
         const what = item?.kind === 'report' ? 'The reported content was hidden' : 'Action taken';
-        setError(`${what} and the report was marked as actioned.`);
+        setSuccess(`${what} and the report was marked as actioned.`);
       } else {
-        setError('Report dismissed — no action taken on the content.');
+        setSuccess('Report dismissed — no action taken on the content.');
       }
     } catch (e) {
       setError(e?.message || 'That action failed.');
@@ -133,7 +139,10 @@ export default function AdminQueue() {
         )}
 
         {error && (
-          <div className="mb-4 rounded-xl border border-line/20 bg-elevated p-3 text-sm text-muted">{error}</div>
+          <div className="mb-4 rounded-xl border border-line/20 bg-elevated p-3 text-sm text-muted" role="alert">{error}</div>
+        )}
+        {success && (
+          <div className="mb-4 rounded-xl border border-line/20 bg-elevated p-3 text-sm font-medium" style={{ color: 'var(--color-success, #16a34a)' }} role="status">{success}</div>
         )}
 
         {verIds.length > 0 && (

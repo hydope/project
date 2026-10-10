@@ -556,7 +556,10 @@ function aiCreatePost(): void
     $category = sanitizeText($draft['category'] ?? 'Guidance', 40);
     $readTime = sanitizeText($draft['readTime'] ?? '5 min', 16);
     $excerpt = sanitizeText($draft['excerpt'] ?? '', 300);
-    $imageUrl = substr(trim((string)($draft['imageUrl'] ?? $draft['image_url'] ?? '')), 0, 500) ?: null;
+    // image_url is TEXT (holds data URLs from admin uploads). Cap at 2MB to
+    // reject absurd payloads without silently truncating a valid image.
+    $rawImage = trim((string)($draft['imageUrl'] ?? $draft['image_url'] ?? ''));
+    $imageUrl = $rawImage !== '' && strlen($rawImage) <= 2097152 ? $rawImage : null;
 
     db()->prepare(
         'INSERT INTO blog_posts

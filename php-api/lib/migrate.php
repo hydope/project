@@ -463,6 +463,13 @@ function migrateAddBlogImageColumn(): void
         $cols = db()->query("SHOW COLUMNS FROM blog_posts LIKE 'image_url'")->fetchAll();
         if (!$cols) {
             db()->exec("ALTER TABLE blog_posts ADD COLUMN image_url VARCHAR(500) DEFAULT NULL AFTER excerpt");
+        } else {
+            // Data URLs from admin file uploads exceed VARCHAR(500) and were
+            // silently truncated, breaking the image. TEXT holds them intact.
+            $type = strtoupper($cols[0]['Type'] ?? '');
+            if (strpos($type, 'TEXT') === false) {
+                db()->exec("ALTER TABLE blog_posts MODIFY COLUMN image_url TEXT DEFAULT NULL");
+            }
         }
     } catch (Throwable $e) {
         error_log('[api] migration: blog_posts.image_url — ' . substr($e->getMessage(), 0, 120));
