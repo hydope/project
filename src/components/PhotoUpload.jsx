@@ -48,8 +48,17 @@ export default function PhotoUpload() {
     setBusy(true);
     try {
       await api.uploadPhoto(file);
-      setBust((b) => b + 1);           // bust any cached copy
-      setMsg('Photo uploaded.');
+      // Verify the photo actually persisted before claiming success: a
+      // "Photo uploaded." message for a photo the server did not keep is a
+      // false success, which is worse than an honest error.
+      const me = await api.getProfile('me').catch(() => null);
+      if (me?.photo) {
+        setPhoto(me.photo);
+        setBust((b) => b + 1);           // bust any cached copy
+        setMsg('Photo uploaded.');
+      } else {
+        setErr('The upload reached the server but the photo did not save. Please try again.');
+      }
     } catch (ex) {
       setErr(ex?.message || 'Could not upload that photo.');
     } finally {

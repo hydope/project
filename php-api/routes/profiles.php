@@ -197,8 +197,15 @@ function photoUpload(): void
     $prev = db()->prepare('SELECT photo_url FROM profiles WHERE user_id = ? LIMIT 1');
     $prev->execute([$user['uid']]);
     $old = (string)($prev->fetch()['photo_url'] ?? '');
-    db()->prepare('UPDATE profiles SET photo_url = ?, updated_at = UTC_TIMESTAMP() WHERE user_id = ?')
-        ->execute([$path, $user['uid']]);
+    $upd = db()->prepare('UPDATE profiles SET photo_url = ?, updated_at = UTC_TIMESTAMP() WHERE user_id = ?');
+    $upd->execute([$path, $user['uid']]);
+    // If no profile row exists the UPDATE silently affects 0 rows — the file
+    // would be on disk but nothing would ever serve it. Fail loudly instead
+    // of reporting a success that is not real.
+    if ($upd->rowCount() === 0) {
+        @unlink($path);
+        je('Could not save your photo — no profile found. Complete your profile first, then try again.', 409);
+    }
     if ($old !== '' && $old !== $path) {
         @unlink($old);
     }

@@ -734,7 +734,14 @@ function StepPhotoUpload() {
     setUploading(true);
     try {
       const res = await api.uploadPhoto(file);
-      if (res?.photo) setPhoto(res.photo);
+      // Verify persistence before showing the photo: the backend returns the
+      // photo path on success; re-fetch to confirm it stuck.
+      const saved = res?.photo || (await api.getProfile('me').catch(() => null))?.photo || null;
+      if (saved) {
+        setPhoto(saved);
+      } else {
+        setError('The upload reached the server but the photo did not save. Please try again.');
+      }
     } catch (err) {
       setError(err?.message || 'Could not upload that photo.');
     } finally {
