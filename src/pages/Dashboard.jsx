@@ -8,6 +8,7 @@ import { useAuthedImage } from '../lib/api/useAuthedImage';
 import { computeProfileCompleteness } from '../lib/onboardingData';
 import { getMyProfile } from '../lib/storage';
 import { computeCompatibility } from '../lib/compatibility';
+import { formatCity, formatCountry } from '../lib/format';
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -38,7 +39,7 @@ function MatchCard({ p, i }) {
         </div>
         <div className="p-3">
           <p className="font-medium text-sm truncate" style={{ color: 'var(--color-ink)' }}>{p.displayName}{p.age ? `, ${p.age}` : ''}</p>
-          <p className="text-xs truncate" style={{ color: 'var(--color-ink-secondary)' }}>{[p.city, p.country].filter(Boolean).join(', ') || 'Location not set'}</p>
+          <p className="text-xs truncate" style={{ color: 'var(--color-ink-secondary)' }}>{[formatCity(p.city), formatCountry(p.country)].filter(Boolean).join(', ') || 'Location not set'}</p>
           <div className="mt-2 flex items-center gap-1">
             {typeof p.score === 'number' && !Number.isNaN(p.score) && (
               <span className="badge badge-success text-xs font-bold">{p.score}%</span>
@@ -61,15 +62,10 @@ export default function Dashboard() {
   // saved before seekingGender existed, so it cannot be trusted for filtering.
   const [serverProfile, setServerProfile] = useState(null);
 
-  // The member may have verified their email via a link tapped on another
-  // device — the cached session still says unverified. Refresh once on mount
-  // so the verification banner clears without forcing a logout/login cycle.
-  useEffect(() => {
-    if (user && user.emailVerified === false && typeof refreshUser === 'function') {
-      refreshUser();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Verification-state refresh lives in AuthContext (boot + window focus), which
+  // is the only place that sees the user at the right time. A mount effect
+  // here would read `user` before the context hydrates it (always null on
+  // first render) and never re-fire — that was the stale-banner bug.
 
   useEffect(() => {
     Promise.all([
@@ -113,6 +109,10 @@ export default function Dashboard() {
       })
       .filter(p => typeof p.score === 'number' && !Number.isNaN(p.score))
       .sort((a, b) => b.score - a.score)
+      // Honesty floor: a 5% compatibility is not a "top match" no matter how
+      // few members there are. Below 30% the widget shows an honest empty
+      // state instead of mislabeling a poor fit.
+      .filter(p => p.score >= 30)
       .slice(0, 4);
   }, [profiles, user, serverProfile]);
 
@@ -302,11 +302,19 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 gap-4">
                 {[...Array(4)].map((_, i) => <div key={i} className="h-48 rounded-xl skeleton" />)}
               </div>
-            ) : (
+            ) : rankedMatches.length > 0 ? (
               <div className="grid grid-cols-2 gap-4">
-                {profiles.slice(0, 4).map((p, i) => (
+                {rankedMatches.slice(0, 4).map((p, i) => (
                   <MatchCard key={p.id} p={p} i={i} />
                 ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl p-6 text-center" style={{ border: '1px dashed var(--color-border)' }}>
+                <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-ink)' }}>No strong matches yet</p>
+                <p className="text-xs mb-4" style={{ color: 'var(--color-ink-secondary)' }}>
+                  Complete your profile for better matches, or browse everyone.
+                </p>
+                <Link to="/profiles" className="link-primary text-sm font-semibold">Browse profiles</Link>
               </div>
             )}
           </div>

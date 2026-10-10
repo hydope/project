@@ -192,8 +192,11 @@ export default function Messages() {
       }));
       setConvos((prev) => prev.map((c) => (c.id === activeId ? { ...c, lastMessage: t } : c)));
       analytics.track('message_sent', { thread: activeId });
-    } catch {
-      setSendError('Could not send. Check your connection and try again.');
+    } catch (e) {
+      // Surface the server's actual reason (e.g. "Please verify your email…")
+      // instead of blaming the connection — a wrong error message sends the
+      // member debugging their wifi for a problem they cannot fix that way.
+      setSendError(e?.payload?.error || e?.cause?.payload?.error || 'Could not send. Check your connection and try again.');
     } finally {
       setSending(false);
     }

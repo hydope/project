@@ -13,7 +13,13 @@ export default function VerifyToken() {
   useEffect(() => {
     if (!token) { setState({ busy: false, ok: false, error: 'This link is missing its token. Sign in and request a new one.' }); return; }
     auth.verifyToken(token)
-      .then(() => setState({ busy: false, ok: true, error: '' }))
+      .then((r) => {
+        // Refresh the stored session so the UI stops showing stale state
+        // (e.g. a verification banner) when the member is already signed in
+        // in this browser.
+        auth.me().catch(() => {});
+        setState({ busy: false, ok: true, error: '', already: !!r?.alreadyVerified });
+      })
       .catch((e) => setState({ busy: false, ok: false, error: e.message || 'Verification failed.' }));
   }, [token]);
 
@@ -30,7 +36,9 @@ export default function VerifyToken() {
           {state.busy
             ? 'One moment — confirming your email with the server.'
             : state.ok
-              ? 'Your email is confirmed. Sign in and complete your profile — verified emails get seen first.'
+              ? state.already
+                ? 'This email is already confirmed — you’re all set.'
+                : 'Your email is confirmed. Sign in and complete your profile — verified emails get seen first.'
               : state.error}
         </p>
         <Link to="/auth/login" className="button primary inline-flex items-center px-5 py-2.5 font-semibold">Go to sign in</Link>

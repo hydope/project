@@ -5,6 +5,7 @@ import { analytics } from '../lib/analytics';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/auth/AuthContext';
 import LoginGate from '../components/LoginGate';
+import { formatCity, formatCountry } from '../lib/format';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { ArrowLeft, ShieldCheck, MapPin, Heart, MessageCircle, Bookmark, Lock, Users, Award, Sparkles, BadgeCheck } from 'lucide-react';
 import CompatibilityIndex from '../components/CompatibilityIndex';
@@ -320,7 +321,7 @@ export default function Profile() {
                             className="hover:underline font-semibold"
                             style={{ color: 'var(--color-primary)' }}
                           >
-                            {profile.city}
+                            {formatCity(profile.city)}
                           </Link>
                         ) : null}
                         {profile.city && profile.country ? <span className="mx-1.5" style={{ color: 'var(--color-ink-tertiary)' }}>·</span> : null}
@@ -330,7 +331,7 @@ export default function Profile() {
                             className="hover:underline"
                             style={{ color: 'var(--color-ink-secondary)' }}
                           >
-                            {profile.country}
+                            {formatCountry(profile.country)}
                           </Link>
                         ) : null}
                       </span>

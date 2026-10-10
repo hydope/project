@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Heart, Bookmark, MapPin, Briefcase, Shield, Lock, Sparkles } from 'lucide-react';
 import { useAuthedImage } from '../lib/api/useAuthedImage';
 import { computeCompatibility, getMyProfile } from '../lib/compatibility';
+import { formatCity, formatCountry } from '../lib/format';
 import { useAuth } from '../lib/auth/AuthContext';
 import LoginGate from './LoginGate';
 import SampleProfileBadge from './SampleProfileBadge';
@@ -264,7 +265,7 @@ export default function ProfileCard({ profile, className = '' }) {
                     style={{ color: 'var(--color-primary)' }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {profile.city}
+                    {formatCity(profile.city)}
                   </Link>
                 ) : null}
                 {profile.city && profile.country ? <span className="mx-1" style={{ color: 'var(--color-ink-tertiary)' }}>·</span> : null}
@@ -275,7 +276,7 @@ export default function ProfileCard({ profile, className = '' }) {
                     style={{ color: 'var(--color-ink-secondary)' }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {profile.country}
+                    {formatCountry(profile.country)}
                   </Link>
                 ) : null}
               </span>

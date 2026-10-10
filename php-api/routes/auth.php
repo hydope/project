@@ -155,6 +155,8 @@ function mailEnabled(): bool
 function issueVerificationToken(string $userId): string
 {
     $token = bin2hex(random_bytes(32));
+    // Prune long-expired rows so kept (idempotent re-tap) tokens don't linger.
+    db()->prepare('DELETE FROM email_verifications WHERE expires_at < UTC_TIMESTAMP()')->execute();
     db()->prepare(
         'INSERT INTO email_verifications (user_id, token_hash, expires_at)
          VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 24 HOUR))
@@ -203,7 +205,7 @@ function authVerifyToken(): void
         je('Missing verification token.', 400);
     }
 
-    $stmt = db()->prepare('SELECT user_id FROM email_verifications WHERE token_hash = ? AND expires_at > UTC_TIMESTAMP() LIMIT 1');
+    $stmt = db()->prepare('SELECT v.user_id, u.email_verified FROM email_verifications v JOIN users u ON u.id = v.user_id WHERE v.token_hash = ? AND v.expires_at > UTC_TIMESTAMP() LIMIT 1');
     $stmt->execute([sha256Hex($token)]);
     $row = $stmt->fetch();
 
@@ -211,11 +213,20 @@ function authVerifyToken(): void
         json(['ok' => false, 'error' => 'This link has expired or was already used. Sign in to get a new one.'], 400);
     }
 
+    // Idempotent: a re-tapped (or prefetched-then-tapped) link for an already
+    // verified address is a success, not an error. Email clients and link
+    // prefetchers routinely fetch verification URLs before the human taps.
+    if (!empty($row['email_verified'])) {
+        json(['ok' => true, 'emailVerified' => true, 'alreadyVerified' => true]);
+    }
+
     $pdo = db();
     try {
         $pdo->beginTransaction();
         $pdo->prepare('UPDATE users SET email_verified = 1 WHERE id = ?')->execute([$row['user_id']]);
-        $pdo->prepare('DELETE FROM email_verifications WHERE user_id = ?')->execute([$row['user_id']]);
+        // Keep the token row (do NOT delete): a second tap within the 24h
+        // window resolves to the branch above instead of a confusing
+        // "expired or already used" error. Expired rows are pruned on issue.
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();

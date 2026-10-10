@@ -214,6 +214,7 @@ const router = createBrowserRouter([
       { path: '/profile', element: <LazyRoute component={Onboard} /> },
       { path: '/settings', element: <LazyRoute component={Settings} /> },
       { path: '/drafts', element: <LazyRoute component={Drafts} /> },
+      { path: '/introductions', element: <Navigate to="/drafts" replace /> },
     ],
   },
   {

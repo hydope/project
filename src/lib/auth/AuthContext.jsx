@@ -36,6 +36,22 @@ export function AuthProvider({ children }) {
     setUser(current);
     stampSession(current);
     setLoading(false);
+    // The stored session may predate an out-of-band account change — e.g. the
+    // member verified their email via a link tapped on another device after
+    // this copy was written. Re-validate against the server so a fresh page
+    // load never shows stale state (like a verification banner for a user
+    // who is already verified). Only when the stored copy claims unverified,
+    // to avoid an extra request on every boot.
+    if (current && current.emailVerified === false) {
+      authService.me()
+        .then((fresh) => {
+          if (fresh) {
+            setUser(fresh);
+            stampSession(fresh);
+          }
+        })
+        .catch(() => {});
+    }
   }, [stampSession]);
 
   // Detect session changes from other tabs/windows (e.g. a different account
