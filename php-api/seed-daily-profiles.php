@@ -78,6 +78,10 @@ $BIOS_MALE = [
 $MARJAS = ['Sistani', 'Khamenei', 'Shirazi', 'Hakim', 'Not following yet'];
 $RELIGIOSITY = ['very-practicing', 'practicing', 'practicing', 'moderately-practicing'];
 
+// Photo pool — AI-generated portraits committed in uploads/seeded/
+$FEMALE_PHOTOS = ['female-01.webp', 'female-02.webp'];
+$MALE_PHOTOS = ['male-01.webp', 'male-02.webp'];
+
 // ── Helper Functions ───────────────────────────────────────────
 function uuid() {
   return sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
@@ -141,19 +145,37 @@ try {
     ");
     $stmt->execute([$userId, $email, $passwordHash, $displayName]);
 
+    // Pick a photo from the pool
+    $photoFile = $isFemale ? pick($FEMALE_PHOTOS) : pick($MALE_PHOTOS);
+    $srcPhoto = __DIR__ . '/uploads/seeded/' . $photoFile;
+    $photoUrl = null;
+
+    // Copy to a per-user location under the uploads dir so photo_url
+    // resolves within the allowed photo base directory
+    if (file_exists($srcPhoto)) {
+      $destDir = __DIR__ . '/uploads/photos/' . $userId;
+      if (!is_dir($destDir)) {
+        @mkdir($destDir, 0755, true);
+      }
+      $destPhoto = $destDir . '/profile.webp';
+      if (@copy($srcPhoto, $destPhoto)) {
+        $photoUrl = $destPhoto;
+      }
+    }
+
     // Create profile
     $stmt = $db->prepare("
       INSERT INTO profiles (
         user_id, display_name, age, gender, city, country, sect,
         profession, bio, visibility, photos_visibility,
         seeking_gender, religiosity, education_level, marja,
-        marital_status, is_verified
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'members', 'members', ?, ?, ?, ?, 'Never married', 0)
+        marital_status, is_verified, photo_url
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'members', 'members', ?, ?, ?, ?, 'Never married', 0, ?)
     ");
     $stmt->execute([
       $userId, $displayName, $age, $gender, $city[0], $city[1], 'Ithna Ashari (Twelver)',
       $profession, $bio, $seeking, pick($RELIGIOSITY),
-      pick(['Bachelor\'s', 'Master\'s', 'Doctorate']), pick($MARJAS),
+      pick(['Bachelor\'s', 'Master\'s', 'Doctorate']), pick($MARJAS), $photoUrl,
     ]);
 
     $created++;
