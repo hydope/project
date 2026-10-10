@@ -39,6 +39,7 @@ require __DIR__ . '/routes/llms.php';
 require __DIR__ . '/routes/social.php';
 require __DIR__ . '/lib/ai.php';
 require __DIR__ . '/routes/ai.php';
+require __DIR__ . '/routes/config.php';
 
 // ── Global error handler: structured log + safe 500 ─────────────────────────
 // Without this, a fatal error returns a blank 500 with nothing in the logs.
@@ -235,6 +236,14 @@ try {
             break;
         case 'contact':
             routeContact($method, $rest);
+            break;
+        case 'config':
+            // Public UI config for mobile apps (API-driven labels).
+            if ($method === 'GET' && ($rest[0] ?? '') === 'ui') {
+                handleUiConfig();
+                break;
+            }
+            json(['error' => 'Not found'], 404);
             break;
         case 'ai':
             routeAI($method, $rest);
