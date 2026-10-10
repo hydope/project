@@ -76,30 +76,10 @@ jobs:
               echo "Full NVIDIA response (first 2000 chars):"
               echo "$NVIDIA_RESP" | head -c 2000
               echo ""
-              # Fallback: create a simple template post from the topic
+              # Fallback: deterministic template post so a bad model day
+              # can never empty the queue.
               echo "Using fallback template post..."
-              TOPIC_TITLE=$(echo "$TOPIC_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['topic'].get('topic','Marriage Guidance'))")
-              TOPIC_KEYWORD=$(echo "$TOPIC_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['topic'].get('keyword','shia matrimony'))")
-              POST_JSON=$(python3 -c "
-import json
-title = '''$TOPIC_TITLE'''.replace(\"'\", \"''\")
-keyword = '''$TOPIC_KEYWORD'''
-post = {
-  'title': title[:160],
-  'excerpt': f'Guidance on {keyword} for Shia Muslims seeking nikah.'[:300],
-  'category': 'Guidance',
-  'readTime': '5 min',
-  'body': [
-    {'t': 'p', 'x': f'In the journey toward nikah, understanding {keyword} is essential for Shia Muslims. This guidance draws on Islamic principles and practical wisdom.'},
-    {'t': 'h2', 'x': 'Islamic Perspective'},
-    {'t': 'p', 'x': 'The Quran and Ahlul Bayt (as) provide clear guidance on marriage. Approaching this with sincerity, patience, and trust in Allah leads to blessed outcomes.'},
-    {'t': 'h2', 'x': 'Practical Steps'},
-    {'t': 'p', 'x': 'Begin with clear intention, involve family and wali where appropriate, and prioritize deen and character in your search. Take time to know a potential spouse through halal means.'},
-    {'t': 'p', 'x': 'May Allah bless your search with a righteous spouse and a fulfilling marriage. Ameen.'}
-  ]
-}
-print(json.dumps({'post': post}))
-")
+              POST_JSON=$(python3 .github/scripts/fallback_post.py /tmp/topic.json)
             fi
 
             # Pick a random cover image from the pool
@@ -114,26 +94,21 @@ if 'post' in d:
     d['post']['image_url'] = '$IMAGE_URL'
 print(json.dumps(d['post'] if 'post' in d else d))
 ")
-            # Wrap back in expected format if needed
             if ! echo "$POST_JSON" | grep -q '"title"'; then
-              echo "FALLBACK_FAILED"
-              break
-            fi
-            # Ensure it's wrapped as {"post": {...}} for the save endpoint
-            if ! echo "$POST_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if 'title' in d else 1)" 2>/dev/null; then
-              POST_JSON="{\"post\": $POST_JSON}"
-            else
-              # It's a bare post, wrap it
-              POST_JSON=$(echo "$POST_JSON" | python3 -c "import json,sys; print(json.dumps({'post': json.load(sys.stdin)}))")
+              echo "FALLBACK_FAILED: no usable post for topic $TOPIC_ID, moving on"
+              continue
             fi
 
-            # 3c. Save as scheduled (this was missing — the old workflow generated
-            # but never saved, so nothing was ever scheduled)
+            # 3c. Save as scheduled. queue-save expects { topic_id, post: {bare post} }
+            # — POST_JSON is already the bare post here; do NOT re-wrap it.
             SAVE_JSON=$(curl -s --max-time 30 -X POST "$API/queue-save" -H "$AUTH_HDR" \
               -H "Content-Type: application/json" \
               -d "{\"topic_id\": \"$TOPIC_ID\", \"post\": $POST_JSON}")
             echo "Save result: $SAVE_JSON"
-            echo "$SAVE_JSON" | grep -q '"ok":true' || { echo "SAVE_FAILED"; break; }
+            if ! echo "$SAVE_JSON" | grep -q '"ok":true'; then
+              echo "SAVE_FAILED for topic $TOPIC_ID, moving on to next topic"
+              continue
+            fi
 
             GENERATED=$((GENERATED + 1))
           done
