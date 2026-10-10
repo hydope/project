@@ -148,10 +148,12 @@ export default function Home() {
                 <dt>Cities</dt>
                 <dd>{cityCount}</dd>
               </div>
-              <div className="hp-stat">
-                <dt>Identity verified</dt>
-                <dd>{verifiedCount}</dd>
-              </div>
+              {verifiedCount > 0 && (
+                <div className="hp-stat">
+                  <dt>Identity verified</dt>
+                  <dd>{verifiedCount}</dd>
+                </div>
+              )}
               <div className="hp-stat">
                 <dt>Cost</dt>
                 <dd>Free</dd>
