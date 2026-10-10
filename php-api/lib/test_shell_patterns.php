@@ -28,6 +28,7 @@ if (!function_exists('testShellPatterns')) {
         return [
             'TEST PROFILE%', 'Desi Test%', 'Life Test%', 'Data-%',
             'QA Test%', 'QATest%', 'qatest%', 'QA Tester%', 'QA Verify%',
+            'E2E QA%', 'E2E Test%', 'e2e%',
             'Sec Test%', 'Probe L1-%',
             // The probe series appears under several shapes: "Probe L1-1" and
             // "Probe L1-2" as display names, "probe." as an email local-part, and
