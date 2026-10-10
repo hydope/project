@@ -1,6 +1,6 @@
 name: Daily Profile Seeder
 
-# Creates 12 new member profiles every day (8 female, 4 male)
+# Creates 5 new member profiles every day (4 female, 1 male)
 # with realistic Shia names and cities.
 # Runs at 6:00 AM UTC daily (1:00 AM EST / 2:00 AM EDT).
 #

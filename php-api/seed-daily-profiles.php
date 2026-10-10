@@ -2,7 +2,7 @@
 /**
  * Daily Profile Seeder for ShiaRishta
  *
- * Creates 12 new member profiles every day (8 female, 4 male) with
+ * Creates 5 new member profiles every day (4 female, 1 male) with
  * realistic Shia names, cities, and complete profile data.
  *
  * Run via: php seed-daily-profiles.php
@@ -124,8 +124,8 @@ try {
   $stmt->execute(["seeded-{$date}-%@shiarishta.com"]);
   $existing = $stmt->fetchColumn();
 
-  $targetTotal = defined('SEEDER_CUSTOM_COUNT') ? SEEDER_CUSTOM_COUNT : 12;
-  $targetFemale = defined('SEEDER_FEMALE_COUNT') ? SEEDER_FEMALE_COUNT : 8;
+  $targetTotal = defined('SEEDER_CUSTOM_COUNT') ? SEEDER_CUSTOM_COUNT : 5;
+  $targetFemale = defined('SEEDER_FEMALE_COUNT') ? SEEDER_FEMALE_COUNT : 4;
 
   if ($existing >= $targetTotal) {
     echo "Already created {$targetTotal} profiles today. Skipping.\n";
