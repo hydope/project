@@ -94,6 +94,17 @@ function pick($arr) {
   return $arr[array_rand($arr)];
 }
 
+// Pick an item from $arr whose lowercase form is not in $excludeSet
+// (an array flipped for lookup). Falls back to a random pick if every
+// item is excluded, so the seeder stays robust on tiny pools.
+function pickNotIn($arr, $excludeSet) {
+  $pool = array_values(array_filter($arr, function ($v) use ($excludeSet) {
+    return !isset($excludeSet[strtolower($v)]);
+  }));
+  if (count($pool) === 0) return pick($arr);
+  return $pool[array_rand($pool)];
+}
+
 // ── Main ───────────────────────────────────────────────────────
 $seederExitCode = 0;
 try {
@@ -116,23 +127,52 @@ try {
   $toCreate = $targetTotal - $existing;
   echo "Creating {$toCreate} profiles for {$date}...\n";
 
+  // Name dedup: never reuse a full name that was seeded before, and never
+  // repeat a first name inside one batch (3x 'Shabana' in one day looks fake).
+  $usedFullNames = [];
+  $stmt = $db->prepare("SELECT display_name FROM users WHERE email LIKE 'seeded-%@shiarishta.com'");
+  $stmt->execute();
+  foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $n) {
+    $usedFullNames[strtolower(trim($n))] = true;
+  }
+  $batchFirstNames = [];
+
   for ($i = $existing; $i < $targetTotal; $i++) {
     $isFemale = $i < $targetFemale; // First N are female, rest are male
     $gender = $isFemale ? 'female' : 'male';
 
     if ($isFemale) {
-      $firstName = pick($FEMALE_NAMES);
-      $lastName = pick($FEMALE_SURNAMES);
+      $names = $FEMALE_NAMES;
+      $surnames = $FEMALE_SURNAMES;
       $profession = pick($PROFESSIONS_FEMALE);
       $bio = pick($BIOS_FEMALE);
       $seeking = 'male';
     } else {
-      $firstName = pick($MALE_NAMES);
-      $lastName = pick($MALE_SURNAMES);
+      $names = $MALE_NAMES;
+      $surnames = $MALE_SURNAMES;
       $profession = pick($PROFESSIONS_MALE);
       $bio = pick($BIOS_MALE);
       $seeking = 'female';
     }
+
+    // Up to 50 tries: unique first name within this batch AND unique
+    // full name across all previously seeded profiles.
+    $firstName = pickNotIn($names, $batchFirstNames);
+    $lastName = pick($surnames);
+    for ($t = 0; $t < 50; $t++) {
+      if (isset($batchFirstNames[strtolower($firstName)])) {
+        $firstName = pickNotIn($names, $batchFirstNames);
+        $lastName = pick($surnames);
+        continue;
+      }
+      if (isset($usedFullNames[strtolower("{$firstName} {$lastName}")])) {
+        $lastName = pickNotIn($surnames, []);
+        continue;
+      }
+      break;
+    }
+    $batchFirstNames[strtolower($firstName)] = true;
+    $usedFullNames[strtolower("{$firstName} {$lastName}")] = true;
 
     $displayName = "{$firstName} {$lastName}";
     $email = "seeded-{$date}-{$i}@shiarishta.com";
