@@ -106,15 +106,18 @@ try {
   $stmt->execute(["seeded-{$date}-%@shiarishta.com"]);
   $existing = $stmt->fetchColumn();
 
-  if ($existing >= 12) {
-    echo "Already created 12 profiles today. Skipping.\n";
+  $targetTotal = defined('SEEDER_CUSTOM_COUNT') ? SEEDER_CUSTOM_COUNT : 12;
+  $targetFemale = defined('SEEDER_FEMALE_COUNT') ? SEEDER_FEMALE_COUNT : 8;
+
+  if ($existing >= $targetTotal) {
+    echo "Already created {$targetTotal} profiles today. Skipping.\n";
   } else {
 
-  $toCreate = 12 - $existing;
+  $toCreate = $targetTotal - $existing;
   echo "Creating {$toCreate} profiles for {$date}...\n";
 
-  for ($i = $existing; $i < 12; $i++) {
-    $isFemale = $i < 8; // First 8 are female, last 4 are male
+  for ($i = $existing; $i < $targetTotal; $i++) {
+    $isFemale = $i < $targetFemale; // First N are female, rest are male
     $gender = $isFemale ? 'female' : 'male';
 
     if ($isFemale) {
