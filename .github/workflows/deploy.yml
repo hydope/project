@@ -162,6 +162,7 @@ jobs:
           JWT_SECRET=${{ secrets.JWT_SECRET }}
           DATA_ENCRYPTION_KEY=${{ secrets.DATA_ENCRYPTION_KEY }}
           BLOG_CRON_KEY=${{ secrets.BLOG_CRON_KEY }}
+          SEEDER_CRON_KEY=${{ secrets.SEEDER_CRON_KEY }}
           CLIENT_URL=https://shiarishta.com
           UPLOAD_DIR=${UPLOAD_BASE}
           MAIL_TRANSPORT=${{ secrets.SMTP_HOST != '' && 'smtp' || '' }}

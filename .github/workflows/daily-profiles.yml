@@ -3,6 +3,10 @@ name: Daily Profile Seeder
 # Creates 12 new member profiles every day (8 female, 4 male)
 # with realistic Shia names and cities.
 # Runs at 6:00 AM UTC daily (1:00 AM EST / 2:00 AM EDT).
+#
+# Fully autonomous: calls the server-side HTTP trigger which runs
+# the seeder PHP script on the production server (where MySQL is reachable).
+# No manual intervention needed.
 
 on:
   schedule:
@@ -13,21 +17,22 @@ jobs:
   seed:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-          extensions: pdo, pdo_mysql
-
-      - name: Run daily profile seeder
+      - name: Trigger server-side profile seeder
         env:
-          DB_HOST: ${{ secrets.MYSQL_HOST }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          SEEDER_CRON_KEY: ${{ secrets.SEEDER_CRON_KEY }}
         run: |
-          cd php-api
-          php seed-daily-profiles.php
+          echo "Triggering profile seeder on production server..."
+          RESP=$(curl -s --max-time 120 -X POST https://shiarishta.com/api/seed-daily-cron.php \
+            -H "X-Seeder-Cron-Key: $SEEDER_CRON_KEY" \
+            -H "Content-Type: application/json")
+
+          echo "Response: $RESP"
+
+          # Check if successful
+          echo "$RESP" | grep -q '"ok":true' && {
+            echo "✓ Seeder completed successfully"
+            exit 0
+          }
+
+          echo "✗ Seeder failed"
+          exit 1
