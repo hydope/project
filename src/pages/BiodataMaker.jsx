@@ -42,6 +42,7 @@ const I18N = {
     fields: {
       name: 'Name', dob: 'Date of Birth', age: 'Age', height: 'Height', complexion: 'Complexion',
       education: 'Education', profession: 'Profession', religion: 'Religion / Sect', marital: 'Marital Status',
+      marja: "Marja' Followed", syed: 'Syed / Sadat', practice: 'Religious Practice', hijab: 'Hijab / Modesty',
       father: "Father's Name", fatherOcc: "Father's Occupation", mother: "Mother's Name",
       motherOcc: "Mother's Occupation", siblings: 'Siblings',
       contactPerson: 'Contact Person', phone: 'Phone', email: 'Email', address: 'Address',
@@ -54,6 +55,7 @@ const I18N = {
     fields: {
       name: 'نام', dob: 'تاریخ پیدائش', age: 'عمر', height: 'قد', complexion: 'رنگت',
       education: 'تعلیم', profession: 'پیشہ', religion: 'مذہب / مسلک', marital: 'ازدواجی حیثیت',
+      marja: 'مرجع تقلید', syed: 'سید / سادات', practice: 'دینداری', hijab: 'حجاب',
       father: 'والد کا نام', fatherOcc: 'والد کا پیشہ', mother: 'والدہ کا نام',
       motherOcc: 'والدہ کا پیشہ', siblings: 'بہن بھائی',
       contactPerson: 'رابطہ شخص', phone: 'فون', email: 'ای میل', address: 'پتہ',
@@ -66,6 +68,7 @@ const I18N = {
     fields: {
       name: 'الاسم', dob: 'تاريخ الميلاد', age: 'العمر', height: 'الطول', complexion: 'البشرة',
       education: 'التعليم', profession: 'المهنة', religion: 'الدين / المذهب', marital: 'الحالة الاجتماعية',
+      marja: 'المرجع المتبع', syed: 'سيد / سادات', practice: 'مستوى التدين', hijab: 'الحجاب',
       father: 'اسم الأب', fatherOcc: 'مهنة الأب', mother: 'اسم الأم',
       motherOcc: 'مهنة الأم', siblings: 'الإخوة والأخوات',
       contactPerson: 'جهة الاتصال', phone: 'الهاتف', email: 'البريد الإلكتروني', address: 'العنوان',
@@ -78,6 +81,7 @@ const I18N = {
     fields: {
       name: 'नाम', dob: 'जन्म तिथि', age: 'आयु', height: 'ऊंचाई', complexion: 'रंग',
       education: 'शिक्षा', profession: 'पेशा', religion: 'धर्म / संप्रदाय', marital: 'वैवाहिक स्थिति',
+      marja: 'मरजा', syed: 'सैयद / सादात', practice: 'धार्मिकता', hijab: 'हिजाब',
       father: 'पिता का नाम', fatherOcc: 'पिता का पेशा', mother: 'माता का नाम',
       motherOcc: 'माता का पेशा', siblings: 'भाई-बहन',
       contactPerson: 'संपर्क व्यक्ति', phone: 'फोन', email: 'ईमेल', address: 'पता',
@@ -90,6 +94,7 @@ const I18N = {
     fields: {
       name: 'Nom', dob: 'Date de naissance', age: 'Âge', height: 'Taille', complexion: 'Teint',
       education: 'Éducation', profession: 'Profession', religion: 'Religion / Secte', marital: 'État civil',
+      marja: 'Marja suivi', syed: 'Syed / Sadat', practice: 'Pratique religieuse', hijab: 'Hijab',
       father: 'Nom du père', fatherOcc: 'Profession du père', mother: 'Nom de la mère',
       motherOcc: 'Profession de la mère', siblings: 'Frères et sœurs',
       contactPerson: 'Personne à contacter', phone: 'Téléphone', email: 'E-mail', address: 'Adresse',
@@ -102,6 +107,7 @@ const I18N = {
     fields: {
       name: 'Nombre', dob: 'Fecha de nacimiento', age: 'Edad', height: 'Altura', complexion: 'Tez',
       education: 'Educación', profession: 'Profesión', religion: 'Religión / Secta', marital: 'Estado civil',
+      marja: 'Marja seguido', syed: 'Syed / Sadat', practice: 'Práctica religiosa', hijab: 'Hiyab',
       father: 'Nombre del padre', fatherOcc: 'Ocupación del padre', mother: 'Nombre de la madre',
       motherOcc: 'Ocupación de la madre', siblings: 'Hermanos',
       contactPerson: 'Persona de contacto', phone: 'Teléfono', email: 'Correo electrónico', address: 'Dirección',
@@ -117,6 +123,7 @@ const SECTIONS = [
       { key: 'name' }, { key: 'dob' }, { key: 'age' }, { key: 'height' },
       { key: 'education' }, { key: 'profession' },
       { key: 'religion' }, { key: 'marital' },
+      { key: 'marja' }, { key: 'syed' }, { key: 'practice' }, { key: 'hijab' },
     ],
   },
   {
