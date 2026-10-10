@@ -95,6 +95,7 @@ function pick($arr) {
 }
 
 // ── Main ───────────────────────────────────────────────────────
+$seederExitCode = 0;
 try {
   $db = db();
   $date = date('Y-m-d');
@@ -107,8 +108,7 @@ try {
 
   if ($existing >= 12) {
     echo "Already created 12 profiles today. Skipping.\n";
-    exit(0);
-  }
+  } else {
 
   $toCreate = 12 - $existing;
   echo "Creating {$toCreate} profiles for {$date}...\n";
@@ -183,8 +183,16 @@ try {
   }
 
   echo "\nDone. Created {$created} profiles.\n";
+  } // end else
+
+  $seederExitCode = 0;
 
 } catch (Exception $e) {
   echo "ERROR: " . $e->getMessage() . "\n";
-  exit(1);
+  $seederExitCode = 1;
+}
+
+// CLI entry point — exit with the return code when run directly
+if (php_sapi_name() === 'cli' && !defined('SEEDER_INCLUDED')) {
+  exit($seederExitCode);
 }

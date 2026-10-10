@@ -868,12 +868,13 @@ function aiQueueRun(): void
     db()->prepare(
         'INSERT INTO blog_posts
             (id, slug, title, excerpt, category, read_time, body, status, scheduled_for,
-             published_at, author_email, created_at, updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP())'
+             published_at, author_email, image_url, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP())'
     )->execute([
         $id, $slug, $title, $excerpt, $category, $readTime,
         json_encode($blocks, JSON_UNESCAPED_UNICODE),
         'scheduled', $slot, null, 'queue@shiarishta.com',
+        isset($post['image_url']) ? sanitizeText((string)$post['image_url'], 500) : null,
     ]);
 
     $mark('done');
@@ -996,12 +997,13 @@ function aiQueueSave(): void
     db()->prepare(
         'INSERT INTO blog_posts
             (id, slug, title, excerpt, category, read_time, body, status, scheduled_for,
-             published_at, author_email, created_at, updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP())'
+             published_at, author_email, image_url, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP())'
     )->execute([
         $id, $slug, $title, $excerpt, $category, $readTime,
         json_encode($blocks, JSON_UNESCAPED_UNICODE),
         'scheduled', $slot, null, 'queue@shiarishta.com',
+        isset($post['image_url']) ? sanitizeText((string)$post['image_url'], 500) : null,
     ]);
 
     db()->prepare("UPDATE blog_queue SET status = 'done' WHERE id = ?")->execute([$topicId]);
