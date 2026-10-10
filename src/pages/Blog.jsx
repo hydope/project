@@ -6,6 +6,13 @@ import { articles as staticArticles } from '../data/articles.js';
 
 const categories = ['All', 'Guidance', 'Family', 'Tips', 'Safety', 'Guardians'];
 
+// The AI queue sometimes emits "5 minread" (missing space) or "5 min read".
+// Normalize every variant to "N min read" so cards never show a typo.
+function normalizeReadTime(rt) {
+  const m = String(rt || '').match(/(\d+)\s*min/i);
+  return m ? `${m[1]} min read` : '5 min read';
+}
+
 export default function Blog() {
   const [activeCategory, setActiveCategory] = useState('All');
   const [bookmarked, setBookmarked] = useState(new Set());
@@ -27,7 +34,7 @@ export default function Blog() {
             category: p.category || 'Guidance',
             image: p.image_url || '/og-cover.jpg',
             date: (p.published_at || p.created_at || '').slice(0, 10),
-            readTime: p.read_time || '5 min',
+            readTime: normalizeReadTime(p.read_time),
           })));
         })
         .catch(() => {})

@@ -10,7 +10,7 @@ const POSTS_KEY = 'community_posts';
 const COMMENTS_KEY = 'community_comments';
 
 export const DEFAULT_COMMUNITIES = [
-  { id: 'all', name: 'All', icon: '💰', members: 2400 },
+  { id: 'all', name: 'All', icon: '🌍', members: 2400 },
   { id: 'hyderabad', name: 'Hyderabad', icon: '🇮🇳', members: 340 },
   { id: 'dubai', name: 'Dubai', icon: '🇦🇪', members: 280 },
   { id: 'dallas', name: 'Dallas', icon: '🇺🇸', members: 195 },
@@ -109,7 +109,7 @@ export async function listCommunities() {
     const rooms = await http.get('/api/community');
     const ids = new Set(rooms.map(r => r.id));
     // The 'all' pseudo-room is a client concept; the API returns real rooms.
-    return [{ id: 'all', name: 'All', icon: '💰', members: rooms.reduce((n, r) => n + (r.members || 0), 0) },
+    return [{ id: 'all', name: 'All', icon: '🌍', members: rooms.reduce((n, r) => n + (r.members || 0), 0) },
       ...rooms.filter(r => r.id !== 'all'),
       ...(!ids.has('general') ? [{ id: 'general', name: 'General', icon: '💬', members: 0 }] : []),
     ];

@@ -163,7 +163,7 @@ export default function SiteFooter({ compact = false }) {
 
         {/* ── Bottom bar ── */}
         <div className="site-footer-bottom">
-          <span className="site-footer-copy">© {new Date().getFullYear()} Shia Rishta. All rights reserved.</span>
+          <span className="site-footer-copy">©{' '}{new Date().getFullYear()}{' '}Shia Rishta. All rights reserved.</span>
           {/* Social media pages */}
           <div className="site-footer-social" aria-label="Shia Rishta on social media">
             {SOCIAL_LINKS.filter(s => s.url).map(s => (

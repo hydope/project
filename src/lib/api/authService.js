@@ -112,11 +112,18 @@ export const auth = {
     // still wiped so the next person on a shared device sees nothing.
     let onboardingDraft = null;
     let onboardingDraftKey = null;
+    let myProfile = null;
+    let myProfileKey = null;
     try {
       const uid = session?.uid;
       if (uid) {
         onboardingDraftKey = `shiarishta_onboarding_draft::${uid}`;
         onboardingDraft = localStorage.getItem(onboardingDraftKey);
+        // The PUBLISHED profile is the member's own data, not a session
+        // secret — wiping it here made the dashboard fall back to a fake 75%
+        // completeness after every re-login. Preserve it like the draft.
+        myProfileKey = `shiarishta_my_profile::${uid}`;
+        myProfile = localStorage.getItem(myProfileKey);
       }
     } catch { /* ignore */ }
     clearUserData(session?.uid || null);
@@ -124,11 +131,25 @@ export const auth = {
       if (onboardingDraftKey && onboardingDraft) {
         localStorage.setItem(onboardingDraftKey, onboardingDraft);
       }
+      if (myProfileKey && myProfile) {
+        localStorage.setItem(myProfileKey, myProfile);
+      }
     } catch { /* quota — non-fatal */ }
   },
 
   current() {
     return read(SESSION_KEY, null);
+  },
+
+  // Fresh session snapshot from the server (DB truth, not the cached copy).
+  // Call after any out-of-band account change — e.g. the member verified
+  // their email via a link tapped on another device — so the UI stops
+  // showing stale state (like a verification banner for a verified user).
+  async me() {
+    if (!useRemote) return read(SESSION_KEY, null);
+    const data = await http.get('/api/auth/me');
+    if (data?.user) write(SESSION_KEY, data.user);
+    return data?.user ?? null;
   },
 
   isLoggedIn() {

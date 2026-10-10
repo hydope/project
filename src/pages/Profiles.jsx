@@ -186,6 +186,10 @@ export function BrowseProfiles() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(9);
+  // True when the gender filter was set automatically from the member's own
+  // seekingGender (not chosen by them). Shown as a transparent notice — never
+  // filter silently.
+  const [autoGender, setAutoGender] = useState(false);
 
   // Default the gender filter to the signed-in member's seekingGender, so a
   // woman looking for a husband sees men (not women) ranked as top matches.
@@ -196,7 +200,10 @@ export function BrowseProfiles() {
     api.getProfile('me')
       .then(me => {
         if (cancelled || !me?.seekingGender) return;
+        // Runs once on mount while filters are still DEFAULT_FILTERS, so the
+        // gender slot is always free here — no need to read previous state.
         setFilters(prev => (prev.gender ? prev : { ...prev, gender: me.seekingGender }));
+        setAutoGender(true);
       })
       .catch(() => { /* browse works without it */ });
     return () => { cancelled = true; };
@@ -205,7 +212,12 @@ export function BrowseProfiles() {
   const view = searchParams.get('view') === 'curated' ? 'curated' : 'grid';
 
   const setView = (v) => setSearchParams(v === 'curated' ? { view: 'curated' } : {}, { replace: true });
-  const setFilter = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
+  const setFilter = (key, value) => {
+    // A manual gender choice replaces the auto-applied default — the
+    // transparency notice must not linger after the member takes control.
+    if (key === 'gender') setAutoGender(false);
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
 
   const load = useCallback(() => {
     let cancelled = false;
@@ -343,6 +355,25 @@ export function BrowseProfiles() {
             )}
           </button>
         </div>
+
+        {/* Transparency notice: the gender filter was pre-applied from the
+            member's own seekingGender — never filter silently. One tap shows
+            everyone. */}
+        {autoGender && filters.gender && (
+          <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-ink)' }}>
+            <SlidersHorizontal className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-primary)' }} />
+            <span>
+              Showing {filters.gender === 'female' ? 'brides' : filters.gender === 'male' ? 'grooms' : 'profiles'} based on your profile preferences.
+            </span>
+            <button
+              onClick={() => { setFilter('gender', ''); }}
+              className="font-semibold underline underline-offset-2"
+              style={{ color: 'var(--color-primary)' }}
+            >
+              Show everyone
+            </button>
+          </div>
+        )}
 
         {/* Filter panel */}
         <AnimatePresence>

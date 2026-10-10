@@ -3,12 +3,14 @@ import { Copy, Check, Send, Clock, Trash2, ExternalLink, HandHeart, MessageCircl
 import Layout from '@/layouts/MainLayout';
 import { useToast } from '@lib/useToast';
 import { introductions } from '../lib/api/introductions';
+import { usePageTitle } from '../lib/usePageTitle';
 
 // Introductions dashboard — for verified matchmakers and guardians. A draft is
 // a PRIVATE invitation, never a profile: she gets a one-time link (their
 // WhatsApp, their relationship, our consent trail), reviews it, and claims it
 // as her own account. Quota grows as her invitations are accepted.
 export default function Drafts() {
+  usePageTitle('Introductions');
   const [caps, setCaps] = useState(null);
   const [loading, setLoading] = useState(true);
   const [drafts, setDrafts] = useState([]);

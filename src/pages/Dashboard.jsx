@@ -37,8 +37,8 @@ function MatchCard({ p, i }) {
           )}
         </div>
         <div className="p-3">
-          <p className="font-medium text-sm truncate" style={{ color: 'var(--color-ink)' }}>{p.displayName}, {p.age}</p>
-          <p className="text-xs truncate" style={{ color: 'var(--color-ink-secondary)' }}>{p.city}, {p.country}</p>
+          <p className="font-medium text-sm truncate" style={{ color: 'var(--color-ink)' }}>{p.displayName}{p.age ? `, ${p.age}` : ''}</p>
+          <p className="text-xs truncate" style={{ color: 'var(--color-ink-secondary)' }}>{[p.city, p.country].filter(Boolean).join(', ') || 'Location not set'}</p>
           <div className="mt-2 flex items-center gap-1">
             {typeof p.score === 'number' && !Number.isNaN(p.score) && (
               <span className="badge badge-success text-xs font-bold">{p.score}%</span>
@@ -53,13 +53,23 @@ function MatchCard({ p, i }) {
 
 export default function Dashboard() {
   usePageTitle('Dashboard');
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [profiles, setProfiles] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   // Server profile (has seekingGender). localStorage draft is stale — it was
   // saved before seekingGender existed, so it cannot be trusted for filtering.
   const [serverProfile, setServerProfile] = useState(null);
+
+  // The member may have verified their email via a link tapped on another
+  // device — the cached session still says unverified. Refresh once on mount
+  // so the verification banner clears without forcing a logout/login cycle.
+  useEffect(() => {
+    if (user && user.emailVerified === false && typeof refreshUser === 'function') {
+      refreshUser();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -107,12 +117,24 @@ export default function Dashboard() {
   }, [profiles, user, serverProfile]);
 
   const topMatch = rankedMatches[0];
-  // Single source of truth: the onboarding wizard's scoring model. Falls back
-  // to 75 only when the member has never completed a profile draft.
+  // Completeness: server profile (DB truth) first, then the local published
+  // copy, then null (honest "—", never a fabricated number). The local copy
+  // used to be wiped on logout, which is how 100% silently became 75%.
   const savedProfile = typeof getMyProfile === 'function' ? getMyProfile() : null;
-  const completeness = savedProfile
-    ? computeProfileCompleteness(savedProfile)
-    : 75;
+  const completeness = (() => {
+    if (serverProfile) {
+      const mapped = {
+        ...serverProfile,
+        height: serverProfile.height || serverProfile.heightCm,
+        photoAccess: serverProfile.photoAccess || serverProfile.photosVisibility,
+        profileVisibility: serverProfile.profileVisibility || serverProfile.visibility,
+        lookingFor: serverProfile.lookingFor || serverProfile.expectations,
+      };
+      return computeProfileCompleteness(mapped);
+    }
+    if (savedProfile) return computeProfileCompleteness(savedProfile);
+    return null;
+  })();
   // Real counts from the API — never fabricated figures.
   const unreadCount = conversations.reduce((n, c) => n + (c.unread_count || 0), 0);
   const activeConvos = conversations.length;
@@ -120,11 +142,11 @@ export default function Dashboard() {
   const statCards = [
     {
       label: 'Profile Completeness',
-      value: completeness + '%',
+      value: completeness === null ? '—' : completeness + '%',
       icon: User,
       color: 'var(--color-primary)',
       bg: 'var(--color-primary-subtle)',
-      trend: completeness >= 80 ? 'On track' : 'Add more details to attract better matches',
+      trend: completeness === null ? 'Complete onboarding to get started' : completeness >= 80 ? 'On track' : 'Add more details to attract better matches',
     },
     {
       label: 'Top Match Score',
@@ -248,6 +270,11 @@ export default function Dashboard() {
                 { to: '/profiles', icon: Users, label: 'Browse profiles', desc: 'Discover your ideal match', color: 'var(--color-primary)', bg: 'var(--color-primary-subtle)' },
                 { to: '/messages', icon: MessageCircle, label: 'Messages', desc: 'Check your conversations', color: 'var(--color-success)', bg: 'var(--color-success-subtle)' },
                 { to: '/onboard', icon: Sparkles, label: 'Update profile', desc: 'Improve your match quality', color: 'var(--color-warning)', bg: 'var(--color-warning-subtle)' },
+                // C1 fix: members had no way to see their own published
+                // profile as others see it — the directory excludes your own
+                // row by design, so without this link "is my profile live?"
+                // was unanswerable.
+                ...(user?.uid ? [{ to: `/profiles/${user.uid}`, icon: Eye, label: 'Preview my profile', desc: 'See exactly what others see', color: 'var(--color-accent)', bg: 'var(--color-accent-subtle)' }] : []),
               ].map(action => {
               const ActionIcon = action.icon;
               return (

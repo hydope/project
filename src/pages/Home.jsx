@@ -60,7 +60,7 @@ const HERO_IMAGE = '/hero-nikah.webp';
 export default function Home() {
   const reduceMotion = useReducedMotion();
   const { isLoggedIn, user } = useAuth();
-  const { data } = useProfiles({});
+  const { data, isLoading: profilesLoading } = useProfiles({});
   const featured = (data || []).slice(0, 6);
 
   // Community counts, straight from the database. Until this resolves we show
@@ -248,7 +248,7 @@ export default function Home() {
           </div>
           <div className="hp-featured-cta">
             {isLoggedIn ? (<Link to="/dashboard" className="hp-btn-primary">Go to your dashboard <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>) : (<Link to="/profiles" className="hp-btn-primary">Browse all profiles <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>)}
-            <span>{(data || []).length} curated members · {isLoggedIn ? "welcome back" : "free to join"}</span>
+            <span>{profilesLoading ? 'Finding members…' : `${(data || []).length} curated members`} · {isLoggedIn ? "welcome back" : "free to join"}</span>
           </div>
         </section>
 

@@ -22,11 +22,22 @@ const FIELDS = [
 
 export default function Matchmaker() {
   usePageTitle('Matchmaker');
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   const [form, setForm] = useState({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [mine, setMine] = useState([]);
+
+  // Matchmaker-role accounts may only list female profiles (enforced
+  // server-side too). Don't offer them a "male" option that can only fail —
+  // lock the field to female instead.
+  const femaleOnly = user?.role === 'matchmaker';
+  const fields = FIELDS.map(f => {
+    if (f.key === 'gender' && femaleOnly) {
+      return { ...f, type: 'static', staticText: 'Female — matchmaker accounts list female profiles only.' };
+    }
+    return f;
+  });
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -40,7 +51,10 @@ export default function Matchmaker() {
     if (!form.display_name?.trim()) { setMsg('A name is required.'); return; }
     setBusy(true); setMsg('');
     try {
-      const r = await http.post('/api/matchmaker', form);
+      // Female-only roles submit female implicitly — the visible field is
+      // locked for them, so inject it here instead of trusting the form.
+      const payload = femaleOnly ? { ...form, gender: 'female' } : form;
+      const r = await http.post('/api/matchmaker', payload);
       setMsg(r.message || 'Submitted.');
       setForm({});
       const updated = await http.get('/api/matchmaker/mine').catch(() => null);
@@ -91,21 +105,28 @@ export default function Matchmaker() {
         ) : (
           <form onSubmit={submit} className="card p-6 space-y-4 mb-8">
             <h2 className="font-semibold" style={{ color: 'var(--color-ink)' }}>Add a profile</h2>
-            {FIELDS.map(f => (
+            {fields.map(f => (
               <div key={f.key}>
-                <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--color-ink-secondary)' }}>
+                <label htmlFor={`mm-${f.key}`} className="text-xs font-semibold block mb-1" style={{ color: 'var(--color-ink-secondary)' }}>
                   {f.label}{f.required && ' *'}
                 </label>
-                {f.type === 'textarea' ? (
-                  <textarea value={form[f.key] || ''} onChange={e => set(e.target.value)}
+                {f.type === 'static' ? (
+                  <p id={`mm-${f.key}`} className="text-sm font-medium py-2" style={{ color: 'var(--color-ink)' }}>{f.staticText}</p>
+                ) : f.type === 'textarea' ? (
+                  <textarea id={`mm-${f.key}`} value={form[f.key] || ''} onChange={e => set(e.target.value)}
                     rows={3} className="input w-full" />
                 ) : f.type === 'select' ? (
-                  <select value={form[f.key] || ''} onChange={e => set(e.target.value)} className="input w-full">
+                  <select id={`mm-${f.key}`} value={form[f.key] || ''} onChange={e => set(e.target.value)} className="input w-full">
                     {f.options.map(o => <option key={o} value={o}>{o || 'Select…'}</option>)}
                   </select>
                 ) : (
-                  <input type={f.type || 'text'} value={form[f.key] || ''} onChange={e => set(e.target.value)}
+                  <input id={`mm-${f.key}`} type={f.type || 'text'} value={form[f.key] || ''} onChange={e => set(e.target.value)}
                     className="input w-full" required={f.required} />
+                )}
+                {f.key === 'photo_url' && (
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-ink-tertiary)' }}>
+                    Optional — a public link to a photo, if the family shared one.
+                  </p>
                 )}
               </div>
             ))}

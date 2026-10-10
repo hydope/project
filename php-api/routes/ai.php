@@ -803,7 +803,7 @@ function aiQueueRun(): void
         . "phrasing.\n\n"
         . "Return STRICT JSON with keys: title, excerpt, category, readTime, body.\n"
         . "'excerpt' is one sentence under 160 characters. 'category' must be exactly \"" . $category . "\". "
-        . "'readTime' is like '5 min'. 'body' is an ARRAY of objects, each {\"t\": \"p\"|\"h2\", "
+        . "'readTime' is exactly like '5 min read' (number, space, 'min', space, 'read'). 'body' is an ARRAY of objects, each {\"t\": \"p\"|\"h2\", "
         . "\"x\": \"...\"} — never markdown fences.\n\n"
         . "Write a focused piece of roughly 500 words, 5-8 paragraphs with an h2 heading or two. "
         . "Do not invent statistics, user counts or claims about the site's features beyond what is stated.\n\n"

@@ -113,7 +113,7 @@ export default function Register() {
               <label htmlFor="password" className="block mb-1.5 text-sm font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Password</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: 'var(--color-ink-faint)' }} />
-                <input type={showPassword ? 'text' : 'password'} id="password" name="password" value={formData.password} onChange={handleChange} required minLength={6} placeholder="Min 6 characters" className={`${inputClass} input-with-action`} style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
+                <input type={showPassword ? 'text' : 'password'} id="password" name="password" value={formData.password} onChange={handleChange} required minLength={8} placeholder="Min 8 characters" className={`${inputClass} input-with-action`} style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -130,7 +130,7 @@ export default function Register() {
               <label htmlFor="confirmPassword" className="block mb-1.5 text-sm font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Confirm Password</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: 'var(--color-ink-faint)' }} />
-                <input type={showPassword ? 'text' : 'password'} id="confirmPassword" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required minLength={6} placeholder="Repeat password" className={inputClass} style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
+                <input type={showPassword ? 'text' : 'password'} id="confirmPassword" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required minLength={8} placeholder="Repeat password" className={inputClass} style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
               </div>
             </div>
 

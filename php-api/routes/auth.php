@@ -16,6 +16,7 @@ function routeAuth(string $method, array $segments): void
     if ($method === 'POST' && $action === 'verify' && ($segments[1] ?? '') === 'request') { authVerifyRequest(); return; }
     if ($method === 'GET'  && $action === 'verify')   { authVerifyToken(); return; }
     if ($method === 'GET'  && $action === 'sessions') { authSessions(); return; }
+    if ($method === 'GET'  && $action === 'me') { authMe(); return; }
     if ($method === 'POST' && $action === 'forgot')   { authForgot();   return; }
     if ($method === 'POST' && $action === 'reset')    { authReset();    return; }
     if ($method === 'POST' && $action === 'resend-verification') { authResendVerification(); return; }
@@ -124,6 +125,19 @@ function authLogout(): void
     dropSession();
     clearAuthCookie();
     json(['ok' => true]);
+}
+
+// GET /api/auth/me — fresh session snapshot from the DB (never trust the
+// token's cached claims for mutable state like email_verified: the member
+// may have verified in another tab/device after this token was minted).
+function authMe(): void
+{
+    $user = requireAuthUser();
+    $stmt = db()->prepare('SELECT * FROM users WHERE id = ? LIMIT 1');
+    $stmt->execute([$user['uid']]);
+    $row = $stmt->fetch();
+    if (!$row) je('Authentication required', 401);
+    json(['user' => makeMemberSession($row)]);
 }
 
 // ─── Email verification (table-based, P0) ────────────────────────────────────

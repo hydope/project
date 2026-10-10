@@ -380,11 +380,11 @@ export default function BiodataMaker() {
                 <div className="space-y-3">
                   {s.fields.map(f => (
                     <div key={f.key}>
-                      <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--color-ink-secondary)' }}>{I18N[lang].fields[f.key]}</label>
+                      <label htmlFor={`biodata-${f.key}`} className="text-xs font-semibold block mb-1" style={{ color: 'var(--color-ink-secondary)' }}>{I18N[lang].fields[f.key]}</label>
                       {f.type === 'textarea' ? (
-                        <textarea value={data[f.key] || ''} onChange={e => set(f.key, e.target.value)} rows={2} className="input w-full text-sm" />
+                        <textarea id={`biodata-${f.key}`} value={data[f.key] || ''} onChange={e => set(f.key, e.target.value)} rows={2} className="input w-full text-sm" />
                       ) : (
-                        <input value={data[f.key] || ''} onChange={e => set(f.key, e.target.value)} className="input w-full text-sm" />
+                        <input id={`biodata-${f.key}`} value={data[f.key] || ''} onChange={e => set(f.key, e.target.value)} className="input w-full text-sm" />
                       )}
                     </div>
                   ))}

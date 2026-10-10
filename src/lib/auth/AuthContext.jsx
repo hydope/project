@@ -92,9 +92,43 @@ export function AuthProvider({ children }) {
     stampSession(null);
   }, [stampSession]);
 
+  // Re-fetch the session from the server and update state + the stored copy.
+  // Used when account state may have changed outside this tab (e.g. email
+  // verified via a link on another device). Returns the fresh user or null.
+  const refreshUser = useCallback(async () => {
+    try {
+      const fresh = await authService.me();
+      if (fresh) {
+        setUser(fresh);
+        stampSession(fresh);
+        return fresh;
+      }
+      return user;
+    } catch {
+      return user;
+    }
+  }, [stampSession, user]);
+
+  // If the member verified their email (or changed anything material) in
+  // another tab/device, pick it up when this tab regains focus — previously
+  // the stale session survived until a full logout/login cycle.
+  useEffect(() => {
+    let timer = null;
+    const onFocus = () => {
+      // Small delay: the verification request from the other tab may still
+      // be in flight when focus returns.
+      timer = setTimeout(() => { refreshUser(); }, 800);
+    };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      if (timer) clearTimeout(timer);
+    };
+  }, [refreshUser]);
+
   return (
     <AuthContext.Provider
-      value={{ user, loading, isLoggedIn: !!user, isAdmin: user?.isAdmin === true, login, register, logout }}
+      value={{ user, loading, isLoggedIn: !!user, isAdmin: user?.isAdmin === true, login, register, logout, refreshUser }}
     >
       {children}
     </AuthContext.Provider>
