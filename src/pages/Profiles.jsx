@@ -6,7 +6,6 @@ import CuratedMatchFeed from '../components/CuratedMatchFeed.jsx';
 import LoginGate from '../components/LoginGate';
 import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
-import { MARJA_OPTIONS } from '../lib/onboardingData';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -16,10 +15,6 @@ import {
 const SECT_FILTERS = ['Any sect', 'Ithna Ashari (Twelver)', 'Ismaili', 'Bohra', 'Zaydi'];
 const RELIGIOSITY_FILTERS = ['Any level', 'Very practicing', 'Practicing', 'Moderately practicing', 'Reconnecting'];
 const EDUCATION_FILTERS = ['Any education', "Bachelor's degree", "Master's degree", 'Doctorate', 'Some college'];
-// Marja' is the single most requested Shia filter — it decides which rulings
-// govern a shared household, so it belongs next to sect, not buried.
-// Imported from onboardingData.js so the values can never drift apart.
-const MARJA_FILTERS = ['Any marja', ...MARJA_OPTIONS];
 // Modesty options MUST match MODESTY_OPTIONS_FEMALE/MALE in onboardingData.js exactly.
 // Shown as Hijab options when browsing brides, Beard options for grooms.
 const MODESTY_FILTERS_FEMALE = ['Any', 'Hijab — always observed', 'Hijab — working towards it', 'Modest dress, no hijab yet', 'Prefer not to say'];
@@ -34,12 +29,12 @@ const SORTS = [
 const DEFAULT_FILTERS = {
   search: '', gender: '', minAge: '', maxAge: '', country: '',
   sect: 'Any sect', religiosity: 'Any level', education: 'Any education',
-  marja: 'Any marja', syedStatus: 'Any', modesty: 'Any', photo: 'any', verifiedOnly: false, sort: 'match'
+  syedStatus: 'Any', modesty: 'Any', photo: 'any', verifiedOnly: false, sort: 'match'
 };
 
 // Placeholder sentinels must be stripped before hitting the API, otherwise the
 // server would filter for the literal string "Any sect" and return nothing.
-const sentinels = new Set(['Any sect', 'Any level', 'Any education', 'Any marja', 'Any', 'any', '']);
+const sentinels = new Set(['Any sect', 'Any level', 'Any education', 'Any', 'any', '']);
 const clean = (v) => (v === undefined || sentinels.has(String(v)) ? undefined : String(v));
 
 const FAVOURITES_KEY = 'sr.favourites.v1';
@@ -238,7 +233,6 @@ export function BrowseProfiles() {
     sect: clean(filters.sect),
     religiosity: clean(filters.religiosity),
     education: clean(filters.education),
-    marja: clean(filters.marja),
     syedStatus: clean(filters.syedStatus),
     modesty: clean(filters.modesty),
     // The API param is `photoAccess`; the UI state key is `photo`.
@@ -391,8 +385,8 @@ export function BrowseProfiles() {
                     <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Looking for</label>
                     <select value={filters.gender} onChange={e => setFilter('gender', e.target.value)} className="input" style={{ background: 'var(--color-surface)' }}>
                       <option value="">Any</option>
-                      <option value="female">Brides</option>
-                      <option value="male">Grooms</option>
+                      <option value="female">Female</option>
+                      <option value="male">Male</option>
                     </select>
                   </div>
                   <div>
@@ -418,12 +412,6 @@ export function BrowseProfiles() {
                     <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Education</label>
                     <select value={filters.education} onChange={e => setFilter('education', e.target.value)} className="input" style={{ background: 'var(--color-surface)' }}>
                       {EDUCATION_FILTERS.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Marja&apos;</label>
-                    <select value={filters.marja} onChange={e => setFilter('marja', e.target.value)} className="input" style={{ background: 'var(--color-surface)' }}>
-                      {MARJA_FILTERS.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                   <div>
