@@ -86,14 +86,9 @@ jobs:
             COVERS=("blog-cover-1.webp" "blog-cover-2.webp" "blog-cover-3.webp" "blog-cover-4.webp")
             COVER=${COVERS[$RANDOM % ${#COVERS[@]}]}
             IMAGE_URL="/api/uploads/blog-covers/$COVER"
-            # Inject image_url into the post JSON
-            POST_JSON=$(echo "$POST_JSON" | python3 -c "
-import json,sys
-d = json.load(sys.stdin)
-if 'post' in d:
-    d['post']['image_url'] = '$IMAGE_URL'
-print(json.dumps(d['post'] if 'post' in d else d))
-")
+            # Inject image_url into the post JSON (script file keeps the
+            # workflow YAML free of embedded-python indentation traps)
+            POST_JSON=$(echo "$POST_JSON" | python3 .github/scripts/inject_image.py "$IMAGE_URL")
             if ! echo "$POST_JSON" | grep -q '"title"'; then
               echo "FALLBACK_FAILED: no usable post for topic $TOPIC_ID, moving on"
               continue
