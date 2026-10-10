@@ -252,16 +252,17 @@ export default function ProfileCard({ profile, className = '' }) {
           {profile.isDemo === true && (
             <SampleProfileBadge className="w-fit" />
           )}
-          <p className="flex items-center gap-1.5 text-[13px] leading-5 truncate mt-1" style={{ color: 'var(--color-ink-secondary)' }}>
-            <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-primary)' }} />
+          <p className="flex items-center gap-1.5 text-[13px] leading-6 truncate mt-1" style={{ color: 'var(--color-ink-secondary)' }}>
+            <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-primary)' }} />
             {/* City and country link to indexable landing pages (e.g. /city/hyderabad,
-                /country/india) so every profile maps to canonical location pages. */}
+                /country/india) so every profile maps to canonical location pages.
+                Links are always underlined + have padding for touch targets. */}
             {profile.city || profile.country ? (
               <span className="truncate">
                 {profile.city ? (
                   <Link
                     to={`/city/${profile.city.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`}
-                    className="hover:underline font-semibold"
+                    className="underline decoration-dotted underline-offset-2 font-semibold px-1 py-1 -mx-1"
                     style={{ color: 'var(--color-primary)' }}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -272,7 +273,7 @@ export default function ProfileCard({ profile, className = '' }) {
                 {profile.country ? (
                   <Link
                     to={`/country/${profile.country.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`}
-                    className="hover:underline"
+                    className="underline decoration-dotted underline-offset-2 px-1 py-1 -mx-1"
                     style={{ color: 'var(--color-ink-secondary)' }}
                     onClick={(e) => e.stopPropagation()}
                   >

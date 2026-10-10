@@ -318,7 +318,7 @@ export default function Profile() {
                         {profile.city ? (
                           <Link
                             to={`/city/${profile.city.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`}
-                            className="hover:underline font-semibold"
+                            className="underline decoration-dotted underline-offset-2 font-semibold px-1 py-1 -mx-1"
                             style={{ color: 'var(--color-primary)' }}
                           >
                             {formatCity(profile.city)}
@@ -328,7 +328,7 @@ export default function Profile() {
                         {profile.country ? (
                           <Link
                             to={`/country/${profile.country.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`}
-                            className="hover:underline"
+                            className="underline decoration-dotted underline-offset-2 px-1 py-1 -mx-1"
                             style={{ color: 'var(--color-ink-secondary)' }}
                           >
                             {formatCountry(profile.country)}
