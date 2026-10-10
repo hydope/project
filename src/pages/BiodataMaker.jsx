@@ -330,20 +330,44 @@ export default function BiodataMaker() {
 
   const downloadPdf = async () => {
     logCreation();
-    const canvas = await renderCanvas();
-    if (!canvas) return;
-    const { jsPDF } = await import('jspdf');
-    // A4 portrait: 210 × 297 mm. The canvas is 2x for sharpness.
-    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
-    pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
-    pdf.save(`${fileSlug()}.pdf`);
+    // Native print-to-PDF: zero bundle cost, perfect fidelity. We add a
+    // print class that hides everything except the biodata card, trigger
+    // the browser print dialog (user picks "Save as PDF"), then clean up.
+    const node = previewRef.current;
+    if (!node) return;
+    // Ensure the preview is rendered at full size for print.
+    const prevTransform = node.style.transform;
+    node.style.transform = 'none';
+    document.body.classList.add('printing-biodata');
+    const cleanup = () => {
+      document.body.classList.remove('printing-biodata');
+      node.style.transform = prevTransform;
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    // Small delay so the print CSS applies before the dialog opens.
+    await new Promise((r) => setTimeout(r, 100));
+    window.print();
+    // Fallback cleanup in case afterprint doesn't fire (e.g., dialog cancelled).
+    setTimeout(cleanup, 5000);
   };
 
   const t = TEMPLATES.find(x => x.id === template) || TEMPLATES[0];
 
   return (
     <Layout>
+      <style>{`
+        @media print {
+          body.printing-biodata * { visibility: hidden; }
+          body.printing-biodata .biodata-print-area,
+          body.printing-biodata .biodata-print-area * { visibility: visible; }
+          body.printing-biodata .biodata-print-area {
+            position: absolute; top: 0; left: 0; width: 100%;
+            transform: none !important; margin: 0 !important;
+          }
+          @page { size: A4 portrait; margin: 0; }
+        }
+      `}</style>
       <main className="max-w-6xl mx-auto px-4 py-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--color-ink)' }}>
@@ -494,7 +518,7 @@ export default function BiodataMaker() {
               style={{ border: '1px solid var(--color-border)', maxHeight: '82vh', touchAction: 'pan-x pan-y pinch-zoom' }}>
               <div style={{ width: Math.max(wrapWidth, PREVIEW_W * scale), display: 'flex', justifyContent: 'center' }}>
                 <div style={{ width: PREVIEW_W * scale, height: previewH * scale, position: 'relative', flexShrink: 0 }}>
-                  <div style={{ width: PREVIEW_W, transform: `scale(${scale})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0 }}>
+                  <div style={{ width: PREVIEW_W, transform: `scale(${scale})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0 }} className="biodata-print-area">
                     <BiodataPreview ref={previewRef} template={t} data={data} photo={photo} lang={lang} />
                   </div>
                 </div>
