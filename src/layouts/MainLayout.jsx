@@ -315,7 +315,10 @@ export default function MainLayout({ children }) {
   return (
     <div className="app-shell">
       {/* Mobile sidebar overlay */}
-      <AnimatePresence>
+      {/* mode="wait": rapid taps during the exit animation wait for it to
+          finish instead of rendering exiting + entering drawers at once,
+          which caused the hamburger button to visibly flicker ("trip"). */}
+      <AnimatePresence mode="wait">
         {mobileNavOpen && (
           <>
             <motion.div
