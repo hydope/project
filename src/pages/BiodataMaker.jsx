@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import Layout from '../layouts/LandingLayout';
 import { usePageTitle } from '../lib/usePageTitle';
 import { useAuth } from '../lib/auth/AuthContext';
-import { Download, ImagePlus, Save, Sparkles, ZoomIn, ZoomOut, Maximize2, Upload } from 'lucide-react';
+import { Download, ImagePlus, Save, Sparkles, ZoomIn, ZoomOut, Maximize2, Upload, Share2 } from 'lucide-react';
 import { http } from '../lib/api/transport';
 
 const TEMPLATES = [
@@ -115,7 +115,7 @@ const SECTIONS = [
     key: 'personal',
     fields: [
       { key: 'name' }, { key: 'dob' }, { key: 'age' }, { key: 'height' },
-      { key: 'complexion' }, { key: 'education' }, { key: 'profession' },
+      { key: 'education' }, { key: 'profession' },
       { key: 'religion' }, { key: 'marital' },
     ],
   },
@@ -239,9 +239,28 @@ export default function BiodataMaker() {
     setSaved(true);
   };
 
-  const download = async () => {
+  // Render the biodata preview to a high-res canvas. Shared by image + PDF.
+  const renderCanvas = async () => {
     const node = previewRef.current;
-    if (!node) return;
+    if (!node) return null;
+    const w = 794, h = 1123; // A4-ish at 96dpi
+    const clone = node.cloneNode(true);
+    clone.style.width = w + 'px';
+    clone.style.minHeight = h + 'px';
+    const html = new XMLSerializer().serializeToString(clone);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%">${html.replace(/&/g, '&amp;')}</foreignObject></svg>`;
+    const img = new Image();
+    const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    const canvas = document.createElement('canvas');
+    canvas.width = w * 2; canvas.height = h * 2;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  };
+
+  const logCreation = async () => {
     // Log the creation to the admin audit trail (count + submitted details).
     // Fire-and-forget: the download must never wait on it. A downscaled
     // thumbnail of the photo is included so admins can see it in the logs.
@@ -269,25 +288,56 @@ export default function BiodataMaker() {
         data, template, lang, has_photo: !!photo, photo_thumb: photoThumb,
       }).catch(() => {});
     } catch { /* ignore */ }
-    // Render the preview DOM to canvas via SVG foreignObject.
-    const w = 794, h = 1123; // A4-ish at 96dpi
-    const clone = node.cloneNode(true);
-    clone.style.width = w + 'px';
-    clone.style.minHeight = h + 'px';
-    const html = new XMLSerializer().serializeToString(clone);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%">${html.replace(/&/g, '&amp;')}</foreignObject></svg>`;
-    const img = new Image();
-    const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
-    const canvas = document.createElement('canvas');
-    canvas.width = w * 2; canvas.height = h * 2;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  };
+
+  const shareBiodata = async () => {
+    // Mobile: native share sheet (includes WhatsApp). Desktop: download + WhatsApp Web.
+    const canvas = await renderCanvas();
+    if (!canvas) return;
+    const fileName = `${fileSlug()}.png`;
+    try {
+      const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+      const file = new File([blob], fileName, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'My Biodata',
+          text: 'My marriage biodata',
+        });
+        return;
+      }
+    } catch {
+      // User cancelled or share failed — fall through to WhatsApp Web.
+    }
+    // Fallback: download the image and open WhatsApp with a prefilled note.
     const a = document.createElement('a');
-    a.download = `biodata-${(data.name || 'profile').replace(/\s+/g, '-').toLowerCase()}.png`;
+    a.download = fileName;
     a.href = canvas.toDataURL('image/png');
     a.click();
+    const text = encodeURIComponent('Assalamu alaikum! Sharing my biodata (attached).');
+    window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener');
+  };
+
+  const downloadImage = async () => {
+    logCreation();
+    const canvas = await renderCanvas();
+    if (!canvas) return;
+    const a = document.createElement('a');
+    a.download = `${fileSlug()}.png`;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  };
+
+  const downloadPdf = async () => {
+    logCreation();
+    const canvas = await renderCanvas();
+    if (!canvas) return;
+    const { jsPDF } = await import('jspdf');
+    // A4 portrait: 210 × 297 mm. The canvas is 2x for sharpness.
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+    pdf.save(`${fileSlug()}.pdf`);
   };
 
   const t = TEMPLATES.find(x => x.id === template) || TEMPLATES[0];
@@ -305,23 +355,25 @@ export default function BiodataMaker() {
           </p>
         </div>
 
-        {/* Templates */}
-        <div className="flex gap-3 justify-center mb-6 flex-wrap">
+        {/* Templates — grid on mobile (no truncation), row on desktop */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 max-w-4xl mx-auto">
           {TEMPLATES.map(x => (
             <button key={x.id} onClick={() => { setTemplate(x.id); setSaved(false); }}
-              className="px-4 py-2.5 rounded-xl text-left transition-all"
+              aria-pressed={template === x.id}
+              className="px-4 py-3 rounded-xl text-left transition-all w-full"
               style={{
                 border: template === x.id ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                background: 'var(--color-surface)',
+                background: template === x.id ? 'var(--color-surface)' : 'var(--color-background)',
+                boxShadow: template === x.id ? '0 2px 12px rgba(0,0,0,0.08)' : 'none',
               }}>
               <p className="text-sm font-bold" style={{ color: 'var(--color-ink)' }}>{x.name}</p>
-              <p className="text-[11px]" style={{ color: 'var(--color-ink-tertiary)' }}>{x.desc}</p>
+              <p className="text-[11px] leading-snug mt-0.5" style={{ color: 'var(--color-ink-tertiary)' }}>{x.desc}</p>
             </button>
           ))}
         </div>
 
-        {/* Language */}
-        <div className="flex items-center justify-center gap-3 mb-8">
+        {/* Language — stacked on mobile, inline on desktop */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 mb-8">
           <label htmlFor="biodata-lang" className="text-sm font-semibold" style={{ color: 'var(--color-ink-secondary)' }}>
             Biodata language:
           </label>
@@ -329,7 +381,7 @@ export default function BiodataMaker() {
             id="biodata-lang"
             value={lang}
             onChange={e => { setLang(e.target.value); setSaved(false); }}
-            className="input px-4 py-2 rounded-xl text-sm"
+            className="input px-4 py-2.5 rounded-xl text-sm w-full sm:w-auto"
             style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', minWidth: 180 }}
           >
             {LANGUAGES.map(l => (
@@ -396,8 +448,14 @@ export default function BiodataMaker() {
               <button onClick={saveDraft} disabled={saving} className="btn btn-ghost flex items-center gap-2">
                 <Save className="w-4 h-4" /> {saving ? 'Saving…' : saved ? 'Draft saved ✓' : 'Save draft'}
               </button>
-              <button onClick={download} className="btn btn-primary flex items-center gap-2">
-                <Download className="w-4 h-4" /> Download image
+              <button onClick={downloadImage} className="btn btn-secondary flex items-center gap-2">
+                <Download className="w-4 h-4" /> Save as Image
+              </button>
+              <button onClick={downloadPdf} className="btn btn-primary flex items-center gap-2">
+                <Download className="w-4 h-4" /> Save as PDF
+              </button>
+              <button onClick={shareBiodata} className="btn btn-secondary flex items-center gap-2">
+                <Share2 className="w-4 h-4" /> Share
               </button>
             </div>
             {isLoggedIn && (
@@ -479,49 +537,22 @@ function SectionTitle({ children, accent, muted }) {
 
 function Watermark({ dark }) {
   const gold = 'rgba(212,175,106,';
-  const ink = dark ? gold : 'rgba(0,0,0,';
   return (
     <>
-      {/* Subtle repeated pattern — visible only on close inspection, never
-          competing with content. Replaces the old loud diagonal stamp. */}
+      {/* Single whisper-quiet footer credit — the only brand mark. No tiled
+          pattern: a biodata is HER document, not our billboard. */}
       <div style={{
-        position: 'absolute', inset: 0, overflow: 'hidden',
+        position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 48px 10px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
         pointerEvents: 'none', userSelect: 'none',
       }}>
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} style={{
-            position: 'absolute',
-            top: `${18 + i * 22}%`, left: '50%',
-            transform: 'translateX(-50%)',
-            fontSize: 11, letterSpacing: 8, whiteSpace: 'nowrap',
-            color: dark ? `${gold}0.10)` : 'rgba(0,0,0,0.025)',
-            fontFamily: 'Georgia, serif', fontStyle: 'italic',
-          }}>
-            shiarishta.com
-          </div>
-        ))}
-      </div>
-      {/* Refined footer brand bar — part of the design, not an afterthought */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0, padding: '16px 48px 14px',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
-        borderTop: `1px solid ${dark ? `${gold}0.22)` : 'rgba(0,0,0,0.07)'}`,
-      }}>
         <span style={{
-          width: 28, height: 1,
-          background: dark ? `${gold}0.4)` : 'rgba(0,0,0,0.15)',
-        }} />
-        <span style={{
-          fontSize: 10, letterSpacing: 3, textTransform: 'uppercase',
-          color: dark ? `${gold}0.75)` : '#a8a29e',
-          fontFamily: 'Georgia, serif', fontWeight: 500, whiteSpace: 'nowrap',
+          fontSize: 9, letterSpacing: 2.5,
+          color: dark ? `${gold}0.45)` : 'rgba(0,0,0,0.28)',
+          fontFamily: 'Georgia, serif', fontStyle: 'italic', whiteSpace: 'nowrap',
         }}>
-          shiarishta.com
+          Made with shiarishta.com
         </span>
-        <span style={{
-          width: 28, height: 1,
-          background: dark ? `${gold}0.4)` : 'rgba(0,0,0,0.15)',
-        }} />
       </div>
     </>
   );
