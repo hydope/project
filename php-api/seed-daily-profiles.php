@@ -44,12 +44,19 @@ $MALE_SURNAMES = [
   'Jafri', 'Abidi', 'Mehdi', 'Hasnain', 'Askari', 'Taqvi', 'Mirza', 'Baig',
 ];
 
-$CITIES = [
+$CITIES_INDO_PAK = [
+  ['Karachi', 'Pakistan'], ['Lahore', 'Pakistan'], ['Islamabad', 'Pakistan'],
+  ['Hyderabad', 'India'], ['Mumbai', 'India'], ['Delhi', 'India'],
+  ['Lucknow', 'India'], ['Bangalore', 'India'], ['Chennai', 'India'],
+];
+$CITIES_ABROAD = [
   ['Baltimore', 'USA'], ['Chicago', 'USA'], ['Houston', 'USA'], ['New York', 'USA'],
   ['Dallas', 'USA'], ['Los Angeles', 'USA'], ['Atlanta', 'USA'], ['Seattle', 'USA'],
   ['Dearborn', 'USA'], ['Washington DC', 'USA'], ['Silver Spring', 'USA'], ['London', 'UK'],
-  ['Toronto', 'Canada'], ['Dubai', 'UAE'], ['Karachi', 'Pakistan'], ['Lahore', 'Pakistan'],
+  ['Toronto', 'Canada'], ['Dubai', 'UAE'], ['Abu Dhabi', 'UAE'], ['Doha', 'Qatar'],
+  ['Sydney', 'Australia'],
 ];
+// 60% India/Pakistan, 40% abroad/Gulf — per Syed's rule (2026-10-10).
 
 $PROFESSIONS_FEMALE = [
   'Doctor', 'Teacher', 'Software Engineer', 'Nurse', 'Pharmacist', 'Accountant',
@@ -136,6 +143,10 @@ try {
     $usedFullNames[strtolower(trim($n))] = true;
   }
   $batchFirstNames = [];
+  $batchCities = [];
+
+  // 60% India/Pakistan, 40% abroad/Gulf — unique city per profile in a batch.
+  $indoPakCount = (int)round($toCreate * 0.6);
 
   for ($i = $existing; $i < $targetTotal; $i++) {
     $isFemale = $i < $targetFemale; // First N are female, rest are male
@@ -177,7 +188,16 @@ try {
     $displayName = "{$firstName} {$lastName}";
     $email = "seeded-{$date}-{$i}@shiarishta.com";
     $userId = uuid();
-    $city = pick($CITIES);
+    // 60/40 split: first $indoPakCount profiles of the batch get India/Pakistan
+    // cities, the rest get abroad/Gulf. Unique city per batch — no repeats.
+    $pool = ($i - $existing) < $indoPakCount ? $CITIES_INDO_PAK : $CITIES_ABROAD;
+    $city = null;
+    for ($t = 0; $t < 50; $t++) {
+      $c = pick($pool);
+      if (!isset($batchCities[$c[0]])) { $city = $c; break; }
+    }
+    if ($city === null) $city = pick($pool); // pool exhausted, allow repeat
+    $batchCities[$city[0]] = true;
     $age = rand(22, 35);
 
     // Create user
@@ -213,7 +233,7 @@ try {
         profession, bio, visibility, photos_visibility,
         seeking_gender, religiosity, education_level, marja,
         marital_status, is_verified, photo_url
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'members', 'members', ?, ?, ?, ?, 'Never married', 0, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'members', 'public', ?, ?, ?, ?, 'Never married', 0, ?)
     ");
     $stmt->execute([
       $userId, $displayName, $age, $gender, $city[0], $city[1], 'Ithna Ashari (Twelver)',
