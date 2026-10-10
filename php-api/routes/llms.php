@@ -26,6 +26,7 @@ function llmsTxt(): void
     $pages = [
         '/' => 'Homepage — Shia matrimony for nikah',
         '/profiles' => 'Browse verified Shia profiles',
+        '/locations' => 'Browse Shia profiles by city or country',
         '/blog' => 'Guidance blog — Shia marriage articles',
         '/community' => 'Community discussions',
         '/matchmaker' => 'Submit a profile for review (matchmakers)',

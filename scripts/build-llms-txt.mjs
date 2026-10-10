@@ -126,7 +126,7 @@ const landingCopy = {
 
 // Secondary core routes: worth citing, but not the headline pages.
 p('### Also on the site');
-for (const route of ['/community', '/support', '/profile-guide', '/auth/register', '/matchmaker', '/biodata-maker']) {
+for (const route of ['/community', '/support', '/profile-guide', '/auth/register', '/matchmaker', '/biodata-maker', '/locations']) {
   const meta = ROUTE_SEO[route];
   if (!meta) continue;
   p(`- [${meta.h1}](${SITE_URL}${route}) — ${meta.desc}`);
