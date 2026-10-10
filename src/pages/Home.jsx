@@ -25,7 +25,7 @@ const HOME_FAQS = [
 // ── Reference-parity copy (shiarishta12.netlify.app) ────────────────────────
 const HERO_CHIPS = [
   { icon: BadgeCheck, label: 'Verified women', className: 'c1' },
-  { icon: Sparkles, label: 'AI agents', className: 'c2' },
+  { icon: Sparkles, label: 'Smart matching', className: 'c2' },
   { icon: Lock, label: 'Photo privacy', className: 'c3' },
   { icon: Users, label: 'Wali workflow', className: 'c4' },
 ];
@@ -61,7 +61,11 @@ export default function Home() {
   const reduceMotion = useReducedMotion();
   const { isLoggedIn, user } = useAuth();
   const { data, isLoading: profilesLoading } = useProfiles({});
-  const featured = (data || []).slice(0, 6);
+  // Featured profiles: prefer members with a real bio — never showcase
+  // empty "No profile summary yet." cards on the homepage.
+  const featured = (data || [])
+    .filter(p => (p.bio || p.aboutFamily || '').trim().length > 0)
+    .slice(0, 6);
 
   // Community counts, straight from the database. Until this resolves we show
   // nothing rather than a placeholder number — a wrong figure on a marriage

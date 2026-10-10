@@ -148,7 +148,7 @@ export default function SiteFooter({ compact = false }) {
                   id="site-footer-email"
                   type="email"
                   required
-                  placeholder="you@example.com"
+                  placeholder="Your email address"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   className="site-footer-input"

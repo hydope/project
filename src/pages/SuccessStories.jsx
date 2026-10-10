@@ -50,8 +50,8 @@ const STEPS = [
   {
     icon: Eye,
     title: 'Filters that reflect what matters',
-    body: 'Narrow by sect, Marja` affiliation, religiosity, education, location and photo-access tier before anyone exchanges a word. A shared Marja` decides which rulings govern a household -- it is not a detail.',
-    points: ['Sect, sub-sect and Marja`', 'Religiosity, education, location, age', 'Verified-only and photo-access tiers'],
+    body: "Narrow by sect, Marja' affiliation, religiosity, education, location and photo-access tier before anyone exchanges a word. A shared Marja' decides which rulings govern a household -- it is not a detail.",
+    points: ['Sect, sub-sect and Marja', 'Religiosity, education, location, age', 'Verified-only and photo-access tiers'],
   },
   {
     icon: Heart,
