@@ -1,14 +1,15 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, ChevronLeft, Check, User, Moon, Landmark, GraduationCap,
   Heart, Shield, ClipboardCheck, Globe, KeyRound, Lock, UserRound,
-  Sparkles, AlertCircle, Save, HeartHandshake
+  Sparkles, AlertCircle, Save, HeartHandshake, Camera, X, Loader2
 } from 'lucide-react';
 import Layout from '../layouts/MainLayout';
 import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
+import { apiUrl } from '../lib/api/transport';
 import { saveMyProfile } from '../lib/storage';
 import {
   SECTS, MARJA_OPTIONS, RELIGIOSITY_LEVELS, PRAYER_OPTIONS,
@@ -708,6 +709,75 @@ function StepIntentions({ data, update, errors }) {
   );
 }
 
+// ── Step 6 photo upload ──────────────────────────────────────────────────────
+// M5 fix: onboarding had NO way to add a photo — "Privacy & photos" was
+// visibility settings only. Uploads via POST /api/profiles/me/photo (the same
+// endpoint Settings uses) so the photo exists before publish. Optional: the
+// member can skip it and add one later from Settings.
+function StepPhotoUpload() {
+  const [photo, setPhoto] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const fileRef = useRef(null);
+
+  // Returning member re-doing onboarding: show the photo they already have.
+  useEffect(() => {
+    api.getProfile('me').then(me => {
+      if (me?.photo) setPhoto(me.photo);
+    }).catch(() => {});
+  }, []);
+
+  const onFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    setUploading(true);
+    try {
+      const res = await api.uploadPhoto(file);
+      if (res?.photo) setPhoto(res.photo);
+    } catch (err) {
+      setError(err?.message || 'Could not upload that photo.');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const remove = async () => {
+    setError('');
+    try {
+      await api.deletePhoto();
+      setPhoto(null);
+    } catch (err) {
+      setError(err?.message || 'Could not remove the photo.');
+    }
+  };
+
+  return (
+    <Field label="Your photo" hint="Optional — add one now or later from Settings. It follows the visibility rules you pick below.">
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} aria-label="Upload a profile photo" />
+      {photo ? (
+        <div className="flex items-center gap-4">
+          <img src={apiUrl(photo)} alt="Your profile photo" className="w-20 h-20 rounded-xl object-cover"
+            style={{ border: '1px solid var(--color-border)' }} />
+          <div className="flex gap-2 flex-wrap">
+            <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="btn btn-secondary btn-sm">Change</button>
+            <button type="button" onClick={remove} disabled={uploading} className="btn btn-ghost btn-sm">Remove</button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
+          className="w-full flex items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed transition-all disabled:opacity-60"
+          style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface)' }}>
+          {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
+          <span className="text-sm font-medium">{uploading ? 'Uploading…' : 'Upload a photo'}</span>
+        </button>
+      )}
+      {error && <p className="mt-2 text-xs" style={{ color: 'var(--color-danger)' }}>{error}</p>}
+    </Field>
+  );
+}
+
 // ── Step 6: Privacy & photos — the platform's signature control ─────────────
 const PHOTO_ICONS = { globe: Globe, key: KeyRound, lock: Lock };
 
@@ -718,6 +788,8 @@ function StepPrivacy({ data, update, errors }) {
         <h2 className="text-xl font-bold text-ink">You control everything</h2>
         <p className="text-sm text-muted mt-1">Privacy is a right, not a premium feature. These settings can be changed anytime.</p>
       </div>
+
+      <StepPhotoUpload />
 
       <Field label="Photo visibility" hint="Your photos, your rules — you decide who can open them, and you can change this any time.">
         <div className="grid gap-2.5">
