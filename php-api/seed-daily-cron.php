@@ -11,6 +11,19 @@
 
 header('Content-Type: application/json');
 
+// Load .env (standalone script — bootstrap.php isn't included)
+$envFile = __DIR__ . '/.env';
+if (file_exists($envFile)) {
+    foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $l) {
+        $l = trim($l);
+        if ($l === '' || $l[0] === '#') continue;
+        if (strpos($l, '=') !== false) {
+            [$k, $v] = explode('=', $l, 2);
+            putenv(trim($k) . '=' . trim($v));
+        }
+    }
+}
+
 $provided = $_SERVER['HTTP_X_SEEDER_CRON_KEY'] ?? '';
 $expected = getenv('SEEDER_CRON_KEY') ?: '';
 
