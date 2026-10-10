@@ -116,6 +116,20 @@ export const ROUTE_SEO = {
     ],
   },
 
+  '/locations': {
+    title: 'Shia Matrimony by City & Country | Shia Rishta',
+    desc: 'Find Shia matrimonial profiles by city or country. Browse verified Shia rishta in Karachi, London, Toronto, Dubai and more. Free to browse.',
+    h1: 'Shia matrimony by location',
+    lede: 'Find Shia matrimonial profiles by city or country. Every location listed has members on Shia Rishta today, and each page links to live, filtered results.',
+    sections: [
+      { h2: 'Where are members?', p: 'This directory lists only locations that currently have at least one member. Nothing is listed speculatively: a city with no profiles does not get a page, because an empty location page is thin content rather than useful information.' },
+      { h2: 'What happens when I open a city page?', p: 'Each city and country page links straight to live, filtered profiles for that place — real members you can express interest in, not a static list.' },
+    ],
+    faq: [
+      { q: 'Why isn’t my city listed?', a: 'This directory lists only places that currently have at least one member. If your city isn’t here, nobody on the platform lives there yet — join free and you’ll be the first.' },
+      { q: 'Can I search across the whole platform instead?', a: 'Yes. The full directory lets you filter by city, country, age, sect and more, whatever your location.' },
+    ],
+  },
   '/profiles': {
     title: 'Browse Shia Brides & Grooms for Nikah | Shia Rishta',
     desc: 'Search verified Shia profiles for nikah — filter by sect, marja, education and location. Serious Shia matrimony with privacy-first profiles. Join free.',
