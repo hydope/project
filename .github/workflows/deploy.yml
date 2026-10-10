@@ -1,5 +1,14 @@
 name: Deploy to cPanel
 
+# Prevent concurrent deploys from stepping on each other via FTPS.
+# 2026-10-10: three overlapping deploys corrupted the live JS bundles —
+# the homepage stuck on the splash screen and /auth/* crashed, because
+# files were being overwritten mid-upload. Only one deploy may run at a
+# time; newer pushes queue behind the in-progress run.
+concurrency:
+  group: deploy-to-cpanel
+  cancel-in-progress: false
+
 # Deploys the Shia Rishta app to shared cPanel hosting on every push to main.
 #   Frontend (Vite dist/)      -> /public_html/            (https://shiarishta.com)
 #   PHP API (php-api/)         -> /public_html/api/        (https://shiarishta.com/api)
