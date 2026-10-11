@@ -65,10 +65,12 @@ jobs:
             python3 -c "import json,sys; print(json.load(open('/tmp/gen.json'))['system'])" > /tmp/system_prompt.txt
             python3 .github/scripts/build_payload.py /tmp/system_prompt.txt /tmp/nvidia_payload.json
 
+            # A dead NVIDIA (timeouts on all retries) must NOT kill the step:
+            # bash -e would abort before the fallback below ever runs.
             NVIDIA_RESP=$(curl -s --max-time 180 --retry 2 -X POST https://integrate.api.nvidia.com/v1/chat/completions \
               -H "Authorization: Bearer $NVIDIA_API_KEY" \
               -H "Content-Type: application/json" \
-              -d @/tmp/nvidia_payload.json)
+              -d @/tmp/nvidia_payload.json || true)
 
             POST_JSON=$(echo "$NVIDIA_RESP" | python3 .github/scripts/parse_post.py)
             if ! echo "$POST_JSON" | grep -q '"title"'; then
