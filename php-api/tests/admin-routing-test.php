@@ -185,7 +185,7 @@ route(
     'POST /verifications/bulk resolves to the bulk handler',
     'POST',
     ['verifications', 'bulk'],
-    'SELECT id, user_id FROM verifications WHERE id IN (?,?)',
+    'SELECT id, user_id, kind FROM verifications WHERE id IN (?,?)',
     ['ids' => ['v1', 'v2'], 'verb' => 'approve']
 );
 
@@ -194,7 +194,7 @@ route(
     'POST /verifications/:id/bulk still resolves to the bulk handler',
     'POST',
     ['verifications', 'abc', 'bulk'],
-    'SELECT id, user_id FROM verifications WHERE id IN (?,?)',
+    'SELECT id, user_id, kind FROM verifications WHERE id IN (?,?)',
     ['ids' => ['v1', 'v2'], 'verb' => 'approve']
 );
 
@@ -220,7 +220,7 @@ route(
     'POST /verifications/:id/approve probes the single verification',
     'POST',
     ['verifications', 'abc', 'approve'],
-    'SELECT user_id FROM verifications WHERE id = ? AND status = \'pending\''
+    'SELECT user_id, kind FROM verifications WHERE id = ? AND status = \'pending\''
 );
 
 // Read routes used by the new UI.
