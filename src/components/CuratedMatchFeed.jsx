@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Bookmark, MapPin, Shield, Sparkles, Check } from 'lucide-react';
 import { computeCompatibility, getMyProfile } from '../lib/compatibility';
+import VerifiedBadge from './VerifiedBadge';
 
 /**
  * CuratedMatchFeed — Intentional profile browsing for marriage-minded users.
@@ -147,15 +148,13 @@ export default function CuratedMatchFeed({ profiles = [], onExpressInterest }) {
                 </div>
               )}
 
-              {/* Verified */}
-              {current.is_verified && (
-                <div
-                  className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center"
-                  style={{ background: 'linear-gradient(135deg,#34d399,#10b981)', boxShadow: '0 4px 14px rgba(52,211,153,0.5)' }}
-                >
-                  <Shield className="w-4 h-4 text-white" />
-                </div>
-              )}
+              {/* Verified — two-tier badge (ID gold / selfie blue) */}
+              <VerifiedBadge
+                verifiedKind={current.verified_kind}
+                variant="icon"
+                size={32}
+                className="absolute top-4 right-4"
+              />
 
               {/* Identity overlay */}
               <div className="absolute bottom-4 left-4 right-4">

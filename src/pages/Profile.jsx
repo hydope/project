@@ -7,7 +7,8 @@ import { useAuth } from '../lib/auth/AuthContext';
 import LoginGate from '../components/LoginGate';
 import { formatCity, formatCountry } from '../lib/format';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { ArrowLeft, ShieldCheck, MapPin, Heart, MessageCircle, Bookmark, Lock, Users, Award, Sparkles, BadgeCheck } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, MapPin, Heart, MessageCircle, Bookmark, Lock, Users, Award, Sparkles } from 'lucide-react';
+import VerifiedBadge from '../components/VerifiedBadge';
 import CompatibilityIndex from '../components/CompatibilityIndex';
 import { ReportFlag } from '../components/ReportFlag';
 import { blockMember, unblockMember } from '../lib/api/safety';
@@ -206,7 +207,6 @@ export default function Profile() {
 
   if (error || !profile) return (<Layout><main className="max-w-4xl mx-auto px-6 py-10"><div className="empty-state"><div className="empty-state-icon"><Users className="w-16 h-16" /></div><h1 className="empty-state-title">Not found</h1><p className="empty-state-text">The profile you're looking for doesn't exist or may be private.</p><Link to="/profiles" className="button primary mt-4 inline-flex">Browse Profiles</Link></div></main></Layout>);
 
-  const verificationLabel = profile.verificationLevel === 'premium' ? 'ID verified' : profile.is_verified ? 'Verified' : null;
   const isGuardianManaged = profile.managementMode === 'guardian' || profile.guardian;
 
   return (
@@ -237,7 +237,7 @@ export default function Profile() {
                     )}
                   </div>
                  )}
-                {verificationLabel && (<div className="float-card-badge-match"><ShieldCheck className="w-3 h-3" /> {verificationLabel}</div>)}
+                <VerifiedBadge verifiedKind={profile.verified_kind} variant="pill" className="absolute top-2 right-2 z-[2]" />
                 {profile.photosLocked && (<div className="float-card-lock"><div className="float-card-lock-inner"><Lock className="w-4 h-4" /> Private</div></div>)}
               </div>
               {(profile.gallery || []).length > 1 && (
@@ -309,7 +309,7 @@ export default function Profile() {
                 <div>
                   <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--color-ink)' }}>
                     {profile.displayName}, {profile.age}
-                    {profile.is_verified && <BadgeCheck className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />}
+                    <VerifiedBadge verifiedKind={profile.verified_kind} iconClassName="w-5 h-5" />
                   </h1>
                   <p className="text-[15px] mt-1.5 flex items-center gap-2" style={{ color: 'var(--color-ink-secondary)' }}>
                     <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-primary)' }} />

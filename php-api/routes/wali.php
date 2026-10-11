@@ -48,7 +48,7 @@ function listWaliLinks(): void
 function publicWaliView(string $token): void
 {
     $stmt = db()->prepare(
-        'SELECT u.id, p.display_name, p.age, p.city, p.country, p.sect, p.profession, p.bio, p.is_verified, l.revoked
+        'SELECT u.id, p.display_name, p.age, p.city, p.country, p.sect, p.profession, p.bio, p.is_verified, p.verified_kind, l.revoked
            FROM wali_links l
            JOIN users u ON u.id = l.user_id
            LEFT JOIN profiles p ON p.user_id = u.id
@@ -72,6 +72,7 @@ function publicWaliView(string $token): void
             'profession' => $row['profession'],
             'bio' => $row['bio'],
             'isVerified' => (bool)($row['is_verified'] ?? false),
+            'verifiedKind' => (string)($row['verified_kind'] ?? 'none'),
         ],
     ]);
 }

@@ -12,8 +12,9 @@ import { formatCity, formatCountry } from '../lib/format';
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  User, MessageCircle, Eye, Users, Sparkles, Flame, ArrowRight, ShieldCheck
+  User, MessageCircle, Eye, Users, Sparkles, Flame, ArrowRight
 } from 'lucide-react';
+import VerifiedBadge from '../components/VerifiedBadge';
 
 // Match card with authenticated photo loading and monogram fallback.
 function MatchCard({ p, i }) {
@@ -44,7 +45,7 @@ function MatchCard({ p, i }) {
             {typeof p.score === 'number' && !Number.isNaN(p.score) && (
               <span className="badge badge-success text-xs font-bold">{p.score}%</span>
             )}
-            {p.is_verified && <ShieldCheck className="w-3 h-3" style={{ color: 'var(--color-warning)' }} />}
+            <VerifiedBadge verifiedKind={p.verified_kind} iconClassName="w-3.5 h-3.5" />
           </div>
         </div>
       </Link>

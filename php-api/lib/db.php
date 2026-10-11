@@ -254,6 +254,7 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'expectations' => $row['expectations'] ?? null,
             'aboutFamily' => $row['about_family'] ?? null,
             'is_verified' => (bool)($row['is_verified'] ?? false),
+            'verified_kind' => (string)($row['verified_kind'] ?? 'none'),
             'isDemo' => (bool)($row['is_demo'] ?? false),
             'visibility' => $row['visibility'] ?? 'members',
             'username' => $row['username'] ?? null,
@@ -301,6 +302,7 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'expectations' => $row['expectations'] ?? null,
             'aboutFamily' => $row['about_family'] ?? null,
             'is_verified' => (bool)($row['is_verified'] ?? false),
+            'verified_kind' => (string)($row['verified_kind'] ?? 'none'),
             'isDemo' => (bool)($row['is_demo'] ?? false),
             'visibility' => $row['visibility'] ?? 'members',
             // Public handle the member chose for themselves. Null when unset.
@@ -345,6 +347,7 @@ function visibleProfile(array $row, ?array $viewer): ?array
         'age' => $row['age'] ?? null,
         'profession' => $row['profession'] ?? null,
         'is_verified' => (bool)($row['is_verified'] ?? false),
+        'verified_kind' => (string)($row['verified_kind'] ?? 'none'),
         'isDemo' => (bool)($row['is_demo'] ?? false),
         'expectations' => $row['expectations'] ?? null,
         'aboutFamily' => $row['about_family'] ?? null,

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, useMotionValue, useTransform, animate, AnimatePresence } from 'framer-motion';
-import { Heart, X, Star, Undo2, Lock, MapPin, Sparkles, RotateCcw, Search, ShieldCheck } from 'lucide-react';
+import { Heart, X, Star, Undo2, Lock, MapPin, Sparkles, RotateCcw, Search } from 'lucide-react';
+import VerifiedBadge from './VerifiedBadge';
 import CompatibilityIndex, { CompatibilityRing } from './CompatibilityIndex';
 import { computeCompatibility } from '../lib/compatibility';
 import { apiUrl } from '../lib/api/transport';
@@ -268,7 +269,7 @@ function CardFace({ profile, children, staticMode = false }) {
           <div className="min-w-0">
             <h3 className="text-white font-bold text-xl leading-tight flex items-center gap-1.5 truncate">
               {profile.displayName}, {profile.age}
-              {profile.is_verified && <ShieldCheck className="w-4.5 h-4.5 flex-shrink-0" style={{ color: 'var(--accent)' }} aria-label="ID verified" />}
+              <VerifiedBadge verifiedKind={profile.verified_kind} iconClassName="w-4.5 h-4.5" />
             </h3>
             <p className="text-white/85 text-xs flex items-center gap-1 mt-0.5">
               <MapPin className="w-3 h-3" /> {profile.city}, {profile.country} · {profile.profession}

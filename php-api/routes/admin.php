@@ -441,24 +441,35 @@ function adminApproveVerification(string $verificationId): void
     $note = sanitizeText((string)($payload['note'] ?? ''), 500) ?: null;
 
     // Guard first (only pending rows are reviewable), then update, then flip badge.
-    $probe = db()->prepare("SELECT user_id FROM verifications WHERE id = ? AND status = 'pending' LIMIT 1");
+    $probe = db()->prepare("SELECT user_id, kind FROM verifications WHERE id = ? AND status = 'pending' LIMIT 1");
     $probe->execute([$verificationId]);
     $row = $probe->fetch();
     if (!$row) {
         je('Submission not found or already reviewed.', 404);
     }
+    // Two-tier badge: the row's kind (selfie|id_document) decides which badge
+    // the member earns. Whitelisted — a stray kind value must never reach the
+    // public profile payload.
+    $kind = (string)($row['kind'] ?? '');
+    if (!in_array($kind, ['selfie', 'id_document'], true)) {
+        error_log('[api] verification approved with unexpected kind: ' . substr($kind, 0, 32));
+        $kind = 'selfie';
+    }
 
     db()->prepare("UPDATE verifications SET status = 'approved', reviewed_by = ?, reviewed_at = UTC_TIMESTAMP(), review_note = ? WHERE id = ?")
         ->execute([$admin['uid'], $note, $verificationId]);
-    db()->prepare('UPDATE profiles SET is_verified = 1, updated_at = UTC_TIMESTAMP() WHERE user_id = ?')
-        ->execute([$row['user_id']]);
+    // The CASE keeps an existing ID badge when a later selfie is approved:
+    // a selfie approval must never demote a member to the lower tier.
+    db()->prepare("UPDATE profiles SET is_verified = 1, verified_kind = CASE WHEN verified_kind = 'id_document' THEN 'id_document' ELSE ? END, updated_at = UTC_TIMESTAMP() WHERE user_id = ?")
+        ->execute([$kind, $row['user_id']]);
 
     auditLog('verification.approved', 'verification', $verificationId, [
         'userId' => (string)$row['user_id'],
+        'kind' => $kind,
         'note' => $note,
     ]);
 
-    json(['ok' => true, 'verified' => true]);
+    json(['ok' => true, 'verified' => true, 'verifiedKind' => $kind]);
 }
 
 function adminRejectVerification(string $verificationId): void
@@ -468,16 +479,39 @@ function adminRejectVerification(string $verificationId): void
     $note = sanitizeText((string)($payload['note'] ?? ''), 500)
         ?: 'Photo was not clear enough — please resubmit.';
 
-    $probe = db()->prepare("SELECT id FROM verifications WHERE id = ? AND status = 'pending' LIMIT 1");
+    $probe = db()->prepare("SELECT id, user_id FROM verifications WHERE id = ? AND status = 'pending' LIMIT 1");
     $probe->execute([$verificationId]);
-    if (!$probe->fetch()) {
+    $verif = $probe->fetch();
+    if (!$verif) {
         je('Submission not found or already reviewed.', 404);
     }
 
     db()->prepare("UPDATE verifications SET status = 'rejected', reviewed_by = ?, reviewed_at = UTC_TIMESTAMP(), review_note = ? WHERE id = ?")
         ->execute([$admin['uid'], $note, $verificationId]);
 
-    auditLog('verification.rejected', 'verification', $verificationId, ['note' => $note]);
+    // Revocation: a rejection must clear the badge when the member has no
+    // other approved verification left. Previously the badge, once flipped,
+    // survived every rejection forever. An approved ID document outranks an
+    // approved selfie when both exist.
+    $userId = (string)$verif['user_id'];
+    $stillApproved = db()->prepare(
+        "SELECT kind FROM verifications
+          WHERE user_id = ? AND status = 'approved'
+          ORDER BY (kind = 'id_document') DESC, reviewed_at DESC LIMIT 1"
+    );
+    $stillApproved->execute([$userId]);
+    $remaining = $stillApproved->fetch();
+    if ($remaining) {
+        $rk = (string)($remaining['kind'] ?? '');
+        if (!in_array($rk, ['selfie', 'id_document'], true)) $rk = 'selfie';
+        db()->prepare('UPDATE profiles SET is_verified = 1, verified_kind = ?, updated_at = UTC_TIMESTAMP() WHERE user_id = ?')
+            ->execute([$rk, $userId]);
+    } else {
+        db()->prepare("UPDATE profiles SET is_verified = 0, verified_kind = 'none', updated_at = UTC_TIMESTAMP() WHERE user_id = ?")
+            ->execute([$userId]);
+    }
+
+    auditLog('verification.rejected', 'verification', $verificationId, ['note' => $note, 'userId' => $userId]);
 
     json(['ok' => true]);
 }
@@ -1051,7 +1085,7 @@ function adminVerificationBulk(): void
     }
 
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $probe = db()->prepare("SELECT id, user_id FROM verifications WHERE id IN ({$placeholders}) AND status = 'pending'");
+    $probe = db()->prepare("SELECT id, user_id, kind FROM verifications WHERE id IN ({$placeholders}) AND status = 'pending'");
     $probe->execute($ids);
     $rows = $probe->fetchAll();
     if (!$rows) {
@@ -1062,11 +1096,58 @@ function adminVerificationBulk(): void
     if ($verb === 'approve') {
         $up = db()->prepare("UPDATE verifications SET status='approved', reviewed_by=?, reviewed_at=UTC_TIMESTAMP(), review_note=? WHERE id IN ({$placeholders})");
         $up->execute(array_merge([$actor['uid'], $note ?: null], $ids));
-        $sync = db()->prepare("UPDATE profiles SET is_verified = 1, updated_at = UTC_TIMESTAMP() WHERE user_id IN (SELECT user_id FROM verifications WHERE id IN ({$placeholders}))");
-        $sync->execute($ids);
+        // Two-tier badge sync, grouped per verification kind. A member with at
+        // least one approved ID document earns the ID badge; otherwise the
+        // photo badge. One row per user_id keeps the update set tight.
+        $idUsers = [];
+        $selfieUsers = [];
+        foreach ($rows as $r) {
+            $uid = (string)$r['user_id'];
+            if ((string)($r['kind'] ?? '') === 'id_document') {
+                $idUsers[$uid] = true;
+            } else {
+                $selfieUsers[$uid] = true;
+            }
+        }
+        // Anyone with an id_document approval in this batch gets the ID badge,
+        // regardless of a selfie approval in the same batch.
+        $syncId = function (array $uids, string $kind): void {
+            if (!$uids) return;
+            $ph = implode(',', array_fill(0, count($uids), '?'));
+            // A selfie approval must never demote an existing ID badge; an ID
+            // approval always promotes.
+            $guard = $kind === 'selfie' ? " AND verified_kind <> 'id_document'" : '';
+            $stmt = db()->prepare("UPDATE profiles SET is_verified = 1, verified_kind = ?, updated_at = UTC_TIMESTAMP() WHERE user_id IN ({$ph}){$guard}");
+            $stmt->execute(array_merge([$kind], array_values($uids)));
+        };
+        $selfieOnly = array_diff_key($selfieUsers, $idUsers);
+        $syncId(array_keys($idUsers), 'id_document');
+        $syncId(array_keys($selfieOnly), 'selfie');
     } else {
         $up = db()->prepare("UPDATE verifications SET status='rejected', reviewed_by=?, reviewed_at=UTC_TIMESTAMP(), review_note=? WHERE id IN ({$placeholders})");
         $up->execute(array_merge([$actor['uid'], $note ?: 'Photo was not clear enough - please resubmit.'], $ids));
+        // Same revocation semantics as the single-reject path: a rejection
+        // clears the badge only when the member has no other approved
+        // verification left; otherwise the badge follows the remaining one.
+        $affectedUsers = array_unique(array_map(static fn($r) => (string)$r['user_id'], $rows));
+        $checkApproved = db()->prepare(
+            "SELECT kind FROM verifications
+              WHERE user_id = ? AND status = 'approved'
+              ORDER BY (kind = 'id_document') DESC, reviewed_at DESC LIMIT 1"
+        );
+        $keepBadge = db()->prepare('UPDATE profiles SET is_verified = 1, verified_kind = ?, updated_at = UTC_TIMESTAMP() WHERE user_id = ?');
+        $clearBadge = db()->prepare("UPDATE profiles SET is_verified = 0, verified_kind = 'none', updated_at = UTC_TIMESTAMP() WHERE user_id = ?");
+        foreach ($affectedUsers as $uid) {
+            $checkApproved->execute([$uid]);
+            $rem = $checkApproved->fetch();
+            if ($rem) {
+                $rk = (string)($rem['kind'] ?? '');
+                if (!in_array($rk, ['selfie', 'id_document'], true)) $rk = 'selfie';
+                $keepBadge->execute([$rk, $uid]);
+            } else {
+                $clearBadge->execute([$uid]);
+            }
+        }
     }
 
     $n = count($rows);

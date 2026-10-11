@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, Bookmark, MapPin, Briefcase, Shield, Lock, Sparkles } from 'lucide-react';
+import { Heart, Bookmark, MapPin, Briefcase, Lock, Sparkles } from 'lucide-react';
+import VerifiedBadge from './VerifiedBadge';
 import { useAuthedImage } from '../lib/api/useAuthedImage';
 import { computeCompatibility, getMyProfile } from '../lib/compatibility';
 import { formatCity, formatCountry } from '../lib/format';
@@ -209,19 +210,13 @@ export default function ProfileCard({ profile, className = '' }) {
             </div>
           )}
 
-          {/* Verified */}
-          {profile.is_verified && (
-            <div
-              className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(135deg,#34d399,#10b981)',
-                boxShadow: '0 4px 14px rgba(52,211,153,0.5)',
-                border: '1px solid rgba(255,255,255,0.25)',
-              }}
-            >
-              <Shield className="w-3.5 h-3.5 text-white" />
-            </div>
-          )}
+          {/* Verified — two-tier badge (ID gold / selfie blue) */}
+          <VerifiedBadge
+            verifiedKind={profile.verified_kind}
+            variant="icon"
+            size={28}
+            className="absolute top-2.5 right-2.5"
+          />
 
           {/* Syed / Sadat badge */}
           {(profile.syedStatus === 'sadat-both' || profile.syedStatus === 'syed-paternal') && (

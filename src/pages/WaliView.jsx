@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Layout from '../layouts/LandingLayout';
-import { ShieldCheck, Eye } from 'lucide-react';
+import { Eye } from 'lucide-react';
+import VerifiedBadge from '../components/VerifiedBadge';
 import { http } from '../lib/api/transport';
 
 // Wali companion view — read-only, token-gated, deliberately minimal.
@@ -52,7 +53,7 @@ export default function WaliView() {
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--color-ink)' }}>
                   {m.displayName}{m.age ? `, ${m.age}` : ''}
-                  {m.isVerified && <ShieldCheck className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />}
+                  <VerifiedBadge verifiedKind={m.verifiedKind} iconClassName="w-5 h-5" />
                 </h1>
                 {m.sect && <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}>{m.sect}</span>}
               </div>

@@ -157,6 +157,10 @@ function migrateAddProfileColumns(): void
         // submitter's user id (interests go to them).
         'is_matchmaker'        => "TINYINT(1) NOT NULL DEFAULT 0",
         'matchmaker_by'        => "CHAR(36) DEFAULT NULL",
+        // Two-tier verification badge: 'none' | 'selfie' | 'id_document'.
+        // Mirrors verifications.kind at the moment an admin approves. Kept as
+        // a denormalized column so every profile read path gets it for free.
+        'verified_kind'        => "VARCHAR(20) NOT NULL DEFAULT 'none'",
     ];
 
     try {
@@ -175,6 +179,32 @@ function migrateAddProfileColumns(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (columns) issue: ' . $e->getMessage());
+    }
+
+    // Backfill the two-tier badge for profiles verified before verified_kind
+    // existed. Without this, every previously-verified member would silently
+    // lose their badge on the next read (verified_kind defaults to 'none').
+    // ID-document approval outranks a selfie approval for the same member.
+    // Idempotent: re-running keeps the same values.
+    try {
+        db()->exec(
+            "UPDATE profiles p SET p.verified_kind = 'id_document'
+              WHERE p.is_verified = 1 AND p.verified_kind = 'none'
+                AND EXISTS (SELECT 1 FROM verifications v
+                             WHERE v.user_id = p.user_id
+                               AND v.status = 'approved'
+                               AND v.kind = 'id_document')"
+        );
+        db()->exec(
+            "UPDATE profiles p SET p.verified_kind = 'selfie'
+              WHERE p.is_verified = 1 AND p.verified_kind = 'none'
+                AND EXISTS (SELECT 1 FROM verifications v
+                             WHERE v.user_id = p.user_id
+                               AND v.status = 'approved'
+                               AND v.kind = 'selfie')"
+        );
+    } catch (Throwable $e) {
+        error_log('[api] migration: verified_kind backfill — ' . substr($e->getMessage(), 0, 120));
     }
 
     // Backfill for existing members: on a nikah platform the overwhelmingly

@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS profiles (
   visibility         VARCHAR(16)  NOT NULL DEFAULT 'members',
   photos_visibility  VARCHAR(16)  NOT NULL DEFAULT 'members',
   is_verified        TINYINT(1)   NOT NULL DEFAULT 0,
+  -- Two-tier verification: 'none' | 'selfie' | 'id_document'. Set when an
+  -- admin approves a verification submission; mirrors verifications.kind.
+  verified_kind      VARCHAR(20)  NOT NULL DEFAULT 'none',
   is_blocked         TINYINT(1)   NOT NULL DEFAULT 0,
   blocked_until      DATETIME     DEFAULT NULL,
   block_reason       VARCHAR(255) DEFAULT NULL,

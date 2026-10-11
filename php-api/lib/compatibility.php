@@ -122,7 +122,11 @@ class CompatibilityService
         if ($myR !== null && $theirR !== null && abs($myR - $theirR) <= 1) {
             $reasons[] = 'Closely matched religiosity';
         }
-        if (!empty($profile['is_verified'])) $reasons[] = 'ID-verified member';
+        if (!empty($profile['is_verified'])) {
+            $reasons[] = (($profile['verified_kind'] ?? '') === 'id_document')
+                ? 'ID-verified member'
+                : 'Photo-verified member';
+        }
         if ($timeline >= 80) $reasons[] = 'Aligned nikah timelines';
 
         $finalOverall = $genderMismatch ? 5 : max(35, min(99, $overall));
