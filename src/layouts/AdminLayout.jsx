@@ -5,7 +5,7 @@ import Seo from '../components/Seo';
 import {
   LayoutDashboard, ShieldAlert, UserCheck, Users, LifeBuoy, BadgeCheck,
   KeyRound, History, BookOpen, BarChart3, LogOut, HeartHandshake, Home,
-  Sun, Moon, FileText,
+  Sun, Moon, FileText, Sprout,
 } from 'lucide-react';
 
 const ADMIN_LINKS = [
@@ -13,6 +13,7 @@ const ADMIN_LINKS = [
   { path: '/admin/queue', label: 'Moderation Queue', icon: ShieldAlert },
   { path: '/admin/verify-accounts', label: 'Verify Accounts', icon: UserCheck },
   { path: '/admin/members', label: 'Members', icon: Users },
+  { path: '/admin/members', to: '/admin/members?seeded=1', label: 'Seed Members', icon: Sprout, seeded: true },
   { path: '/admin/matchmaker', label: 'Matchmaker Queue', icon: HeartHandshake },
   { path: '/admin/biodata', label: 'Biodata Maker', icon: FileText },
   { path: '/admin/verifications', label: 'ID Verifications', icon: BadgeCheck },
@@ -31,19 +32,28 @@ const ADMIN_LINKS = [
 const ADMIN_THEME_KEY = 'shiarishta-admin-theme';
 export default function AdminLayout({ children }) {
   const { user, logout } = useAuth();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const [light, setLight] = useState(() => {
     try { return localStorage.getItem(ADMIN_THEME_KEY) === 'light'; } catch { return false; }
   });
 
   useEffect(() => {
-    try { localStorage.setItem(ADMIN_THEME_KEY, light ? 'light' : 'dark'); } catch {}
+    try { localStorage.setItem(ADMIN_THEME_KEY, light ? 'light' : 'dark'); } catch { /* theme preference is best-effort */ }
   }, [light]);
 
   const doLogout = async () => {
     await logout();
     navigate('/admin/login', { replace: true });
+  };
+
+  // Seed Members shares the /admin/members path with Members and is
+  // distinguished by ?seeded=1 — pathname alone cannot tell them apart.
+  const seedView = new URLSearchParams(search).get('seeded') === '1';
+  const isActiveLink = (l) => {
+    if (l.seeded) return pathname === l.path && seedView;
+    if (l.path === '/admin/members') return pathname === l.path && !seedView;
+    return pathname === l.path || pathname.startsWith(l.path + '/');
   };
 
   // Theme tokens — dark (default) or light. These are set as CSS variables
@@ -92,10 +102,10 @@ export default function AdminLayout({ children }) {
         </div>
         <nav className="flex-1 overflow-y-auto py-3">
           {ADMIN_LINKS.map(l => {
-            const active = pathname === l.path || pathname.startsWith(l.path + '/');
+            const active = isActiveLink(l);
             const Icon = l.icon;
             return (
-              <Link key={l.path} to={l.path}
+              <Link key={l.to || l.path} to={l.to || l.path}
                 className="flex items-center gap-3 px-5 py-2.5 text-sm transition-colors"
                 style={{
                   color: active ? t.fg : t.muted,
@@ -149,10 +159,10 @@ export default function AdminLayout({ children }) {
         </header>
         <nav className="md:hidden flex gap-1 overflow-x-auto px-3 py-2" style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
           {ADMIN_LINKS.map(l => {
-            const active = pathname === l.path;
+            const active = isActiveLink(l);
             const Icon = l.icon;
             return (
-              <Link key={l.path} to={l.path} aria-label={l.label}
+              <Link key={l.to || l.path} to={l.to || l.path} aria-label={l.label}
                 className="p-2 rounded-lg flex-shrink-0"
                 style={{ background: active ? (light ? 'rgba(9,105,218,0.1)' : 'rgba(56,139,253,0.15)') : 'transparent', color: active ? t.fg : t.muted }}>
                 <Icon className="w-4 h-4" />

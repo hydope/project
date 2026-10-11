@@ -141,6 +141,10 @@ function fakeResponses(array $rows): void { $GLOBALS['fake_responses'] = $rows; 
 function db(): StubDb { return new StubDb(); }
 
 require_once __DIR__ . '/../routes/admin.php';
+// The admin photo endpoint reuses the member upload pipeline helpers
+// (photoReadUpload, sniffImageMime, photoBaseDir, ...). profiles.php is pure
+// function definitions — no duplicate names, no top-level side effects.
+require_once __DIR__ . '/../routes/profiles.php';
 require_once __DIR__ . '/../lib/ai.php';
 require_once __DIR__ . '/../routes/ai.php';
 require_once __DIR__ . '/../lib/AdminService.php';
@@ -264,6 +268,21 @@ route(
 route('POST /reports/:id/action probes before writing', 'POST', ['reports', 'abc', 'action'], 'FROM reports WHERE id = ?');
 route('POST /reports/:id/dismiss writes dismissed', 'POST', ['reports', 'abc', 'dismiss'], "SET status = 'dismissed'");
 route('POST /users/:id/unblock', 'POST', ['users', 'abc', 'unblock'], 'FROM users');
+
+// POST /users/:id/photo dispatches to the admin photo handler. No file is
+// attached in CLI, so the handler must answer 400 "Attach a photo" — a 404
+// would mean the route fell through to the unknown-endpoint branch.
+$GLOBALS['sql_seen'] = [];
+try {
+    routeAdmin('POST', ['users', 'u1', 'photo']);
+    check('POST /users/:id/photo routes to photo handler', false, 'did not throw');
+} catch (Throwable $e) {
+    check(
+        'POST /users/:id/photo routes to photo handler',
+        $e->getMessage() === 'J:400:Attach a photo to upload.',
+        'threw: ' . substr($e->getMessage(), 0, 90)
+    );
+}
 
 // A genuinely unknown action must still 404 rather than silently passing.
 $GLOBALS['sql_seen'] = [];

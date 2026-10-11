@@ -383,6 +383,13 @@ function routeAdmin(string $method, array $segments): void
         adminVerifyEmail((string)$segments[1]);
         return;
     }
+    // POST /api/admin/users/:id/photo — admin uploads a member's profile photo.
+    // Same validation pipeline as the member photoUpload(); the file lands in
+    // the member's own photo dir and profiles.photo_url is updated.
+    if ($method === 'POST' && $action === 'users' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === 'photo') {
+        adminUserPhoto((string)$segments[1]);
+        return;
+    }
     // PATCH /api/admin/users/:id — edit a member's name, photo and details.
     if ($method === 'PATCH' && $action === 'users' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === null) {
         adminUpdateUser((string)$segments[1]);
@@ -933,6 +940,7 @@ function adminUsers(): void
     $role = $_GET['role'] ?? null;
     $verified = $_GET['verified'] ?? null;
     $blocked = $_GET['blocked'] ?? null;
+    $seededOnly = ($_GET['seeded'] ?? null) === '1';
     $limit = max(1, min(100, (int)($_GET['limit'] ?? 25)));
 
     $where = [];
@@ -954,9 +962,16 @@ function adminUsers(): void
         $where[] = 'u.email_verified = ?';
         $params[] = (int)$verified;
     }
+    if ($seededOnly) {
+        // Synthetic members created by the daily seeder. There is no
+        // is_seeded column — the seeded-%@shiarishta.com email pattern is the
+        // identifier (see php-api/seed-daily-profiles.php).
+        $where[] = "u.email LIKE 'seeded-%@shiarishta.com'";
+    }
 
     $sql = 'SELECT u.id, u.email, u.display_name, u.role, u.email_verified, u.created_at,
                    u.verification_status,
+                   (u.email LIKE \'seeded-%@shiarishta.com\') AS is_seeded,
                    p.is_blocked, p.is_verified AS id_verified, p.city, p.country, p.age
               FROM users u
               LEFT JOIN profiles p ON p.user_id = u.id';
@@ -991,6 +1006,7 @@ function adminUsers(): void
         $r['is_blocked'] = (bool)($r['is_blocked'] ?? false);
         $r['id_verified'] = (bool)($r['id_verified'] ?? false);
         $r['email_verified'] = (bool)($r['email_verified'] ?? false);
+        $r['is_seeded'] = (bool)($r['is_seeded'] ?? false);
     }
     unset($r);
 
@@ -1711,6 +1727,96 @@ function adminUpdateUser(string $userId): void
     }
     auditLog('user.updated', 'user', $userId, ['email' => (string)$row['email'], 'fields' => $changed]);
     json(['ok' => true, 'id' => $row['id'], 'updated' => $changed]);
+}
+
+// POST /api/admin/users/:id/photo — admin-only photo upload for any member.
+//
+// Mirrors the member photoUpload() validation pipeline step for step:
+// multipart read, 5 MB cap, byte-sniffed mime, decode check, pixel cap,
+// structural completeness, EXIF strip. The file is written into the member's
+// own photo directory under a server-generated name (the client filename is
+// never used), profiles.photo_url is updated, and the member's previous
+// uploaded photo file is removed. A remote (http/https) photo URL is left
+// alone — it is not ours to delete.
+function adminUserPhoto(string $userId): void
+{
+    // routeAdmin already enforced admin, but check again so this function is
+    // safe no matter how it is reached.
+    $me = requireAuthUser();
+    if (empty($me['isAdmin'])) {
+        je('Admin access required', 403);
+    }
+
+    $probe = db()->prepare('SELECT id FROM users WHERE id = ? LIMIT 1');
+    $probe->execute([$userId]);
+    if (!$probe->fetch()) {
+        je('Member not found.', 404);
+    }
+
+    $bytes = photoReadUpload();
+    if ($bytes === '') {
+        je('Attach a photo to upload.', 400);
+    }
+    if (strlen($bytes) > PHOTO_MAX_BYTES) {
+        je('Photo must be under 5 MB.', 400);
+    }
+
+    // 1. Sniff the ACTUAL bytes.
+    $mime = sniffImageMime($bytes);
+    if (!isset(PHOTO_ALLOWED[$mime])) {
+        je('Photo must be a JPEG, PNG or WebP image.', 400);
+    }
+
+    // 2. Confirm it really decodes, and get the real dimensions.
+    $info = @getimagesizefromstring($bytes);
+    if ($info === false || (int)$info[0] < 1 || (int)$info[1] < 1) {
+        je('That file is not a readable image.', 400);
+    }
+    if ((int)$info[0] * (int)$info[1] > PHOTO_MAX_PIXELS) {
+        je('Photo resolution is too large.', 400);
+    }
+
+    // 2b. Structural completeness — refuse trailing-byte payloads outright.
+    if (!imageIsComplete($bytes, $mime)) {
+        je('That file is not a complete image.', 400);
+    }
+
+    // 3. Strip EXIF (selfies carry GPS coordinates).
+    $bytes = stripJpegExif($bytes);
+    $ext = PHOTO_ALLOWED[$mime];
+
+    // 4. Write it into the member's own directory.
+    $dir = photoBaseDir() . '/' . $userId;
+    if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+        error_log(sprintf('[api] admin photo mkdir failed for uid=%s', $userId));
+        je('Could not save the photo — server storage is not writable.', 500);
+    }
+    $path = $dir . '/' . uuid() . '.' . $ext;
+    if (@file_put_contents($path, $bytes) === false) {
+        error_log(sprintf('[api] admin photo write failed path=%s bytes=%d', $path, strlen($bytes)));
+        je('Could not save the photo.', 500);
+    }
+
+    $prev = db()->prepare('SELECT photo_url FROM profiles WHERE user_id = ? LIMIT 1');
+    $prev->execute([$userId]);
+    $old = (string)($prev->fetch()['photo_url'] ?? '');
+
+    $upd = db()->prepare('UPDATE profiles SET photo_url = ?, updated_at = UTC_TIMESTAMP() WHERE user_id = ?');
+    $upd->execute([$path, $userId]);
+    // No profile row: the file would sit orphaned on disk with nothing ever
+    // serving it. Fail loudly instead of reporting a success that is not real.
+    if ($upd->rowCount() === 0) {
+        @unlink($path);
+        je('Could not save the photo — no profile found for this member.', 409);
+    }
+    if ($old !== '' && $old !== $path
+        && !preg_match('#^https?://#i', $old)
+        && !str_starts_with($old, 'data:')) {
+        @unlink($old);
+    }
+
+    auditLog('user.photo_updated', 'user', $userId, ['by' => (string)($me['uid'] ?? 'admin')]);
+    json(['ok' => true, 'photo' => '/api/profiles/' . $userId . '/photo'], 201);
 }
 
 

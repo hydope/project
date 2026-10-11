@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Layout from '@/layouts/AdminLayout';
-import { http } from '@/lib/api/transport';
-import { Search, Users, RefreshCw, X, ShieldCheck, Ban, History, Mail, Check, Pencil } from 'lucide-react';
+import { http, apiUrl } from '@/lib/api/transport';
+import { Search, Users, RefreshCw, X, ShieldCheck, Ban, History, Mail, Check, Pencil, Upload, Sprout } from 'lucide-react';
 
 /**
  * Member directory â€” searchable, paginated, with a full detail drawer.
@@ -35,6 +36,7 @@ export default function AdminMembers() {
     try {
       const params = new URLSearchParams({ limit: String(limit) });
       if (q.trim()) params.set('q', q.trim());
+      if (seededOnly) params.set('seeded', '1');
       const result = await http.get(`/api/admin/users?${params}`);
       if (id !== reqId.current) return; // a newer search already won
       setData(result);
@@ -44,7 +46,7 @@ export default function AdminMembers() {
     } finally {
       if (id === reqId.current) setLoading(false);
     }
-  }, [q, limit]);
+  }, [q, limit, seededOnly]);
 
   // Debounce so typing does not fire a request per keystroke.
   useEffect(() => {
@@ -72,6 +74,14 @@ export default function AdminMembers() {
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [editBusy, setEditBusy] = useState(false);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const fileRef = useRef(null);
+
+  // ?seeded=1 (from the "Seed Members" nav item) filters the directory to
+  // synthetic seeder profiles only.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const seededOnly = searchParams.get('seeded') === '1';
 
   const unblock = async (id) => {
     try {
@@ -119,7 +129,30 @@ export default function AdminMembers() {
       height_cm: p.height_cm || '', photo_url: p.photo_url || '',
       prayer: p.prayer || '', marja: p.marja || '', languages: p.languages || '', sect: p.sect || '',
     });
+    setUploadError('');
+    setUploadBusy(false);
+    if (fileRef.current) fileRef.current.value = '';
     setEditOpen(true);
+  };
+
+  // Admin photo upload. Applies immediately server-side (profiles.photo_url is
+  // updated and the old uploaded file removed) — the edit form then carries
+  // the new photo URL, so Save persists it alongside the other fields.
+  const uploadPhoto = async (file) => {
+    if (!file || !selected) return;
+    setUploadBusy(true);
+    setUploadError('');
+    try {
+      const fd = new FormData();
+      fd.append('photo', file);
+      const res = await http.upload(`/api/admin/users/${selected.id}/photo`, fd);
+      setEditForm((f) => ({ ...f, photo_url: res.photo }));
+    } catch (e) {
+      setUploadError(e?.message || 'Photo upload failed.');
+    } finally {
+      setUploadBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
   };
 
   const saveEdit = async () => {
@@ -142,8 +175,21 @@ export default function AdminMembers() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         <header className="flex flex-wrap items-end justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-ink">Members</h1>
-            <p className="text-sm text-muted mt-1">Search by email, display name or member id.</p>
+            <h1 className="text-2xl font-bold text-ink flex items-center gap-2">
+              {seededOnly ? 'Seed Members' : 'Members'}
+              {seededOnly && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-warning/10 text-warning">
+                  <Sprout className="w-3 h-3" /> Seeded profiles
+                </span>
+              )}
+            </h1>
+            <p className="text-sm text-muted mt-1">
+              {seededOnly ? (
+                <>Showing synthetic seeder profiles only. <button onClick={() => setSearchParams({})} className="text-primary hover:underline font-semibold">Show all members</button></>
+              ) : (
+                'Search by email, display name or member id.'
+              )}
+            </p>
           </div>
           <button onClick={load} disabled={loading}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-elevated text-muted border border-line/20 hover:border-line/40 disabled:opacity-50">
@@ -188,7 +234,12 @@ export default function AdminMembers() {
                 {data.rows.map((r) => (
                   <tr key={r.id} className="border-t border-line/15 hover:bg-hover/30 transition-colors">
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-ink">{r.display_name}</p>
+                      <p className="font-semibold text-ink">
+                        {r.display_name}
+                        {r.is_seeded && (
+                          <span title="Seeded profile" className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-warning/10 text-warning align-middle">seed</span>
+                        )}
+                      </p>
                       <p className="text-xs text-muted flex items-center gap-1"><Mail className="w-3 h-3" />{r.email}</p>
                     </td>
                     <td className="px-4 py-3 text-xs text-muted">{[r.city, r.country].filter(Boolean).join(', ') || '-'}</td>
@@ -307,6 +358,36 @@ export default function AdminMembers() {
                       style={{ background: '#0d1117', border: '1px solid #21262d', color: '#f0f6fc' }} />
                   </div>
                 ))}
+                <div className="col-span-2">
+                  <label className="text-[11px] font-semibold block mb-1" style={{ color: '#8b949e' }}>Photo</label>
+                  <div className="flex items-start gap-3">
+                    {editForm.photo_url ? (
+                      <img src={apiUrl(editForm.photo_url)} alt="Member photo"
+                        className="w-20 h-20 rounded-xl object-cover flex-shrink-0"
+                        style={{ border: '1px solid #21262d' }} />
+                    ) : (
+                      <div className="w-20 h-20 rounded-xl flex-shrink-0 flex items-center justify-center text-[10px]"
+                        style={{ background: '#0d1117', border: '1px dashed #21262d', color: '#8b949e' }}>
+                        No photo
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <label
+                        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer ${uploadBusy ? 'opacity-50 pointer-events-none' : ''}`}
+                        style={{ background: '#238636', color: '#fff' }}>
+                        <Upload className="w-3.5 h-3.5" />
+                        {uploadBusy ? 'Uploading…' : 'Upload new photo'}
+                        <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp"
+                          className="hidden" disabled={uploadBusy}
+                          onChange={(e) => uploadPhoto(e.target.files?.[0])} />
+                      </label>
+                      <p className="text-[11px] mt-1.5" style={{ color: '#8b949e' }}>
+                        JPEG, PNG or WebP, under 5 MB. The upload replaces the photo immediately.
+                      </p>
+                      {uploadError && <p className="text-xs mt-1" style={{ color: '#f85149' }}>{uploadError}</p>}
+                    </div>
+                  </div>
+                </div>
                 <div className="col-span-2">
                   <label className="text-[11px] font-semibold block mb-1" style={{ color: '#8b949e' }}>Photo URL</label>
                   <input value={editForm.photo_url || ''} onChange={e => setEditForm(f => ({ ...f, photo_url: e.target.value }))}
