@@ -1,0 +1,28 @@
+name: Temp - Create jarvis@shiarishta.com mailbox
+# One-off: creates the jarvis@shiarishta.com mailbox via cPanel UAPI.
+# Remove this workflow after use.
+on:
+  workflow_dispatch:
+    inputs:
+      email_password:
+        description: 'Password for the new mailbox'
+        required: true
+jobs:
+  create-mailbox:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create mailbox via cPanel UAPI
+        env:
+          CPANEL_USER: shiarishta
+          CPANEL_PASS: ${{ secrets.FTP_PASSWORD }}
+          NEW_PASS: ${{ inputs.email_password }}
+        run: |
+          set -u
+          RESP=$(curl -s --max-time 60 -u "$CPANEL_USER:$CPANEL_PASS" \
+            --data-urlencode "email=jarvis" \
+            --data-urlencode "password=$NEW_PASS" \
+            --data-urlencode "quota=500" \
+            "https://ind85.server.broker:2083/execute/Email/add_pop")
+          echo "UAPI response (redacted):"
+          echo "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print('status:', d.get('status'), '| errors:', d.get('errors'))"
+          echo "$RESP" | python3 -c "import json,sys; sys.exit(0 if json.load(sys.stdin).get('status')==1 else 1)"
