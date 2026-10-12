@@ -2,6 +2,8 @@
 -- Port of server/schema.sql: UUID -> CHAR(36) app-generated, CITEXT -> TEXT with
 -- lowercased values + unique index, TIMESTAMPTZ -> DATETIME (UTC session set by
 -- db.php), gen_random_uuid() -> uuid() in PHP.
+-- Marker bump 2026-10-12: re-run migrations to apply the broadened
+-- users.is_test backfill (QA emails + test-shell profile patterns).
 
 SET NAMES utf8mb4;
 
