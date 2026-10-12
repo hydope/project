@@ -24,6 +24,7 @@ const STAT_ICONS = {
   visitors: Users,
   pageviews: Eye,
   members: UserPlus,
+  real_members: UserPlus,
   biodatas: FileImage,
   messages: MessageCircle,
   posts: Newspaper,
@@ -147,6 +148,7 @@ export default function AdminAnalytics() {
 
   const overview = seo?.overview || [];
   const traffic = seo?.traffic || { labels: [], pageviews: [], visitors: [] };
+  const signups = seo?.signups || { labels: [], real_today: 0, daily: [] };
   const topPages = seo?.topPages || [];
   const referrers = seo?.referrers || [];
   const devices = seo?.devices || [];
@@ -217,6 +219,38 @@ export default function AdminAnalytics() {
         <div className="mb-6">
           <TrafficChart labels={traffic.labels} pageviews={traffic.pageviews} visitors={traffic.visitors} loading={loading} />
         </div>
+
+        {/* Real signups — the 10/day KPI (excludes seeded profiles) */}
+        <section className="rounded-xl border border-line/20 bg-elevated p-5 mb-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+            <h3 className="text-sm font-bold text-ink inline-flex items-center gap-2">
+              <UserPlus className="w-4 h-4 text-muted" /> Real signups per day
+            </h3>
+            <p className="text-xs text-muted">
+              Today: <span className="font-bold text-ink">{signups.real_today ?? 0}</span>
+              <span className="text-muted"> / target 10</span>
+            </p>
+          </div>
+          {loading ? <div className="skeleton h-24 rounded" /> : (
+            <div className="flex items-end gap-1.5 h-24" role="img" aria-label="Daily real signups">
+              {(signups.daily || []).map((v, i) => {
+                const max = Math.max(...(signups.daily || [1]));
+                const pct = max > 0 ? Math.round((v / max) * 100) : 0;
+                const met = v >= 10;
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center justify-end h-full" title={`${signups.labels?.[i] || ''}: ${v}`}>
+                    <span className="text-[10px] font-semibold text-muted mb-1">{v > 0 ? v : ''}</span>
+                    <div className={`w-full rounded-t transition-all ${met ? 'bg-success' : 'bg-primary'}`}
+                      style={{ height: `${Math.max(pct, v > 0 ? 6 : 2)}%`, opacity: v > 0 ? 1 : 0.25 }} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <p className="text-[11px] text-muted mt-3">
+            Green bar = hit the 10/day target. Seeded profiles are excluded — this is real people only.
+          </p>
+        </section>
 
         {/* Top pages / referrers / devices */}
         <div className="grid gap-4 lg:grid-cols-3 mb-8">

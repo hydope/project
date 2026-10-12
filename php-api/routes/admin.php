@@ -751,6 +751,7 @@ function adminSeoAnalytics(): void
     // degrade to zeros rather than 500ing the dashboard.
     $pvSeries = array_fill_keys($dayKeys, 0);
     $uvSeries = array_fill_keys($dayKeys, 0);
+    $signupSeries = array_fill_keys($dayKeys, 0);
     try {
         $stmt = db()->prepare(
             "SELECT DATE(created_at) AS d, COUNT(*) AS n, COUNT(DISTINCT visitor_hash) AS u
@@ -766,6 +767,21 @@ function adminSeoAnalytics(): void
             }
         }
     } catch (Throwable) { /* table missing — dashboard shows zeros */ }
+
+    // Per-day real signups (non-seeded, non-admin) for the KPI chart.
+    try {
+        $stmt = db()->prepare(
+            "SELECT DATE(created_at) AS d, COUNT(*) AS n FROM users
+             WHERE email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0
+             AND created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)
+             GROUP BY DATE(created_at)"
+        );
+        $stmt->execute();
+        foreach ($stmt->fetchAll() as $r) {
+            $d = (string)$r['d'];
+            if (isset($signupSeries[$d])) $signupSeries[$d] = (int)$r['n'];
+        }
+    } catch (Throwable) { /* dashboard shows zeros */ }
 
     $scalar = function (string $sql, array $params = []): int {
         try {
@@ -798,6 +814,19 @@ function adminSeoAnalytics(): void
     $prevMembers = $scalar(
         "SELECT COUNT(*) FROM users WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
          AND created_at < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+    // Real signups: exclude seeded synthetic profiles and admin accounts.
+    // This is the KPI series (Syed's 10/day target).
+    $realWhere = "email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0";
+    $realMembers = $scalar(
+        "SELECT COUNT(*) FROM users WHERE {$realWhere} AND created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+    $prevRealMembers = $scalar(
+        "SELECT COUNT(*) FROM users WHERE {$realWhere} AND created_at >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
+         AND created_at < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    );
+    $realToday = $scalar(
+        "SELECT COUNT(*) FROM users WHERE {$realWhere} AND created_at >= CURDATE()"
     );
     $biodatas = $scalar(
         "SELECT COUNT(*) FROM admin_audit WHERE action = 'biodata.created'
@@ -881,6 +910,7 @@ function adminSeoAnalytics(): void
             ['key' => 'visitors', 'label' => 'Unique visitors', 'value' => $visitors, 'delta' => $delta($visitors, $prevVisitors)],
             ['key' => 'pageviews', 'label' => 'Pageviews', 'value' => $pageviews, 'delta' => $delta($pageviews, $prevPageviews)],
             ['key' => 'members', 'label' => 'New members', 'value' => $members, 'delta' => $delta($members, $prevMembers)],
+            ['key' => 'real_members', 'label' => 'Real signups', 'value' => $realMembers, 'delta' => $delta($realMembers, $prevRealMembers)],
             ['key' => 'biodatas', 'label' => 'Biodatas created', 'value' => $biodatas, 'delta' => $delta($biodatas, $prevBiodatas)],
             ['key' => 'messages', 'label' => 'Messages sent', 'value' => $messages, 'delta' => $delta($messages, $prevMessages)],
             ['key' => 'posts', 'label' => 'Posts published', 'value' => $posts, 'delta' => $delta($posts, $prevPosts)],
@@ -889,6 +919,11 @@ function adminSeoAnalytics(): void
             'labels' => $labels,
             'pageviews' => array_values($pvSeries),
             'visitors' => array_values($uvSeries),
+        ],
+        'signups' => [
+            'labels' => $labels,
+            'real_today' => $realToday,
+            'daily' => array_values($signupSeries),
         ],
         'topPages' => $topPages,
         'referrers' => $referrers,
