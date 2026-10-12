@@ -18,11 +18,17 @@ jobs:
           NEW_PASS: ${{ inputs.email_password }}
         run: |
           set -u
-          RESP=$(curl -s --max-time 60 -u "$CPANEL_USER:$CPANEL_PASS" \
+          RESP=$(curl -s --max-time 60 -w "\nHTTP_CODE:%{http_code} EXIT:%{exitcode}" -u "$CPANEL_USER:$CPANEL_PASS" \
             --data-urlencode "email=jarvis" \
             --data-urlencode "password=$NEW_PASS" \
             --data-urlencode "quota=500" \
             "https://ind85.server.broker:2083/execute/Email/add_pop")
-          echo "UAPI response (redacted):"
-          echo "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print('status:', d.get('status'), '| errors:', d.get('errors'))"
-          echo "$RESP" | python3 -c "import json,sys; sys.exit(0 if json.load(sys.stdin).get('status')==1 else 1)"
+          echo "Raw response (first 400 chars):"
+          echo "$RESP" | head -c 400; echo
+          echo "$RESP" | python3 -c "
+import json,sys,re
+raw = sys.stdin.read()
+m = re.search(r'\{.*\}', raw, re.S)
+d = json.loads(m.group(0)) if m else {}
+print('status:', d.get('status'), '| errors:', d.get('errors'))
+sys.exit(0 if d.get('status')==1 else 1)"
