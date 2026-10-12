@@ -458,6 +458,9 @@ function profilesList(): void
     $viewer = currentUser();
     $params = [];
     $where = ['(p.is_blocked = 0 OR (p.blocked_until IS NOT NULL AND p.blocked_until <= NOW()))'];
+    // QA/test accounts must never appear in the public directory, even when
+    // they use a real-looking display name (the critic persona is "Zahra Fatima").
+    $where[] = 'p.user_id NOT IN (SELECT id FROM users WHERE is_test = 1)';
 
     $minAge = $_GET['minAge'] ?? null;
     $maxAge = $_GET['maxAge'] ?? null;
@@ -697,6 +700,13 @@ function profileById(string $id): void
     $stmt = db()->prepare('SELECT * FROM profiles WHERE user_id = ? LIMIT 1');
     $stmt->execute([$id]);
     $row = $stmt->fetch();
+
+    // QA/test accounts resolve to 404 from every public surface — no probing.
+    if ($row) {
+        $t = db()->prepare('SELECT is_test FROM users WHERE id = ? LIMIT 1');
+        $t->execute([$row['user_id']]);
+        if ((int)($t->fetch()['is_test'] ?? 0) === 1) $row = false;
+    }
 
     $viewer = currentUser();
     $view = $row ? visibleProfile($row, $viewer) : null;

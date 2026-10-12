@@ -22,6 +22,15 @@ export default function AdminMembers() {
   const [detail, setDetail] = useState(null);
   const [detailBusy, setDetailBusy] = useState(false);
 
+  // ?seeded=1 (from the "Seed Members" nav item) filters the directory to
+  // synthetic seeder profiles only. Declared BEFORE load(): load() reads
+  // seededOnly in its deps array, and a later declaration threw
+  // "Cannot access ... before initialization" on every render.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const seededOnly = searchParams.get('seeded') === '1';
+  // Test accounts are hidden by default; admins can reveal them for cleanup.
+  const [showTest, setShowTest] = useState(false);
+
   // Monotonic request id — see load() below.
   const reqId = useRef(0);
 
@@ -37,6 +46,7 @@ export default function AdminMembers() {
       const params = new URLSearchParams({ limit: String(limit) });
       if (q.trim()) params.set('q', q.trim());
       if (seededOnly) params.set('seeded', '1');
+      if (showTest) params.set('include_test', '1');
       const result = await http.get(`/api/admin/users?${params}`);
       if (id !== reqId.current) return; // a newer search already won
       setData(result);
@@ -46,7 +56,7 @@ export default function AdminMembers() {
     } finally {
       if (id === reqId.current) setLoading(false);
     }
-  }, [q, limit, seededOnly]);
+  }, [q, limit, seededOnly, showTest]);
 
   // Debounce so typing does not fire a request per keystroke.
   useEffect(() => {
@@ -77,11 +87,6 @@ export default function AdminMembers() {
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const fileRef = useRef(null);
-
-  // ?seeded=1 (from the "Seed Members" nav item) filters the directory to
-  // synthetic seeder profiles only.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const seededOnly = searchParams.get('seeded') === '1';
 
   const unblock = async (id) => {
     try {
@@ -191,10 +196,19 @@ export default function AdminMembers() {
               )}
             </p>
           </div>
-          <button onClick={load} disabled={loading}
+          <div className="flex items-center gap-2">
+            {!seededOnly && (
+              <button onClick={() => setShowTest((v) => !v)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border ${showTest ? 'border-warning/50 text-warning bg-warning/10' : 'border-line/20 text-muted hover:border-line/40'}`}
+                title="QA/test accounts are hidden by default">
+                {showTest ? 'Hide test accounts' : 'Show test accounts'}
+              </button>
+            )}
+            <button onClick={load} disabled={loading}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-elevated text-muted border border-line/20 hover:border-line/40 disabled:opacity-50">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </button>
+          </div>
         </header>
 
         <div className="relative mb-5">
@@ -238,6 +252,9 @@ export default function AdminMembers() {
                         {r.display_name}
                         {r.is_seeded && (
                           <span title="Seeded profile" className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-warning/10 text-warning align-middle">seed</span>
+                        )}
+                        {r.is_test && (
+                          <span title="QA/test account" className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-hover text-muted align-middle">test</span>
                         )}
                       </p>
                       <p className="text-xs text-muted flex items-center gap-1"><Mail className="w-3 h-3" />{r.email}</p>

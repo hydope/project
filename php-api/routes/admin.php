@@ -565,7 +565,7 @@ function adminOverview(): void
 {
     // COUNT(*) comes back as a string from MySQL — cast for numeric parity.
     json([
-        'totalMembers' => (int)db()->query('SELECT COUNT(*) AS n FROM users')->fetch()['n'],
+        'totalMembers' => (int)db()->query("SELECT COUNT(*) AS n FROM users WHERE is_test = 0")->fetch()['n'],
         'activeProfiles' => (int)db()->query('SELECT COUNT(*) AS n FROM profiles WHERE is_blocked = 0')->fetch()['n'],
         'messagesToday' => (int)db()->query('SELECT COUNT(*) AS n FROM messages WHERE created_at > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 DAY)')->fetch()['n'],
         'livePosts' => (int)db()->query('SELECT COUNT(*) AS n FROM posts WHERE is_hidden = 0')->fetch()['n'],
@@ -772,7 +772,7 @@ function adminSeoAnalytics(): void
     try {
         $stmt = db()->prepare(
             "SELECT DATE(created_at) AS d, COUNT(*) AS n FROM users
-             WHERE email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0
+             WHERE email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0 AND is_test = 0
              AND created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)
              GROUP BY DATE(created_at)"
         );
@@ -815,9 +815,9 @@ function adminSeoAnalytics(): void
         "SELECT COUNT(*) FROM users WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
          AND created_at < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
     );
-    // Real signups: exclude seeded synthetic profiles and admin accounts.
+    // Real signups: exclude seeded synthetic profiles, admin accounts and QA/test accounts.
     // This is the KPI series (Syed's 10/day target).
-    $realWhere = "email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0";
+    $realWhere = "email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0 AND is_test = 0";
     $realMembers = $scalar(
         "SELECT COUNT(*) FROM users WHERE {$realWhere} AND created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
     );
@@ -976,10 +976,18 @@ function adminUsers(): void
     $verified = $_GET['verified'] ?? null;
     $blocked = $_GET['blocked'] ?? null;
     $seededOnly = ($_GET['seeded'] ?? null) === '1';
+    // QA/test accounts are hidden from the directory by default — they are not
+    // members and Syed should never see them next to real people. Opt in with
+    // ?include_test=1 for cleanup work.
+    $includeTest = ($_GET['include_test'] ?? null) === '1';
     $limit = max(1, min(100, (int)($_GET['limit'] ?? 25)));
 
     $where = [];
     $params = [];
+
+    if (!$includeTest) {
+        $where[] = 'u.is_test = 0';
+    }
 
     if ($q !== '') {
         // Escape LIKE metacharacters so a query containing % or _ is literal.
@@ -1005,7 +1013,7 @@ function adminUsers(): void
     }
 
     $sql = 'SELECT u.id, u.email, u.display_name, u.role, u.email_verified, u.created_at,
-                   u.verification_status,
+                   u.verification_status, u.is_test,
                    (u.email LIKE \'seeded-%@shiarishta.com\') AS is_seeded,
                    p.is_blocked, p.is_verified AS id_verified, p.city, p.country, p.age
               FROM users u
@@ -1042,6 +1050,7 @@ function adminUsers(): void
         $r['id_verified'] = (bool)($r['id_verified'] ?? false);
         $r['email_verified'] = (bool)($r['email_verified'] ?? false);
         $r['is_seeded'] = (bool)($r['is_seeded'] ?? false);
+        $r['is_test'] = (bool)($r['is_test'] ?? false);
     }
     unset($r);
 
@@ -1467,7 +1476,7 @@ function adminVerificationQueue(): void
     $counts = ['unverified' => 0, 'verified' => 0, 'rejected' => 0];
     try {
         foreach (db()->query(
-            'SELECT verification_status AS s, COUNT(*) AS n FROM users WHERE is_admin = 0 GROUP BY verification_status'
+            'SELECT verification_status AS s, COUNT(*) AS n FROM users WHERE is_admin = 0 AND is_test = 0 GROUP BY verification_status'
         )->fetchAll() as $r) {
             $counts[(string)$r['s']] = (int)$r['n'];
         }
@@ -1601,8 +1610,8 @@ function adminFunnel(): void
     };
 
     $steps = [
-        ['key' => 'registered', 'label' => 'Registered', 'n' => $count('SELECT COUNT(*) AS n FROM users')],
-        ['key' => 'verified', 'label' => 'Email verified', 'n' => $count('SELECT COUNT(*) AS n FROM users WHERE email_verified = 1')],
+        ['key' => 'registered', 'label' => 'Registered', 'n' => $count('SELECT COUNT(*) AS n FROM users WHERE is_test = 0')],
+        ['key' => 'verified', 'label' => 'Email verified', 'n' => $count('SELECT COUNT(*) AS n FROM users WHERE email_verified = 1 AND is_test = 0')],
         ['key' => 'published', 'label' => 'Profile published', 'n' => $count("SELECT COUNT(*) AS n FROM profiles WHERE visibility != 'private'")],
         ['key' => 'idVerified', 'label' => 'ID verified', 'n' => $count('SELECT COUNT(*) AS n FROM profiles WHERE is_verified = 1')],
         ['key' => 'interested', 'label' => 'Interest sent', 'n' => $count('SELECT COUNT(DISTINCT from_user_id) AS n FROM interests')],

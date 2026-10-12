@@ -1096,7 +1096,7 @@ function aiScheduledCount(): void
  * GET /api/ai/signup-stats — real signup counts for the 10/day KPI.
  *
  * Service-key authed (X-Blog-Cron-Key). Counts only real members: excludes
- * seeded synthetic profiles (seeded-%@shiarishta.com) and admin accounts.
+ * seeded synthetic profiles (seeded-%@shiarishta.com), QA/test accounts and admin accounts.
  * Aggregates only — no PII leaves the server.
  */
 function aiSignupStats(): void
@@ -1107,7 +1107,7 @@ function aiSignupStats(): void
         json(['error' => 'Unauthorized'], 401);
     }
 
-    $w = "email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0";
+    $w = "email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0 AND is_test = 0";
     $q = fn(string $cond): int => (int)db()->query(
         "SELECT COUNT(*) AS n FROM users WHERE {$w} AND {$cond}"
     )->fetch()['n'];

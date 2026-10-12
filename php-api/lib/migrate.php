@@ -55,6 +55,7 @@ function migrateSchema(): void
     migrateAuditMetaToMediumtext();
     migrateAddPageviewsTable();
     migrateAddSeededFlag();
+    migrateAddTestFlag();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -779,6 +780,15 @@ function migrateAddBlogQueueTable(): void
         ['ShiaSpouse vs ShiaRishta: honest comparison', 'Which suits your family', 'Guidance', 'shiaspouse vs shiarishta'],
         ['Temporary nikah in Islam: rules explained', 'What it is, rules and misconceptions', 'Guidance', 'temporary nikah in islam rules'],
         ['Dawoodi Bohra matrimony: community guide', 'Bohra rishta channels and etiquette', 'Guidance', 'dawoodi bohra matrimony guide'],
+        // Batch 6 (2026-10-12): GSC question-query tactic (additive) — PAA
+        // questions from the keyword universe + Planner photo-privacy angle.
+        // Syed approved: extra on top, nothing removed.
+        ['How do Shias get married? Nikah explained simply', 'Seegha, mahr and witnesses — the whole process', 'Guidance', 'how do shias get married'],
+        ['What is mahr in Shia nikah? How it works', 'Amount, types and when it is paid', 'Guidance', 'what is mahr shia nikah'],
+        ['How to find a Shia rishta in 2026: every channel ranked', 'Apps, mosques, matchmakers and family networks', 'Guidance', 'how to find shia rishta'],
+        ['Is there a WhatsApp group for Shia marriage?', 'What the groups are really like — and safer options', 'Safety', 'shia marriage whatsapp group'],
+        ['Locked photos on ShiaRishta: how photo privacy works', 'You control exactly who sees your pictures', 'Guidance', 'shiarishta locked photos'],
+        ['Why your rishta photos stay hidden until you allow it', 'Photo privacy vs public photo galleries', 'Safety', 'rishta photo privacy settings'],
     ];
 
     try {
@@ -879,5 +889,36 @@ function migrateAddSeededFlag(): void
         );
     } catch (Throwable $e) {
         error_log('[api] migration: profiles.is_seeded — ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+// QA/test-account flag: marks accounts created by E2E/QA runs (qatest bots,
+// e2e personas, critic personas). These are NOT seeded profiles and NOT real
+// members — they must never appear in the admin member directory, the public
+// browse directory, member counts or the signup KPI. Hidden everywhere by
+// default; the admin directory can opt in with ?include_test=1. Backfill keys
+// off email patterns (exact), not display names (the critic persona uses a
+// real-looking name like "Zahra Fatima", which pattern filters miss).
+function migrateAddTestFlag(): void
+{
+    try {
+        $cols = db()->query("SHOW COLUMNS FROM users LIKE 'is_test'")->fetchAll();
+        if (!$cols) {
+            db()->exec("ALTER TABLE users ADD COLUMN is_test TINYINT(1) NOT NULL DEFAULT 0 AFTER is_admin");
+            db()->exec("ALTER TABLE users ADD KEY idx_users_test (is_test)");
+        }
+        // Backfill: every account created by QA/E2E runs. Runs on every
+        // deploy (idempotent) so accounts created between deploys get flagged.
+        db()->exec(
+            "UPDATE users
+             SET is_test = 1
+             WHERE is_test = 0 AND is_admin = 0 AND (
+                 email LIKE 'qatest%@example.com'
+                 OR email LIKE 'syedmohammedali1512+e2e%@gmail.com'
+                 OR email LIKE 'syedmohammedali1512+critic%@gmail.com'
+             )"
+        );
+    } catch (Throwable $e) {
+        error_log('[api] migration: users.is_test — ' . substr($e->getMessage(), 0, 120));
     }
 }
