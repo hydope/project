@@ -1276,12 +1276,23 @@ function adminUserDetail(string $userId): void
 }
 
 // GET /api/admin/audit — the immutable trail.
+// Supports ?action= to filter (e.g. ?action=biodata.created for the Biodata
+// Maker admin page — without it that page received the latest 200 rows of
+// every action and showed "0 fields" on all of them).
 function adminAuditList(): void
 {
     $limit = max(1, min(200, (int)($_GET['limit'] ?? 50)));
-    $rows = db()->query("SELECT id, actor_id, actor_email, action, target_type, target_id, meta, created_at
-                           FROM admin_audit ORDER BY created_at DESC, id DESC LIMIT {$limit}")
-        ->fetchAll();
+    $action = trim((string)($_GET['action'] ?? ''));
+    $where = '';
+    $params = [];
+    if ($action !== '' && preg_match('/^[a-z0-9_.-]+$/i', $action)) {
+        $where = 'WHERE action = ?';
+        $params[] = $action;
+    }
+    $stmt = db()->prepare("SELECT id, actor_id, actor_email, action, target_type, target_id, meta, created_at
+                           FROM admin_audit {$where} ORDER BY created_at DESC, id DESC LIMIT {$limit}");
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
     foreach ($rows as &$r) {
         $decoded = json_decode((string)($r['meta'] ?? ''), true);
         $r['meta'] = is_array($decoded) ? $decoded : [];
