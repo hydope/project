@@ -232,8 +232,8 @@ try {
         user_id, display_name, age, gender, city, country, sect,
         profession, bio, visibility, photos_visibility,
         seeking_gender, religiosity, education_level, marja,
-        marital_status, is_verified, photo_url
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'members', 'public', ?, ?, ?, ?, 'Never married', 0, ?)
+        marital_status, is_verified, photo_url, is_seeded
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'members', 'public', ?, ?, ?, ?, 'Never married', 0, ?, 1)
     ");
     $stmt->execute([
       $userId, $displayName, $age, $gender, $city[0], $city[1], 'Ithna Ashari (Twelver)',

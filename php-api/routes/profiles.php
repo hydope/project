@@ -525,7 +525,10 @@ function profilesList(): void
         $params[] = $viewer['uid'];
     }
 
-    $sql = 'SELECT p.* FROM profiles p WHERE ' . implode(' AND ', $where) . ' ORDER BY p.created_at DESC LIMIT ' . (isset($limit) ? (int)$limit : 100);
+    // Real profiles first, seeded profiles after — then newest-first within
+    // each group. Seeded profiles fill out the directory but never outrank
+    // a real member.
+    $sql = 'SELECT p.* FROM profiles p WHERE ' . implode(' AND ', $where) . ' ORDER BY p.is_seeded ASC, p.created_at DESC LIMIT ' . (isset($limit) ? (int)$limit : 100);
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();

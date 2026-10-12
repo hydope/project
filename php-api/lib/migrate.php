@@ -54,6 +54,7 @@ function migrateSchema(): void
     migrateAddBiodataDraftsTable();
     migrateAuditMetaToMediumtext();
     migrateAddPageviewsTable();
+    migrateAddSeededFlag();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -843,5 +844,29 @@ function migrateAddPageviewsTable(): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     } catch (Throwable $e) {
         error_log('[api] migration (pageviews) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+// Seeded-profile flag: marks synthetic profiles created by the daily seeder.
+// Used ONLY for ordering (real profiles first) and admin identification —
+// unlike is_demo, it does NOT trigger any UI badge or interaction block,
+// so seeded profiles keep looking realistic to members.
+function migrateAddSeededFlag(): void
+{
+    try {
+        $cols = db()->query("SHOW COLUMNS FROM profiles LIKE 'is_seeded'")->fetchAll();
+        if (!$cols) {
+            db()->exec("ALTER TABLE profiles ADD COLUMN is_seeded TINYINT(1) NOT NULL DEFAULT 0 AFTER is_demo");
+            db()->exec("ALTER TABLE profiles ADD KEY idx_profiles_seeded (is_seeded, created_at)");
+        }
+        // Backfill: any profile whose user email matches the seeder pattern.
+        db()->exec(
+            "UPDATE profiles p
+             JOIN users u ON u.id = p.user_id
+             SET p.is_seeded = 1
+             WHERE u.email LIKE 'seeded-%@shiarishta.com' AND p.is_seeded = 0"
+        );
+    } catch (Throwable $e) {
+        error_log('[api] migration: profiles.is_seeded — ' . substr($e->getMessage(), 0, 120));
     }
 }

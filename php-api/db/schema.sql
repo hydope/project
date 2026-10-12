@@ -80,6 +80,10 @@ CREATE TABLE IF NOT EXISTS profiles (
   -- profile: a sample profile must never be mistakable for a person a member
   -- could actually send a message to.
   is_demo            TINYINT(1)   NOT NULL DEFAULT 0,
+  -- Synthetic profile from the daily seeder. Used ONLY for ordering (real
+  -- profiles first) and admin identification — unlike is_demo, it triggers
+  -- no UI badge, so seeded profiles keep looking realistic to members.
+  is_seeded          TINYINT(1)   NOT NULL DEFAULT 0,
   -- Public handle chosen by the member, distinct from display_name. Unique
   -- where present; many members may leave it NULL.
   username           VARCHAR(32)  DEFAULT NULL,
