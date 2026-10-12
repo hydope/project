@@ -55,9 +55,12 @@ function sitemapXml(): void
         }
     } catch (Throwable $e) { /* skip */ }
 
-    // Public, non-blocked member profiles.
+    // Public, non-blocked member profiles. QA/test accounts are excluded —
+    // their city slugs ("testville", "test-profile-for-qa-please-ignore")
+    // were leaking into the public sitemap.
+    $noTest = 'user_id NOT IN (SELECT id FROM users WHERE is_test = 1)';
     try {
-        $stmt = $pdo->query("SELECT user_id, updated_at FROM profiles WHERE is_blocked = 0 ORDER BY updated_at DESC LIMIT 5000");
+        $stmt = $pdo->query("SELECT user_id, updated_at FROM profiles WHERE is_blocked = 0 AND {$noTest} ORDER BY updated_at DESC LIMIT 5000");
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $urls[] = [
                 'loc' => $base . '/profiles/' . rawurlencode((string)$row['user_id']),
@@ -71,7 +74,7 @@ function sitemapXml(): void
     // crawlable /city/:slug page. Slug matches the frontend's slugify:
     // lowercase, non-alphanumeric runs become a single dash.
     try {
-        $stmt = $pdo->query("SELECT DISTINCT city FROM profiles WHERE is_blocked = 0 AND city IS NOT NULL AND city != '' LIMIT 500");
+        $stmt = $pdo->query("SELECT DISTINCT city FROM profiles WHERE is_blocked = 0 AND {$noTest} AND city IS NOT NULL AND city != '' LIMIT 500");
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $city = trim((string)$row['city']);
             if ($city === '') continue;
@@ -88,7 +91,7 @@ function sitemapXml(): void
 
     // Country pages — same treatment.
     try {
-        $stmt = $pdo->query("SELECT DISTINCT country FROM profiles WHERE is_blocked = 0 AND country IS NOT NULL AND country != '' LIMIT 200");
+        $stmt = $pdo->query("SELECT DISTINCT country FROM profiles WHERE is_blocked = 0 AND {$noTest} AND country IS NOT NULL AND country != '' LIMIT 200");
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $country = trim((string)$row['country']);
             if ($country === '') continue;

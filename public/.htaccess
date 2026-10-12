@@ -120,7 +120,9 @@ RewriteRule ^wp-sitemap-posts- - [G,L]
 #    Every non-file request serves index.html so React Router can take over.
 #    /blog/ is a real directory on disk (article images), so the !-d guard
 #    would skip the fallback and expose the folder — route it explicitly.
-RewriteRule ^blog/?$ index.html [L]
+#    NOTE: this must point at the PRERENDERED blog/index.html. Pointing it at
+#    the root index.html (as it briefly did) made /blog serve the homepage.
+RewriteRule ^blog/?$ blog/index.html [L]
 
 # 4) Prerendered routes.
 #    scripts/prerender-routes.mjs writes a real directory per public route
