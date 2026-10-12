@@ -176,6 +176,7 @@ const router = createBrowserRouter([
   { path: '/shia-matrimony-bay-area', element: <LazyRoute component={LandingPage} /> },
   { path: '/shia-matrimony-atlanta', element: <LazyRoute component={LandingPage} /> },
   { path: '/shia-matrimony-seattle', element: <LazyRoute component={LandingPage} /> },
+  { path: '/shiamatch-alternative', element: <LazyRoute component={LandingPage} /> },
   { path: '/city/:slug', element: <LazyRoute component={CityPage} /> },
   { path: '/country/:slug', element: <LazyRoute component={CityPage} /> },
   { path: '/locations', element: <LazyRoute component={Locations} /> },

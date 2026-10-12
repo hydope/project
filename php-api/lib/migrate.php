@@ -768,6 +768,12 @@ function migrateAddBlogQueueTable(): void
         ['Long-distance Shia rishta: USA to Pakistan', 'Making it work across continents', 'Community', 'long distance shia rishta pakistan'],
         ['Shia rishta for doctors and professionals', 'Career and marriage balance', 'Profiles', 'shia rishta professionals'],
         ['Duas for marriage in Shia Islam', 'Powerful duas with translation', 'Community', 'duas for marriage shia islam'],
+        // Batch 4 (2026-10-12): ShiaMatch brand-capture — "shiamatch" is the
+        // highest-volume keyword in the niche (10K-100K/mo per Keyword Planner).
+        ['ShiaMatch alternative: free options compared', 'Best free alternatives to ShiaMatch', 'Guidance', 'shiamatch alternative'],
+        ['Is ShiaMatch free? The honest answer', 'What ShiaMatch charges and who pays', 'Guidance', 'is shiamatch free'],
+        ['Sites like ShiaMatch: 2026 options', 'Every ShiaMatch competitor compared', 'Guidance', 'sites like shiamatch'],
+        ['ShiaMatch review 2026: features and pricing', 'Honest review with the pricing fine print', 'Guidance', 'shiamatch review 2026'],
     ];
 
     try {

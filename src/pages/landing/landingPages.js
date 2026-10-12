@@ -820,6 +820,49 @@ Object.assign(LANDING_PAGES, {
       { to: '/safety', label: 'Safety center' },
     ],
   },
+  'shiamatch-alternative': {
+    title: 'ShiaMatch Alternative 2026: Free Modern Shia Matrimony – Shia Rishta',
+    desc: 'The free ShiaMatch alternative: no charges for men in the USA, UK, or Canada. Verified profiles, free biodata maker, and modern apps. Join free.',
+    h1: 'Looking for a ShiaMatch Alternative?',
+    breadcrumb: 'ShiaMatch Alternative',
+    intro: [
+      'ShiaMatch has served the Shia community for many years, and its long list of success stories deserves respect. But if you are comparing your options in 2026, there is one question to ask first — because the answer surprises most families.',
+      'ShiaMatch states on its own homepage that it is "100% free for residents of all countries except for men residing in USA, UK or Canada." If you are a man living in the United States, Britain, or Canada — the heart of the Shia diaspora — ShiaMatch is not free for you. ShiaRishta is free for everyone, everywhere.',
+    ],
+    sections: [
+      {
+        h2: 'Free means free — no country exceptions',
+        body: [
+          'On ShiaRishta there are no pricing tiers by country and no paywall between you and a conversation. Create your profile, browse verified members, message, and build your biodata without ever reaching for a credit card. The platform is free for men and women, in the USA, UK, Canada, Pakistan, India, and everywhere else.',
+        ],
+      },
+      {
+        h2: 'A side-by-side comparison',
+        body: [
+          'Cost: ShiaMatch is free except for men in the USA, UK, and Canada. ShiaRishta is free for everyone. Track record: ShiaMatch has years of published success stories; ShiaRishta is newer and growing fast. Design: ShiaMatch uses a classic early-2000s layout; ShiaRishta is a modern platform with iOS and Android apps. Verification: ShiaRishta offers blue Photo Verified badges (selfie check) and gold ID Verified badges (government ID check); ShiaMatch relies on its anonymous request system. Extras: ShiaRishta includes a free biodata maker your family can share on WhatsApp, plus matchmaker accounts that bring the traditional rishta network online.',
+        ],
+      },
+      {
+        h2: 'Why families are switching',
+        body: [
+          'Three reasons come up again and again. First, verification: knowing the person you are talking to is real, with a photo or ID badge to prove it. Second, the biodata maker: a beautiful, printable marriage biodata built in minutes — the single most-forwarded document in rishta circles. Third, dignity by design: photo privacy tiers you control, wali and family involvement from the first introduction, and no public exposure of your search.',
+          'Switching takes about ten minutes: create your free profile, verify your photo, build your biodata, and share it with your family WhatsApp groups the same day.',
+        ],
+      },
+    ],
+    faqs: [
+      { q: 'Is ShiaMatch free?', a: 'ShiaMatch states on its homepage that it is free for residents of all countries except for men residing in the USA, UK, or Canada. ShiaRishta is free for everyone, in every country.' },
+      { q: 'What is the best ShiaMatch alternative?', a: 'It depends what matters to you. If a decades-long track record is your top priority, ShiaMatch\u2019s history is real. If you want a free, modern platform with photo and ID verification, a free biodata maker, and mobile apps, ShiaRishta is built for that.' },
+      { q: 'Can I use both ShiaMatch and ShiaRishta?', a: 'Yes — many families do. There is no exclusivity in the rishta search. Comparing both for a few weeks costs nothing on ShiaRishta.' },
+      { q: 'Is ShiaRishta really free?', a: 'Yes. Joining, creating a profile, browsing, messaging, verification badges, and the biodata maker are all free.' },
+    ],
+    related: [
+      { to: '/shia-matrimony-usa', label: 'Shia matrimony in the USA' },
+      { to: '/syed-rishta', label: 'Syed rishta' },
+      { to: '/biodata-maker', label: 'Free biodata maker' },
+      { to: '/safety', label: 'Safety center' },
+    ],
+  },
 });
 
 export default LANDING_PAGES;

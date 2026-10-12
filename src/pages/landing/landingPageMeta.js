@@ -23,4 +23,5 @@ export const LANDING_PAGE_META = {
   'shia-matrimony-bay-area': { title: 'Shia Matrimony Bay Area | Find Shia Rishta in San Francisco – Shia Rishta', desc: 'Shia rishta in the San Francisco Bay Area: verified Shia brides and grooms, wali-involved introductions, privacy-first profiles. Join free.' },
   'shia-matrimony-atlanta': { title: 'Shia Matrimony Atlanta | Find Shia Rishta in Georgia – Shia Rishta', desc: 'Shia rishta in Atlanta: verified Shia brides and grooms across Georgia, with wali-involved introductions and privacy-first profiles. Join free.' },
   'shia-matrimony-seattle': { title: 'Shia Matrimony Seattle | Find Shia Rishta in the Pacific Northwest – Shia Rishta', desc: 'Shia rishta in Seattle: verified Shia brides and grooms across Washington, with wali-involved introductions and privacy-first profiles. Join free.' },
+  'shiamatch-alternative': { title: 'ShiaMatch Alternative 2026: Free Modern Shia Matrimony – Shia Rishta', desc: 'The free ShiaMatch alternative: no charges for men in the USA, UK, or Canada. Verified profiles, free biodata maker, and modern apps. Join free.' },
 };

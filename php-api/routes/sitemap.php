@@ -22,6 +22,7 @@ function sitemapXml(): void
         '/shia-matrimony-dearborn', '/shia-matrimony-dallas',
         '/shia-matrimony-los-angeles', '/shia-matrimony-bay-area',
         '/shia-matrimony-atlanta', '/shia-matrimony-seattle',
+        '/shiamatch-alternative',
         '/terms', '/privacy', '/contact', '/success-stories', '/faq',
     ];
     foreach ($static as $p) {

@@ -106,6 +106,10 @@ const LANDING_BODY = {
     h1: 'Shia matrimony in Seattle',
     more: 'A small, young community where the local rishta pool can feel like a dozen families you already know. Widen the search to the Pacific Northwest and nationwide while keeping small-community discretion — photo privacy, mutual-interest messaging, and structured long-distance courtship.',
   },
+  'shiamatch-alternative': {
+    h1: 'Looking for a ShiaMatch alternative?',
+    more: 'ShiaMatch has served the community for years, but its homepage states it is free except for men residing in the USA, UK, or Canada. ShiaRishta is the free alternative: no country-based charges, photo and ID verification badges, a free biodata maker families can share on WhatsApp, matchmaker accounts, and modern iOS and Android apps.',
+  },
 };
 
 export function landingRouteSeo(meta = {}) {
