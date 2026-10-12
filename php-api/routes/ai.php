@@ -749,7 +749,7 @@ function aiAutoSchedule(): void
  *   1. Take the oldest 'queued' blog_queue row.
  *   2. Generate the article with the same prompt/shape as the admin
  *      "generate post" flow (SEO-tuned: keyword woven into title/opening).
- *   3. Insert into blog_posts as 'scheduled' for the next free 8-hour slot
+ *   3. Insert into blog_posts as 'scheduled' for the next free fixed slot (09:00 / 15:00 / 21:00 UTC)
  *      (lazy publication picks it up — no separate publisher needed).
  *   4. Mark the queue row 'done' (or 'failed' if generation/parse failed).
  *
@@ -931,7 +931,8 @@ function aiQueueNext(): void
  * POST /api/ai/queue-save — save a pre-generated post as scheduled.
  *
  * Body: { topic_id, post: { title, excerpt, category, readTime, body: [{t, x}] } }
- * Validates the shape, finds the next free 8-hour slot, inserts as 'scheduled', and
+ * Validates the shape, finds the next free fixed slot (09:00 / 15:00 / 21:00
+ * UTC — morning / afternoon / night), inserts as 'scheduled', and
  * marks the topic 'done'. On validation failure the topic goes back to
  * 'queued' with attempts incremented.
  */
@@ -981,8 +982,10 @@ function aiQueueSave(): void
         json(['ok' => false, 'reason' => 'invalid_post', 'attempt' => $r['attempts'], 'will_retry' => $r['will_retry']]);
     }
 
-    // Next free slot: 8 hours after the latest scheduled/published post.
-    // Three posts go out per day (09:00 / 17:00 / 01:00 UTC rolling).
+    // Next free slot: fixed daily slots at 09:00, 15:00, 21:00 UTC
+    // (morning / afternoon / night). The workflow runs publish-due at
+    // 09:15, 15:15 and 21:15 UTC, so each post goes live ~15 min after
+    // its slot.
     $last = db()->query(
         "SELECT GREATEST(
             COALESCE(MAX(scheduled_for), '1970-01-01'),
@@ -990,9 +993,19 @@ function aiQueueSave(): void
         ) AS last_day FROM blog_posts WHERE status IN ('scheduled','published')"
     )->fetch();
     $cursor = new DateTimeImmutable($last['last_day'] ?? '1970-01-01', new DateTimeZone('UTC'));
-    $today = new DateTimeImmutable('today', new DateTimeZone('UTC'));
-    if ($cursor < $today) $cursor = $today;
-    $slot = $cursor->modify('+8 hours')->format('Y-m-d H:i:s');
+    $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+    if ($cursor < $now) $cursor = $now;
+    $slot = null;
+    foreach ([9, 15, 21] as $h) {
+        $cand = (clone $cursor)->setTime($h, 0, 0);
+        if ($cand > $cursor) {
+            $slot = $cand->format('Y-m-d H:i:s');
+            break;
+        }
+    }
+    if ($slot === null) {
+        $slot = (clone $cursor)->modify('+1 day')->setTime(9, 0, 0)->format('Y-m-d H:i:s');
+    }
 
     $id = uuid();
     $slug = aiSlugify($title);

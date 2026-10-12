@@ -5,14 +5,15 @@ name: Daily Blog Queue
 # generation happens HERE on the runner (which can). The API only hands out
 # topics and saves finished posts.
 #
-# Each run:
+# Each run (09:15, 15:15, 21:15 UTC — right after the 09:00 / 15:00 / 21:00
+# publish slots):
 #   1. POST /api/ai/publish-due   -> flip due scheduled posts to published
 #   2. GET  /api/ai/scheduled-count -> how many are pending (target: 90)
 #   3. Loop: GET /api/ai/queue-next -> NVIDIA generate -> POST /api/ai/queue-save
 #      until 90 scheduled or queue empty (max 8 per run to bound runtime)
 on:
   schedule:
-    - cron: '15 9 * * *' # 09:15 UTC daily
+    - cron: '15 9,15,21 * * *' # 09:15, 15:15, 21:15 UTC daily
   workflow_dispatch:
 jobs:
   queue-run:

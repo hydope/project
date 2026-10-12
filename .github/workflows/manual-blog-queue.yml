@@ -9,7 +9,7 @@ name: Manual Blog Queue
 #      "body": [{ "t": "p", "x": "..." }, { "t": "h2", "x": "..." }],
 #      "image_url": "/api/uploads/blog-covers/blog-cover-1.webp" }]
 # Each post consumes the next queued topic (via queue-next) and is saved as
-# scheduled on the next free 8-hour slot (via queue-save).
+# scheduled on the next free fixed slot 09:00/15:00/21:00 UTC (via queue-save).
 on:
   workflow_dispatch:
     inputs:
