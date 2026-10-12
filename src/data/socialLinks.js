@@ -11,7 +11,7 @@ export const SOCIAL_LINKS = [
   },
   {
     name: 'Instagram',
-    url: 'https://instagram.com/shiarishta',
+    url: 'https://instagram.com/shiarishta.official',
     icon: 'instagram',
   },
   {
