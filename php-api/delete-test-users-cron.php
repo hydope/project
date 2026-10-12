@@ -80,7 +80,7 @@ foreach ($emails as $email) {
         db()->prepare('DELETE FROM reports WHERE reporter_id = ?')->execute([$id]);
         db()->prepare('DELETE FROM blocks WHERE blocker_id = ? OR blocked_id = ?')->execute([$id, $id]);
         db()->prepare('DELETE FROM wali_links WHERE user_id = ?')->execute([$id]);
-        db()->prepare('DELETE FROM profile_drafts WHERE user_id = ?')->execute([$id]);
+        db()->prepare('DELETE FROM profile_drafts WHERE created_by = ?')->execute([$id]);
         db()->prepare('DELETE FROM sessions WHERE user_id = ?')->execute([$id]);
         db()->prepare('DELETE FROM email_verifications WHERE user_id = ?')->execute([$id]);
         db()->prepare('DELETE FROM notifications WHERE user_id = ?')->execute([$id]);
