@@ -1,0 +1,32 @@
+name: Delete Test Users (one-off)
+
+# ONE-OFF admin tool. Deploys with the delete-test-users-cron.php endpoint,
+# then remove both files after the run — do not leave a delete endpoint live.
+#
+# Usage: Actions -> Delete Test Users -> Run workflow -> emails:
+#   syedmohammedali1512+e2e1@gmail.com,syedmohammedali1512+e2e2@gmail.com
+
+on:
+  workflow_dispatch:
+    inputs:
+      emails:
+        description: 'Comma-separated user emails to delete (QA/test only — the endpoint refuses anything else)'
+        required: true
+        type: string
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call server-side deletion endpoint
+        env:
+          SEEDER_CRON_KEY: ${{ secrets.SEEDER_CRON_KEY }}
+          EMAILS: ${{ inputs.emails }}
+        run: |
+          JSON=$(python3 -c "import json,os; print(json.dumps({'emails': [e.strip() for e in os.environ['EMAILS'].split(',') if e.strip()]}))")
+          RESP=$(curl -s --max-time 120 -X POST https://shiarishta.com/api/delete-test-users-cron.php \
+            -H "X-Seeder-Cron-Key: $SEEDER_CRON_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$JSON")
+          echo "Response: $RESP"
+          echo "$RESP" | grep -q '"ok":true' || { echo "DELETION_FAILED"; exit 1; }
