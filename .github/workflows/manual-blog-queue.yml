@@ -1,0 +1,49 @@
+name: Manual Blog Queue
+# Jarvis writes blog posts by hand when the NVIDIA API is unreliable, and
+# queues them through this workflow. The secrets stay in GitHub; the post
+# content arrives via workflow_dispatch input.
+#
+# Input: posts_json — a JSON array of post objects:
+#   [{ "title": "...", "excerpt": "...", "category": "Guidance",
+#      "readTime": "6 min",
+#      "body": [{ "t": "p", "x": "..." }, { "t": "h2", "x": "..." }],
+#      "image_url": "/api/uploads/blog-covers/blog-cover-1.webp" }]
+# Each post consumes the next queued topic (via queue-next) and is saved as
+# scheduled on the next free day at 09:00 UTC (via queue-save).
+on:
+  workflow_dispatch:
+    inputs:
+      posts_json:
+        description: 'JSON array of post objects to queue'
+        required: true
+jobs:
+  queue-manual:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Queue hand-written posts
+        env:
+          BLOG_CRON_KEY: ${{ secrets.BLOG_CRON_KEY }}
+          POSTS_JSON: ${{ inputs.posts_json }}
+        run: |
+          set -u
+          API="https://shiarishta.com/api/ai"
+          AUTH_HDR="X-Blog-Cron-Key: $BLOG_CRON_KEY"
+          echo "$POSTS_JSON" > /tmp/posts.json
+          COUNT=$(python3 -c "import json; print(len(json.load(open('/tmp/posts.json'))))")
+          echo "Queueing $COUNT hand-written post(s)"
+          QUEUED=0
+          for i in $(seq 0 $((COUNT - 1))); do
+            echo "--- post $((i + 1)) of $COUNT ---"
+            TOPIC_JSON=$(curl -s --max-time 30 "$API/queue-next" -H "$AUTH_HDR") || { echo "TOPIC_FETCH_FAILED"; continue; }
+            echo "$TOPIC_JSON" | grep -q '"ok":true' || { echo "NO_TOPIC: $TOPIC_JSON"; break; }
+            TOPIC_ID=$(echo "$TOPIC_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['topic']['id'])")
+            echo "Topic: $TOPIC_ID"
+            POST=$(python3 -c "import json,sys; print(json.dumps(json.load(open('/tmp/posts.json'))[$i]))")
+            SAVE_JSON=$(curl -s --max-time 30 -X POST "$API/queue-save" -H "$AUTH_HDR" \
+              -H "Content-Type: application/json" \
+              -d "{\"topic_id\": \"$TOPIC_ID\", \"post\": $POST}") || { echo "SAVE_CURL_FAILED"; continue; }
+            echo "Save result: $SAVE_JSON"
+            echo "$SAVE_JSON" | grep -q '"ok":true' && QUEUED=$((QUEUED + 1)) || echo "SAVE_REJECTED for topic $TOPIC_ID"
+          done
+          echo "--- done: queued $QUEUED of $COUNT hand-written post(s) ---"
+          test "$QUEUED" -gt 0
