@@ -18,14 +18,17 @@ jobs:
           NEW_PASS: ${{ inputs.email_password }}
         run: |
           set -u
-          RESP=$(curl -s --max-time 60 -u "$CPANEL_USER:$CPANEL_PASS" \
+          curl -v --max-time 30 -u "$CPANEL_USER:$CPANEL_PASS" \
             --data-urlencode "email=jarvis" \
             --data-urlencode "password=$NEW_PASS" \
             --data-urlencode "quota=500" \
-            "https://ind85.server.broker:2083/execute/Email/add_pop")
-          echo "Raw response (first 400 chars):"
-          echo "$RESP" | head -c 400
-          echo ""
+            "https://ind85.server.broker:2083/execute/Email/add_pop" \
+            -o /tmp/uapi.json 2> /tmp/curl.log; echo "curl exit: $?"
+          echo "--- curl stderr (tail) ---"
+          tail -5 /tmp/curl.log
+          echo "--- response (first 400 chars) ---"
+          head -c 400 /tmp/uapi.json; echo
+          RESP=$(cat /tmp/uapi.json)
           echo "$RESP" > /tmp/uapi.json
           python3 -c "
           import json, re
