@@ -909,13 +909,27 @@ function migrateAddTestFlag(): void
         }
         // Backfill: every account created by QA/E2E runs. Runs on every
         // deploy (idempotent) so accounts created between deploys get flagged.
+        // Email patterns cover the bots and personas; the profile patterns
+        // cover E2E debris whose email doesn't match (e.g. asqatest13@,
+        // cities like "test-profile-for-qa-please-ignore"). Patterns are the
+        // established test-shell labels — never bare 'TEST%', which would
+        // catch genuine names like "Testament".
         db()->exec(
-            "UPDATE users
-             SET is_test = 1
-             WHERE is_test = 0 AND is_admin = 0 AND (
-                 email LIKE 'qatest%@example.com'
-                 OR email LIKE 'syedmohammedali1512+e2e%@gmail.com'
-                 OR email LIKE 'syedmohammedali1512+critic%@gmail.com'
+            "UPDATE users u
+             LEFT JOIN profiles p ON p.user_id = u.id
+             SET u.is_test = 1
+             WHERE u.is_test = 0 AND u.is_admin = 0 AND (
+                 u.email LIKE '%qatest%@example.com'
+                 OR u.email LIKE 'syedmohammedali1512+e2e%@gmail.com'
+                 OR u.email LIKE 'syedmohammedali1512+critic%@gmail.com'
+                 OR p.display_name LIKE 'TEST PROFILE%'
+                 OR p.display_name LIKE 'QA Test%'
+                 OR p.display_name LIKE 'QATest%'
+                 OR p.display_name LIKE 'E2E QA%'
+                 OR p.display_name LIKE 'E2E Test%'
+                 OR p.city LIKE 'TEST PROFILE%'
+                 OR p.city LIKE 'test-profile-for-qa%'
+                 OR p.city LIKE 'DATA-%'
              )"
         );
     } catch (Throwable $e) {
