@@ -75,7 +75,7 @@ foreach ($emails as $email) {
         }
         db()->prepare('DELETE FROM interests WHERE from_user_id = ? OR to_user_id = ?')->execute([$id, $id]);
         db()->prepare('DELETE FROM favourites WHERE user_id = ?')->execute([$id]);
-        db()->prepare('DELETE FROM favourites WHERE profile_id IN (SELECT id FROM profiles WHERE user_id = ?)')->execute([$id]);
+        db()->prepare('DELETE FROM favourites WHERE profile_id = ?')->execute([$id]);
         db()->prepare('DELETE FROM verifications WHERE user_id = ?')->execute([$id]);
         db()->prepare('DELETE FROM reports WHERE reporter_id = ?')->execute([$id]);
         db()->prepare('DELETE FROM blocks WHERE blocker_id = ? OR blocked_id = ?')->execute([$id, $id]);
