@@ -1,0 +1,35 @@
+# Daily signup KPI report — the 10 real members/day target.
+#
+# Runs every morning, calls GET /api/ai/signup-stats (service-key authed),
+# and prints the numbers to the run log. The daily caretaker reads the latest
+# run and reports the KPI to Syed. Aggregates only — no PII.
+
+name: Daily Signup KPI
+
+on:
+  schedule:
+    - cron: '30 11 * * *'   # 7:30 AM ET, just after the caretaker sweep
+  workflow_dispatch:
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch signup stats
+        env:
+          BLOG_CRON_KEY: ${{ secrets.BLOG_CRON_KEY }}
+        run: |
+          set -euo pipefail
+          API="https://shiarishta.com/api/ai"
+          AUTH_HDR="X-Blog-Cron-Key: $BLOG_CRON_KEY"
+          OUT=$(curl -s --max-time 30 "$API/signup-stats" -H "$AUTH_HDR")
+          echo "$OUT" | python3 -c "
+          import json,sys
+          d = json.load(sys.stdin)
+          assert d.get('ok'), d
+          s = d['signups']
+          t = d['kpi_target']
+          print(f\"KPI target: {t} real signups/day\")
+          print(f\"Today: {s['today']} | Yesterday: {s['yesterday']} | Last 7d: {s['last_7d']} | Last 30d: {s['last_30d']} | Total real: {s['total_real']}\")
+          print('TARGET_HIT' if s['today'] >= t else 'TARGET_MISSED')
+          "

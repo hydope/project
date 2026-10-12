@@ -100,6 +100,14 @@ function routeAI(string $method, array $segments): void
         return;
     }
 
+    // GET /api/ai/signup-stats — real-member signup counts for the 10/day KPI.
+    // Service-key authed (same key as the blog endpoints). Excludes seeded
+    // synthetic profiles and admin accounts. Only aggregates, no PII.
+    if ($method === 'GET' && $action === 'signup-stats') {
+        aiSignupStats();
+        return;
+    }
+
     // GET /api/ai/blog-topics — curated + AI topic suggestions for the blog
     // queue. Interactive: the admin picks a suggestion and it becomes a draft.
     if ($method === 'GET' && $action === 'blog-topics') {
@@ -1067,4 +1075,33 @@ function aiScheduledCount(): void
         "SELECT COUNT(*) AS n FROM blog_posts WHERE status = 'scheduled'"
     )->fetch()['n'];
     json(['ok' => true, 'scheduled' => $n, 'target' => 30, 'deficit' => max(0, 30 - $n)]);
+}
+
+/**
+ * GET /api/ai/signup-stats — real signup counts for the 10/day KPI.
+ *
+ * Service-key authed (X-Blog-Cron-Key). Counts only real members: excludes
+ * seeded synthetic profiles (seeded-%@shiarishta.com) and admin accounts.
+ * Aggregates only — no PII leaves the server.
+ */
+function aiSignupStats(): void
+{
+    $providedKey = $_SERVER['HTTP_X_BLOG_CRON_KEY'] ?? '';
+    $wantKey = (string)($_ENV['BLOG_CRON_KEY'] ?? getenv('BLOG_CRON_KEY') ?? '');
+    if ($wantKey === '' || !hash_equals($wantKey, (string)$providedKey)) {
+        json(['error' => 'Unauthorized'], 401);
+    }
+
+    $w = "email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0";
+    $q = fn(string $cond): int => (int)db()->query(
+        "SELECT COUNT(*) AS n FROM users WHERE {$w} AND {$cond}"
+    )->fetch()['n'];
+
+    json(['ok' => true, 'kpi_target' => 10, 'signups' => [
+        'today' => $q('created_at >= CURDATE()'),
+        'yesterday' => $q('created_at >= DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND created_at < CURDATE()'),
+        'last_7d' => $q('created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)'),
+        'last_30d' => $q('created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)'),
+        'total_real' => $q('1 = 1'),
+    ]]);
 }
