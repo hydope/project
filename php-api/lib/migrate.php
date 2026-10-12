@@ -774,6 +774,11 @@ function migrateAddBlogQueueTable(): void
         ['Is ShiaMatch free? The honest answer', 'What ShiaMatch charges and who pays', 'Guidance', 'is shiamatch free'],
         ['Sites like ShiaMatch: 2026 options', 'Every ShiaMatch competitor compared', 'Guidance', 'sites like shiamatch'],
         ['ShiaMatch review 2026: features and pricing', 'Honest review with the pricing fine print', 'Guidance', 'shiamatch review 2026'],
+        // Batch 5 (2026-10-12): second Planner pass — more 10K-100K brands.
+        ['NikahForever vs ShiaRishta: honest comparison', 'Features and pricing compared', 'Guidance', 'nikahforever vs shiarishta'],
+        ['ShiaSpouse vs ShiaRishta: honest comparison', 'Which suits your family', 'Guidance', 'shiaspouse vs shiarishta'],
+        ['Temporary nikah in Islam: rules explained', 'What it is, rules and misconceptions', 'Guidance', 'temporary nikah in islam rules'],
+        ['Dawoodi Bohra matrimony: community guide', 'Bohra rishta channels and etiquette', 'Guidance', 'dawoodi bohra matrimony guide'],
     ];
 
     try {
