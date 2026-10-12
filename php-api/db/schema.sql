@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash           TEXT         NOT NULL,
   display_name            VARCHAR(255) NOT NULL,
   is_admin                TINYINT(1)   NOT NULL DEFAULT 0,
+  is_test                 TINYINT(1)   NOT NULL DEFAULT 0,
   role                    VARCHAR(16)  NOT NULL DEFAULT 'member',
   email_verified          TINYINT(1)   NOT NULL DEFAULT 0,
   email_verify_token      VARCHAR(64)  DEFAULT NULL,
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
   created_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_email (email),
   KEY idx_users_role (role),
+  KEY idx_users_test (is_test),
   KEY idx_users_verif (verification_status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
 
