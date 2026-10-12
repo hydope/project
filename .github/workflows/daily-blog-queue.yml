@@ -1,5 +1,5 @@
 name: Daily Blog Queue
-# Maintains 30 scheduled blog posts and auto-publishes due ones.
+# Maintains 90 scheduled blog posts (30 days × 3 posts/day) and auto-publishes due ones.
 #
 # Two-phase flow: the shared host cannot reliably reach the NVIDIA API, so
 # generation happens HERE on the runner (which can). The API only hands out
@@ -7,9 +7,9 @@ name: Daily Blog Queue
 #
 # Each run:
 #   1. POST /api/ai/publish-due   -> flip due scheduled posts to published
-#   2. GET  /api/ai/scheduled-count -> how many are pending (target: 30)
+#   2. GET  /api/ai/scheduled-count -> how many are pending (target: 90)
 #   3. Loop: GET /api/ai/queue-next -> NVIDIA generate -> POST /api/ai/queue-save
-#      until 30 scheduled or queue empty (max 5 per run to bound runtime)
+#      until 90 scheduled or queue empty (max 8 per run to bound runtime)
 on:
   schedule:
     - cron: '15 9 * * *' # 09:15 UTC daily
@@ -32,17 +32,17 @@ jobs:
           curl -s --max-time 30 -X POST "$API/publish-due" -H "$AUTH_HDR"
           echo
 
-          # 2. How many are scheduled? Top up to 30.
+          # 2. How many are scheduled? Top up to 90 (30 days × 3 posts/day).
           echo "--- checking scheduled count ---"
           COUNT_JSON=$(curl -s --max-time 30 "$API/scheduled-count" -H "$AUTH_HDR")
           echo "$COUNT_JSON"
           DEFICIT=$(echo "$COUNT_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('deficit', 0))")
           echo "Deficit: $DEFICIT"
 
-          # Bound per-run work: at most 5 generations (each ~2-3 min via NVIDIA).
+          # Bound per-run work: at most 8 generations (each ~2-3 min via NVIDIA).
           # The daily cadence closes the gap over several days; a big initial
           # deficit is backfilled gradually without timing out the job.
-          MAX_GEN=5
+          MAX_GEN=8
           if [ "$DEFICIT" -gt "$MAX_GEN" ]; then
             echo "Capping generation at $MAX_GEN for this run (deficit $DEFICIT)"
             DEFICIT=$MAX_GEN

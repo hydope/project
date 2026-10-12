@@ -749,7 +749,7 @@ function aiAutoSchedule(): void
  *   1. Take the oldest 'queued' blog_queue row.
  *   2. Generate the article with the same prompt/shape as the admin
  *      "generate post" flow (SEO-tuned: keyword woven into title/opening).
- *   3. Insert into blog_posts as 'scheduled' for the next free day 09:00 UTC
+ *   3. Insert into blog_posts as 'scheduled' for the next free 8-hour slot
  *      (lazy publication picks it up — no separate publisher needed).
  *   4. Mark the queue row 'done' (or 'failed' if generation/parse failed).
  *
@@ -931,7 +931,7 @@ function aiQueueNext(): void
  * POST /api/ai/queue-save — save a pre-generated post as scheduled.
  *
  * Body: { topic_id, post: { title, excerpt, category, readTime, body: [{t, x}] } }
- * Validates the shape, finds the next free day, inserts as 'scheduled', and
+ * Validates the shape, finds the next free 8-hour slot, inserts as 'scheduled', and
  * marks the topic 'done'. On validation failure the topic goes back to
  * 'queued' with attempts incremented.
  */
@@ -981,7 +981,8 @@ function aiQueueSave(): void
         json(['ok' => false, 'reason' => 'invalid_post', 'attempt' => $r['attempts'], 'will_retry' => $r['will_retry']]);
     }
 
-    // Next free day at 09:00 UTC.
+    // Next free slot: 8 hours after the latest scheduled/published post.
+    // Three posts go out per day (09:00 / 17:00 / 01:00 UTC rolling).
     $last = db()->query(
         "SELECT GREATEST(
             COALESCE(MAX(scheduled_for), '1970-01-01'),
@@ -991,7 +992,7 @@ function aiQueueSave(): void
     $cursor = new DateTimeImmutable($last['last_day'] ?? '1970-01-01', new DateTimeZone('UTC'));
     $today = new DateTimeImmutable('today', new DateTimeZone('UTC'));
     if ($cursor < $today) $cursor = $today;
-    $slot = $cursor->modify('+1 day')->setTime(9, 0, 0)->format('Y-m-d H:i:s');
+    $slot = $cursor->modify('+8 hours')->format('Y-m-d H:i:s');
 
     $id = uuid();
     $slug = aiSlugify($title);
@@ -1061,7 +1062,8 @@ function aiPublishDue(): void
 /**
  * GET /api/ai/scheduled-count — how many posts are awaiting their slot.
  *
- * Service-key authed. The daily workflow tops up to 30 scheduled posts.
+ * Service-key authed. The daily workflow tops up to 90 scheduled posts
+ * (30 days × 3 posts/day).
  */
 function aiScheduledCount(): void
 {
@@ -1074,7 +1076,7 @@ function aiScheduledCount(): void
     $n = (int)db()->query(
         "SELECT COUNT(*) AS n FROM blog_posts WHERE status = 'scheduled'"
     )->fetch()['n'];
-    json(['ok' => true, 'scheduled' => $n, 'target' => 30, 'deficit' => max(0, 30 - $n)]);
+    json(['ok' => true, 'scheduled' => $n, 'target' => 90, 'deficit' => max(0, 90 - $n)]);
 }
 
 /**
