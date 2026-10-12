@@ -15,6 +15,20 @@ declare(strict_types=1);
 
 require __DIR__ . '/lib/db.php';
 
+// Load .env the same way the seeder cron scripts do — getenv() is empty
+// without this, which made the key check below reject every call.
+$envFile = __DIR__ . '/.env';
+if (file_exists($envFile)) {
+    foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $l) {
+        $l = trim($l);
+        if ($l === '' || $l[0] === '#') continue;
+        if (strpos($l, '=') !== false) {
+            [$k, $v] = explode('=', $l, 2);
+            putenv(trim($k) . '=' . trim($v));
+        }
+    }
+}
+
 $provided = $_SERVER['HTTP_X_SEEDER_CRON_KEY'] ?? '';
 $expected = getenv('SEEDER_CRON_KEY') ?: '';
 if ($expected === '' || !hash_equals($expected, (string)$provided)) {
