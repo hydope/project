@@ -86,8 +86,8 @@ $MARJAS = ['Sistani', 'Khamenei', 'Shirazi', 'Hakim', 'Not following yet'];
 $RELIGIOSITY = ['very-practicing', 'practicing', 'practicing', 'moderately-practicing'];
 
 // Photo pool — AI-generated portraits committed in uploads/seeded/
-$FEMALE_PHOTOS = ['female-01.webp', 'female-02.webp', 'female-03.webp', 'female-04.webp'];
-$MALE_PHOTOS = ['male-01.webp', 'male-02.webp', 'male-03.webp', 'male-04.webp'];
+$FEMALE_PHOTOS = ['female-01.webp', 'female-02.webp', 'female-03.webp', 'female-04.webp', 'female-05.webp', 'female-06.webp', 'female-07.webp', 'female-08.webp', 'female-09.webp', 'female-10.webp', 'female-11.webp', 'female-12.webp'];
+$MALE_PHOTOS = ['male-01.webp', 'male-02.webp', 'male-03.webp', 'male-04.webp', 'male-05.webp', 'male-06.webp', 'male-07.webp', 'male-08.webp'];
 
 // ── Helper Functions ───────────────────────────────────────────
 function uuid() {

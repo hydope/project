@@ -1,0 +1,37 @@
+name: Daily Community Seeder
+
+# Seeds 2 community posts + 2-4 replies each, every day, across the
+# community rooms. Runs at 7:30 AM UTC daily (after the profile seeder).
+#
+# Fully autonomous: calls the server-side HTTP trigger which runs
+# the seeder PHP script on the production server (where MySQL is reachable).
+# Content pool covers 25 days without repetition; the seeder tracks used
+# items and cycles only when exhausted.
+
+on:
+  schedule:
+    - cron: '30 7 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger server-side community seeder
+        env:
+          SEEDER_CRON_KEY: ${{ secrets.SEEDER_CRON_KEY }}
+        run: |
+          echo "Triggering community seeder on production server..."
+          RESP=$(curl -s --max-time 120 -X POST https://shiarishta.com/api/seed-daily-community-cron.php \
+            -H "X-Seeder-Cron-Key: $SEEDER_CRON_KEY" \
+            -H "Content-Type: application/json")
+
+          echo "Response: $RESP"
+
+          echo "$RESP" | grep -q '"ok":true' && {
+            echo "✓ Community seeder completed successfully"
+            exit 0
+          }
+
+          echo "✗ Community seeder failed"
+          exit 1
