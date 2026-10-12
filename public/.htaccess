@@ -85,6 +85,10 @@ RewriteRule ^api/(.*)$ https://shiarishta.com/api/$1 [R=301,L]
 RewriteRule ^blog-post/ /blog [R=301,L]
 RewriteRule ^user-story/ /success-stories [R=301,L]
 RewriteRule ^testimonials/ /success-stories [R=301,L]
+# Individual legacy WP post slugs found 404ing in Search Console (no backlink
+# equity behind them, but a 301 to /blog beats a dead end for any visitor).
+RewriteRule ^how-to-make-a-marriage-successful/?$ /blog [R=301,L]
+RewriteRule ^rajab-the-most-blessed-month /blog [R=301,L]
 RewriteRule ^sample-page /about [R=301,L]
 RewriteRule ^terms-and-conditions /terms [R=301,L]
 RewriteRule ^members/ /profiles [R=301,L]
