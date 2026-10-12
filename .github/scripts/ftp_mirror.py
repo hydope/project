@@ -60,6 +60,10 @@ def main():
     ftps = connect()
     ensure_dir(ftps, REMOTE_ROOT)
     count = 0
+    # Collect index.html uploads to do LAST: uploading it first creates a
+    # broken window where the new page references JS chunks that haven't
+    # been uploaded yet ("Importing binding name 'X' is not found").
+    deferred = []
     for dirpath, dirnames, filenames in os.walk(LOCAL_ROOT):
         dirnames[:] = [
             d for d in dirnames
@@ -72,6 +76,10 @@ def main():
         for fn in sorted(filenames):
             rel = fn if rel_dir == "." else rel_dir + os.sep + fn
             if excluded(rel):
+                continue
+            # Defer index.html to the very end (see above).
+            if fn == "index.html" and rel_dir == ".":
+                deferred.append((dirpath, fn, remote_dir))
                 continue
             local_path = os.path.join(dirpath, fn)
             remote_path = remote_dir + "/" + fn
@@ -89,6 +97,26 @@ def main():
                     time.sleep(RETRY_SLEEP)
                     ftps = connect()  # fresh control connection for the retry
                     ensure_dir(ftps, remote_dir)
+    # Now upload index.html last, so it only goes live after all its
+    # referenced assets are in place.
+    for dirpath, fn, remote_dir in deferred:
+        local_path = os.path.join(dirpath, fn)
+        remote_path = remote_dir + "/" + fn
+        for attempt in range(1, MAX_FILE_ATTEMPTS + 1):
+            try:
+                with open(local_path, "rb") as f:
+                    ftps.storbinary("STOR " + remote_path, f)
+                count += 1
+                print(f"  index.html uploaded last ({count} files total)", flush=True)
+                break
+            except Exception as e:  # noqa: BLE001 - retry any transfer error
+                print(f"  retry {attempt}/{MAX_FILE_ATTEMPTS} index.html: "
+                      f"{type(e).__name__}: {e}", flush=True)
+                if attempt == MAX_FILE_ATTEMPTS:
+                    raise
+                time.sleep(RETRY_SLEEP)
+                ftps = connect()
+                ensure_dir(ftps, remote_dir)
     try:
         ftps.quit()
     except Exception:  # noqa: BLE001 - best effort close
