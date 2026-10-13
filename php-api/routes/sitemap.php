@@ -31,15 +31,30 @@ function sitemapXml(): void
 
     $pdo = db();
 
-    // Published blog posts.
+    // Published blog posts. Cover images go into the sitemap as Google
+    // image extensions so post images become indexable. image_url is
+    // TEXT and may hold admin-uploaded data: URLs — only real http(s)
+    // URLs are emitted.
     try {
-        $stmt = $pdo->query("SELECT slug, COALESCE(published_at, updated_at, created_at) AS lm FROM blog_posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 2000");
+        $hasImg = (bool)$pdo->query("SHOW COLUMNS FROM blog_posts LIKE 'image_url'")->fetch();
+        $imgSel = $hasImg ? ', image_url' : '';
+        $stmt = $pdo->query("SELECT slug, COALESCE(published_at, updated_at, created_at) AS lm{$imgSel} FROM blog_posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 2000");
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $urls[] = [
+            $entry = [
                 'loc' => $base . '/blog/' . rawurlencode((string)$row['slug']),
                 'lastmod' => substr((string)$row['lm'], 0, 10),
                 'priority' => '0.8',
             ];
+            $img = $hasImg ? trim((string)($row['image_url'] ?? '')) : '';
+            if (str_starts_with($img, 'data:') || $img === '') {
+                $img = '';
+            } elseif (!preg_match('#^https?://#i', $img)) {
+                $img = $base . '/' . ltrim($img, '/');
+            }
+            if ($img !== '') {
+                $entry['images'] = [$img];
+            }
+            $urls[] = $entry;
         }
     } catch (Throwable $e) { /* table missing — skip */ }
 
@@ -107,11 +122,16 @@ function sitemapXml(): void
     } catch (Throwable $e) { /* skip */ }
 
     $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-    $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+    $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'
+        . ' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">' . "\n";
     foreach ($urls as $u) {
         $xml .= '  <url><loc>' . htmlspecialchars($u['loc'], ENT_XML1) . '</loc>'
             . '<lastmod>' . htmlspecialchars($u['lastmod'], ENT_XML1) . '</lastmod>'
-            . '<priority>' . $u['priority'] . '</priority></url>' . "\n";
+            . '<priority>' . $u['priority'] . '</priority>';
+        foreach ($u['images'] ?? [] as $img) {
+            $xml .= '<image:image><image:loc>' . htmlspecialchars($img, ENT_XML1) . '</image:loc></image:image>';
+        }
+        $xml .= '</url>' . "\n";
     }
     $xml .= '</urlset>';
 
