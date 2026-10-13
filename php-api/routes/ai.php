@@ -986,25 +986,62 @@ function aiQueueSave(): void
     // (morning / afternoon / night). The workflow runs publish-due at
     // 09:15, 15:15 and 21:15 UTC, so each post goes live ~15 min after
     // its slot.
-    $last = db()->query(
-        "SELECT GREATEST(
-            COALESCE(MAX(scheduled_for), '1970-01-01'),
-            COALESCE(MAX(published_at), '1970-01-01')
-        ) AS last_day FROM blog_posts WHERE status IN ('scheduled','published')"
-    )->fetch();
-    $cursor = new DateTimeImmutable($last['last_day'] ?? '1970-01-01', new DateTimeZone('UTC'));
-    $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-    if ($cursor < $now) $cursor = $now;
+    //
+    // Fill the EARLIEST free slot at/after now rather than blindly
+    // appending after MAX(scheduled_for): if near-term slots were ever
+    // lost (outage, cleanup), MAX+1 leaves a publishing gap of days or
+    // weeks that never heals on its own. In steady state (no gaps) the
+    // earliest free slot IS MAX+1, so behaviour is unchanged.
     $slot = null;
-    foreach ([9, 15, 21] as $h) {
-        $cand = (clone $cursor)->setTime($h, 0, 0);
-        if ($cand > $cursor) {
-            $slot = $cand->format('Y-m-d H:i:s');
-            break;
+    try {
+        $takenRows = db()->query(
+            "SELECT DISTINCT scheduled_for FROM blog_posts
+              WHERE status = 'scheduled' AND scheduled_for > UTC_TIMESTAMP()"
+        )->fetchAll(PDO::FETCH_COLUMN);
+        $taken = [];
+        foreach ($takenRows as $t) {
+            $taken[substr((string)$t, 0, 16)] = true; // 'Y-m-d H:i'
+        }
+        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        $midnight = (clone $now)->setTime(0, 0, 0);
+        for ($d = 0; $d < 120 && $slot === null; $d++) {
+            foreach ([9, 15, 21] as $h) {
+                $cand = (clone $midnight)->modify('+' . $d . ' days')->setTime($h, 0, 0);
+                if ($cand <= $now) {
+                    continue;
+                }
+                if (!isset($taken[$cand->format('Y-m-d H:i')])) {
+                    $slot = $cand->format('Y-m-d H:i:s');
+                    break;
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        $slot = null;
+    }
+    if ($slot === null) {
+        // Fallback: previous MAX(scheduled_for)+1 behaviour.
+        $last = db()->query(
+            "SELECT GREATEST(
+                COALESCE(MAX(scheduled_for), '1970-01-01'),
+                COALESCE(MAX(published_at), '1970-01-01')
+            ) AS last_day FROM blog_posts WHERE status IN ('scheduled','published')"
+        )->fetch();
+        $cursor = new DateTimeImmutable($last['last_day'] ?? '1970-01-01', new DateTimeZone('UTC'));
+        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        if ($cursor < $now) {
+            $cursor = $now;
+        }
+        foreach ([9, 15, 21] as $h) {
+            $cand = (clone $cursor)->setTime($h, 0, 0);
+            if ($cand > $cursor) {
+                $slot = $cand->format('Y-m-d H:i:s');
+                break;
+            }
         }
     }
     if ($slot === null) {
-        $slot = (clone $cursor)->modify('+1 day')->setTime(9, 0, 0)->format('Y-m-d H:i:s');
+        $slot = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify('+1 day')->setTime(9, 0, 0)->format('Y-m-d H:i:s');
     }
 
     $id = uuid();

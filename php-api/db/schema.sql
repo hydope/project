@@ -4,6 +4,8 @@
 -- db.php), gen_random_uuid() -> uuid() in PHP.
 -- Marker bump 2026-10-12: re-run migrations to apply the broadened
 -- users.is_test backfill (QA emails + test-shell profile patterns).
+-- Marker bump 2026-10-13: re-run migrations to seed blog_queue batch 7
+-- (30 fresh topics) and pick up the queue-save earliest-free-slot fix.
 
 SET NAMES utf8mb4;
 

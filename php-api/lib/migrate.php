@@ -789,6 +789,40 @@ function migrateAddBlogQueueTable(): void
         ['Is there a WhatsApp group for Shia marriage?', 'What the groups are really like — and safer options', 'Safety', 'shia marriage whatsapp group'],
         ['Locked photos on ShiaRishta: how photo privacy works', 'You control exactly who sees your pictures', 'Guidance', 'shiarishta locked photos'],
         ['Why your rishta photos stay hidden until you allow it', 'Photo privacy vs public photo galleries', 'Safety', 'rishta photo privacy settings'],
+        // Batch 7 (2026-10-13): third month of topics. Fresh long-tail
+        // keywords — geo expansion (Europe/Gulf/APAC diaspora), life-stage
+        // niches, rulings questions, competitor comparisons. All keywords
+        // verified absent from batches 1-6.
+        ['Shia rishtay in Germany: a European rishta guide', 'Berlin, Hamburg and Munich communities', 'Guidance', 'shia rishtay in germany'],
+        ['Shia rishtay in France: Paris community guide', 'Centres and searching from abroad', 'Guidance', 'shia rishtay in france'],
+        ['Shia rishtay in the Netherlands: Dutch community guide', 'Amsterdam, Rotterdam and The Hague', 'Guidance', 'shia rishtay in netherlands'],
+        ['Shia rishta in Melbourne: Victoria guide', 'Community and practical search tips', 'Guidance', 'shia rishta melbourne'],
+        ['Shia rishta in Brisbane and Perth: Australia guide', 'Queensland and WA communities', 'Guidance', 'shia rishta brisbane perth'],
+        ['Shia rishtay in Saudi Arabia: Riyadh and Jeddah guide', 'Searching well within the Kingdom', 'Guidance', 'shia rishtay in saudi arabia'],
+        ['Shia rishtay in Qatar: Doha community guide', 'Small community, smart searching', 'Guidance', 'shia rishtay in qatar'],
+        ['Shia rishtay in Oman: Muscat guide', 'Community overview and channels', 'Guidance', 'shia rishtay in oman'],
+        ['Shia rishtay in Bahrain: island community guide', 'Local networks and family routes', 'Guidance', 'shia rishtay in bahrain'],
+        ['Shia rishta in Singapore and Malaysia: Southeast Asia guide', 'KL and Singapore communities', 'Guidance', 'shia rishta singapore malaysia'],
+        ['Shia rishta in New Zealand: Auckland guide', 'Small-community playbook', 'Guidance', 'shia rishta new zealand'],
+        ['Shia rishta in Sweden: Stockholm community guide', 'Scandinavian searching, done right', 'Guidance', 'shia rishta sweden'],
+        ['Shia divorcee rishta: a dignified second chance', 'What families should actually know', 'Guidance', 'shia divorcee rishta'],
+        ['Shia rishta after 30: honest advice', 'For late-20s and 30s seekers', 'Guidance', 'shia rishta after 30'],
+        ['Shia rishta for single mothers', 'Compassionate, practical guidance', 'Family', 'shia rishta single mothers'],
+        ['A Shia father\'s guide to finding his daughter\'s rishta', 'Leading the search well', 'Family', 'shia father daughter rishta guide'],
+        ['Shia revert rishta: marrying into the community', 'What converts should know', 'Guidance', 'shia revert rishta guide'],
+        ['Shia rishta for engineers and tech professionals', 'Career-focused searching', 'Guidance', 'shia rishta engineers'],
+        ['Is online nikah valid in Shia Islam?', 'Rulings on remote nikah, explained', 'Guidance', 'online nikah shia valid'],
+        ['Shia nikah without a wali: is it valid?', 'The rulings, explained carefully', 'Guidance', 'shia nikah without wali'],
+        ['Shia matrimony scams: red flags that save you', 'Fraud patterns to watch for', 'Safety', 'shia matrimony scams'],
+        ['Shia rishta events in the USA: where to meet', 'Conventions, camps and centres', 'Community', 'shia rishta events usa'],
+        ['Shia wedding on a budget: dignified and simple', 'Costs, priorities and mahr', 'Guidance', 'shia wedding budget guide'],
+        ['Average mahr amounts in the USA: what\'s realistic', 'Ranges families actually agree on', 'Guidance', 'average mahr amount usa'],
+        ['Muzmatch vs ShiaRishta: honest comparison', 'General apps vs Shia-first platform', 'Guidance', 'muzmatch vs shiarishta'],
+        ['Salams app vs ShiaRishta: which fits Shia seekers', 'App comparison for Shia Muslims', 'Guidance', 'salams app vs shiarishta'],
+        ['Shia rishta Facebook groups: using them safely', 'Groups vs a real platform', 'Safety', 'shia rishta facebook groups'],
+        ['Shia simple nikah: a minimal, beautiful guide', 'Stripping it to the essentials', 'Guidance', 'shia simple nikah guide'],
+        ['Shia nikah before the visa arrives: long-distance rules', 'Paperwork, patience and rulings', 'Guidance', 'shia nikah before visa'],
+        ['Shia rishta from Pakistan to the USA: the full playbook', 'Immigration-aware searching', 'Guidance', 'shia rishta pakistan to usa'],
     ];
 
     try {
