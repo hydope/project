@@ -17,7 +17,14 @@ export default function LandingPage() {
   const [pages, setPages] = useState(null);
   useEffect(() => {
     let on = true;
-    import('./landingPages.js').then((m) => { if (on) setPages(m.LANDING_PAGES); });
+    Promise.all([
+      import('./landingPages.js'),
+      import('../../data/tagLandingPages.js'),
+    ]).then(([hand, gen]) => {
+      if (!on) return;
+      // Generated tag pages fill gaps; hand-written pages win on conflict.
+      setPages({ ...gen.buildTagLandingPages(), ...hand.LANDING_PAGES });
+    });
     return () => { on = false; };
   }, []);
   const page = pages?.[slug];
@@ -119,6 +126,24 @@ export default function LandingPage() {
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+
+        {page.popularTags?.length > 0 && (
+          <section style={{ marginTop: '2.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--color-border)' }}>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--color-ink)', marginBottom: '0.75rem' }}>Popular searches</h2>
+            <div className="flex flex-wrap gap-2">
+              {page.popularTags.map((t) => (
+                <Link
+                  key={t.to}
+                  to={t.to}
+                  className="px-3 py-1.5 rounded-full text-sm font-medium hover:underline"
+                  style={{ color: 'var(--color-ink-secondary)', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+                >
+                  {t.label}
+                </Link>
+              ))}
+            </div>
           </section>
         )}
       </main>

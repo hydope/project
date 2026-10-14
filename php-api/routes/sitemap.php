@@ -34,6 +34,45 @@ function sitemapXml(): void
         $urls[] = ['loc' => $base . $p, 'lastmod' => date('Y-m-d'), 'priority' => $p === '/' ? '1.0' : '0.7'];
     }
 
+    // Programmatic tag landing pages: 11 tag phrases × every profile
+    // city/country. Mirrors src/data/tagLandingPages.js — keep in sync.
+    $tagPlaces = [
+        'karachi', 'lahore', 'sargodha', 'mumbai', 'chennai', 'bangalore',
+        'dubai', 'abu-dhabi', 'toronto', 'london', 'chicago', 'houston',
+        'washington-dc', 'silver-spring', 'sydney', 'nanjing',
+        'pakistan', 'india', 'uae', 'canada', 'usa', 'united-kingdom', 'australia',
+    ];
+    $tagPatterns = [
+        fn($s) => "shia-rishta-$s",
+        fn($s) => "shia-rishtay-$s",
+        fn($s) => "shia-nikah-$s",
+        fn($s) => "shia-marriage-$s",
+        fn($s) => "shia-matrimony-$s",
+        fn($s) => "$s-shia-brides",
+        fn($s) => "$s-shia-grooms",
+        fn($s) => "shia-shaadi-$s",
+        fn($s) => "find-shia-rishta-$s",
+        fn($s) => "$s-shia-matrimonial",
+        fn($s) => "shia-nikah-match-$s",
+    ];
+    // Slugs already covered by hand-written pages (don't duplicate).
+    $tagSkip = [
+        'shia-rishta-toronto', 'shia-matrimony-toronto',
+        'shia-rishta-london', 'shia-matrimony-london',
+        'shia-rishta-chicago', 'shia-matrimony-chicago',
+        'shia-rishta-houston', 'shia-matrimony-houston',
+        'shia-matrimony-usa',
+    ];
+    $staticPaths = array_flip($static);
+    foreach ($tagPlaces as $place) {
+        foreach ($tagPatterns as $fn) {
+            $slug = $fn($place);
+            if (in_array($slug, $tagSkip, true)) continue;
+            if (isset($staticPaths['/' . $slug])) continue;
+            $urls[] = ['loc' => $base . '/' . $slug, 'lastmod' => date('Y-m-d'), 'priority' => '0.7'];
+        }
+    }
+
     $pdo = db();
 
     // Published blog posts. Cover images go into the sitemap as Google

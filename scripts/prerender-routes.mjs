@@ -35,6 +35,7 @@ import { CITIES, COUNTRIES, locationRouteSeo } from '../src/data/locationSeo.js'
 import { readFileSync } from 'fs';
 import { fileURLToPath as __f2u } from 'url';
 import { LANDING_PAGE_META } from '../src/pages/landing/landingPageMeta.js';
+import { tagLandingSeo } from '../src/data/tagLandingPages.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -64,6 +65,7 @@ const WITH_MEMBERS = {
 };
 const ALL = {
   ...ROUTE_SEO,
+  ...tagLandingSeo(),
   ...landingRouteSeo(LANDING_PAGE_META),
   ...locationRouteSeo(WITH_MEMBERS),
   '/locations': { title: 'Shia Matrimony by City & Country | Shia Rishta', desc: 'Find Shia matrimonial profiles by city or country. Browse verified Shia rishta in Karachi, London, Toronto, Dubai and more. Free to browse.', h1: 'Shia matrimony by location', lede: 'Find Shia matrimonial profiles by city or country. Every location listed has members on Shia Rishta today, and each page links to live, filtered results.', sections: [{ h2: 'Where are members?', p: ['This directory lists only locations that currently have at least one member. Nothing is listed speculatively: a city with no profiles does not get a page, because an empty location page is thin content rather than useful information.', 'Where a location is not listed, nobody on the platform lives there yet.'] }], faq: [] },

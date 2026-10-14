@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate, useLocation, useNavigationType } from 'r
 import { lazy, Suspense, useLayoutEffect } from 'react';
 import { RequireAuth, RequireAdmin } from './layouts/Guards';
 import Seo from './components/Seo';
+import { tagLandingSlugs } from './data/tagLandingPages.js';
 
 // Route-based code splitting — each page loads only when visited,
 // keeping the first paint tiny and the app fast on every device.
@@ -188,6 +189,13 @@ const router = createBrowserRouter([
   { path: '/shia-rishta-atlanta', element: <LazyRoute component={LandingPage} /> },
   { path: '/shia-rishta-seattle', element: <LazyRoute component={LandingPage} /> },
   { path: '/shiamatch-alternative', element: <LazyRoute component={LandingPage} /> },
+  // Programmatic tag landing pages (11 tags × profile cities/countries).
+  // Generated at build time; hand-written pages above take precedence on
+  // slug conflicts (LandingPage merges with hand-written winning).
+  ...tagLandingSlugs().map((slug) => ({
+    path: `/${slug}`,
+    element: <LazyRoute component={LandingPage} />,
+  })),
   { path: '/city/:slug', element: <LazyRoute component={CityPage} /> },
   { path: '/country/:slug', element: <LazyRoute component={CityPage} /> },
   { path: '/locations', element: <LazyRoute component={Locations} /> },
