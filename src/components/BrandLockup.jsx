@@ -35,6 +35,7 @@ export default function BrandLockup({
         </span>
         {tagline && (
           <span
+            className="brandlockup-tagline"
             style={{
               fontFamily: "Inter, -apple-system, 'Segoe UI', sans-serif",
               fontSize: tagSize,

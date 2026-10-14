@@ -1819,8 +1819,6 @@ select.input {
     width: 44px;
     height: 44px;
     flex-shrink: 0;
-    /* Safe area support for notched phones */
-    padding-top: env(safe-area-inset-top);
   }
   .landing-header-icon-group { padding: 4px; }
   .landing-header-icon-group .landing-icon-btn {
@@ -1853,6 +1851,11 @@ select.input {
 @media (max-width: 380px) {
   .landing-brand > div > span:first-child { font-size: 0.875rem; }
   .landing-brand > div > span:last-child { font-size: 0.55rem; }
+}
+/* Tagline drops below legibility on very small phones — hide it there
+   so the wordmark breathes. Kept on 360px+ where it reads as a detail. */
+@media (max-width: 359px) {
+  .landing-brand .brandlockup-tagline { display: none; }
 }
 
 /* ============================================================
@@ -2791,24 +2794,27 @@ button, a, input, select, textarea {
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid var(--color-border-strong);
-  background: var(--color-surface);
-  color: var(--color-primary);
+  border: 1px solid var(--color-border-subtle);
+  background: color-mix(in srgb, var(--color-canvas) 60%, transparent);
+  color: var(--color-ink-secondary);
   cursor: pointer;
   border-radius: 50%;
-  box-shadow: var(--shadow-sm), 0 4px 12px var(--color-primary-subtle);
-  transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+  box-shadow: var(--shadow-sm);
+  transition: transform 180ms ease, background 180ms ease, color 180ms ease, border-color 180ms ease;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 .landing-menu-btn:hover {
   background: var(--color-hover);
-  color: var(--color-primary);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  color: var(--color-ink);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-sm);
 }
-.landing-menu-btn:active { transform: scale(0.94); }
+.landing-menu-btn:active { transform: scale(0.92); }
 .landing-menu-btn[aria-expanded="true"] {
   background: var(--color-primary-subtle);
   border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 .landing-menu-btn:focus-visible {
   outline: 2px solid var(--color-primary);
