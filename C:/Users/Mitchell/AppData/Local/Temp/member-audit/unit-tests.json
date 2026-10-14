@@ -1,9 +1,0 @@
-{
-  "passed": [
-    "analytics records, counts, exports, clears",
-    "analytics queue caps at 500 keeping newest",
-    "analytics tolerates bad input and corrupted storage without throwing",
-    "completeness scoring: empty=0, filled=27"
-  ],
-  "ts": "2026-10-11T01:10:04.145Z"
-}
