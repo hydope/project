@@ -106,6 +106,50 @@ const LANDING_BODY = {
     h1: 'Shia matrimony in Seattle',
     more: 'A small, young community where the local rishta pool can feel like a dozen families you already know. Widen the search to the Pacific Northwest and nationwide while keeping small-community discretion — photo privacy, mutual-interest messaging, and structured long-distance courtship.',
   },
+  'shia-rishta-chicago': {
+    h1: 'Shia rishta in Chicago',
+    more: 'Chicago has one of America\u2019s largest Shia communities, but it is fragmented across suburbs, languages, and cultural backgrounds \u2014 and the rishta search still runs on majlis gossip and a khala who knows someone in Schaumburg. One verified, searchable pool for the whole metro \u2014 filtered by marja, practice, and family values \u2014 puts every serious Chicago Shia family in front of each other, with wali involvement from the first introduction.',
+  },
+  'shia-rishta-houston': {
+    h1: 'Shia rishta in Houston',
+    more: 'Houston\u2019s Shia community is growing fast, with new families arriving every year \u2014 but the rishta network has not kept up, and newcomers spend years just getting known. A verified platform profile skips that waiting period: visible to every serious Shia family searching in Texas from day one, searchable by marja, practice, and family expectations.',
+  },
+  'shia-rishta-new-york': {
+    h1: 'Shia rishta in New York',
+    more: 'New York\u2019s Shia community is spread across five boroughs and New Jersey, split by language and culture \u2014 and rishta introductions rarely cross those lines. One verified pool for the whole metro, filterable by marja, practice, education, and family values, collapses that distance so the right match is never missed over a borough line.',
+  },
+  'shia-rishta-london': {
+    h1: 'Shia rishta in London',
+    more: 'London\u2019s Shia rishta scene runs on the auntie network \u2014 the same few names circulating for years, good profiles never surfacing because nobody knows the right aunty. A verified platform is the auntie network upgraded: every searching Shia family in London and across the UK in one place, with photo and ID verification badges instead of unverifiable vouches.',
+  },
+  'shia-rishta-toronto': {
+    h1: 'Shia rishta in Toronto',
+    more: 'Toronto\u2019s Shia community is among the strongest in North America, yet families search in separate lanes \u2014 Khoja, Desi, Arab, Persian networks that rarely exchange introductions. One shared, verified directory for the GTA and across Canada breaks those lanes open, with cross-border wali workflows for the many matches that span into the US.',
+  },
+  'shia-rishta-dearborn': {
+    h1: 'Shia rishta in Dearborn',
+    more: 'Dearborn holds the densest Shia population in North America \u2014 which makes the rishta paradox sharper here: surrounded by community, yet families search the same small circles because asking around means the whole community knows you asked. Private, discreet platform search with real compatibility filters \u2014 marja, practice, expectations \u2014 lets families control the pace.',
+  },
+  'shia-rishta-dallas': {
+    h1: 'Shia rishta in Dallas\u2013Fort Worth',
+    more: 'DFW\u2019s Shia community is young, professional, and growing \u2014 full of engineers and doctors whose rishta networks are still in another city. A serious, efficient, Shia-only search that respects demanding schedules: verified profiles, real filters, mutual-interest gating, and wali involvement designed in from the start.',
+  },
+  'shia-rishta-los-angeles': {
+    h1: 'Shia rishta in Los Angeles',
+    more: 'LA\u2019s Shia community stretches from the Valley to Orange County to the Inland Empire \u2014 and introductions cluster by neighborhood, so a compatible family forty minutes away stays invisible. One metro-wide verified pool erases the geography problem, with precise filters for a genuinely diverse Persian, Arab, Desi, and convert community.',
+  },
+  'shia-rishta-bay-area': {
+    h1: 'Shia rishta in the Bay Area',
+    more: 'The Bay Area\u2019s Shia professionals were drawn by careers that left their family rishta networks thousands of miles behind. A verified platform rebuilds that network: serious Shia profiles, rigorous compatibility filters, and wali involvement that works over video call \u2014 visible both locally and to families back home searching worldwide.',
+  },
+  'shia-rishta-atlanta': {
+    h1: 'Shia rishta in Atlanta',
+    more: 'Atlanta\u2019s growing Shia community still feels small for rishta purposes \u2014 the grapevine exhausts itself fast. The serious strategy is a national search done properly: verified profiles, private video introductions, family-to-family messaging, and cross-city wali approvals that turn long-distance rishtas from a gamble into a process.',
+  },
+  'shia-rishta-seattle': {
+    h1: 'Shia rishta in Seattle',
+    more: 'Seattle\u2019s small, scattered Shia community means the local rishta grapevine is nearly silent. The answer is a national search with structure: verified profiles across America, West Coast clusters within natural reach, and video introductions plus wali workflows that make distance irrelevant.',
+  },
   'shiamatch-alternative': {
     h1: 'Looking for a ShiaMatch alternative?',
     more: 'ShiaMatch has served the community for years, but its homepage states it is free except for men residing in the USA, UK, or Canada. ShiaRishta is the free alternative: no country-based charges, photo and ID verification badges, a free biodata maker families can share on WhatsApp, matchmaker accounts, and modern iOS and Android apps.',

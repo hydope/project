@@ -22,9 +22,14 @@ function sitemapXml(): void
         '/shia-matrimony-dearborn', '/shia-matrimony-dallas',
         '/shia-matrimony-los-angeles', '/shia-matrimony-bay-area',
         '/shia-matrimony-atlanta', '/shia-matrimony-seattle',
+        '/shia-rishta-chicago', '/shia-rishta-houston', '/shia-rishta-new-york',
+        '/shia-rishta-london', '/shia-rishta-toronto', '/shia-rishta-dearborn',
+        '/shia-rishta-dallas', '/shia-rishta-los-angeles', '/shia-rishta-bay-area',
+        '/shia-rishta-atlanta', '/shia-rishta-seattle',
         '/shiamatch-alternative',
-        '/terms', '/privacy', '/contact', '/success-stories', '/faq',
+        '/terms', '/privacy', '/contact', '/success-stories',
     ];
+    // NOTE: '/faq' intentionally omitted — no /faq route exists (would 404).
     foreach ($static as $p) {
         $urls[] = ['loc' => $base . $p, 'lastmod' => date('Y-m-d'), 'priority' => $p === '/' ? '1.0' : '0.7'];
     }
