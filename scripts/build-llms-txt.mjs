@@ -139,10 +139,10 @@ for (const [slug, desc] of Object.entries(landingCopy)) {
 
 // Programmatic tag landing pages: 11 search phrases × profile cities/countries.
 // Listed by pattern (244 pages) so AI engines know the full coverage.
-p('### Location tag pages (11 phrases × cities & countries)');
-p('Every city and country with member profiles has dedicated pages for each of these search phrases: Shia Rishta in {place}, Shia Rishtay in {place}, Shia Nikah in {place}, Shia Marriage in {place}, Shia Matrimony in {place}, {place} Shia Brides, {place} Shia Grooms, Shia Shaadi in {place}, Find Shia Rishta {place}, {place} Shia Matrimonial, Shia Nikah Match {place}.');
+p('### Location tag pages (12 phrases × cities & countries)');
+p('Every city and country with member profiles has dedicated pages for each of these search phrases: Shia Rishta in {place}, Shia Rishtay in {place}, Shia Nikah in {place}, Shia Marriage in {place}, Shia Matrimony in {place}, {place} Shia Brides, {place} Shia Grooms, Shia Shaadi in {place}, Find Shia Rishta {place}, {place} Shia Matrimonial, Shia Nikah Match {place}, Shia Match {place}.');
 p('Covered places: Karachi, Lahore, Sargodha, Mumbai, Chennai, Bangalore, Dubai, Abu Dhabi, Toronto, London, Chicago, Houston, Washington DC, Silver Spring, Sydney, Nanjing, Pakistan, India, UAE, Canada, USA, United Kingdom, Australia.');
-p('URL patterns: /shia-rishta-{place}, /shia-rishtay-{place}, /shia-nikah-{place}, /shia-marriage-{place}, /shia-matrimony-{place}, /{place}-shia-brides, /{place}-shia-grooms, /shia-shaadi-{place}, /find-shia-rishta-{place}, /{place}-shia-matrimonial, /shia-nikah-match-{place} — e.g. https://shiarishta.com/shia-rishta-karachi');
+p('URL patterns: /shia-rishta-{place}, /shia-rishtay-{place}, /shia-nikah-{place}, /shia-marriage-{place}, /shia-matrimony-{place}, /{place}-shia-brides, /{place}-shia-grooms, /shia-shaadi-{place}, /find-shia-rishta-{place}, /{place}-shia-matrimonial, /shia-nikah-match-{place}, /shia-match-{place} — e.g. https://shiarishta.com/shia-match-karachi');
 
 if (articles.length) {
   p('### Articles');

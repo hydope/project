@@ -54,6 +54,7 @@ function sitemapXml(): void
         fn($s) => "find-shia-rishta-$s",
         fn($s) => "$s-shia-matrimonial",
         fn($s) => "shia-nikah-match-$s",
+        fn($s) => "shia-match-$s",
     ];
     // Slugs already covered by hand-written pages (don't duplicate).
     $tagSkip = [

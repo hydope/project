@@ -140,6 +140,15 @@ const TAG_DEFS = [
     desc: p => `Your Shia nikah match in ${p.name} — compatibility on marja, practice, and family values, not just photos. Find your match free.`,
     angle: 'match',
   },
+  {
+    id: 'shia-match',
+    slug: p => `shia-match-${p.slug}`,
+    phrase: p => `Shia Match ${p.name}`,
+    h1: p => `Shia Match in ${p.name}`,
+    title: p => `Shia Match in ${p.name} | Find Your Shia Match – Shia Rishta`,
+    desc: p => `Find your Shia match in ${p.name}. Verified Shia singles seeking nikah, matched on deen and values. Join free and meet your match.`,
+    angle: 'shia-match',
+  },
 ];
 
 // ── Content builders: distinct angle per tag type ──────────────────────────
@@ -304,6 +313,20 @@ const ANGLES = {
     faqs: p => [
       { q: `How are matches ${inPhrase(p)} ranked?`, a: 'By compatibility across marja, practice, family values, location, and stated expectations — not by photo popularity.' },
       { q: 'What if I don\u2019t find a match immediately?', a: 'New verified profiles join daily. Keep your profile complete and check back — and consider widening location filters.' },
+    ],
+  },
+  'shia-match': {
+    intro: p => [
+      `Looking for your Shia match ${inPhrase(p)}? You are in the right place. Shia Rishta connects Shia singles ${inPhrase(p)} who are serious about nikah — verified profiles, honest intentions, and families involved from the start.`,
+      `A true Shia match ${inPhrase(p)} shares more than a city: shared marja, compatible practice, aligned family values. That is what the platform matches on — so every introduction ${inPhrase(p)} has real potential.`,
+    ],
+    sections: p => [
+      { h2: `Find your Shia match ${inPhrase(p)}`, body: [`Start with a free profile that says who you are: your deen, your practice, your family, your hopes. Then browse verified Shia singles ${inPhrase(p)}, filter by marja and values, and reach out where there is genuine compatibility. Your match ${inPhrase(p)} is here — the platform just makes the introduction dignified.`] },
+      { h2: 'Why Shia Rishta for your match', body: [`Because a Shia match needs Shia filters: marja, sect, Muharram observance, wali workflows. Generic platforms cannot do this. Here, every member ${inPhrase(p)} is Shia and seeking nikah — so you never waste time explaining the basics to someone who does not share them.`] },
+    ],
+    faqs: p => [
+      { q: `How do I find my Shia match ${inPhrase(p)}?`, a: 'Create a free profile, set your filters for location, marja, and practice, then browse verified profiles and express interest where there is alignment.' },
+      { q: 'Is finding a match free?', a: 'Yes — profiles, browsing, matching, messaging, and verification are all free.' },
     ],
   },
 };
