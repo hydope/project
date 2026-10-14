@@ -13,11 +13,11 @@ import { MapPin, Globe2, Search, X, Users, ArrowRight, ArrowLeft } from 'lucide-
  * Every /city/* and /country/* page used to be an orphan: in the sitemap with
  * unique metadata, reachable from nothing (the CityPage breadcrumb even linked
  * here, to a page that did not exist — a 404). This hub fixes that: one page
- * that links every location with real members, itself linked from the primary
- * nav, so the whole cluster is reachable in two clicks from the homepage.
+ * that links every curated location, itself linked from the primary nav, so
+ * the whole cluster is reachable in two clicks from the homepage.
  *
- * Only locations with at least one member are listed — an empty location page
- * is thin content, and listing one would promise members that do not exist.
+ * All curated locations are listed (see locationSeo.js) — ones with members
+ * show their count, ones without invite the first profile.
  */
 export default function Locations() {
   const [query, setQuery] = useState('');
@@ -26,16 +26,14 @@ export default function Locations() {
   const cities = useMemo(() => {
     const counts = snapshot?.cities || {};
     return CITIES
-      .filter((c) => counts[c.slug] > 0)
-      .map((c) => ({ ...c, count: counts[c.slug] }))
+      .map((c) => ({ ...c, count: counts[c.slug] || 0 }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, []);
 
   const countries = useMemo(() => {
     const counts = snapshot?.countries || {};
     return COUNTRIES
-      .filter((c) => counts[c.slug] > 0)
-      .map((c) => ({ ...c, count: counts[c.slug] }))
+      .map((c) => ({ ...c, count: counts[c.slug] || 0 }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, []);
 
@@ -73,8 +71,9 @@ export default function Locations() {
               Shia matrimony by location
             </h1>
             <p className="text-sm leading-relaxed mb-6" style={{ color: 'var(--color-ink-secondary)' }}>
-              Every city and country below has Shia Rishta members today. Search for your city
-              or country — each page links straight to live, verified profiles there.
+              Every city and country below is a real Shia community with its own page.
+              Search for your city or country — each page links straight to live,
+              verified profiles there, or invites the first profile where none exist yet.
             </p>
 
             {/* Search */}
@@ -112,7 +111,7 @@ export default function Locations() {
                 ? totalResults > 0
                   ? `${plural(totalResults, 'location', 'locations')} matching “${query.trim()}”`
                   : `No locations matching “${query.trim()}”`
-                : `${plural(cities.length, 'city', 'cities')} · ${plural(countries.length, 'country', 'countries')} with members`}
+                : `${plural(cities.length, 'city', 'cities')} · ${plural(countries.length, 'country', 'countries')} with Shia communities`}
             </p>
           </div>
         </header>
@@ -125,8 +124,9 @@ export default function Locations() {
               No Shia Rishta members in “{query.trim()}” yet
             </h2>
             <p className="text-sm max-w-md mx-auto mb-6" style={{ color: 'var(--color-ink-secondary)' }}>
-              We only list places that have members — an empty location page helps nobody.
-              Join free and be the first, or browse every profile on the platform.
+              We list every city and country with a real Shia community — this search
+              found no match. Join free and be the first, or browse every profile
+              on the platform.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
               <Link
@@ -177,7 +177,7 @@ export default function Locations() {
                             style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}
                           >
                             <Users className="w-3.5 h-3.5" aria-hidden="true" />
-                            {plural(c.count, 'profile', 'profiles')}
+                            {c.count > 0 ? plural(c.count, 'profile', 'profiles') : 'Be the first'}
                           </span>
                         </div>
                         <p className="text-xs leading-relaxed flex-1" style={{ color: 'var(--color-ink-secondary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
@@ -221,7 +221,7 @@ export default function Locations() {
                             style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}
                           >
                             <Users className="w-3.5 h-3.5" aria-hidden="true" />
-                            {plural(c.count, 'profile', 'profiles')}
+                            {c.count > 0 ? plural(c.count, 'profile', 'profiles') : 'Be the first'}
                           </span>
                         </div>
                         <p className="text-xs leading-relaxed flex-1" style={{ color: 'var(--color-ink-secondary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>

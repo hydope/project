@@ -54,21 +54,24 @@ const attr = esc;
 // Landing pages merged into the core routes. Before this they served the homepage
 // document, canonical tag included, which told Google to index each of them AS the
 // homepage - so none of the 14 could rank for their own keywords.
-// Location pages come from a committed snapshot of REAL member locations
-// (scripts/snapshot-locations.mjs), not from anything a member typed at signup.
+// Location pages: ALL curated locations in locationSeo.js (~143 cities + ~37
+// countries), each with a unique community note. Member counts come from a
+// committed snapshot (scripts/snapshot-locations.mjs); locations with no
+// members yet get count 0 and a "be the first" CTA. Curated list, not
+// member free-text — a spammer cannot manufacture a page by typing a city.
 const SNAP = JSON.parse(
   readFileSync(join(__dirname, '..', 'src', 'data', 'locationSnapshot.json'), 'utf8'),
 );
-const WITH_MEMBERS = {
-  cities: CITIES.filter((c) => SNAP.cities[c.slug]).map((c) => ({ ...c, count: SNAP.cities[c.slug] })),
-  countries: COUNTRIES.filter((c) => SNAP.countries[c.slug]).map((c) => ({ ...c, count: SNAP.countries[c.slug] })),
+const ALL_LOCATIONS = {
+  cities: CITIES.map((c) => ({ ...c, count: SNAP.cities[c.slug] || 0 })),
+  countries: COUNTRIES.map((c) => ({ ...c, count: SNAP.countries[c.slug] || 0 })),
 };
 const ALL = {
   ...ROUTE_SEO,
   ...tagLandingSeo(),
   ...landingRouteSeo(LANDING_PAGE_META),
-  ...locationRouteSeo(WITH_MEMBERS),
-  '/locations': { title: 'Shia Matrimony by City & Country | Shia Rishta', desc: 'Find Shia matrimonial profiles by city or country. Browse verified Shia rishta in Karachi, London, Toronto, Dubai and more. Free to browse.', h1: 'Shia matrimony by location', lede: 'Find Shia matrimonial profiles by city or country. Every location listed has members on Shia Rishta today, and each page links to live, filtered results.', sections: [{ h2: 'Where are members?', p: ['This directory lists only locations that currently have at least one member. Nothing is listed speculatively: a city with no profiles does not get a page, because an empty location page is thin content rather than useful information.', 'Where a location is not listed, nobody on the platform lives there yet.'] }], faq: [] },
+  ...locationRouteSeo(ALL_LOCATIONS),
+  '/locations': { title: 'Shia Matrimony by City & Country | Shia Rishta', desc: 'Find Shia matrimonial profiles by city or country. Browse verified Shia rishta in Karachi, London, Toronto, Dubai and more. Free to browse.', h1: 'Shia matrimony by location', lede: 'Find Shia matrimonial profiles by city or country. Every location listed is a real Shia community with its own page, and each page links to live, filtered results.', sections: [{ h2: 'Where are members?', p: ['This directory lists every city and country with a real Shia community. Pages with members show live profiles; pages without members yet describe the community and invite the first profile.', 'Where a location is not listed, it has no recognized Shia community page yet.'] }], faq: [] },
 };
 
 /**
@@ -158,7 +161,7 @@ function organizationJsonLd() {
  */
 function locationsHubHtml() {
   const parts = ['<article class="seo-section">', '<h2>Cities</h2>', '<ul>'];
-  for (const c of WITH_MEMBERS.cities) {
+  for (const c of ALL_LOCATIONS.cities) {
     parts.push(
       `<li><a href="${SITE_URL}/city/${c.slug}">Shia matrimony in ${esc(c.name)}</a>` +
       ` — <a href="${SITE_URL}/profiles?city=${encodeURIComponent(c.name)}">browse profiles in ${esc(c.name)}</a></li>`
@@ -167,7 +170,7 @@ function locationsHubHtml() {
   parts.push('</ul>', '</article>');
 
   parts.push('<article class="seo-section">', '<h2>Countries</h2>', '<ul>');
-  for (const k of WITH_MEMBERS.countries) {
+  for (const k of ALL_LOCATIONS.countries) {
     parts.push(
       `<li><a href="${SITE_URL}/country/${k.slug}">Shia matrimony in ${esc(k.name)}</a>` +
       ` — <a href="${SITE_URL}/profiles?country=${encodeURIComponent(k.name)}">browse profiles in ${esc(k.name)}</a></li>`
@@ -177,8 +180,8 @@ function locationsHubHtml() {
 
   // Grouped by country, so the hub also answers "where are people?"
   parts.push('<article class="seo-section">', '<h2>Locations grouped by country</h2>');
-  for (const k of WITH_MEMBERS.countries) {
-    const inCountry = WITH_MEMBERS.cities.filter((x) => x.countrySlug === k.slug);
+  for (const k of ALL_LOCATIONS.countries) {
+    const inCountry = ALL_LOCATIONS.cities.filter((x) => x.countrySlug === k.slug);
     if (!inCountry.length) continue;
     parts.push(`<h3><a href="${SITE_URL}/country/${k.slug}">${esc(k.name)}</a></h3>`, '<ul>');
     for (const x of inCountry) {

@@ -7,6 +7,8 @@ import { http } from '../lib/api/transport';
 import { MapPin, Users, Heart, ShieldCheck } from 'lucide-react';
 import ProfileCard from '../components/ProfileCard';
 import { countryAliases } from '../data/countryAliases';
+import { CITIES, COUNTRIES } from '../data/locationSeo';
+import NotFound from './NotFound';
 
 /**
  * Location landing page — city or country.
@@ -23,6 +25,9 @@ export default function CityPage() {
   const { slug } = useParams();
   const location = useLocation();
   const isCountry = location.pathname.startsWith('/country/');
+  // Curated-list validation: an unknown slug is NotFound, not a template page.
+  // This is what stops a spammer manufacturing a page by typing a city.
+  const curated = (isCountry ? COUNTRIES : CITIES).find((x) => x.slug === slug);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [locationName, setLocationName] = useState('');
@@ -52,6 +57,10 @@ export default function CityPage() {
 
   const name = locationName || displayName;
   const count = profiles.length;
+
+  // Unknown slug → NotFound. Must come after hooks (useEffect above) — hooks
+  // cannot be conditional, so the guard lives here, before the render.
+  if (!curated) return <NotFound />;
 
   // Keyword variations — 11 base + country alternate names
   const kw = {
@@ -109,7 +118,7 @@ export default function CityPage() {
             <div className="flex flex-wrap gap-3">
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
                 style={{ background: 'var(--color-primary)', color: 'white' }}>
-                <Users className="w-3.5 h-3.5" /> {count} Profile{count === 1 ? '' : 's'}
+                <Users className="w-3.5 h-3.5" /> {count > 0 ? `${count} Profile${count === 1 ? '' : 's'}` : 'Be the first'}
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
                 style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-ink-secondary)' }}>
@@ -122,6 +131,17 @@ export default function CityPage() {
             </div>
           </div>
         </header>
+
+        {/* Community note — the unique, factual content for this location.
+            Same note the prerender emits, so crawlers and users see one page. */}
+        <section className="mb-8 p-6 rounded-2xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+          <h2 className="text-lg font-bold mb-2" style={{ color: 'var(--color-ink)' }}>
+            About Shia families in {name}
+          </h2>
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--color-ink-secondary)' }}>
+            {curated.note}
+          </p>
+        </section>
 
         {/* Profile grid — same as Profiles page */}
         {loading ? (

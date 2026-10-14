@@ -130,41 +130,53 @@ function sitemapXml(): void
         }
     } catch (Throwable $e) { /* skip */ }
 
-    // City pages — every city with at least one active profile gets a
-    // crawlable /city/:slug page. Slug matches the frontend's slugify:
-    // lowercase, non-alphanumeric runs become a single dash.
-    try {
-        $stmt = $pdo->query("SELECT DISTINCT city FROM profiles WHERE is_blocked = 0 AND {$noTest} AND city IS NOT NULL AND city != '' LIMIT 500");
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $city = trim((string)$row['city']);
-            if ($city === '') continue;
-            $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', $city));
-            $slug = trim($slug, '-');
-            if ($slug === '') continue;
-            $urls[] = [
-                'loc' => $base . '/city/' . rawurlencode($slug),
-                'lastmod' => date('Y-m-d'),
-                'priority' => '0.7',
-            ];
-        }
-    } catch (Throwable $e) { /* skip */ }
+    // City + country pages — the CURATED list from src/data/locationSeo.js.
+    // Keep in sync with CITIES/COUNTRIES there. The old DB-driven version
+    // (DISTINCT city/country from profiles) is deliberately gone: member
+    // free-text could manufacture sitemap entries for pages that 404
+    // (CityPage validates slugs against the curated list).
+    $curatedCities = [
+        'karachi', 'lahore', 'sargodha', 'islamabad', 'rawalpindi', 'dubai', 'london', 'toronto',
+        'chicago', 'houston', 'new-york', 'silver-spring', 'detroit', 'tehran', 'qom', 'mashhad',
+        'isfahan', 'shiraz', 'tabriz', 'karaj', 'yazd', 'ahvaz', 'kerman', 'najaf',
+        'karbala', 'baghdad', 'basra', 'kufa', 'hillah', 'kirkuk', 'multan', 'faisalabad',
+        'hyderabad-pakistan', 'quetta', 'peshawar', 'gilgit', 'skardu', 'sialkot', 'gujranwala', 'jhang',
+        'parachinar', 'lucknow', 'hyderabad-india', 'mumbai', 'delhi', 'srinagar', 'kargil', 'chennai',
+        'bengaluru', 'kolkata', 'patna', 'amroha', 'bhopal', 'manama', 'sitra', 'muharraq',
+        'beirut', 'baalbek', 'tyre', 'nabatiyeh', 'baku', 'ganja', 'sanaa', 'saada',
+        'qatif', 'al-ahsa', 'dammam', 'medina', 'kuwait-city', 'salmiya', 'abu-dhabi', 'sharjah',
+        'doha', 'muscat', 'damascus', 'aleppo', 'istanbul', 'ankara', 'izmir', 'kabul',
+        'herat', 'mazar-i-sharif', 'washington', 'boston', 'san-francisco', 'miami', 'philadelphia', 'minneapolis',
+        'denver', 'phoenix', 'san-diego', 'sacramento', 'portland', 'austin', 'san-antonio', 'baltimore',
+        'columbus', 'birmingham', 'manchester', 'bradford', 'leicester', 'glasgow', 'leeds', 'luton',
+        'sheffield', 'coventry', 'vancouver', 'montreal', 'ottawa', 'calgary', 'edmonton', 'mississauga',
+        'hamilton', 'sydney', 'melbourne', 'perth', 'brisbane', 'adelaide', 'berlin', 'hamburg',
+        'munich', 'frankfurt', 'cologne', 'paris', 'lyon', 'marseille', 'stockholm', 'gothenburg',
+        'amsterdam', 'the-hague', 'vienna', 'zurich', 'oslo', 'copenhagen', 'madrid', 'rome',
+        'dar-es-salaam', 'nairobi', 'johannesburg', 'auckland', 'singapore', 'kuala-lumpur', 'jakarta',
+    ];
+    foreach ($curatedCities as $slug) {
+        $urls[] = [
+            'loc' => $base . '/city/' . rawurlencode($slug),
+            'lastmod' => date('Y-m-d'),
+            'priority' => '0.7',
+        ];
+    }
+    $curatedCountries = [
+        'pakistan', 'iran', 'uae', 'united-kingdom', 'usa', 'canada', 'iraq', 'india',
+        'bahrain', 'lebanon', 'azerbaijan', 'yemen', 'saudi-arabia', 'kuwait', 'qatar', 'oman',
+        'syria', 'turkey', 'afghanistan', 'australia', 'germany', 'france', 'sweden', 'netherlands',
+        'austria', 'switzerland', 'norway', 'denmark', 'spain', 'italy', 'tanzania', 'kenya',
+        'south-africa', 'new-zealand', 'singapore', 'malaysia', 'indonesia',
+    ];
+    foreach ($curatedCountries as $slug) {
+        $urls[] = [
+            'loc' => $base . '/country/' . rawurlencode($slug),
+            'lastmod' => date('Y-m-d'),
+            'priority' => '0.7',
+        ];
+    }
 
-    // Country pages — same treatment.
-    try {
-        $stmt = $pdo->query("SELECT DISTINCT country FROM profiles WHERE is_blocked = 0 AND {$noTest} AND country IS NOT NULL AND country != '' LIMIT 200");
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $country = trim((string)$row['country']);
-            if ($country === '') continue;
-            $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', $country));
-            $slug = trim($slug, '-');
-            if ($slug === '') continue;
-            $urls[] = [
-                'loc' => $base . '/country/' . rawurlencode($slug),
-                'lastmod' => date('Y-m-d'),
-                'priority' => '0.7',
-            ];
-        }
-    } catch (Throwable $e) { /* skip */ }
 
     $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
     $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'

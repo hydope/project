@@ -56,12 +56,12 @@ if (existsSync(sitemapPath)) {
   const SNAP = JSON.parse(
     await readFile(join(ROOT, 'src', 'data', 'locationSnapshot.json'), 'utf8'),
   );
-  const WITH_MEMBERS = {
-    cities: CITIES.filter((c) => SNAP.cities[c.slug]).map((c) => ({ ...c, count: SNAP.cities[c.slug] })),
-    countries: COUNTRIES.filter((c) => SNAP.countries[c.slug]).map((c) => ({ ...c, count: SNAP.countries[c.slug] })),
+  const ALL_LOCATIONS = {
+    cities: CITIES.map((c) => ({ ...c, count: SNAP.cities[c.slug] || 0 })),
+    countries: COUNTRIES.map((c) => ({ ...c, count: SNAP.countries[c.slug] || 0 })),
   };
   const SHIPPED = new Set([
-    ...Object.keys({ ...ROUTE_SEO, ...landingRouteSeo(LANDING_PAGE_META), ...locationRouteSeo(WITH_MEMBERS) })
+    ...Object.keys({ ...ROUTE_SEO, ...landingRouteSeo(LANDING_PAGE_META), ...locationRouteSeo(ALL_LOCATIONS) })
       .map((r) => (r === '/' ? '/' : r.replace(/\/$/, ''))),
     ...ARTICLES.map((a) => `/blog/${a.slug}`),
   ]);

@@ -35,15 +35,15 @@ const SITEMAP = join(ROOT, 'public', 'sitemap.xml');
 const SNAP = JSON.parse(
   await readFile(join(ROOT, 'src', 'data', 'locationSnapshot.json'), 'utf8'),
 );
-const WITH_MEMBERS = {
-  cities: CITIES.filter((c) => SNAP.cities[c.slug]).map((c) => ({ ...c, count: SNAP.cities[c.slug] })),
-  countries: COUNTRIES.filter((c) => SNAP.countries[c.slug]).map((c) => ({ ...c, count: SNAP.countries[c.slug] })),
+const ALL_LOCATIONS = {
+  cities: CITIES.map((c) => ({ ...c, count: SNAP.cities[c.slug] || 0 })),
+  countries: COUNTRIES.map((c) => ({ ...c, count: SNAP.countries[c.slug] || 0 })),
 };
 
 const ALL = {
   ...ROUTE_SEO,
   ...landingRouteSeo(LANDING_PAGE_META),
-  ...locationRouteSeo(WITH_MEMBERS),
+  ...locationRouteSeo(ALL_LOCATIONS),
 };
 
 // Blog articles are crawlable, real content, and belong in the sitemap.
