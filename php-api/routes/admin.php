@@ -1035,7 +1035,9 @@ function adminUsers(): void
         error_log('[api] admin/users count failed: ' . substr($e->getMessage(), 0, 100));
     }
 
-    $sql .= ' ORDER BY u.created_at DESC, u.id DESC LIMIT ' . ($limit + 1);
+    // Real members first (newest first), seeded profiles after — the daily
+    // seeder would otherwise bury real signups under newer fake profiles.
+    $sql .= ' ORDER BY is_seeded ASC, u.created_at DESC, u.id DESC LIMIT ' . ($limit + 1);
 
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
