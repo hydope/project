@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { LANDING_PAGE_META } from '../pages/landing/landingPageMeta.js';
 import { ARTICLE_META } from '../data/articleMeta.js';
+import { CITIES, COUNTRIES } from '../data/locationSeo.js';
 import { ROUTE_SEO, SITE_URL } from '../data/routeSeo.js';
 import { SOCIAL_LINKS } from '../data/socialLinks.js';
 import { trackPageView, beaconPageView } from '../lib/analytics.js';
@@ -94,6 +95,22 @@ function resolveMeta(pathname) {
         index: true,
       };
     }
+    // New posts from the blog engine are published via the API and never land
+    // in the static ARTICLE_META list. Noindexing them here hid every new post
+    // from Google (Search Console: "Excluded by 'noindex' tag"). Default any
+    // /blog/<slug> to indexable — BlogPost renders its own not-found state for
+    // genuinely bad slugs.
+    const slug = path.slice('/blog/'.length);
+    if (slug && !slug.includes('/')) {
+      const pretty = slug
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+      return {
+        title: `${pretty} | Shia Rishta Blog`,
+        desc: 'Shia matrimony guidance on Shia Rishta — the nikah-first Shia matchmaking platform.',
+        index: true,
+      };
+    }
     return { title: 'Page Not Found | Shia Rishta', desc: '', index: false };
   }
   if (path.startsWith('/profiles/')) {
@@ -109,6 +126,31 @@ function resolveMeta(pathname) {
       desc: 'Community guidance for Shia Muslims on Shia Rishta.',
       index: true,
     };
+  }
+  // Curated location pages — the /city/ + /country/ SEO expansion. These fell
+  // through to the unknown-route noindex below, which hid all 143 cities and
+  // 37 countries from Google. Unknown slugs still noindex (CityPage 404s).
+  if (path.startsWith('/city/')) {
+    const city = CITIES.find((c) => `/city/${c.slug}` === path);
+    if (city) {
+      return {
+        title: `Shia Matrimony in ${city.name} | Shia Rishta & Matchmaking`,
+        desc: `Browse Shia matrimonial profiles in ${city.name}. Privacy-first photos, mutual-interest messaging and wali-supported introductions. Free to join.`,
+        index: true,
+      };
+    }
+    return { title: 'Page Not Found | Shia Rishta', desc: '', index: false };
+  }
+  if (path.startsWith('/country/')) {
+    const country = COUNTRIES.find((c) => `/country/${c.slug}` === path);
+    if (country) {
+      return {
+        title: `Shia Matrimony in ${country.name} | Free Shia Rishta Platform`,
+        desc: `Find verified Shia brides and grooms in ${country.name}. Privacy-first profiles, wali and guardian workflows, mutual-interest messaging. Free.`,
+        index: true,
+      };
+    }
+    return { title: 'Page Not Found | Shia Rishta', desc: '', index: false };
   }
   if (PRIVATE_TITLES[path]) {
     return { title: PRIVATE_TITLES[path], desc: '', index: false };
