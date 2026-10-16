@@ -22,6 +22,12 @@ RewriteEngine On
 # the URL path arrives WITHOUT a leading slash, so a `^/(lib|...)/` pattern
 # silently matched nothing and every file stayed reachable. The `^/?` keeps it
 # correct either way.
+# Public blog cover images (static marketing assets in uploads/blog-covers/)
+# must stay directly reachable — every blog post's og:image, in-article
+# <img>, and sitemap <image:image> points at them. Everything else under
+# uploads/ (private user photos, served via photoServe()) stays blocked.
+RewriteRule ^/?uploads/blog-covers/ - [L]
+
 RewriteRule ^/?(?:lib|db|routes|tests|storage|uploads)/ - [F,L]
 
 # Non-PHP source/data files must never be served either.
