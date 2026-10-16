@@ -32,14 +32,21 @@ export default function BlogPost() {
   // because a static article matched).
   const [dbChecked, setDbChecked] = useState(false);
   useEffect(() => {
-    if (!articles || article) { setDbChecked(true); return; }
+    // Found in the static list — no DB lookup needed.
+    if (article) { setDbChecked(true); return; }
+    // Static list still loading — keep the skeleton. Setting dbChecked here
+    // would flash the 404 page (and crawlers can snapshot it as a soft 404).
+    if (!articles) return;
     setDbLoading(true);
     import('../lib/api/transport.js').then(({ http }) =>
       http.get(`/api/ai/posts/${encodeURIComponent(slug)}`)
         .then(r => setDbPost(r?.post || r || null))
         .catch(() => setDbPost(null))
         .finally(() => { setDbLoading(false); setDbChecked(true); })
-    );
+    ).catch(() => {
+      // Transport chunk failed to load — don't hang on the skeleton forever.
+      setDbLoading(false); setDbChecked(true);
+    });
   }, [articles, article, slug]);
 
   // Normalize a DB post to the article shape the template expects.
