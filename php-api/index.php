@@ -251,7 +251,20 @@ try {
             break;
         case 'blog-ssr':
             // Server-side rendered blog post HTML — see routes/blog-ssr.php.
-            // The public URL is /blog/:slug (rewritten in .htaccess).
+            // The public URL is /blog/:slug (rewritten in .htaccess). Internal
+            // rewrites preserve the ORIGINAL request URI, so /blog/:slug
+            // arrives here with $resource === 'blog' (handled below) — this
+            // case serves direct /api/blog-ssr/:slug access.
+            if ($method === 'GET' && isset($rest[0]) && preg_match('/^[a-z0-9-]+$/', $rest[0])) {
+                blogSsr($rest[0]);
+                break;
+            }
+            json(['error' => 'Not found'], 404);
+            break;
+        case 'blog':
+            // /blog/:slug via the .htaccess SSR rewrite above: REQUEST_URI
+            // still holds the original /blog/:slug path. (Like 'sitemap.xml',
+            // the case name matches the public URL, not the rewrite target.)
             if ($method === 'GET' && isset($rest[0]) && preg_match('/^[a-z0-9-]+$/', $rest[0])) {
                 blogSsr($rest[0]);
                 break;
