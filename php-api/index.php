@@ -36,6 +36,7 @@ require __DIR__ . '/routes/matchmaker.php';
 require __DIR__ . '/routes/biodata.php';
 require __DIR__ . '/routes/sitemap.php';
 require __DIR__ . '/routes/llms.php';
+require __DIR__ . '/routes/blog-ssr.php';
 require __DIR__ . '/routes/social.php';
 require __DIR__ . '/lib/ai.php';
 require __DIR__ . '/routes/ai.php';
@@ -247,6 +248,15 @@ try {
             break;
         case 'ai':
             routeAI($method, $rest);
+            break;
+        case 'blog-ssr':
+            // Server-side rendered blog post HTML — see routes/blog-ssr.php.
+            // The public URL is /blog/:slug (rewritten in .htaccess).
+            if ($method === 'GET' && isset($rest[0]) && preg_match('/^[a-z0-9-]+$/', $rest[0])) {
+                blogSsr($rest[0]);
+                break;
+            }
+            json(['error' => 'Not found'], 404);
             break;
         case 'sitemap.xml':
             // Dynamic sitemap — no auth, cacheable. Served at /api/sitemap.xml.

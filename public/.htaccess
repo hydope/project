@@ -124,6 +124,16 @@ RewriteRule ^wp-sitemap-posts- - [G,L]
 #    the root index.html (as it briefly did) made /blog serve the homepage.
 RewriteRule ^blog/?$ blog/index.html [L]
 
+# Blog post SSR — /blog/:slug serves a server-rendered article document
+# (routes/blog-ssr.php) so crawlers receive the full article HTML in the
+# first response instead of depending on client-side JavaScript. Without this,
+# Google's renderer intermittently snapshots the SPA's 404 view and flags the
+# post as a soft 404. Must come before the SPA fallback. Only matches
+# single-segment slugs; /blog itself is handled above, and real files
+# (article images under /blog/) are excluded by the !-f guard.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^blog/([a-z0-9-]+)/?$ api/blog-ssr/$1 [L]
+
 # 4) Prerendered routes.
 #    scripts/prerender-routes.mjs writes a real directory per public route
 #    (dist/privacy/index.html and so on), so a crawler that never executes JS

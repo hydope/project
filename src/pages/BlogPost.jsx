@@ -18,7 +18,17 @@ function toISO(display) {
 export default function BlogPost() {
   const { slug } = useParams();
   const [articles, setArticles] = useState(null);
-  const [dbPost, setDbPost] = useState(null);
+  // Server-rendered post payload (injected by routes/blog-ssr.php as
+  // window.__SSR_POST__): the article HTML is already in the document, so
+  // skip the API fetch and render immediately — no content flash.
+  const [dbPost, setDbPost] = useState(() => {
+    try {
+      const w = typeof window !== 'undefined' ? window.__SSR_POST__ : null;
+      return w && w.slug === slug ? w : null;
+    } catch {
+      return null;
+    }
+  });
   const [dbLoading, setDbLoading] = useState(false);
   useEffect(() => {
     let on = true;
@@ -34,6 +44,15 @@ export default function BlogPost() {
   useEffect(() => {
     // Found in the static list — no DB lookup needed.
     if (article) { setDbChecked(true); return; }
+    if (dbPost) {
+      // Server-rendered payload for THIS slug — no fetch needed.
+      if (dbPost.slug === slug) { setDbChecked(true); return; }
+      // Stale payload from a previously viewed post (client-side nav) —
+      // drop it and fall through to the fetch below.
+      setDbPost(null);
+      setDbChecked(false);
+      return;
+    }
     // Static list still loading — keep the skeleton. Setting dbChecked here
     // would flash the 404 page (and crawlers can snapshot it as a soft 404).
     if (!articles) return;
@@ -47,19 +66,22 @@ export default function BlogPost() {
       // Transport chunk failed to load — don't hang on the skeleton forever.
       setDbLoading(false); setDbChecked(true);
     });
-  }, [articles, article, slug]);
+  }, [articles, article, slug, dbPost]);
 
   // Normalize a DB post to the article shape the template expects.
-  const post = article || (dbPost ? {
-    slug: dbPost.slug,
-    title: dbPost.title,
-    excerpt: dbPost.excerpt,
-    category: dbPost.category,
-    image: dbPost.image_url || '/og-cover.jpg',
-    date: (dbPost.published_at || dbPost.created_at || '').slice(0, 10),
-    readTime: dbPost.read_time || '5 min',
+  // Only the payload matching the current slug counts (a stale payload from
+  // client-side navigation is cleared by the effect above).
+  const ssrPost = dbPost && dbPost.slug === slug ? dbPost : null;
+  const post = article || (ssrPost ? {
+    slug: ssrPost.slug,
+    title: ssrPost.title,
+    excerpt: ssrPost.excerpt,
+    category: ssrPost.category,
+    image: ssrPost.image_url || '/og-cover.jpg',
+    date: (ssrPost.published_at || ssrPost.created_at || '').slice(0, 10),
+    readTime: ssrPost.read_time || '5 min',
     // DB body is [{t:'p'|'h2', x:'...'}]; convert to the static article blocks.
-    body: (Array.isArray(dbPost.body) ? dbPost.body : []).map(b => ({
+    body: (Array.isArray(ssrPost.body) ? ssrPost.body : []).map(b => ({
       type: b.t === 'h2' ? 'h2' : 'p',
       text: b.x,
     })),
@@ -69,6 +91,9 @@ export default function BlogPost() {
 
   useEffect(() => {
     if (!post) return;
+    // The SSR document (routes/blog-ssr.php) already embeds this tag —
+    // don't duplicate it when the SPA takes over.
+    if (document.getElementById('article-jsonld')) return;
     const data = {
       '@context': 'https://schema.org',
       '@type': 'Article',
