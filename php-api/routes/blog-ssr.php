@@ -13,9 +13,19 @@
 // the post exists and the API answers 200. Serving the article HTML in the
 // first response removes the crawler's dependence on JavaScript entirely.
 //
+// Unknown slugs get a real HTTP 404 (the SPA shell still renders the pretty
+// 404 page). Serving 200 for a missing post is a soft-404: crawlers flag it
+// and it pollutes indexing. A genuine 404 tells Google to drop the URL.
+//
+// The SPA stays interactive: the post payload is embedded as
+// window.__SSR_POST__ so BlogPost.jsx skips its fetch (see BlogPost.jsx).
+declare(strict_types=1);
+
 // The 8 static articles live in the JS bundle (src/data/articles.js), not the
 // DB. They must keep serving the SPA shell with HTTP 200 — keep this list in
 // sync with src/data/articles.js if a static article is ever added/renamed.
+// (Declared after declare(strict_types=1): strict_types must be the first
+// statement in the file.)
 const BLOG_STATIC_SLUGS = [
     'the-art-of-intentional-matchmaking',
     'family-involvement-in-your-search',
@@ -26,14 +36,6 @@ const BLOG_STATIC_SLUGS = [
     'cultural-compatibility',
     'preparing-for-first-meeting',
 ];
-//
-// Unknown slugs get a real HTTP 404 (the SPA shell still renders the pretty
-// 404 page). Serving 200 for a missing post is a soft-404: crawlers flag it
-// and it pollutes indexing. A genuine 404 tells Google to drop the URL.
-//
-// The SPA stays interactive: the post payload is embedded as
-// window.__SSR_POST__ so BlogPost.jsx skips its fetch (see BlogPost.jsx).
-declare(strict_types=1);
 
 function blogSsrFetchPost(string $slug): ?array
 {
