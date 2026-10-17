@@ -7,10 +7,7 @@ name: Deploy to cPanel
 # time; newer pushes queue behind the in-progress run.
 concurrency:
   group: deploy-to-cpanel
-  # TEMPORARY (2026-10-17): true to kill a zombie run whose FTPS step hung and
-  # is blocking the queue. Revert to false after the deploy goes through —
-  # false is what prevents two deploys interleaving files mid-upload.
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 # Deploys the Shia Rishta app to shared cPanel hosting on every push to main.
 #   Frontend (Vite dist/)      -> /public_html/            (https://shiarishta.com)
