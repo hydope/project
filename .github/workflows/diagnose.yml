@@ -91,3 +91,17 @@ jobs:
           echo "SSR marker: $(grep -c '__SSR_POST__' /tmp/bd.html || true)"
           echo "=== pretty URL again (headers) ==="
           curl -sk --max-time 25 -D - -o /dev/null "https://shiarishta.com/blog/wali-in-modern-matchmaking" | head -12
+
+      - name: TEMP db post ssr
+        run: |
+          echo "=== blog slugs in sitemap ==="
+          curl -sk --max-time 25 https://shiarishta.com/sitemap.xml -o /tmp/sm2.xml
+          python3 -c "
+          import xml.etree.ElementTree as ET, re
+          t = ET.parse('/tmp/sm2.xml')
+          ns='{http://www.sitemaps.org/schemas/sitemap/0.9}'
+          locs=[u.find(ns+'loc').text for u in t.getroot().findall(ns+'url')]
+          blog=[l for l in locs if '/blog/' in l]
+          print('blog URLs in sitemap:', len(blog))
+          for b in blog[:12]: print(' ', b)
+          "
