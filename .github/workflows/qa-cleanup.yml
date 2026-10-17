@@ -1,0 +1,23 @@
+name: QA Debris Cleanup (one-off)
+
+# One-off: hides the public QA test post and removes the empty QA test
+# community (P0 from the 2026-10-17 UI/UX audit). Run manually once, then
+# delete this workflow and php-api/qa-cleanup-cron.php.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger QA cleanup on production
+        env:
+          SEEDER_CRON_KEY: ${{ secrets.SEEDER_CRON_KEY }}
+        run: |
+          RESP=$(curl -s --max-time 60 -X POST https://shiarishta.com/api/qa-cleanup-cron.php \
+            -H "X-Seeder-Cron-Key: $SEEDER_CRON_KEY" \
+            -H "Content-Type: application/json")
+          echo "Response: $RESP"
+          echo "$RESP" | grep -q '"ok":true' && { echo "✓ QA cleanup done"; exit 0; }
+          echo "✗ QA cleanup failed"; exit 1
