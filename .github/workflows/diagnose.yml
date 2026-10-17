@@ -17,3 +17,44 @@ jobs:
           echo "=== Trying to get error log ==="
           curl -s --insecure "ftp://$FTP_USER:$FTP_PASS@$FTP_SERVER/logs/error_log" 2>&1 | tail -30 || echo "No error_log at /logs/"
           curl -s --insecure "ftp://$FTP_USER:$FTP_PASS@$FTP_SERVER/public_html/error_log" 2>&1 | tail -30 || echo "No error_log at /public_html/"
+
+      - name: TEMP evidence sweep
+        run: |
+          echo "=== 1. Homepage ==="
+          curl -sk -o /tmp/h.html -w "HTTP %{http_code}\n" https://shiarishta.com/
+          grep -o "<title>[^<]*</title>" /tmp/h.html | head -1
+          grep -o '<meta name="robots"[^>]*>' /tmp/h.html | head -1
+          grep -o '<link rel="canonical"[^>]*>' /tmp/h.html | head -1
+          echo "=== 2. /guardians (was noindexed) ==="
+          curl -sk -o /tmp/g.html -w "HTTP %{http_code}\n" https://shiarishta.com/guardians
+          grep -o "<title>[^<]*</title>" /tmp/g.html | head -1
+          echo "noindex count: $(grep -c noindex /tmp/g.html || true)"
+          echo "=== 3. Key page titles ==="
+          for u in shia-nikah city/karachi shia-rishta-chicago blog/wali-in-modern-matchmaking shiamatch-alternative; do
+            t=$(curl -sk --max-time 25 "https://shiarishta.com/$u" | grep -o "<title>[^<]*</title>" | head -1)
+            echo "$u => $t"
+          done
+          echo "=== 4. Sitemap ==="
+          curl -sk --max-time 25 https://shiarishta.com/sitemap.xml -o /tmp/sm.xml -w "HTTP %{http_code}\n"
+          python3 -c "
+          import xml.etree.ElementTree as ET
+          t = ET.parse('/tmp/sm.xml')
+          ns='{http://www.sitemaps.org/schemas/sitemap/0.9}'
+          urls = t.getroot().findall(ns+'url')
+          print('valid XML, URL count:', len(urls))
+          locs=[u.find(ns+'loc').text for u in urls]
+          print('has /guardians:', any('/guardians' in l for l in locs))
+          print('has /locations:', any(l.endswith('/locations') for l in locs))
+          print('city pages:', sum('/city/' in l for l in locs), '| country:', sum('/country/' in l for l in locs))
+          "
+          echo "=== 5. robots.txt / llms.txt ==="
+          curl -sk --max-time 20 https://shiarishta.com/robots.txt
+          curl -sk --max-time 20 -o /dev/null -w "llms.txt HTTP %{http_code}\n" https://shiarishta.com/llms.txt
+          echo "=== 6. Legacy URL handling ==="
+          for u in "blog-post/how-to-make-a-marriage-successful/" "members/Sumaira/" "wp-login.php" "feed/"; do
+            curl -sk --max-time 20 -o /dev/null -w "$u => %{http_code} -> %{redirect_url}\n" "https://shiarishta.com/$u"
+          done
+          echo "=== 7. www redirect + /blog/ + API ==="
+          curl -sk --max-time 20 -o /dev/null -w "www => %{http_code} -> %{redirect_url}\n" https://www.shiarishta.com/
+          curl -sk --max-time 20 -o /dev/null -w "/blog/ => %{http_code}\n" https://shiarishta.com/blog/
+          curl -sk --max-time 20 https://shiarishta.com/api/health; echo
