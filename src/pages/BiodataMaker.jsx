@@ -252,9 +252,15 @@ export default function BiodataMaker() {
     setSaved(true);
   };
 
+  // Filesystem-safe download name from the biodata name (was missing entirely
+  // — every export button threw a ReferenceError on click).
+  const fileSlug = () => {
+    const base = (data.name || 'biodata').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'biodata';
+    return `${base}-biodata`;
+  };
+
   // Render the biodata preview to a high-res canvas. Shared by image + PDF.
-  const renderCanvas = async () => {
-    const node = previewRef.current;
+  const renderCanvas = async () => {    const node = previewRef.current;
     if (!node) return null;
     const w = 794, h = 1123; // A4-ish at 96dpi
     const clone = node.cloneNode(true);

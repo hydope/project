@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth/AuthContext';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
@@ -14,7 +14,6 @@ import NotificationsMenu from '../components/NotificationsMenu';
 import BrandLockup from '../components/BrandLockup';
 const FeedbackWidget = lazy(() => import('../components/FeedbackWidget'));
 import { applyIsDark, readIsDark, writeIsDark } from '../lib/theme';
-import { http } from '../lib/api/transport';
 
 const landingLinks = [
   { href: '/profiles', label: 'Profiles' },

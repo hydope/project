@@ -12,17 +12,38 @@ export default function Register() {
   const [formData, setFormData] = useState({ displayName: '', email: '', password: '', confirmPassword: '', sect: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [tosAccepted, setTosAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const passwordChecks = {
+    length: formData.password.length >= 8,
+    match: formData.password !== '' && formData.password === formData.confirmPassword,
+  };
 
   const handleChange = (e) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     setError('');
+    setFieldErrors(prev => ({ ...prev, [e.target.name]: '' }));
+  };
+
+  const validate = () => {
+    const errs = {};
+    if (!formData.displayName.trim()) errs.displayName = 'Please enter your full name.';
+    if (!formData.email.trim()) errs.email = 'Please enter your email address.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) errs.email = 'That email address does not look valid.';
+    if (formData.password.length < 8) errs.password = 'Password must be at least 8 characters.';
+    if (formData.confirmPassword !== formData.password) errs.confirmPassword = 'Passwords do not match.';
+    if (!formData.sect) errs.sect = 'Please select your sect.';
+    if (!tosAccepted) errs.tos = 'Please accept the Terms and Privacy Policy to create an account.';
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+    if (!validate()) {
+      setError('Please fix the highlighted fields below.');
       return;
     }
     setLoading(true);
@@ -100,6 +121,7 @@ export default function Register() {
                 <input type="text" id="displayName" name="displayName" value={formData.displayName} onChange={handleChange} required placeholder="Your full name" className={inputClass} style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
               </div>
             </div>
+              {fieldErrors.displayName && <p role="alert" className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{fieldErrors.displayName}</p>}
 
             <div>
               <label htmlFor="email" className="block mb-1.5 text-sm font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Email</label>
@@ -108,12 +130,17 @@ export default function Register() {
                 <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} required placeholder="you@example.com" className={inputClass} style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
               </div>
             </div>
+              {fieldErrors.email && <p role="alert" className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{fieldErrors.email}</p>}
 
             <div>
               <label htmlFor="password" className="block mb-1.5 text-sm font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Password</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: 'var(--color-ink-faint)' }} />
                 <input type={showPassword ? 'text' : 'password'} id="password" name="password" value={formData.password} onChange={handleChange} required minLength={8} placeholder="Min 8 characters" className={`${inputClass} input-with-action`} style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
+              <p className="mt-1 text-xs" style={{ color: passwordChecks.length ? 'var(--color-success, #1a7f4e)' : 'var(--color-ink-faint)' }}>
+                {passwordChecks.length ? '✓ At least 8 characters' : 'At least 8 characters'}
+              </p>
+              {fieldErrors.password && <p role="alert" className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{fieldErrors.password}</p>}
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -131,6 +158,12 @@ export default function Register() {
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: 'var(--color-ink-faint)' }} />
                 <input type={showPassword ? 'text' : 'password'} id="confirmPassword" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required minLength={8} placeholder="Repeat password" className={inputClass} style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
+              {formData.confirmPassword && (
+                <p className="mt-1 text-xs" style={{ color: passwordChecks.match ? 'var(--color-success, #1a7f4e)' : 'var(--color-danger)' }}>
+                  {passwordChecks.match ? '✓ Passwords match' : 'Passwords do not match yet'}
+                </p>
+              )}
+              {fieldErrors.confirmPassword && <p role="alert" className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{fieldErrors.confirmPassword}</p>}
               </div>
             </div>
 
@@ -156,7 +189,15 @@ export default function Register() {
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-faint)' }}>
                 Shia Rishta is a Shia matrimonial platform.
               </p>
+              {fieldErrors.sect && <p role="alert" className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{fieldErrors.sect}</p>}
             </div>
+
+            <label className="flex items-start gap-3 text-sm cursor-pointer" style={{ color: 'var(--color-ink-secondary)' }}>
+              <input type="checkbox" checked={tosAccepted} onChange={e => { setTosAccepted(e.target.checked); setFieldErrors(prev => ({ ...prev, tos: '' })); }}
+                className="mt-1 w-4 h-4 flex-shrink-0" style={{ accentColor: 'var(--color-primary)' }} aria-describedby="tos-error" />
+              <span>I agree to the <Link to="/terms" className="link-primary font-medium">Terms of Service</Link> and <Link to="/privacy" className="link-primary font-medium">Privacy Policy</Link>.</span>
+            </label>
+            {fieldErrors.tos && <p id="tos-error" role="alert" className="-mt-3 text-xs" style={{ color: 'var(--color-danger)' }}>{fieldErrors.tos}</p>}
 
             <button type="submit" disabled={loading} className="btn btn-primary w-full py-3.5 text-base">
               {loading ? 'Creating account…' : 'Create Account'}
