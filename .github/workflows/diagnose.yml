@@ -58,3 +58,27 @@ jobs:
           curl -sk --max-time 20 -o /dev/null -w "www => %{http_code} -> %{redirect_url}\n" https://www.shiarishta.com/
           curl -sk --max-time 20 -o /dev/null -w "/blog/ => %{http_code}\n" https://shiarishta.com/blog/
           curl -sk --max-time 20 https://shiarishta.com/api/health; echo
+
+      - name: TEMP title followup
+        run: |
+          echo "=== redirect chains (no follow) ==="
+          for u in guardians shia-nikah city/karachi shiamatch-alternative; do
+            echo "--- /$u"
+            curl -sk --max-time 20 -o /dev/null -w "  %{http_code} -> %{redirect_url}\n" "https://shiarishta.com/$u"
+          done
+          echo "=== titles WITH redirect follow ==="
+          for u in guardians shia-nikah city/karachi shia-rishta-chicago shiamatch-alternative; do
+            t=$(curl -skL --max-time 25 "https://shiarishta.com/$u" | grep -o "<title>[^<]*</title>" | head -1)
+            echo "/$u => $t"
+          done
+          echo "=== blog SSR head inspection ==="
+          curl -sk --max-time 25 "https://shiarishta.com/blog/wali-in-modern-matchmaking" -o /tmp/b.html
+          echo "bytes: $(wc -c < /tmp/b.html)"
+          grep -o "<title>[^<]*</title>" /tmp/b.html | head -1
+          grep -o '<link rel="canonical"[^>]*>' /tmp/b.html | head -1
+          echo "Article JSON-LD: $(grep -c 'Article' /tmp/b.html || true)"
+          echo "__SSR_POST__ present: $(grep -c '__SSR_POST__' /tmp/b.html || true)"
+          grep -o '<meta name="robots"[^>]*>' /tmp/b.html | head -1
+          echo "=== /blog/ + api health ==="
+          curl -sk --max-time 20 -o /dev/null -w "/blog/ => %{http_code}\n" https://shiarishta.com/blog/
+          curl -sk --max-time 20 https://shiarishta.com/api/health; echo
