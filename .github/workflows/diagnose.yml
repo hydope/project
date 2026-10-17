@@ -105,3 +105,12 @@ jobs:
           print('blog URLs in sitemap:', len(blog))
           for b in blog[:12]: print(' ', b)
           "
+
+      - name: TEMP dbpost check
+        run: |
+          curl -sk --max-time 25 "https://shiarishta.com/blog/syed-rishta-in-usa-the-complete-guide" -o /tmp/d.html -w "HTTP %{http_code}, bytes: %{size_download}\n"
+          grep -o "<title>[^<]*</title>" /tmp/d.html | head -1
+          echo "SSR marker: $(grep -c '__SSR_POST__' /tmp/d.html || true)"
+          echo "Article JSON-LD: $(grep -c '"@type":"Article"' /tmp/d.html || true)"
+          grep -o '<link rel="canonical"[^>]*>' /tmp/d.html | head -1
+          grep -o '<meta name="robots"[^>]*>' /tmp/d.html | head -1
