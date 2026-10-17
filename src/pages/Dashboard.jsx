@@ -274,8 +274,11 @@ export default function Dashboard() {
                 // C1 fix: members had no way to see their own published
                 // profile as others see it — the directory excludes your own
                 // row by design, so without this link "is my profile live?"
-                // was unanswerable.
-                ...(user?.uid ? [{ to: `/profiles/${user.uid}`, icon: Eye, label: 'Preview my profile', desc: 'See exactly what others see', color: 'var(--color-accent)', bg: 'var(--color-accent-subtle)' }] : []),
+                // was unanswerable. Accounts with no completed profile get an
+                // onboarding route instead of a dead "Not found" UUID page.
+                ...(user?.uid ? (completeness === null
+                  ? [{ to: '/onboard', icon: Eye, label: 'Create my profile', desc: 'Finish setup so others can find you', color: 'var(--color-accent)', bg: 'var(--color-accent-subtle)' }]
+                  : [{ to: `/profiles/${user.uid}`, icon: Eye, label: 'Preview my profile', desc: 'See exactly what others see', color: 'var(--color-accent)', bg: 'var(--color-accent-subtle)' }]) : []),
               ].map(action => {
               const ActionIcon = action.icon;
               return (

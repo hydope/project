@@ -62,6 +62,10 @@ export default function ProfileCard({ profile, className = '' }) {
   // the API provides it, and persist every tap via the API — the button used
   // to be a local-only toggle that silently dropped the interest on reload.
   const [interested, setInterested] = useState(() => profile.interestSent === true);
+  // Interest is per-account server state. The moment the viewer is signed out,
+  // no "Interested / Withdraw" chrome may render — the card must read as a
+  // guest card, never leak the previous account's action state.
+  const showInterested = isLoggedIn && interested;
   const [interestBusy, setInterestBusy] = useState(false);
   const [interestError, setInterestError] = useState('');
 
@@ -315,13 +319,13 @@ export default function ProfileCard({ profile, className = '' }) {
         <button
           onClick={handleInterest}
           disabled={interestBusy || profile.isDemo === true}
-          className={'flex-1 py-2.5 min-h-[38px] text-xs font-semibold flex items-center justify-center gap-1 rounded-lg transition-all disabled:opacity-60 ' + (interested ? '' : 'btn-primary')}
-          style={{ minHeight: '38px', ...(interested ? { background: 'var(--color-primary-subtle)', color: 'var(--color-primary)', border: '1px solid var(--color-primary-subtle)' } : undefined) }}
-          title={interestError || (interested ? 'Click to withdraw interest' : undefined)}
-          aria-label={interested ? `Withdraw interest in ${profile.displayName}` : `Express interest in ${profile.displayName}`}
+          className={'flex-1 py-2.5 min-h-[38px] text-xs font-semibold flex items-center justify-center gap-1 rounded-lg transition-all disabled:opacity-60 ' + (showInterested ? '' : 'btn-primary')}
+          style={{ minHeight: '38px', ...(showInterested ? { background: 'var(--color-primary-subtle)', color: 'var(--color-primary)', border: '1px solid var(--color-primary-subtle)' } : undefined) }}
+          title={interestError || (showInterested ? 'Click to withdraw interest' : undefined)}
+          aria-label={showInterested ? `Withdraw interest in ${profile.displayName}` : `Express interest in ${profile.displayName}`}
         >
-          <Heart className={'w-3.5 h-3.5 ' + (interested ? 'fill-current' : '')} />
-          {interestBusy ? (interested ? 'Withdrawing…' : 'Sending…') : interested ? 'Interested' : profile.isDemo === true ? 'Sample' : 'Interest'}
+          <Heart className={'w-3.5 h-3.5 ' + (showInterested ? 'fill-current' : '')} />
+          {interestBusy ? (showInterested ? 'Withdrawing…' : 'Sending…') : showInterested ? 'Interested' : profile.isDemo === true ? 'Sample' : 'Interest'}
         </button>
         <button
           onClick={toggleSaved}
