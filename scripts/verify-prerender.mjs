@@ -101,7 +101,10 @@ for (const route of routes) {
   if (!html) continue;
   const meta = ROUTE_SEO[route];
   const h1s = [...html.matchAll(/<h1>([\s\S]*?)<\/h1>/g)].map((m) => m[1].trim());
-  if (h1s.length !== 1 || h1s[0] !== meta.h1) wrongH1.push(`${route} -> [${h1s.join(' | ')}]`);
+  // H1s may carry HTML entities too (e.g. &amp;), so compare decoded like titles.
+  const decode = (s) => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  if (h1s.length !== 1 || decode(h1s[0]) !== meta.h1) wrongH1.push(`${route} -> [${h1s.join(' | ')}]`);
   // Compare the DECODED title. Titles containing "&" are serialised as "&amp;",
   // so a raw substring match fails on correct output — which would train us to
   // accept an unescaped title instead.
@@ -109,8 +112,6 @@ for (const route of routes) {
   // `|| [, '']` because the skipped slot is undefined.
   const titleMatch = html.match(/<title>([\s\S]*?)<\/title>/);
   const title = titleMatch ? titleMatch[1] : '';
-  const decode = (s) => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
   if (decode(title) !== meta.title) wrongTitle.push(`${route} -> "${title}"`);
   const canonical = `${SITE_URL}${route === '/' ? '/' : route}`;
   if (!html.includes(`rel="canonical" href="${canonical}"`)) wrongCanonical.push(route);

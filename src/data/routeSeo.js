@@ -186,7 +186,7 @@ export const ROUTE_SEO = {
 
   '/guardians': {
     title: 'Guardians & Wali Involvement in Shia Nikah | Shia Rishta',
-    desc: 'How wali and guardian involvement works in Shia nikah: approvals, family-to-family introductions and chaperoned communication, built into Shia Rishta from the start.',
+    desc: 'How wali and guardian involvement works in Shia nikah: approvals, family-to-family introductions and chaperoned communication on Shia Rishta.',
     h1: 'Guardians & Family Connections',
     lede: 'In Shia nikah the wali is not an obstacle to work around — rulings vary by marja and circumstance, but family involvement is the norm, so the platform is built around it.',
     sections: [
