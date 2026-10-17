@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { LANDING_PAGE_META } from '../pages/landing/landingPageMeta.js';
+import { buildTagLandingPages } from '../data/tagLandingPages.js';
 import { ARTICLE_META } from '../data/articleMeta.js';
 import { CITIES, COUNTRIES } from '../data/locationSeo.js';
 import { ROUTE_SEO, SITE_URL } from '../data/routeSeo.js';
@@ -76,6 +77,14 @@ function upsertLinkCanonical(href) {
   el.setAttribute('href', href);
 }
 
+// Memoized lookup for programmatic tag landing pages (12 tags × places).
+// Built once — 276 small objects — so resolveMeta stays cheap on navigation.
+let TAG_LANDING_PAGES = null;
+function getTagLandingPage(slug) {
+  if (!TAG_LANDING_PAGES) TAG_LANDING_PAGES = buildTagLandingPages();
+  return TAG_LANDING_PAGES[slug] || null;
+}
+
 function resolveMeta(pathname) {
   // Trailing-slash normalization: /blog/ must resolve exactly like /blog.
   // Without this, /blog/ fell into the /blog/ article branch, matched no
@@ -83,8 +92,15 @@ function resolveMeta(pathname) {
   const path = pathname.replace(/\/+$/, '') || '/';
   if (PUBLIC_META[path]) return { ...PUBLIC_META[path], index: true };
   // SEO landing pages — meta comes from the hand-written page data.
-  const landing = LANDING_PAGE_META[path.replace(/^\/+/, '')];
+  const slug = path.replace(/^\/+/, '');
+  const landing = LANDING_PAGE_META[slug];
   if (landing) return { title: landing.title, desc: landing.desc, index: true };
+  // Programmatic tag landing pages (12 tags × profile cities/countries).
+  // Without this, all 276 generated pages fell through to "Page Not Found"
+  // with noindex — silently deindexing the entire programmatic SEO surface
+  // the moment the SPA booted (the prerendered HTML was correct).
+  const tagPage = getTagLandingPage(slug);
+  if (tagPage) return { title: tagPage.title, desc: tagPage.desc, index: true };
   // Blog articles — each has a crawlable URL and unique meta.
   if (path.startsWith('/blog/')) {
     const article = ARTICLE_META.find((a) => `/blog/${a.slug}` === path);
