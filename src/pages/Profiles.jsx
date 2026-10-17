@@ -282,12 +282,19 @@ export function BrowseProfiles() {
 
   const visible = filtered.slice(0, visibleCount);
   const hasMore = visibleCount < filtered.length;
-  const activeFilterCount = Object.entries(filters).filter(([k, v]) => {
+  const activeFilterEntries = Object.entries(filters).filter(([k, v]) => {
     if (k === 'sort') return v !== 'match';
     if (k === 'verifiedOnly') return v === true;
     if (typeof v === 'string') return v && !['Any sect', 'Any level', 'Any education', 'any'].includes(v);
     return false;
-  }).length;
+  });
+  const activeFilterCount = activeFilterEntries.length;
+  // The badge count alone never said WHICH filters were on — name them for
+  // the tooltip and screen readers.
+  const activeFilterNames = activeFilterEntries.map(([k, v]) => {
+    const labels = { gender: 'Looking for', minAge: 'Min age', maxAge: 'Max age', country: 'Country', sect: 'Sect', religiosity: 'Religiosity', education: 'Education', syedStatus: 'Syed status', modesty: 'Modesty', photo: 'Photo', verifiedOnly: 'Verified only', sort: 'Sort', search: 'Search' };
+    return `${labels[k] || k}: ${v === true ? 'on' : v}`;
+  }).join(', ');
 
   return (
     <Layout>
@@ -339,6 +346,8 @@ export function BrowseProfiles() {
           <button
             onClick={() => setFiltersOpen(!filtersOpen)}
             className={'btn btn-secondary flex items-center gap-2 ' + (activeFilterCount > 0 ? 'btn-primary' : '')}
+            title={activeFilterCount > 0 ? `Active filters — ${activeFilterNames}` : 'Open filters'}
+            aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active: ${activeFilterNames}` : 'Filters'}
           >
             <SlidersHorizontal className="w-4 h-4" />
             Filters
