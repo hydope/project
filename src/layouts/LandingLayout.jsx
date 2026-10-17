@@ -460,16 +460,15 @@ export default function LandingLayout({ children }) {
   return (
     <div className="landing-shell">
       <LandingHeader />
-      {/* NOTE: page content renders in a plain <main> — never gated behind an
-          animation's initial opacity. framer-motion is an enhancement only; if it
-          fails or stalls, the page must still be fully visible. */}
-      <main
+      {/* NOTE: page content renders here — pages own the single <main>
+          landmark, so this wrapper is a plain <div> to avoid nested mains. */}
+      <div
         key={location.pathname}
         className="landing-main flex-1"
         style={{ paddingTop: 'var(--header-height)' }}
       >
         {children}
-      </main>
+      </div>
       <SiteFooter />
 
       {/* AI Assistant FAB */}

@@ -4,6 +4,7 @@
 // feed + per-member browser storage so the product works offline/demo.
 import { read, write } from './api/storage';
 import { http, useRemote } from './api/transport';
+import { timeAgo } from './format';
 
 const COMMUNITIES_KEY = 'community_communities';
 const POSTS_KEY = 'community_posts';
@@ -163,7 +164,7 @@ function normalizePost(row, repliesList) {
     author: row.author || 'Member', avatar: String(row.author || 'M').trim().charAt(0).toUpperCase() || 'M',
     replies: row.replies ?? (repliesList ? repliesList.length : 0),
     likes: row.likes ?? 0,
-    time: row.created_at ? new Date(row.created_at).toLocaleString() : (row.time || ''),
+    time: row.created_at ? timeAgo(row.created_at) : (row.time || ''),
     tags: row.tags || [], pinned: row.pinned || false,
     _repliesList: repliesList,
   };
@@ -201,7 +202,7 @@ export async function listReplies(postId) {
     const post = await getPost(postId);
     return (post?._repliesList || []).map(r => ({
       id: String(r.id), author: r.author, body: r.body,
-      time: r.time ? new Date(r.time).toLocaleString() : '',
+      time: r.time ? timeAgo(r.time) : '',
     }));
   }
   const seed = SEED_REPLIES[String(postId)] || [];

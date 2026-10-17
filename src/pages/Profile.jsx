@@ -7,7 +7,7 @@ import { useAuth } from '../lib/auth/AuthContext';
 import LoginGate from '../components/LoginGate';
 import { formatCity, formatCountry } from '../lib/format';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { ArrowLeft, ShieldCheck, MapPin, Heart, MessageCircle, Bookmark, Lock, Users, Award, Sparkles } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, MapPin, Heart, MessageCircle, Bookmark, Lock, Users, Award, Sparkles, ChevronRight } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
 import CompatibilityIndex from '../components/CompatibilityIndex';
 import { ReportFlag } from '../components/ReportFlag';
@@ -212,9 +212,13 @@ export default function Profile() {
   return (
     <Layout>
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-        <Link to="/profiles" className="inline-flex items-center gap-2 text-sm mb-5 group" style={{ color: 'var(--color-ink-secondary)' }}>
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back
-        </Link>
+        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm mb-5" style={{ color: 'var(--color-ink-faint)' }}>
+          <Link to="/" className="hover:underline">Home</Link>
+          <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+          <Link to="/profiles" className="hover:underline">Profiles</Link>
+          <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+          <span aria-current="page" style={{ color: 'var(--color-ink-secondary)' }}>{profile.displayName}</span>
+        </nav>
         <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 lg:gap-8">
           <div className="space-y-4 lg:sticky lg:top-24 self-start">
             <div className="rounded-2xl overflow-hidden shadow-lg" style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)' }}>

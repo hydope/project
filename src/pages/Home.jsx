@@ -78,7 +78,7 @@ export default function Home() {
 
   return (
     <Layout>
-      <div className="hp-home">
+      <main className="hp-home">
         {/* ── Elite hero ── */}
         <section className="hp-hero">
           <div className="hp-hero-inner">
@@ -302,7 +302,7 @@ export default function Home() {
             </div>
           </Reveal>
         </section>
-      </div>
+      </main>
     </Layout>
   );
 }

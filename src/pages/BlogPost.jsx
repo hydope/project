@@ -79,7 +79,9 @@ export default function BlogPost() {
     category: ssrPost.category,
     image: ssrPost.image_url || '/og-cover.jpg',
     date: (ssrPost.published_at || ssrPost.created_at || '').slice(0, 10),
-    readTime: ssrPost.read_time || '5 min',
+    // Normalize "5 minread" / "5 min read" variants to "5 min" — the template
+    // appends " read", so cards and posts never show a spacing typo.
+    readTime: (() => { const m = String(ssrPost.read_time || '5 min').match(/(\d+)\s*min/i); return m ? `${m[1]} min` : '5 min'; })(),
     // DB body is [{t:'p'|'h2', x:'...'}]; convert to the static article blocks.
     body: (Array.isArray(ssrPost.body) ? ssrPost.body : []).map(b => ({
       type: b.t === 'h2' ? 'h2' : 'p',

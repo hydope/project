@@ -2,10 +2,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Search, Home, Users, MessageCircle, Sparkles } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth } from '../lib/auth/AuthContext';
 
 export default function NotFound() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const { isLoggedIn } = useAuth();
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -15,7 +17,7 @@ export default function NotFound() {
   const quickLinks = [
     { to: '/', icon: Home, label: 'Homepage', desc: 'Return to the main page' },
     { to: '/profiles', icon: Users, label: 'Browse profiles', desc: 'Find your match' },
-    { to: '/messages', icon: MessageCircle, label: 'Messages', desc: 'Check conversations' },
+    ...(isLoggedIn ? [{ to: '/messages', icon: MessageCircle, label: 'Messages', desc: 'Check conversations' }] : []),
     { to: '/onboard', icon: Sparkles, label: 'Create profile', desc: 'Get started today' }
   ];
 

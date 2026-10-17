@@ -171,8 +171,8 @@ export default function Community() {
             {loading && <p className="text-sm mt-2" style={{ color: 'var(--color-ink-faint)' }}>Loading discussions…</p>}
           </div>
           <div className="flex gap-2">
-            <button onClick={() => setShowCreateSub(true)} className="button secondary px-4 py-2.5 font-semibold text-sm flex items-center gap-2">
-              <Plus className="w-4 h-4" /> Create
+            <button onClick={() => setShowCreateSub(true)} className="button secondary px-4 py-2.5 font-semibold text-sm flex items-center gap-2" title="Start a new community">
+              <Plus className="w-4 h-4" /> New community
             </button>
             <button onClick={handlePost} className="button primary px-5 py-2.5 font-semibold text-sm flex items-center gap-2">
               <Plus className="w-4 h-4" /> New Post
