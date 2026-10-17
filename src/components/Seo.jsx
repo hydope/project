@@ -49,6 +49,7 @@ const PRIVATE_TITLES = {
   '/messages': 'Your Messages | Shia Rishta',
   '/onboard': 'Complete Your Profile | Shia Rishta',
   '/settings': 'Settings | Shia Rishta',
+  '/favorites': 'Your Favorites | Shia Rishta',
   '/admin': 'Admin Dashboard | Shia Rishta',
   '/admin/content': 'Blog & Content | Shia Rishta Admin',
   '/admin/members': 'Members | Shia Rishta Admin',

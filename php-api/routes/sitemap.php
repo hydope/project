@@ -14,6 +14,7 @@ function sitemapXml(): void
     $static = [
         '/', '/about', '/safety', '/guardians', '/blog', '/community',
         '/profiles', '/matchmaker', '/biodata-maker',
+        '/locations', '/agents', '/support', '/profile-guide',
         '/shia-matrimony-usa', '/shia-brides', '/shia-grooms', '/syed-rishta',
         '/shia-matrimony-chicago', '/shia-matrimony-houston',
         '/shia-matrimony-new-york', '/shia-matrimony-london',

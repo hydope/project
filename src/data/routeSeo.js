@@ -184,6 +184,18 @@ export const ROUTE_SEO = {
     ],
   },
 
+  '/guardians': {
+    title: 'Guardians & Wali Involvement in Shia Nikah | Shia Rishta',
+    desc: 'How wali and guardian involvement works in Shia nikah: approvals, family-to-family introductions and chaperoned communication, built into Shia Rishta from the start.',
+    h1: 'Guardians & Family Connections',
+    lede: 'In Shia nikah the wali is not an obstacle to work around — rulings vary by marja and circumstance, but family involvement is the norm, so the platform is built around it.',
+    sections: [
+      { h2: 'What a wali does here', p: 'A guardian can be linked to a member’s profile with explicit permissions: viewing introductions, approving conversations, and joining family-to-family messaging. Nothing happens in a wali’s name without their knowledge.' },
+      { h2: 'Family-to-family introductions', p: 'When both sides are serious, introductions can move from individuals to families, with the wali included from the first message rather than informed after the fact.' },
+      { h2: 'Privacy with oversight', p: 'Guardian involvement never means publishing private details. Contact information stays hidden, photos follow the member’s privacy tier, and every permission a guardian holds is visible to the member and revocable.' },
+    ],
+  },
+
   '/safety': {
     title: 'Safety & Verification Standards | Shia Rishta',
     desc: 'How Shia Rishta keeps members safe: identity verification, photo privacy tiers, mutual-interest messaging and human review.',
@@ -330,7 +342,6 @@ export const ROUTE_SEO = {
 export const NO_PRERENDER = [
   '/dashboard', '/messages', '/settings', '/onboard', '/profile', '/drafts',
   '/verify', '/wali', '/claim', '/admin', '/login', '/signup', '/signin',
-  '/guardians',
 ];
 
 export const SITE_URL = 'https://shiarishta.com';
