@@ -5,6 +5,7 @@ import { usePageTitle } from '../lib/usePageTitle';
 import { useAuth } from '../lib/auth/AuthContext';
 import { Download, ImagePlus, Save, Sparkles, ZoomIn, ZoomOut, Maximize2, Upload, Share2 } from 'lucide-react';
 import { http } from '../lib/api/transport';
+import { jsPDF } from 'jspdf';
 
 const TEMPLATES = [
   {
@@ -156,6 +157,11 @@ export default function BiodataMaker() {
   const [photo, setPhoto] = useState(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Export button feedback states: 'idle' | 'working' | 'done'. exportError
+  // surfaces failures inline — a silent button is worse than an error.
+  const [pdfState, setPdfState] = useState('idle');
+  const [imgState, setImgState] = useState('idle');
+  const [exportError, setExportError] = useState('');
   const previewRef = useRef(null);
   const fileRef = useRef(null);
 
@@ -326,37 +332,46 @@ export default function BiodataMaker() {
   };
 
   const downloadImage = async () => {
-    logCreation();
-    const canvas = await renderCanvas();
-    if (!canvas) return;
-    const a = document.createElement('a');
-    a.download = `${fileSlug()}.png`;
-    a.href = canvas.toDataURL('image/png');
-    a.click();
+    setImgState('working');
+    setExportError('');
+    try {
+      logCreation();
+      const canvas = await renderCanvas();
+      if (!canvas) throw new Error('preview');
+      const a = document.createElement('a');
+      a.download = `${fileSlug()}.png`;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+      setImgState('done');
+      setTimeout(() => setImgState('idle'), 3000);
+    } catch {
+      setImgState('idle');
+      setExportError('Could not create the image. Please try again.');
+    }
   };
 
   const downloadPdf = async () => {
-    logCreation();
-    // Native print-to-PDF: zero bundle cost, perfect fidelity. We add a
-    // print class that hides everything except the biodata card, trigger
-    // the browser print dialog (user picks "Save as PDF"), then clean up.
-    const node = previewRef.current;
-    if (!node) return;
-    // Ensure the preview is rendered at full size for print.
-    const prevTransform = node.style.transform;
-    node.style.transform = 'none';
-    document.body.classList.add('printing-biodata');
-    const cleanup = () => {
-      document.body.classList.remove('printing-biodata');
-      node.style.transform = prevTransform;
-      window.removeEventListener('afterprint', cleanup);
-    };
-    window.addEventListener('afterprint', cleanup);
-    // Small delay so the print CSS applies before the dialog opens.
-    await new Promise((r) => setTimeout(r, 100));
-    window.print();
-    // Fallback cleanup in case afterprint doesn't fire (e.g., dialog cancelled).
-    setTimeout(cleanup, 5000);
+    // Real PDF download: render the preview to a high-res canvas, embed it
+    // in an A4 PDF via jsPDF, and trigger a download. The old window.print()
+    // approach opened a print dialog (or nothing at all in headless/in-app
+    // browsers) — a button labeled "Save as PDF" must save a PDF.
+    setPdfState('working');
+    setExportError('');
+    try {
+      logCreation();
+      const canvas = await renderCanvas();
+      if (!canvas) throw new Error('preview');
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      const pageW = 210, pageH = 297;
+      pdf.addImage(imgData, 'PNG', 0, 0, pageW, pageH);
+      pdf.save(`${fileSlug()}.pdf`);
+      setPdfState('done');
+      setTimeout(() => setPdfState('idle'), 3000);
+    } catch {
+      setPdfState('idle');
+      setExportError('Could not create the PDF. Please try "Save as Image" instead.');
+    }
   };
 
   const t = TEMPLATES.find(x => x.id === template) || TEMPLATES[0];
@@ -479,16 +494,19 @@ export default function BiodataMaker() {
               <button onClick={saveDraft} disabled={saving} className="btn btn-ghost flex items-center gap-2">
                 <Save className="w-4 h-4" /> {saving ? 'Saving…' : saved ? 'Draft saved ✓' : 'Save draft'}
               </button>
-              <button onClick={downloadImage} className="btn btn-secondary flex items-center gap-2">
-                <Download className="w-4 h-4" /> Save as Image
+              <button onClick={downloadImage} disabled={imgState === 'working'} className="btn btn-secondary flex items-center gap-2">
+                <Download className="w-4 h-4" /> {imgState === 'working' ? 'Preparing…' : imgState === 'done' ? 'Image saved ✓' : 'Save as Image'}
               </button>
-              <button onClick={downloadPdf} className="btn btn-primary flex items-center gap-2">
-                <Download className="w-4 h-4" /> Save as PDF
+              <button onClick={downloadPdf} disabled={pdfState === 'working'} className="btn btn-primary flex items-center gap-2">
+                <Download className="w-4 h-4" /> {pdfState === 'working' ? 'Preparing…' : pdfState === 'done' ? 'PDF saved ✓' : 'Save as PDF'}
               </button>
               <button onClick={shareBiodata} className="btn btn-secondary flex items-center gap-2">
                 <Share2 className="w-4 h-4" /> Share
               </button>
             </div>
+            {exportError && (
+              <p role="alert" className="text-sm mt-2" style={{ color: '#b3261e' }}>{exportError}</p>
+            )}
             {isLoggedIn && (
               <p className="text-[11px] mt-2" style={{ color: 'var(--color-ink-tertiary)' }}>
                 Drafts save securely to your account (encrypted) and sync across your devices.
@@ -615,7 +633,7 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
       <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, padding: '64px 72px 90px', position: 'relative', fontFamily: '-apple-system, "Segoe UI", sans-serif' }}>
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           {bismillah}
-          <h1 style={{ fontSize: 28, fontWeight: 300, letterSpacing: 8, textTransform: 'uppercase', margin: '8px 0 0', color: t.ink }}>{tr.biodata}</h1>
+          <p style={{ fontSize: 28, fontWeight: 300, letterSpacing: 8, textTransform: 'uppercase', margin: '8px 0 0', color: t.ink }}>{tr.biodata}</p>
           <div style={{ width: 40, height: 2, background: t.accent, margin: '16px auto 0' }} />
         </div>
         {hasName && (
@@ -646,7 +664,7 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
           <div style={{ textAlign: 'center', marginBottom: 30 }}>
             {bismillah}
             <div style={{ display: 'inline-block', border: `1px solid ${t.accent}`, padding: '10px 36px', marginTop: 8 }}>
-              <h1 style={{ fontSize: 26, fontWeight: 400, letterSpacing: 6, margin: 0, color: t.accent }}>{tr.biodata}</h1>
+              <p style={{ fontSize: 26, fontWeight: 400, letterSpacing: 6, margin: 0, color: t.accent }}>{tr.biodata}</p>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start' }}>
@@ -681,7 +699,7 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 8 }}>
             <div>
               {bismillah}
-              {hasName && <h1 style={{ fontSize: 38, fontWeight: 400, margin: '6px 0 0', lineHeight: 1.1 }}>{data.name}</h1>}
+              {hasName && <p style={{ fontSize: 38, fontWeight: 400, margin: '6px 0 0', lineHeight: 1.1 }}>{data.name}</p>}
             </div>
             {photo && <img src={photo} alt="" style={{ width: 130, height: 156, objectFit: 'cover', borderRadius: 100, border: `3px solid ${t.accent}` }} />}
           </div>
@@ -727,7 +745,7 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
           <p style={{ fontSize: 21, color: t.accent, margin: '0 0 8px' }}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</p>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14, marginTop: 6 }}>
             <div style={{ width: 44, height: 1, background: t.accent, opacity: 0.5 }} />
-            <h1 style={{ fontSize: 27, fontWeight: 400, letterSpacing: 7, color: t.ink, margin: 0 }}>{tr.biodata}</h1>
+            <p style={{ fontSize: 27, fontWeight: 400, letterSpacing: 7, color: t.ink, margin: 0 }}>{tr.biodata}</p>
             <div style={{ width: 44, height: 1, background: t.accent, opacity: 0.5 }} />
           </div>
           <p style={{ fontSize: 11, letterSpacing: 3, color: t.muted, margin: '10px 0 0', textTransform: 'uppercase' }}>
