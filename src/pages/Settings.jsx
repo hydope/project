@@ -426,7 +426,7 @@ export default function Settings() {
                   }}
                   className="button primary px-5 py-2 font-semibold text-sm"
                 >
-                  Save privacy
+                  Save privacy settings
                 </button>
                 {privacySaved && <p className="text-sm text-success font-medium">{privacySaved}</p>}
 
@@ -449,7 +449,7 @@ export default function Settings() {
                       <option value="private">Private — only me</option>
                     </select>
                   </label>
-                  <p className="text-xs text-muted mt-1.5">Applies when you press “Save privacy” above.</p>
+                  <p className="text-xs text-muted mt-1.5">Applies when you press “Save privacy settings” above.</p>
                 </div>
 
                 <div className="pt-2 border-t border-line/10 mt-6">
@@ -720,7 +720,7 @@ export default function Settings() {
             <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-line/10">
               {saved && <span className="text-sm text-success font-medium">Saved!</span>}
               {saveError && <span className="text-sm text-danger font-medium">{saveError}</span>}
-              <button onClick={handleSave} disabled={bioSaving} className="button primary px-6 py-2.5 font-semibold disabled:opacity-50">{bioSaving ? 'Saving…' : 'Save Changes'}</button>
+              <button onClick={handleSave} disabled={bioSaving} className="button primary px-6 py-2.5 font-semibold disabled:opacity-50">{bioSaving ? 'Saving…' : 'Save account changes'}</button>
             </div>
           </div>
         </div>

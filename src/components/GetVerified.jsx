@@ -23,8 +23,6 @@ export default function GetVerified() {
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState('');
   const [mine, setMine] = useState([]);
-  const [waliBusy, setWaliBusy] = useState(false);
-  const [waliUrl, setWaliUrl] = useState('');
   const fileRef = useRef(null);
 
   const loadMine = () => api.myVerifications().then(setMine).catch(() => {});
@@ -49,18 +47,6 @@ export default function GetVerified() {
       setBusy(false);
     }
   };
-  const makeWaliLink = async () => {
-    setWaliBusy(true); setError('');
-    try {
-      const res = await api.createWaliLink();
-      setWaliUrl(res.url);
-    } catch (err) {
-      setError(err.message || 'Could not create the wali link.');
-    } finally {
-      setWaliBusy(false);
-    }
-  };
-
   const statusColor = (s) => (s === 'approved' ? 'var(--color-primary)' : s === 'rejected' ? 'var(--color-danger, #c0392b)' : 'var(--color-ink-faint)');
 
   return (
@@ -116,25 +102,6 @@ export default function GetVerified() {
         </ul>
       )}
 
-      <div className="p-4 rounded-xl" style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)' }}>
-        <div className="flex items-start gap-3">
-          <Users className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--color-primary)' }} />
-          <div>
-            <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>Wali / guardian view</p>
-            <p className="text-xs mt-1 mb-2" style={{ color: 'var(--color-ink-secondary)' }}>
-              A private, read-only link for your wali or a family elder — they see your profile, nothing else, never your email. Revoke anytime.
-            </p>
-            <button onClick={makeWaliLink} disabled={waliBusy} className="button px-4 py-2 text-sm font-semibold" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-ink)' }}>
-              {waliBusy ? 'Creating…' : 'Create wali link'}
-            </button>
-            {waliUrl && (
-              <p className="text-xs mt-2 break-all" style={{ color: 'var(--color-ink-secondary)' }}>
-                Share this link: <span style={{ color: 'var(--color-primary)', fontFamily: 'monospace' }}>{waliUrl}</span>
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

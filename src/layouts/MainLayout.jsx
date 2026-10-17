@@ -13,6 +13,7 @@ import {
 const AIAssistant = lazy(() => import('../components/AIAssistant'));
 const FeedbackWidget = lazy(() => import('../components/FeedbackWidget'));
 import BrandLockup from '../components/BrandLockup';
+import NotificationsMenu from '../components/NotificationsMenu';
 
 // ── Command Palette — Full-text search across navigation + actions ───────────
 function CommandPalette({ open, onClose, toggleTheme, isAdmin }) {
@@ -401,6 +402,7 @@ export default function MainLayout({ children }) {
               >
                 <LogOut className="w-4 h-4" />
               </button>
+              <NotificationsMenu className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors" />
             </div>
           )}
         </div>
@@ -412,9 +414,12 @@ export default function MainLayout({ children }) {
           <Menu className="w-5 h-5" />
         </button>
         <BrandMark />
-        <button onClick={() => setCmdOpen(true)} className="ml-auto mobile-menu-btn" aria-label="Search">
-          <Search className="w-5 h-5" />
-        </button>
+        <div className="ml-auto flex items-center gap-1">
+          <NotificationsMenu className="mobile-menu-btn" />
+          <button onClick={() => setCmdOpen(true)} className="mobile-menu-btn" aria-label="Search">
+            <Search className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Main content */}
