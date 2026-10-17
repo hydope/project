@@ -1149,7 +1149,7 @@ function aiSignupStats(): void
         "SELECT COUNT(*) AS n FROM users WHERE {$w} AND {$cond}"
     )->fetch()['n'];
 
-    json(['ok' => true, 'kpi_target' => 10, 'signups' => [
+    json(['ok' => true, 'kpi_target' => 5, 'signups' => [
         'today' => $q('created_at >= CURDATE()'),
         'yesterday' => $q('created_at >= DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND created_at < CURDATE()'),
         'last_7d' => $q('created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)'),

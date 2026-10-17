@@ -1,4 +1,4 @@
-# Daily signup KPI report — the 10 real members/day target.
+# Daily signup KPI report — the 5 real members/day target (Syed's order 2026-10-17).
 #
 # Runs every morning, calls GET /api/ai/signup-stats (service-key authed),
 # and prints the numbers to the run log. The daily caretaker reads the latest
