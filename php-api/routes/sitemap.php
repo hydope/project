@@ -83,7 +83,7 @@ function sitemapXml(): void
     try {
         $hasImg = (bool)$pdo->query("SHOW COLUMNS FROM blog_posts LIKE 'image_url'")->fetch();
         $imgSel = $hasImg ? ', image_url' : '';
-        $stmt = $pdo->query("SELECT slug, COALESCE(published_at, updated_at, created_at) AS lm{$imgSel} FROM blog_posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 2000");
+        $stmt = $pdo->query("SELECT slug, COALESCE(published_at, updated_at, created_at) AS lm{$imgSel} FROM blog_posts WHERE status = 'published' AND (scheduled_for IS NULL OR scheduled_for <= UTC_TIMESTAMP()) ORDER BY published_at DESC LIMIT 2000");
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $entry = [
                 'loc' => $base . '/blog/' . rawurlencode((string)$row['slug']),

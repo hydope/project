@@ -26,7 +26,15 @@ export default function Blog() {
       http.get('/api/ai/posts?limit=50')
         .then(r => {
           const rows = Array.isArray(r) ? r : (r.rows || []);
-          setDbPosts(rows.map(p => ({
+          // Admins receive scheduled/draft posts from this endpoint too — never
+          // render those as public cards. A card whose URL 404s is worse than
+          // no card: it erodes trust and creates soft-404s for crawlers.
+          const now = Date.now();
+          const live = rows.filter(p =>
+            (!p.status || p.status === 'published') &&
+            (!p.scheduled_for || new Date(p.scheduled_for).getTime() <= now)
+          );
+          setDbPosts(live.map(p => ({
             id: p.id,
             slug: p.slug,
             title: p.title,

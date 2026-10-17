@@ -503,7 +503,7 @@ export default function AdminContent() {
                       <button onClick={() => setStatus(p.id, 'published')} disabled={busy}
                         className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white disabled:opacity-50">Publish</button>
                     )}
-                    {p.status === 'published' && (
+                    {p.status === 'published' && (!p.scheduled_for || new Date(p.scheduled_for) <= new Date()) && (
                       <a href={`/blog/${p.slug}`} target="_blank" rel="noreferrer"
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-line/30 text-muted">
                         <Eye className="w-3.5 h-3.5" /> View

@@ -13,8 +13,23 @@
 // the post exists and the API answers 200. Serving the article HTML in the
 // first response removes the crawler's dependence on JavaScript entirely.
 //
-// Unknown slugs (and the 8 static articles, which live in the JS bundle) fall
-// through to the plain SPA shell — byte-identical to today's behavior.
+// The 8 static articles live in the JS bundle (src/data/articles.js), not the
+// DB. They must keep serving the SPA shell with HTTP 200 — keep this list in
+// sync with src/data/articles.js if a static article is ever added/renamed.
+const BLOG_STATIC_SLUGS = [
+    'the-art-of-intentional-matchmaking',
+    'family-involvement-in-your-search',
+    'a-profile-that-reflects-your-values',
+    'privacy-and-safety-online',
+    'wali-in-modern-matchmaking',
+    'red-flags-and-green-flags',
+    'cultural-compatibility',
+    'preparing-for-first-meeting',
+];
+//
+// Unknown slugs get a real HTTP 404 (the SPA shell still renders the pretty
+// 404 page). Serving 200 for a missing post is a soft-404: crawlers flag it
+// and it pollutes indexing. A genuine 404 tells Google to drop the URL.
 //
 // The SPA stays interactive: the post payload is embedded as
 // window.__SSR_POST__ so BlogPost.jsx skips its fetch (see BlogPost.jsx).
@@ -74,8 +89,16 @@ function blogSsr(string $slug): void
     }
 
     $post = blogSsrFetchPost($slug);
+    if ($post === null && !in_array($slug, BLOG_STATIC_SLUGS, true)) {
+        // Unknown slug — genuine 404 so crawlers drop the URL (no soft-404).
+        // The SPA shell still renders the styled 404 page client-side.
+        http_response_code(404);
+        header('Content-Type: text/html; charset=utf-8');
+        echo $shell;
+        return;
+    }
     if ($post === null) {
-        // Unknown slug — serve the SPA shell unchanged (today's behavior).
+        // Static article (JS bundle) — serve the SPA shell unchanged.
         header('Content-Type: text/html; charset=utf-8');
         echo $shell;
         return;
