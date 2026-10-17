@@ -566,7 +566,7 @@ function adminOverview(): void
     // COUNT(*) comes back as a string from MySQL — cast for numeric parity.
     json([
         'totalMembers' => (int)db()->query("SELECT COUNT(*) AS n FROM users WHERE is_test = 0")->fetch()['n'],
-        'activeProfiles' => (int)db()->query('SELECT COUNT(*) AS n FROM profiles WHERE is_blocked = 0')->fetch()['n'],
+        'activeProfiles' => (int)db()->query('SELECT COUNT(*) AS n FROM profiles WHERE is_blocked = 0 AND user_id NOT IN (SELECT id FROM users WHERE is_test = 1)')->fetch()['n'],
         'messagesToday' => (int)db()->query('SELECT COUNT(*) AS n FROM messages WHERE created_at > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 DAY)')->fetch()['n'],
         'livePosts' => (int)db()->query('SELECT COUNT(*) AS n FROM posts WHERE is_hidden = 0')->fetch()['n'],
         'repliesThisWeek' => (int)db()->query('SELECT COUNT(*) AS n FROM replies WHERE created_at > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)')->fetch()['n'],
@@ -1625,8 +1625,8 @@ function adminFunnel(): void
     $steps = [
         ['key' => 'registered', 'label' => 'Registered', 'n' => $count('SELECT COUNT(*) AS n FROM users WHERE is_test = 0')],
         ['key' => 'verified', 'label' => 'Email verified', 'n' => $count('SELECT COUNT(*) AS n FROM users WHERE email_verified = 1 AND is_test = 0')],
-        ['key' => 'published', 'label' => 'Profile published', 'n' => $count("SELECT COUNT(*) AS n FROM profiles WHERE visibility != 'private'")],
-        ['key' => 'idVerified', 'label' => 'ID verified', 'n' => $count('SELECT COUNT(*) AS n FROM profiles WHERE is_verified = 1')],
+        ['key' => 'published', 'label' => 'Profile published', 'n' => $count("SELECT COUNT(*) AS n FROM profiles WHERE visibility != 'private' AND user_id NOT IN (SELECT id FROM users WHERE is_test = 1)")],
+        ['key' => 'idVerified', 'label' => 'ID verified', 'n' => $count('SELECT COUNT(*) AS n FROM profiles WHERE is_verified = 1 AND user_id NOT IN (SELECT id FROM users WHERE is_test = 1)')],
         ['key' => 'interested', 'label' => 'Interest sent', 'n' => $count('SELECT COUNT(DISTINCT from_user_id) AS n FROM interests')],
         ['key' => 'matched', 'label' => 'Mutual match', 'n' => $count(
             'SELECT COUNT(*) AS n FROM interests a JOIN interests b ON a.from_user_id = b.to_user_id AND a.to_user_id = b.from_user_id',

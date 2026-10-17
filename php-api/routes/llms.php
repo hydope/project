@@ -62,7 +62,7 @@ function llmsTxt(): void
         // Cities with active profiles.
         $stmt = $pdo->query(
             "SELECT city, COUNT(*) AS n FROM profiles
-             WHERE is_blocked = 0 AND city IS NOT NULL AND city != ''
+             WHERE is_blocked = 0 AND city IS NOT NULL AND city != '' AND user_id NOT IN (SELECT id FROM users WHERE is_test = 1)
              GROUP BY city ORDER BY n DESC LIMIT 200"
         );
         $cities = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -81,7 +81,7 @@ function llmsTxt(): void
         // Countries with active profiles.
         $stmt = $pdo->query(
             "SELECT country, COUNT(*) AS n FROM profiles
-             WHERE is_blocked = 0 AND country IS NOT NULL AND country != ''
+             WHERE is_blocked = 0 AND country IS NOT NULL AND country != '' AND user_id NOT IN (SELECT id FROM users WHERE is_test = 1)
              GROUP BY country ORDER BY n DESC LIMIT 100"
         );
         $countries = $stmt->fetchAll(PDO::FETCH_ASSOC);
