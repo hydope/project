@@ -28,12 +28,12 @@ export default function ProfileCard({ profile, className = '' }) {
   const [saveError, setSaveError] = useState('');
   const { isLoggedIn } = useAuth();
   const [loginGateOpen, setLoginGateOpen] = useState(false);
+  const [gateReason, setGateReason] = useState('favourites');
 
   const toggleSaved = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (saveBusy) return;
-    // Sample profiles cannot receive messages, so saving one would put it on a
+    if (saveBusy) return;    // Sample profiles cannot receive messages, so saving one would put it on a
     // favourites list the member could never act on. Say so instead of storing it.
     if (profile.isDemo === true) {
       setSaveError('This is a sample profile, so it cannot be saved. Create your own profile to start building your list.');
@@ -42,7 +42,7 @@ export default function ProfileCard({ profile, className = '' }) {
     // Favourites need an account — the API is session-scoped and there is no
     // anonymous save, so send a signed-out visitor to the login gate instead of
     // pretending the bookmark worked.
-    if (!isLoggedIn) { setLoginGateOpen(true); return; }
+    if (!isLoggedIn) { setGateReason('favourites'); setLoginGateOpen(true); return; }
     const next = !saved;
     setSaveBusy(true);
     setSaveError('');
@@ -68,6 +68,10 @@ export default function ProfileCard({ profile, className = '' }) {
   const handleInterest = async (e) => {
     e.preventDefault();
     if (interestBusy) return;
+    // Interest is the highest-intent action on the site. A signed-out guest
+    // gets the signup-nudge modal — never the silent failure that used to
+    // swallow the tap with no feedback at all.
+    if (!isLoggedIn) { setGateReason('interest'); setLoginGateOpen(true); return; }
     // Sending interest is what opens a conversation, and a sample profile has
     // nobody on the other end. Block it here and explain, rather than letting the
     // request succeed against a person who does not exist.
@@ -338,7 +342,7 @@ export default function ProfileCard({ profile, className = '' }) {
         <p className="px-3.5 pb-3 -mt-2 text-[11px]" style={{ color: 'var(--color-danger, #b3261e)' }}>{saveError}</p>
       )}
       {loginGateOpen && (
-        <LoginGate reason="favourites" onClose={() => setLoginGateOpen(false)} />
+        <LoginGate reason={gateReason} onClose={() => setLoginGateOpen(false)} />
       )}
     </motion.article>
   );

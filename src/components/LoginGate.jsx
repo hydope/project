@@ -20,11 +20,16 @@ export default function LoginGate({ onClose, reason = 'community' }) {
       body: 'Saved profiles are private to your account, so you need to sign in to see them. Browsing profiles is open to everyone.',
       primary: 'Log in',
     },
+    interest: {
+      title: 'Express your interest',
+      body: 'Create a free account to send interest to this profile. They will be notified, and if they accept you can start a conversation. It takes less than a minute.',
+      primary: 'Create free account',
+    },
   };
   const copy = COPY[reason] ?? COPY.community;
   return (
     <div className="ai-backdrop" style={{ zIndex: 400 }} onClick={onClose}>
-      <div className="ai-drawer" style={{ width: '380px', maxWidth: '95vw', margin: '2rem auto', borderRadius: 'var(--radius-xl)', position: 'relative', top: '20vh' }} onClick={e => e.stopPropagation()} role="dialog" aria-label="Join the conversation">
+      <div className="ai-drawer" style={{ width: '380px', maxWidth: '95vw', margin: '2rem auto', borderRadius: 'var(--radius-xl)', position: 'relative', top: '20vh' }} onClick={e => e.stopPropagation()} role="dialog" aria-label={copy.title}>
         <div className="ai-drawer-header">
           <div className="ai-orb"><Lock className="w-4 h-4" /></div>
           <div><p className="ai-drawer-title">{copy.title}</p></div>

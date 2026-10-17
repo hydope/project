@@ -441,7 +441,7 @@ export default function Profile() {
           </div>
         </div>
       </main>
-      {showLoginGate && <LoginGate onClose={() => setShowLoginGate(false)} />}
+      {showLoginGate && <LoginGate reason="interest" onClose={() => setShowLoginGate(false)} />}
       {confirmBlock && (
         <ConfirmDialog
           title={`Block ${profile.displayName}?`}
