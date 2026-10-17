@@ -82,3 +82,12 @@ jobs:
           echo "=== /blog/ + api health ==="
           curl -sk --max-time 20 -o /dev/null -w "/blog/ => %{http_code}\n" https://shiarishta.com/blog/
           curl -sk --max-time 20 https://shiarishta.com/api/health; echo
+
+      - name: TEMP blogssr direct
+        run: |
+          echo "=== direct API endpoint ==="
+          curl -sk --max-time 25 "https://shiarishta.com/api/blog-ssr/wali-in-modern-matchmaking" -o /tmp/bd.html -w "HTTP %{http_code}, bytes: %{size_download}\n"
+          grep -o "<title>[^<]*</title>" /tmp/bd.html | head -1
+          echo "SSR marker: $(grep -c '__SSR_POST__' /tmp/bd.html || true)"
+          echo "=== pretty URL again (headers) ==="
+          curl -sk --max-time 25 -D - -o /dev/null "https://shiarishta.com/blog/wali-in-modern-matchmaking" | head -12
