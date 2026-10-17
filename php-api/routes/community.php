@@ -30,15 +30,17 @@ function communityDeletePost(string $postId): void
 {
     try {
         $user = requireAuthUser();
-        $probe = db()->prepare('SELECT id, user_id FROM posts WHERE id = ? LIMIT 1');
+        $probe = db()->prepare('SELECT id, author_id FROM posts WHERE id = ? LIMIT 1');
         $probe->execute([$postId]);
         $post = $probe->fetch();
         if (!$post) {
             je('Post not found.', 404);
         }
         // Author can delete their own post; admins can delete any post.
-        $isAdmin = !empty($user['is_admin']);
-        if (!$isAdmin && (string)$post['user_id'] !== (string)$user['uid']) {
+        // (Session payload uses camelCase isAdmin; the posts table uses author_id —
+        // both were wrong here, which made every delete 500 silently.)
+        $isAdmin = !empty($user['isAdmin']);
+        if (!$isAdmin && (string)$post['author_id'] !== (string)$user['uid']) {
             je('You can only delete your own posts.', 403);
         }
         $pdo = db();
