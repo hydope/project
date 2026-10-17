@@ -365,6 +365,16 @@ function LandingHeader() {
   const { isLoggedIn, user, logout } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  // Solid-ify the glass header once the user scrolls: translucent at the very
+  // top (premium feel), near-opaque on scroll so body content never bleeds
+  // through behind the nav links.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
   const location = useLocation();
   const headerRef = useRef(null);
   const mobilePanelRef = useRef(null);
@@ -432,7 +442,7 @@ function LandingHeader() {
 
   return (
     <>
-      <header className="landing-header" ref={headerRef}>
+      <header className={'landing-header' + (scrolled ? ' is-scrolled' : '')} ref={headerRef}>
         <div className="landing-header-inner">
           {/* Logo */}
           <Link to="/" className="landing-brand" aria-label="Shia Rishta — home">

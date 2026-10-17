@@ -41,6 +41,7 @@
 
   /* Brand — sage core, gold accent, sage for AI surfaces */
   --color-primary: #416b5b;
+  --color-on-primary: #ffffff;
   --color-primary-hover: #21483b;
   --color-primary-subtle: rgba(65, 107, 91, 0.12);
   --color-primary-glow: rgba(65, 107, 91, 0.22);
@@ -156,6 +157,7 @@
   --color-ink-faint: #9a8a76;
   --color-ink-950: #f5ede1;
   --color-primary: #8fb3a0;
+  --color-on-primary: #1a2420;
   --color-primary-hover: #a8c9b8;
   --color-primary-subtle: rgba(143, 179, 160, 0.14);
   --color-primary-glow: rgba(143, 179, 160, 0.25);
@@ -659,7 +661,7 @@ h1, h2, h3 {
 
 .btn-primary {
   background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
-  color: #ffffff;
+  color: var(--color-on-primary);
   box-shadow: 0 4px 16px rgba(65, 107, 91, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
@@ -1344,6 +1346,12 @@ select.input {
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   background: color-mix(in srgb, var(--color-canvas) 72%, transparent);
   border-bottom: 1px solid var(--color-border-subtle);
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+/* Scrolled: near-opaque so page content never bleeds through behind nav links. */
+.landing-header.is-scrolled {
+  background: color-mix(in srgb, var(--color-canvas) 96%, transparent);
+  box-shadow: 0 1px 12px rgba(0, 0, 0, 0.08);
 }
 
 .landing-header-inner {
@@ -2529,7 +2537,7 @@ button, a, input, select, textarea {
 }
 .button.primary {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
   border-color: var(--color-primary);
 }
 .button.primary:hover:not(:disabled) {
@@ -3780,7 +3788,7 @@ button, a, input, select, textarea {
 }
 .hp-btn-ghost {
   background: rgba(255, 255, 255, 0.75);
-  color: var(--color-primary-hover);
+  color: #21483b;
   border: 1px solid var(--color-border-strong);
 }
 .hp-btn-ghost:hover {
