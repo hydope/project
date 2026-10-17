@@ -139,6 +139,10 @@ CREATE TABLE IF NOT EXISTS matchmaker_profiles (
   KEY idx_mm_status (status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- The eight curated rooms (hyderabad, dubai, dallas, london, toronto, reverts,
+-- parents, newlywed) are seeded by migrateSeedDefaultCommunities() in
+-- php-api/lib/migrate.php (INSERT IGNORE — safe to re-run). They must exist or
+-- /community/:slug 404s in remote mode while the seeder writes into the void.
 CREATE TABLE IF NOT EXISTS communities (
   id         VARCHAR(32) NOT NULL PRIMARY KEY,
   name       VARCHAR(80) NOT NULL,

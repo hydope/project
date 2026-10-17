@@ -223,6 +223,9 @@ shuffle($available);
 $chosen = array_slice($available, 0, 2);
 
 $insPost = $db->prepare('INSERT INTO posts (id, community_id, author_id, author_name, title, body, likes) VALUES (?, ?, NULL, ?, ?, ?, ?)');
+$insRoom = $db->prepare("INSERT IGNORE INTO communities (id, name) VALUES (?, ?)");
+// 'all' is a client-side pseudo-room (every room's feed), never a DB row.
+$ROOM_NAMES = ['hyderabad' => 'Hyderabad', 'dubai' => 'Dubai', 'dallas' => 'Dallas', 'london' => 'London', 'toronto' => 'Toronto', 'reverts' => 'Reverts', 'parents' => 'Parents', 'newlywed' => 'Newlywed', 'general' => 'General'];
 $insReply = $db->prepare('INSERT INTO replies (id, post_id, author_id, author_name, body) VALUES (?, ?, NULL, ?, ?)');
 $insLog = $db->prepare('INSERT IGNORE INTO community_seed_log (content_key) VALUES (?)');
 
@@ -231,6 +234,11 @@ $repliesMade = 0;
 
 foreach ($chosen as [$i, $key]) {
     [$community, $title, $body, $author] = $COMMUNITY_POSTS[$i];
+    // Never orphan a post in a room that doesn't exist (the /community/dallas
+    // 404: rooms only resolve from the DB `communities` table in remote mode).
+    if ($community !== 'all' && isset($ROOM_NAMES[$community])) {
+        $insRoom->execute([$community, $ROOM_NAMES[$community]]);
+    }
     $postId = communityUuid();
     $likes = mt_rand(3, 28);
     $insPost->execute([$postId, $community, $author, $title, $body, $likes]);

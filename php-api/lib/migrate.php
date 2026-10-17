@@ -56,6 +56,7 @@ function migrateSchema(): void
     migrateAddPageviewsTable();
     migrateAddSeededFlag();
     migrateAddTestFlag();
+    migrateSeedDefaultCommunities();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -968,5 +969,44 @@ function migrateAddTestFlag(): void
         );
     } catch (Throwable $e) {
         error_log('[api] migration: users.is_test — ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Seed the curated community rooms.
+ *
+ * The frontend's DEFAULT_COMMUNITIES (src/lib/communityData.js) defines the
+ * eight curated rooms (hyderabad, dubai, dallas, london, toronto, reverts,
+ * parents, newlywed), and the daily community seeder writes posts into them —
+ * but in remote mode the app lists rooms ONLY from the DB `communities`
+ * table. Until this migration, that table held just `general` (plus QA debris),
+ * so /community/dallas etc. rendered "Community not found" while seeded posts
+ * piled up in rooms nobody could open. Idempotent: INSERT IGNORE.
+ */
+function migrateSeedDefaultCommunities(): void
+{
+    try {
+        $rooms = [
+            ['hyderabad', 'Hyderabad', '🇮🇳'],
+            ['dubai',     'Dubai',     '🇦🇪'],
+            ['dallas',    'Dallas',    '🇺🇸'],
+            ['london',    'London',    '🇬🇧'],
+            ['toronto',   'Toronto',   '🇨🇦'],
+            ['reverts',   'Reverts',   '🧘'],
+            ['parents',   'Parents',   '👨‍👩‍👧‍👦'],
+            ['newlywed',  'Newlywed',  '💍'],
+        ];
+        $ins = db()->prepare(
+            "INSERT IGNORE INTO communities (id, name, icon) VALUES (?, ?, ?)"
+        );
+        foreach ($rooms as [$id, $name, $icon]) {
+            $ins->execute([$id, $name, $icon]);
+        }
+        // QA debris must never surface in member-facing lists.
+        db()->exec("DELETE FROM replies WHERE post_id IN (SELECT id FROM posts WHERE community_id = 'qatestcommunity07')");
+        db()->exec("DELETE FROM posts WHERE community_id = 'qatestcommunity07'");
+        db()->exec("DELETE FROM communities WHERE id = 'qatestcommunity07'");
+    } catch (Throwable $e) {
+        error_log('[api] migration: seed default communities — ' . substr($e->getMessage(), 0, 120));
     }
 }

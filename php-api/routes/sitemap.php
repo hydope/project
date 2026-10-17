@@ -103,12 +103,13 @@ function sitemapXml(): void
         }
     } catch (Throwable $e) { /* table missing — skip */ }
 
-    // Public community posts.
+    // Public community posts. The post route is /community/:slug/post/:postId —
+    // emitting /community/:postId alone 404s as "community not found".
     try {
-        $stmt = $pdo->query("SELECT id, created_at FROM posts WHERE is_hidden = 0 ORDER BY created_at DESC LIMIT 2000");
+        $stmt = $pdo->query("SELECT id, community_id, created_at FROM posts WHERE is_hidden = 0 AND community_id <> 'qatestcommunity07' ORDER BY created_at DESC LIMIT 2000");
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $urls[] = [
-                'loc' => $base . '/community/' . rawurlencode((string)$row['id']),
+                'loc' => $base . '/community/' . rawurlencode((string)$row['community_id']) . '/post/' . rawurlencode((string)$row['id']),
                 'lastmod' => substr((string)$row['created_at'], 0, 10),
                 'priority' => '0.6',
             ];
