@@ -5,37 +5,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build, upload, query, delete diagnostic
+      - name: Upload, query, delete diagnostic
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USER: ${{ secrets.FTP_USERNAME }}
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
         run: |
+          set -e
           TOKEN=$(openssl rand -hex 16)
           FNAME="diag-tmp-${TOKEN}.php"
-          cat > /tmp/diag.php << PHPEOF
-          <?php
-          // TEMPORARY diagnostic — auto-deleted after this run.
-          \$tok = '${TOKEN}';
-          if ((\$_GET['token'] ?? '') !== \$tok) { http_response_code(403); exit('no'); }
-          require __DIR__.'/lib/bootstrap.php';
-          require __DIR__.'/lib/db.php';
-          \$pdo = db();
-          \$mask = fn(\$e) => preg_match('/^(..).*(@.*)$/', \$e, \$m) ? \$m[1].'***'.\$m[2] : '***';
-          \$real = \$pdo->query("SELECT COUNT(*) n FROM users WHERE email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0 AND is_test = 0")->fetch()['n'];
-          \$total = \$pdo->query("SELECT COUNT(*) n FROM users")->fetch()['n'];
-          \$flagged = \$pdo->query("SELECT id, email, created_at FROM users WHERE is_test = 1 ORDER BY created_at DESC LIMIT 25")->fetchAll(PDO::FETCH_ASSOC);
-          foreach (\$flagged as &\$r) { \$r['email'] = \$mask(\$r['email']); }
-          \$recent = \$pdo->query("SELECT id, email, created_at, is_test, is_admin FROM users WHERE email NOT LIKE 'seeded-%@shiarishta.com' ORDER BY created_at DESC LIMIT 30")->fetchAll(PDO::FETCH_ASSOC);
-          foreach (\$recent as &\$r) { \$r['email'] = \$mask(\$r['email']); }
-          \$profiles = \$pdo->query("SELECT COUNT(*) n FROM profiles")->fetch()['n'];
-          header('Content-Type: application/json');
-          echo json_encode(['real_count' => (int)\$real, 'total_users' => (int)\$total, 'total_profiles' => (int)\$profiles, 'flagged_test' => \$flagged, 'recent_nontest' => \$recent]);
-          PHPEOF
-          curl -s --insecure --ftp-ssl -T /tmp/diag.php "ftp://$FTP_USER:$FTP_PASS@$FTP_SERVER/public_html/api/$FNAME"
+          sed "s/__DIAG_TOKEN__/${TOKEN}/" diag-tmp.php > /tmp/diag.php
+          curl -s --insecure --ftp-ssl -T /tmp/diag.php "ftp://${FTP_USER}:${FTP_PASS}@${FTP_SERVER}/public_html/api/${FNAME}"
           echo "=== RESULT ==="
-          curl -s --max-time 30 "https://shiarishta.com/api/$FNAME?token=$TOKEN"
+          curl -s --max-time 30 "https://shiarishta.com/api/${FNAME}?token=${TOKEN}"
           echo ""
           echo "=== DELETING ==="
-          curl -s --insecure --ftp-ssl -Q "DELE public_html/api/$FNAME" "ftp://$FTP_USER:$FTP_PASS@$FTP_SERVER/" -o /dev/null
+          curl -s --insecure --ftp-ssl "ftp://${FTP_USER}:${FTP_PASS}@${FTP_SERVER}/" -Q "DELE public_html/api/${FNAME}" -o /dev/null
           echo "deleted"
