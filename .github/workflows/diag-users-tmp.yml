@@ -15,10 +15,10 @@ jobs:
           TOKEN=$(openssl rand -hex 16)
           FNAME="diag-tmp-${TOKEN}.php"
           sed "s/__DIAG_TOKEN__/${TOKEN}/" diag-tmp.php > /tmp/diag.php
-          curl -s --insecure --ftp-ssl -T /tmp/diag.php "ftp://${FTP_USER}:${FTP_PASS}@${FTP_SERVER}/public_html/api/${FNAME}"
+          curl -s --insecure --ftp-ssl --user "${FTP_USER}:${FTP_PASS}" -T /tmp/diag.php "ftp://${FTP_SERVER}/public_html/api/${FNAME}"
           echo "=== RESULT ==="
           curl -s --max-time 30 "https://shiarishta.com/api/${FNAME}?token=${TOKEN}"
           echo ""
           echo "=== DELETING ==="
-          curl -s --insecure --ftp-ssl "ftp://${FTP_USER}:${FTP_PASS}@${FTP_SERVER}/" -Q "DELE public_html/api/${FNAME}" -o /dev/null
+          curl -s --insecure --ftp-ssl --user "${FTP_USER}:${FTP_PASS}" "ftp://${FTP_SERVER}/" -Q "DELE public_html/api/${FNAME}" -o /dev/null
           echo "deleted"
