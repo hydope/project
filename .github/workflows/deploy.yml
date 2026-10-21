@@ -94,7 +94,7 @@ jobs:
           # back to the SPA shell with the homepage's H1 - the exact defect fixed here.
           for route in privacy terms about safety contact profiles; do
             if [ -f "dist/${route}/index.html" ]; then
-              if grep -q "rel=\"canonical\" href=\"https://shiarishta.com/${route}\"" "dist/${route}/index.html"; then
+              if grep -q "rel=\"canonical\" href=\"https://shiarishta.com/${route}/\"" "dist/${route}/index.html"; then
                 echo "OK: /${route} prerendered"
               else
                 echo "FAIL: /${route} has no route-specific canonical"
