@@ -37,7 +37,7 @@ function llmsTxt(): void
         '/contact' => 'Contact us',
     ];
     foreach ($pages as $path => $desc) {
-        $lines[] = "- [$desc]($base$path)";
+        $lines[] = "- [$desc](" . $base . $path . ($path === '/' ? '' : '/') . ")";
     }
     $lines[] = '';
 
@@ -52,7 +52,7 @@ function llmsTxt(): void
         '/shia-nikah' => 'Shia nikah',
     ];
     foreach ($landing as $path => $desc) {
-        $lines[] = "- [$desc]($base$path)";
+        $lines[] = "- [$desc](" . $base . $path . ($path === '/' ? '' : '/') . ")";
     }
     $lines[] = '';
 
@@ -73,7 +73,7 @@ function llmsTxt(): void
                 $slug = trim(strtolower((string)preg_replace('/[^a-z0-9]+/i', '-', $city)), '-');
                 if ($slug === '') continue;
                 $n = (int)$c['n'];
-                $lines[] = "- [Shia Rishta in $city | Shia Rishtay in $city | Shia Nikah in $city | Shia Marriage in $city ($n profiles)]({$base}/city/{$slug})";
+                $lines[] = "- [Shia Rishta in $city | Shia Rishtay in $city | Shia Nikah in $city | Shia Marriage in $city ($n profiles)]({$base}/city/{$slug}/)";
             }
             $lines[] = '';
         }
@@ -111,7 +111,7 @@ function llmsTxt(): void
                 foreach ($countryAliases[$slug] ?? [] as $alt) {
                     $label .= " | Shia Rishta in $alt";
                 }
-                $lines[] = "- [$label ($n profiles)]({$base}/country/{$slug})";
+                $lines[] = "- [$label ($n profiles)]({$base}/country/{$slug}/)";
             }
             $lines[] = '';
         }

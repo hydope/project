@@ -51,7 +51,7 @@ for (const slug of slugs) {
   if (!existsSync(file)) { missingDoc.push(slug); continue; }
   const html = await readFile(file, 'utf8');
   const canonical = (html.match(/rel="canonical" href="([^"]+)"/) || [])[1];
-  if (canonical !== `https://shiarishta.com${slug}`) wrongCanonical.push(`${slug} -> ${canonical}`);
+  if (canonical !== `https://shiarishta.com${slug}/`) wrongCanonical.push(`${slug} -> ${canonical}`);
   // Regression guard for the original bug in its title form.
   if (html.includes(`<title>${homepageTitle}`)) homepageLeak.push(slug);
 }

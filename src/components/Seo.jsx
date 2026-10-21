@@ -246,12 +246,16 @@ function breadcrumbNode(pathname) {
   return {
     '@type': 'BreadcrumbList',
     itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: SITE },
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE}/` },
       ...segs.map((s, i) => ({
         '@type': 'ListItem',
         position: i + 2,
         name: s.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-        item: `${SITE}/${segs.slice(0, i + 1).join('/')}`,
+        // The leaf item is this page itself — use its canonical form.
+        item:
+          i === segs.length - 1
+            ? canonicalFor(pathname)
+            : `${SITE}/${segs.slice(0, i + 1).join('/')}`,
       })),
     ],
   };
@@ -276,12 +280,34 @@ function faqNode(pathname) {
 // manual page_view events on client-side navigations.
 let seoFirstPageViewDone = false;
 
+// The canonical URL for a route — the URL that actually serves 200.
+//
+// Prerendered routes are directories on disk (dist/<route>/index.html), so
+// the server 301s the slash-less URL to the trailing-slash one. Their
+// canonical is the trailing-slash form; anything else names a redirect,
+// which is a conflicting signal (a 2026-10-20 audit found 494 of 619 sitemap
+// URLs redirecting for this reason). SPA/SSR routes (/blog/<slug>,
+// /profiles/<id>, /community/...) serve 200 at the slash-less URL and keep
+// it. Mirrors the rule in scripts/prerender-routes.mjs — the two must agree.
+function canonicalFor(pathname) {
+  const path = pathname.replace(/\/+$/, '') || '/';
+  if (path === '/') return `${SITE}/`;
+  const slug = path.replace(/^\/+/, '');
+  const isPrerendered =
+    Object.prototype.hasOwnProperty.call(PUBLIC_META, path) ||
+    LANDING_PAGE_META[slug] != null ||
+    getTagLandingPage(slug) !== null ||
+    CITIES.some((c) => `/city/${c.slug}` === path) ||
+    COUNTRIES.some((c) => `/country/${c.slug}` === path);
+  return isPrerendered ? `${SITE}${path}/` : `${SITE}${path}`;
+}
+
 export default function Seo() {
   const { pathname } = useLocation();
 
   useEffect(() => {
     const meta = resolveMeta(pathname);
-    const canonical = `${SITE}${pathname === '/' ? '/' : pathname.replace(/\/+$/, '')}`;
+    const canonical = canonicalFor(pathname);
 
     document.title = meta.title;
     upsertMeta('meta[name="description"]', { name: 'description', content: meta.desc || meta.title });

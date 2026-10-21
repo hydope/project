@@ -90,7 +90,12 @@ function breadcrumbJsonLd(pathname) {
         '@type': 'ListItem',
         position: i + 2,
         name: s.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-        item: `${SITE_URL}/${segs.slice(0, i + 1).join('/')}`,
+        // The leaf item is this page itself — use its canonical (trailing
+        // slash) form; intermediate segments keep the plain path form.
+        item:
+          i === segs.length - 1
+            ? `${SITE_URL}/${segs.join('/')}/`
+            : `${SITE_URL}/${segs.slice(0, i + 1).join('/')}`,
       })),
     ],
   };
@@ -163,7 +168,7 @@ function locationsHubHtml() {
   const parts = ['<article class="seo-section">', '<h2>Cities</h2>', '<ul>'];
   for (const c of ALL_LOCATIONS.cities) {
     parts.push(
-      `<li><a href="${SITE_URL}/city/${c.slug}">Shia matrimony in ${esc(c.name)}</a>` +
+      `<li><a href="${SITE_URL}/city/${c.slug}/">Shia matrimony in ${esc(c.name)}</a>` +
       ` — <a href="${SITE_URL}/profiles?city=${encodeURIComponent(c.name)}">browse profiles in ${esc(c.name)}</a></li>`
     );
   }
@@ -172,7 +177,7 @@ function locationsHubHtml() {
   parts.push('<article class="seo-section">', '<h2>Countries</h2>', '<ul>');
   for (const k of ALL_LOCATIONS.countries) {
     parts.push(
-      `<li><a href="${SITE_URL}/country/${k.slug}">Shia matrimony in ${esc(k.name)}</a>` +
+      `<li><a href="${SITE_URL}/country/${k.slug}/">Shia matrimony in ${esc(k.name)}</a>` +
       ` — <a href="${SITE_URL}/profiles?country=${encodeURIComponent(k.name)}">browse profiles in ${esc(k.name)}</a></li>`
     );
   }
@@ -183,9 +188,9 @@ function locationsHubHtml() {
   for (const k of ALL_LOCATIONS.countries) {
     const inCountry = ALL_LOCATIONS.cities.filter((x) => x.countrySlug === k.slug);
     if (!inCountry.length) continue;
-    parts.push(`<h3><a href="${SITE_URL}/country/${k.slug}">${esc(k.name)}</a></h3>`, '<ul>');
+    parts.push(`<h3><a href="${SITE_URL}/country/${k.slug}/">${esc(k.name)}</a></h3>`, '<ul>');
     for (const x of inCountry) {
-      parts.push(`<li><a href="${SITE_URL}/city/${x.slug}">${esc(x.name)}</a></li>`);
+      parts.push(`<li><a href="${SITE_URL}/city/${x.slug}/">${esc(x.name)}</a></li>`);
     }
     parts.push('</ul>');
   }
@@ -197,7 +202,7 @@ function locationsHubHtml() {
     '<article class="seo-section">',
     '<h2>Before you search</h2>',
     '<p>Photos are private by default: a member can show photos to everyone, only to people they have mutual interest with, or only to matches. Contact details are never published, and a conversation opens only after interest is mutual from both sides. Browsing is free and needs no account.</p>',
-    `<p>Looking for something specific? Try <a href="${SITE_URL}/syed-rishta">Syed rishta</a>, <a href="${SITE_URL}/shia-nikah">what nikah involves</a>, or the <a href="${SITE_URL}/profile-guide">profile guide</a>.</p>`,
+    `<p>Looking for something specific? Try <a href="${SITE_URL}/syed-rishta/">Syed rishta</a>, <a href="${SITE_URL}/shia-nikah/">what nikah involves</a>, or the <a href="${SITE_URL}/profile-guide/">profile guide</a>.</p>`,
     '</article>'
   );
 
@@ -214,7 +219,13 @@ function renderBody(meta, route) {
   // as an undifferentiated blob, and "the article" is genuinely ambiguous.
   parts.push('<header><nav aria-label="Main"><ul>');
   for (const item of SHARED_NAV) {
-    parts.push(`<li><a href="${attr(item.href)}">${esc(item.label)}</a></li>`);
+    // Static HTML should link to the URL that serves 200, not the one that
+    // 301s to it: prerendered routes get their trailing-slash form here.
+    // (The SPA's own nav keeps the plain paths — client-side routing never
+    // hits the redirect.)
+    const href =
+      item.href !== '/' && ALL[item.href] ? `${item.href}/` : item.href;
+    parts.push(`<li><a href="${attr(href)}">${esc(item.label)}</a></li>`);
   }
   parts.push('</ul></nav></header>');
 
@@ -321,10 +332,15 @@ function renderBody(meta, route) {
   );
   parts.push(
     '<footer><p>' +
-      '<a href="/privacy">Privacy policy</a> &middot; ' +
-      '<a href="/terms">Terms of use</a> &middot; ' +
-      '<a href="/safety">Safety</a> &middot; ' +
-      '<a href="/contact">Contact</a>' +
+      '<a href="/privacy/">Privacy policy</a> &middot; ' +
+      '<a href="/terms/">Terms of use</a> &middot; ' +
+      '<a href="/safety/">Safety</a> &middot; ' +
+      '<a href="/contact/">Contact</a> &middot; ' +
+      // Money pages: until 2026-10-20 no prerendered page linked to either,
+      // so both were sitemap-only orphans. The footer puts them one click
+      // from every crawlable page on the site.
+      '<a href="/biodata-maker/">Free biodata maker</a> &middot; ' +
+      '<a href="/shiamatch-alternative/">ShiaMatch alternative</a>' +
       '</p><p><a href="https://fazier.com" rel="noopener">' +
       '<img src="https://fazier.com/api/v1//public/badges/launch_badges.svg?badge_type=launched&amp;theme=light" ' +
       'alt="Featured on Fazier" width="120" height="36" loading="lazy"></a>' +
@@ -341,7 +357,13 @@ function renderBody(meta, route) {
  * the first time Vite changed its output.
  */
 async function buildRouteHtml(route, meta, baseHtml) {
-  const canonical = `${SITE_URL}${route === '/' ? '/' : route}`;
+  // Prerendered routes are directories on disk (dist/<route>/index.html), so
+  // the server 301s the slash-less URL to the trailing-slash one and only the
+  // slash URL returns 200. The canonical must name the URL that actually
+  // serves: a canonical pointing at a redirect is a conflicting signal (the
+  // sitemap audit of 2026-10-20 found 494 of 619 submitted URLs redirecting
+  // for exactly this reason). Seo.jsx canonicalFor() mirrors this rule.
+  const canonical = `${SITE_URL}${route === '/' ? '/' : `${route}/`}`;
   const nodes = [
     organizationJsonLd(),
     websiteNode(),
@@ -470,7 +492,7 @@ async function main() {
   if (verify.includes('nikah-first Shia matrimony</h1>')) {
     throw new Error('/privacy still contains the homepage H1 — duplicate content bug.');
   }
-  if (!verify.includes('rel="canonical" href="https://shiarishta.com/privacy"')) {
+  if (!verify.includes('rel="canonical" href="https://shiarishta.com/privacy/"')) {
     throw new Error('/privacy canonical was not rewritten.');
   }
 

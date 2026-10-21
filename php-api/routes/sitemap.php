@@ -31,8 +31,12 @@ function sitemapXml(): void
         '/terms', '/privacy', '/contact', '/success-stories',
     ];
     // NOTE: '/faq' intentionally omitted — no /faq route exists (would 404).
+    // Every static page here is a prerendered directory on disk, so the
+    // server 301s the slash-less URL to the trailing-slash one and only the
+    // slash URL returns 200. Sitemap entries must be the final, canonical
+    // URLs — the 2026-10-20 audit found 494 of 619 entries redirecting.
     foreach ($static as $p) {
-        $urls[] = ['loc' => $base . $p, 'lastmod' => date('Y-m-d'), 'priority' => $p === '/' ? '1.0' : '0.7'];
+        $urls[] = ['loc' => $base . $p . ($p === '/' ? '' : '/'), 'lastmod' => date('Y-m-d'), 'priority' => $p === '/' ? '1.0' : '0.7'];
     }
 
     // Programmatic tag landing pages: 11 tag phrases × every profile
@@ -71,7 +75,7 @@ function sitemapXml(): void
             $slug = $fn($place);
             if (in_array($slug, $tagSkip, true)) continue;
             if (isset($staticPaths['/' . $slug])) continue;
-            $urls[] = ['loc' => $base . '/' . $slug, 'lastmod' => date('Y-m-d'), 'priority' => '0.7'];
+            $urls[] = ['loc' => $base . '/' . $slug . '/', 'lastmod' => date('Y-m-d'), 'priority' => '0.7'];
         }
     }
 
@@ -159,7 +163,7 @@ function sitemapXml(): void
     ];
     foreach ($curatedCities as $slug) {
         $urls[] = [
-            'loc' => $base . '/city/' . rawurlencode($slug),
+            'loc' => $base . '/city/' . rawurlencode($slug) . '/',
             'lastmod' => date('Y-m-d'),
             'priority' => '0.7',
         ];
@@ -173,7 +177,7 @@ function sitemapXml(): void
     ];
     foreach ($curatedCountries as $slug) {
         $urls[] = [
-            'loc' => $base . '/country/' . rawurlencode($slug),
+            'loc' => $base . '/country/' . rawurlencode($slug) . '/',
             'lastmod' => date('Y-m-d'),
             'priority' => '0.7',
         ];

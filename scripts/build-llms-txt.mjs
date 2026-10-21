@@ -142,7 +142,7 @@ for (const [slug, desc] of Object.entries(landingCopy)) {
 p('### Location tag pages (12 phrases × cities & countries)');
 p('Every city and country with member profiles has dedicated pages for each of these search phrases: Shia Rishta in {place}, Shia Rishtay in {place}, Shia Nikah in {place}, Shia Marriage in {place}, Shia Matrimony in {place}, {place} Shia Brides, {place} Shia Grooms, Shia Shaadi in {place}, Find Shia Rishta {place}, {place} Shia Matrimonial, Shia Nikah Match {place}, Shia Match {place}.');
 p('Covered places: Karachi, Lahore, Sargodha, Mumbai, Chennai, Bangalore, Dubai, Abu Dhabi, Toronto, London, Chicago, Houston, Washington DC, Silver Spring, Sydney, Nanjing, Pakistan, India, UAE, Canada, USA, United Kingdom, Australia.');
-p('URL patterns: /shia-rishta-{place}, /shia-rishtay-{place}, /shia-nikah-{place}, /shia-marriage-{place}, /shia-matrimony-{place}, /{place}-shia-brides, /{place}-shia-grooms, /shia-shaadi-{place}, /find-shia-rishta-{place}, /{place}-shia-matrimonial, /shia-nikah-match-{place}, /shia-match-{place} — e.g. https://shiarishta.com/shia-match-karachi');
+p('URL patterns: /shia-rishta-{place}, /shia-rishtay-{place}, /shia-nikah-{place}, /shia-marriage-{place}, /shia-matrimony-{place}, /{place}-shia-brides, /{place}-shia-grooms, /shia-shaadi-{place}, /find-shia-rishta-{place}, /{place}-shia-matrimonial, /shia-nikah-match-{place}, /shia-match-{place} — e.g. https://shiarishta.com/shia-match-karachi/');
 
 if (articles.length) {
   p('### Articles');
@@ -155,9 +155,9 @@ p('## Contact');
 p(
   '- General enquiries, privacy requests, takedown requests and safety reports:',
   `  ${SITE_URL}/contact`,
-  '- Privacy policy: https://shiarishta.com/privacy',
-  '- Terms of use: https://shiarishta.com/terms',
-  '- Safety and verification standards: https://shiarishta.com/safety'
+  '- Privacy policy: https://shiarishta.com/privacy/',
+  '- Terms of use: https://shiarishta.com/terms/',
+  '- Safety and verification standards: https://shiarishta.com/safety/'
 );
 p(
   'Signed-in members can also raise a support request from their dashboard, where the',

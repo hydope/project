@@ -113,7 +113,7 @@ for (const route of routes) {
   const titleMatch = html.match(/<title>([\s\S]*?)<\/title>/);
   const title = titleMatch ? titleMatch[1] : '';
   if (decode(title) !== meta.title) wrongTitle.push(`${route} -> "${title}"`);
-  const canonical = `${SITE_URL}${route === '/' ? '/' : route}`;
+  const canonical = `${SITE_URL}${route === '/' ? '/' : `${route}/`}`;
   if (!html.includes(`rel="canonical" href="${canonical}"`)) wrongCanonical.push(route);
 }
 check('every route serves its OWN H1 (no shared template)', wrongH1.length === 0, wrongH1.join('; '));
@@ -266,7 +266,11 @@ const thinLinks = routes.filter((r) => {
   const html = docs[r];
   if (!html) return false;
   const body = (html.match(/<div id="root">[\s\S]*?<\/body>/) || [''])[0];
-  return ((body.match(/href="\/(?![a-z0-9-]*\/)/g) || []).length) < 4;
+  // Count root-relative internal links. The old regex excluded any href
+  // containing a second slash, which silently assumed the slash-less URL
+  // form; since 2026-10-20 the static HTML links to the canonical
+  // trailing-slash URLs, so count both forms.
+  return ((body.match(/href="\//g) || []).length) < 4;
 });
 check('every prerendered route has contextual internal links', thinLinks.length === 0,
   thinLinks.join(', '));

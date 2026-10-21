@@ -67,7 +67,7 @@ for (const route of expected) {
   if (!existsSync(file)) continue;
   const html = await readFile(file, 'utf8');
   const canonical = (html.match(/rel="canonical" href="([^"]+)"/) || [])[1];
-  if (canonical !== `https://shiarishta.com${route}`) badCanonical.push(route);
+  if (canonical !== `https://shiarishta.com${route}/`) badCanonical.push(route);
   if (!/href="https:\/\/shiarishta\.com\/profiles\?(city|country)=/.test(html)) noLiveLink.push(route);
   const h1 = (html.match(/<h1>([^<]*)<\/h1>/) || [])[1];
   if (h1) h1s.push(h1);
@@ -87,7 +87,8 @@ const hubPath = join(DIST, 'locations', 'index.html');
 check('a /locations hub exists', existsSync(hubPath), 'no hub to link the cluster from');
 if (existsSync(hubPath)) {
   const hub = await readFile(hubPath, 'utf8');
-  const notLinked = expected.filter((r) => !hub.includes(`${r}"`));
+  // Links use the canonical trailing-slash form (the slash-less URL 301s).
+  const notLinked = expected.filter((r) => !hub.includes(`${r}/"`));
   check('the hub links every location page', notLinked.length === 0,
     `orphaned: ${notLinked.join(', ')}`);
   check('the hub also links onward to browse and register',
@@ -100,7 +101,7 @@ const sitemap = await readFile(join(ROOT, 'public', 'sitemap.xml'), 'utf8');
 const home = await readFile(join(DIST, 'index.html'), 'utf8');
 const hubOrHome = existsSync(hubPath) ? await readFile(hubPath, 'utf8') : '';
 const undiscoverable = expected.filter((r) =>
-  !hubOrHome.includes(`${r}"`) && !home.includes(`${r}"`) && !sitemap.includes(`${r}<`));
+  !hubOrHome.includes(`${r}/"`) && !home.includes(`${r}/"`) && !sitemap.includes(`${r}<`));
 check('no location page is undiscoverable', undiscoverable.length === 0,
   `in sitemap only, linked from nothing: ${undiscoverable.join(', ')}`);
 
