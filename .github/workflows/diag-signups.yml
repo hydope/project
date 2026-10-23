@@ -15,12 +15,12 @@ jobs:
           mkdir -p diag-upload
           cp php-api/diag-recent-signups.php diag-upload/
           python3 .github/scripts/ftp_mirror.py ./diag-upload /public_html/api ""
+      - name: Debug token hash
+        run: echo -n "$DIAG_TOKEN" | sha256sum | cut -d' ' -f1
       - name: Query recent signups
         run: |
           sleep 5
           curl -s -w "\nHTTP_CODE:%{http_code}\n" --max-time 30 "https://shiarishta.com/api/diag-recent-signups.php?t=$DIAG_TOKEN"
-          echo "--- also try without token (expect 404) ---"
-          curl -s -o /dev/null -w "no-token HTTP_CODE:%{http_code}\n" --max-time 30 "https://shiarishta.com/api/diag-recent-signups.php"
       - name: Delete remote diagnostic file
         if: always()
         run: |
