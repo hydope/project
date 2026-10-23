@@ -14,7 +14,7 @@ jobs:
           TOKEN=$(openssl rand -hex 16)
           echo "TOKEN=$TOKEN" >> $GITHUB_ENV
           mkdir -p diag-upload
-          sed "s/__DIAG_TOKEN__/$TOKEN/g" php-api/diag-recent-signups.php > diag-upload/diag-recent-signups.php
+          sed "s/__DIAG_TOKEN_VALUE__/$TOKEN/g" php-api/diag-recent-signups.php > diag-upload/diag-recent-signups.php
           grep -c "$TOKEN" diag-upload/diag-recent-signups.php
           python3 .github/scripts/ftp_mirror.py ./diag-upload /public_html/api ""
       - name: Query recent signups

@@ -1,10 +1,10 @@
 <?php
 // TEMPORARY diagnostic (2026-10-23): who are the most recent REAL signups?
 // Deleted immediately after the one-off workflow run. Token-gated.
+// The workflow replaces __DIAG_TOKEN_VALUE__ with a random token before upload.
 declare(strict_types=1);
-$token = '__DIAG_TOKEN__';
-// Safe default: if the workflow didn't inject a real token, deny everything.
-if ($token === '__DIAG_TOKEN__' || (($_GET['t'] ?? '') !== $token)) { http_response_code(404); exit; }
+$token = '__DIAG_TOKEN_VALUE__';
+if ($token === '__DIAG_TOKEN_SENTINEL__' || (($_GET['t'] ?? '') !== $token)) { http_response_code(404); exit; }
 require __DIR__ . '/lib/bootstrap.php';
 require __DIR__ . '/lib/db.php';
 $w = "email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0 AND is_test = 0";
