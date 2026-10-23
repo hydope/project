@@ -9,14 +9,14 @@ ini_set('display_errors', '1');
 try {
     require __DIR__ . '/lib/bootstrap.php';
     require __DIR__ . '/lib/db.php';
-    $w = "email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0 AND is_test = 0";
+    $w = "u.email NOT LIKE 'seeded-%@shiarishta.com' AND u.is_admin = 0 AND u.is_test = 0";
     $rows = db()->query(
-        "SELECT display_name, gender, city, country, created_at FROM users WHERE {$w} ORDER BY created_at DESC LIMIT 3"
+        "SELECT p.display_name, p.gender, p.city, p.country, u.created_at FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE {$w} ORDER BY u.created_at DESC LIMIT 3"
     )->fetchAll(PDO::FETCH_ASSOC);
     header('Content-Type: application/json');
     echo json_encode(['recent_real_signups' => $rows], JSON_PRETTY_PRINT);
 } catch (Throwable $e) {
     http_response_code(500);
     header('Content-Type: application/json');
-    echo json_encode(['error' => $e->getMessage(), 'trace' => substr($e->getTraceAsString(), 0, 500)]);
+    echo json_encode(['error' => $e->getMessage()]);
 }
