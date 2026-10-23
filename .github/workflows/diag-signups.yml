@@ -18,8 +18,9 @@ jobs:
       - name: Query recent signups
         run: |
           sleep 5
-          curl -s --max-time 30 "https://shiarishta.com/api/diag-recent-signups.php?t=$DIAG_TOKEN"
-          echo ""
+          curl -s -w "\nHTTP_CODE:%{http_code}\n" --max-time 30 "https://shiarishta.com/api/diag-recent-signups.php?t=$DIAG_TOKEN"
+          echo "--- also try without token (expect 404) ---"
+          curl -s -o /dev/null -w "no-token HTTP_CODE:%{http_code}\n" --max-time 30 "https://shiarishta.com/api/diag-recent-signups.php"
       - name: Delete remote diagnostic file
         if: always()
         run: |
