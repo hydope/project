@@ -5,16 +5,16 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FTP_SERVER: ${{ secrets.FTP_SERVER }}
-      FTP_USER: ${{ secrets.FTP_USERNAME }}
-      FTP_PASS: ${{ secrets.FTP_PASSWORD }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
       DIAG_TOKEN: ${{ secrets.DIAG_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Upload diagnostic file
         run: |
-          curl -s --insecure --ftp-ssl -T php-api/diag-recent-signups.php \
-            "ftp://$FTP_USER:$FTP_PASS@$FTP_SERVER/public_html/api/diag-recent-signups.php" \
-            && echo "uploaded"
+          mkdir -p diag-upload
+          cp php-api/diag-recent-signups.php diag-upload/
+          python3 .github/scripts/ftp_mirror.py ./diag-upload /public_html/api ""
       - name: Query recent signups
         run: |
           sleep 5
@@ -23,6 +23,14 @@ jobs:
       - name: Delete remote diagnostic file
         if: always()
         run: |
-          curl -s --insecure --ftp-ssl -Q "DELE /public_html/api/diag-recent-signups.php" \
-            "ftp://$FTP_USER:$FTP_PASS@$FTP_SERVER/" -o /dev/null \
-            && echo "remote file deleted" || echo "remote delete attempted"
+          python3 - << 'EOF'
+          import ftplib, os
+          ftps = ftplib.FTP_TLS(os.environ["FTP_SERVER"], timeout=40)
+          ftps.login(os.environ["FTP_USERNAME"], os.environ["FTP_PASSWORD"])
+          ftps.prot_p()
+          try:
+              ftps.delete("/public_html/api/diag-recent-signups.php")
+              print("remote file deleted")
+          except Exception as e:
+              print("remote delete failed:", e)
+          EOF
