@@ -1,0 +1,36 @@
+name: Diag Profile Completeness (one-off, 2026-10-24)
+on: workflow_dispatch
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inject token and upload diagnostic file
+        run: |
+          TOKEN=$(openssl rand -hex 16)
+          echo "TOKEN=$TOKEN" >> $GITHUB_ENV
+          mkdir -p diag-upload
+          sed "s/__DIAG_TOKEN_VALUE__/$TOKEN/g" php-api/diag-completeness.php > diag-upload/diag-completeness.php
+          python3 .github/scripts/ftp_mirror.py ./diag-upload /public_html/api ""
+      - name: Query completeness stats
+        run: |
+          sleep 5
+          curl -s -w "\nHTTP_CODE:%{http_code}\n" --max-time 30 "https://shiarishta.com/api/diag-completeness.php?t=$TOKEN"
+      - name: Delete remote diagnostic file
+        if: always()
+        run: |
+          python3 - << 'EOF'
+          import ftplib, os
+          ftps = ftplib.FTP_TLS(os.environ["FTP_SERVER"], timeout=40)
+          ftps.login(os.environ["FTP_USERNAME"], os.environ["FTP_PASSWORD"])
+          ftps.prot_p()
+          try:
+              ftps.delete("/public_html/api/diag-completeness.php")
+              print("remote file deleted")
+          except Exception as e:
+              print("remote delete failed:", e)
+          EOF
