@@ -62,6 +62,13 @@ export default function Dashboard() {
   // Server profile (has seekingGender). localStorage draft is stale — it was
   // saved before seekingGender existed, so it cannot be trusted for filtering.
   const [serverProfile, setServerProfile] = useState(null);
+  // Profile-completion banner (2026-10-24): persistent until the profile is
+  // complete — Syed's order is to keep reminding until they finish.
+  const [recoveryStatus, setRecoveryStatus] = useState(null);
+
+  useEffect(() => {
+    http.get("/users/me/completeness").then(setRecoveryStatus).catch(() => { /* banner hidden on error */ });
+  }, []);
 
   // Verification-state refresh lives in AuthContext (boot + window focus), which
   // is the only place that sees the user at the right time. A mount effect
@@ -225,6 +232,34 @@ export default function Dashboard() {
             >
               {verifySending ? 'Sending…' : 'Resend email'}
             </button>
+          </div>
+        )}
+        {recoveryStatus && !recoveryStatus.complete && (
+          <div className="mb-6 rounded-xl border px-4 py-4" style={{ borderColor: 'var(--color-primary)', background: 'var(--color-primary-soft)' }}>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
+                  Your profile is {recoveryStatus.percent}% complete
+                </p>
+                <p className="text-sm mt-1" style={{ color: 'var(--color-ink-secondary)' }}>
+                  {recoveryStatus.nextStep === 'email' && 'Verify your email to unlock messaging and publishing.'}
+                  {recoveryStatus.nextStep === 'location' && 'Add your city and country — members search by location first.'}
+                  {recoveryStatus.nextStep === 'bio' && 'Write a short bio — profiles with a bio get seen far more.'}
+                  {recoveryStatus.nextStep === 'photo' && 'Add a photo — profiles with photos get the most interest.'}
+                  {' '}Finish in 2 minutes and start being seen.
+                </p>
+                <div className="mt-3 h-2 rounded-full overflow-hidden" style={{ background: 'var(--color-border)' }}>
+                  <div className="h-full rounded-full" style={{ width: `${recoveryStatus.percent}%`, background: 'var(--color-primary)' }} />
+                </div>
+              </div>
+              <Link
+                to="/onboard"
+                className="shrink-0 px-5 py-2.5 rounded-lg text-sm font-semibold text-white text-center"
+                style={{ background: 'var(--color-primary)' }}
+              >
+                Finish my profile →
+              </Link>
+            </div>
           </div>
         )}
         <div className="mb-8">

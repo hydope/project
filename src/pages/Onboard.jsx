@@ -9,7 +9,7 @@ import {
 import Layout from '../layouts/MainLayout';
 import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
-import { apiUrl } from '../lib/api/transport';
+import { apiUrl, http } from '../lib/api/transport';
 import { saveMyProfile } from '../lib/storage';
 import {
   SECTS, MARJA_OPTIONS, RELIGIOSITY_LEVELS, PRAYER_OPTIONS,
@@ -220,18 +220,35 @@ export default function Onboard() {
 
   const totalSteps = ONBOARDING_STEPS.length;
 
-  // Restore an in-progress draft exactly where the member left off
+  // Restore an in-progress draft exactly where the member left off.
+  // Server draft first (works from any device), localStorage as fallback.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(scopedDraftKey());
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setData(prev => ({ ...prev, ...parsed.data, languages: parsed.data?.languages || [], citizenships: parsed.data?.citizenships || [] }));
-        setStep(Math.min(Math.max(parsed.step || 1, 1), totalSteps));
+    let cancelled = false;
+    const restoreLocal = () => {
+      try {
+        const raw = localStorage.getItem(scopedDraftKey());
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          setData(prev => ({ ...prev, ...parsed.data, languages: parsed.data?.languages || [], citizenships: parsed.data?.citizenships || [] }));
+          setStep(Math.min(Math.max(parsed.step || 1, 1), totalSteps));
+          setDraftRestored(true);
+        }
+      } catch { /* corrupted draft — start fresh */ }
+      if (!cancelled) setDraftReady(true);
+    };
+    http.get('/users/me/draft').then(res => {
+      if (cancelled) return;
+      const d = res?.draft;
+      if (d && d.data) {
+        setData(prev => ({ ...prev, ...d.data, languages: d.data?.languages || [], citizenships: d.data?.citizenships || [] }));
+        setStep(Math.min(Math.max(d.step || 1, 1), totalSteps));
         setDraftRestored(true);
+        setDraftReady(true);
+      } else {
+        restoreLocal();
       }
-    } catch { /* corrupted draft — start fresh */ }
-    setDraftReady(true);
+    }).catch(() => { if (!cancelled) restoreLocal(); });
+    return () => { cancelled = true; };
   }, [totalSteps]);
 
   // Pre-fill from the server profile so republishing never wipes existing data
@@ -265,10 +282,16 @@ export default function Onboard() {
     return () => { cancelled = true; };
   }, [draftReady]);
 
-  // Autosave the draft on every change (post-restore only)
+  // Autosave the draft on every change (post-restore only) — localStorage AND
+  // server, so a member can resume from any device. Server save is best-effort
+  // and debounced; a failure never blocks the wizard.
   useEffect(() => {
     if (!draftReady) return;
     try { localStorage.setItem(scopedDraftKey(), JSON.stringify({ data, step })); } catch { /* storage full — non-fatal */ }
+    const t = setTimeout(() => {
+      http.put('/users/me/draft', { draft: { data, step } }).catch(() => { /* offline — local draft survives */ });
+    }, 1500);
+    return () => clearTimeout(t);
   }, [data, step, draftReady]);
 
   const update = useCallback((field, value) => {
@@ -297,6 +320,15 @@ export default function Onboard() {
   const goBack = () => {
     setErrors({});
     if (step > 1) { setStep(s => s - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  };
+
+  // Skip onboarding entirely — signup is NEVER blocked by onboarding
+  // (Syed's order 2026-10-24). The draft autosaves, so the member can finish
+  // later from the dashboard banner. Their account is fully usable now.
+  const skipOnboarding = () => {
+    try { localStorage.setItem(scopedDraftKey(), JSON.stringify({ data, step })); } catch { /* ignore */ }
+    http.put('/users/me/draft', { draft: { data, step } }).catch(() => { /* ignore */ });
+    navigate('/dashboard');
   };
 
   const goTo = (id) => { // jump back only — moving forward requires validation
@@ -504,6 +536,9 @@ export default function Onboard() {
               </button>
               <div className="flex items-center gap-3">
                 <span className="hidden sm:inline text-xs text-muted">Progress autosaves automatically</span>
+                <button onClick={skipOnboarding} className="text-sm font-semibold text-muted hover:text-ink px-2 py-2 underline underline-offset-2">
+                  Skip for now
+                </button>
                 {publishError && (
                   <span className="text-xs font-medium" style={{ color: 'var(--color-danger)' }}>{publishError}</span>
                 )}

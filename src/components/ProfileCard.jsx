@@ -12,7 +12,9 @@ import SampleProfileBadge from './SampleProfileBadge';
 
 function excerptText(value, maxLength = 90) {
   const text = String(value || '').trim();
-  if (!text) return 'No profile summary yet.';
+  // Empty bio returns null — the card hides the bio line instead of stamping
+  // a dead-end "No profile summary yet." onto the member (2026-10-24).
+  if (!text) return null;
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength).replace(/\s+\S*$/, '').trim() + '...';
 }
@@ -255,12 +257,21 @@ export default function ProfileCard({ profile, className = '' }) {
           {profile.isDemo === true && (
             <SampleProfileBadge className="w-fit" />
           )}
-          <p className="flex items-center gap-1.5 text-[13px] leading-6 truncate mt-1" style={{ color: 'var(--color-ink-secondary)' }}>
-            <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-primary)' }} />
-            {/* City and country link to indexable landing pages (e.g. /city/hyderabad,
-                /country/india) so every profile maps to canonical location pages.
-                Links are always underlined + have padding for touch targets. */}
-            {profile.city || profile.country ? (
+          {/* Incomplete profile: no location and no bio yet. Show a warm
+              "in progress" badge instead of dead-end placeholder text
+              ("Location not shared" / "No profile summary yet.") — a profile
+              should never look broken, only in progress (2026-10-24). */}
+          {!profile.city && !profile.country && !about && !isTeaser && (
+            <span className="badge-primary text-[10px] px-2 py-0.5 rounded-full font-semibold w-fit mt-1" style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}>
+              Profile in progress
+            </span>
+          )}
+          {profile.city || profile.country ? (
+            <p className="flex items-center gap-1.5 text-[13px] leading-6 truncate mt-1" style={{ color: 'var(--color-ink-secondary)' }}>
+              <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-primary)' }} />
+              {/* City and country link to indexable landing pages (e.g. /city/hyderabad,
+                  /country/india) so every profile maps to canonical location pages.
+                  Links are always underlined + have padding for touch targets. */}
               <span className="truncate">
                 {profile.city ? (
                   <Link
@@ -284,10 +295,8 @@ export default function ProfileCard({ profile, className = '' }) {
                   </Link>
                 ) : null}
               </span>
-            ) : (
-              <span style={{ color: 'var(--color-ink-tertiary)' }}>Location not shared</span>
-            )}
-          </p>
+            </p>
+          ) : null}
 
           {/* A teaser payload (what a signed-out visitor gets) carries only
               name/age/location — no profession, bio or religiosity. Rendering
@@ -305,7 +314,9 @@ export default function ProfileCard({ profile, className = '' }) {
                   <Briefcase className="w-3 h-3 flex-shrink-0" /> {profile.profession}
                 </p>
               )}
-              <p className="text-xs leading-relaxed line-clamp-2" style={{ color: 'var(--color-ink-secondary)' }}>{about}</p>
+              {about && (
+                <p className="text-xs leading-relaxed line-clamp-2" style={{ color: 'var(--color-ink-secondary)' }}>{about}</p>
+              )}
               {profile.religiosity && (
                 <span className="badge-primary text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}>{profile.religiosity}</span>
               )}
