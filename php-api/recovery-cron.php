@@ -29,6 +29,14 @@
 
 header('Content-Type: application/json');
 
+// Never return a blank 500: convert any fatal error into a JSON error so the
+// cron workflow can report what actually went wrong (2026-10-24 diagnosis).
+set_exception_handler(function (Throwable $e): void {
+    http_response_code(500);
+    echo json_encode(['ok' => false, 'error' => get_class($e) . ': ' . $e->getMessage()]);
+    exit;
+});
+
 $envFile = __DIR__ . '/.env';
 if (file_exists($envFile)) {
     foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $l) {
@@ -53,6 +61,24 @@ require __DIR__ . '/lib/bootstrap.php';
 require __DIR__ . '/lib/db.php';
 require __DIR__ . '/lib/util.php';
 require __DIR__ . '/lib/mail.php';
+
+// Self-sufficient: this standalone script does NOT go through index.php, so
+// migrateSchema() never runs for it. Ensure our table exists (idempotent).
+// If the migration already ran, this is a no-op.
+try {
+    db()->exec("CREATE TABLE IF NOT EXISTS recovery_emails (
+      id            BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      user_id       CHAR(36)     NOT NULL,
+      stage         VARCHAR(32)  NOT NULL,
+      sent_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY idx_re_user_stage (user_id, stage),
+      KEY idx_re_sent (sent_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+} catch (Throwable $e) {
+    http_response_code(500);
+    echo json_encode(['ok' => false, 'error' => 'recovery_emails table setup failed: ' . $e->getMessage()]);
+    exit;
+}
 
 $real = "u.email NOT LIKE 'seeded-%@shiarishta.com' AND u.is_admin = 0 AND u.is_test = 0";
 
