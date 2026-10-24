@@ -61,22 +61,15 @@ export default function Home() {
   const reduceMotion = useReducedMotion();
   const { isLoggedIn, user } = useAuth();
   const { data, isLoading: profilesLoading } = useProfiles({});
-  // Featured profiles: prefer members with a real bio — never showcase
-  // empty cards on the homepage.
-  const featured = (data || [])
-    .filter(p => (p.bio || p.aboutFamily || '').trim().length > 0)
-    .slice(0, 6);
-
-  // New members (2026-10-24): the most recent signups, even if their profile
-  // is still in progress. The API already orders real-first, newest-first, so
-  // the front of the list is the newest members. Exclude featured cards to
-  // avoid duplicates. Incomplete profiles get a "Profile in progress" badge
-  // from ProfileCard instead of dead-end placeholder text — visibility is the
-  // strongest motivator to finish, and hiding new members was a death spiral.
-  const featuredIds = new Set(featured.map(p => p.id));
-  const newMembers = (data || [])
-    .filter(p => !featuredIds.has(p.id))
-    .slice(0, 6);
+  // Homepage members: the newest real profiles, period — including ones
+  // still in progress. The old bio-only filter hid every new signup from the
+  // homepage (they showed in /profiles but never here), which is exactly the
+  // complaint. The API already orders real-first, newest-first, so the first
+  // 6 are the newest members. Incomplete profiles get a "Profile in progress"
+  // badge from ProfileCard instead of dead-end placeholder text, so they read
+  // as new, not broken. (2026-10-24: a separate "New members" section was
+  // tried and rejected by Syed — one members section, not two.)
+  const featured = (data || []).slice(0, 6);
 
   // Community counts, straight from the database. Until this resolves we show
   // nothing rather than a placeholder number — a wrong figure on a marriage
@@ -268,30 +261,6 @@ export default function Home() {
             <span>{profilesLoading ? 'Finding members…' : `${(data || []).length} curated members`} · {isLoggedIn ? "welcome back" : "free to join"}</span>
           </div>
         </section>
-
-        {/* ── New members ── */}
-        {newMembers.length > 0 && (
-          <section className="hp-section">
-            <Reveal className="hp-section-head">
-              <p className="hp-eyebrow"><span aria-hidden="true" /> New members</p>
-              <h2>Just joined — say salaam first</h2>
-              <p className="hp-lede hp-lede-center">
-                The newest members of the community. Some profiles are still in progress —
-                that's normal, and reaching out is the best welcome.
-              </p>
-            </Reveal>
-            <div className="profile-grid">
-              {newMembers.map((p, i) => (
-                <Reveal key={p?.id || i} delay={(i % 3) * 0.06}>
-                  <ProfileCard profile={p} actions={false} />
-                </Reveal>
-              ))}
-            </div>
-            <div className="hp-featured-cta">
-              <Link to="/profiles" className="hp-btn-primary">Browse all profiles <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>
-            </div>
-          </section>
-        )}
 
         {/* ── Premium experience ── */}
         <section className="hp-section">
