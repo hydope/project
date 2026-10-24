@@ -1,0 +1,23 @@
+name: Daily Signup Recovery
+
+# Sends the recovery-email drip to incomplete signups:
+# verify drip (unverified) + complete drip (verified but no bio/location).
+# Capped at 4 verify + 3 complete emails per member; sends are tracked in
+# recovery_emails so nobody is spammed and nobody is missed.
+
+on:
+  schedule:
+    - cron: '30 13 * * *'  # 09:30 EDT daily
+  workflow_dispatch:
+
+jobs:
+  recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run recovery drip
+        env:
+          BLOG_CRON_KEY: ${{ secrets.BLOG_CRON_KEY }}
+        run: |
+          OUT=$(curl -s --max-time 60 -H "X-Blog-Cron-Key: $BLOG_CRON_KEY" https://shiarishta.com/api/recovery-cron.php)
+          echo "$OUT"
+          echo "$OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('ok'), d; print(f\"verify sent: {d['verify']['sent']}, complete sent: {d['complete']['sent']}\")"

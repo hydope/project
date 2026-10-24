@@ -56,6 +56,8 @@ function migrateSchema(): void
     migrateAddPageviewsTable();
     migrateAddSeededFlag();
     migrateAddTestFlag();
+    migrateAddRecoveryEmailsTable();
+    migrateAddOnboardingDraftColumn();
     migrateSeedDefaultCommunities();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
@@ -969,6 +971,40 @@ function migrateAddTestFlag(): void
         );
     } catch (Throwable $e) {
         error_log('[api] migration: users.is_test — ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+// Recovery-email tracking: records which recovery drip stage was sent to
+// which member, so the daily recovery cron never spams (max 4 verify + 3
+// complete emails per member) and never misses anyone. Added 2026-10-24 for
+// the incomplete-signup recovery plan.
+function migrateAddRecoveryEmailsTable(): void
+{
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS recovery_emails (
+          id            BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+          user_id       CHAR(36)     NOT NULL,
+          stage         VARCHAR(32)  NOT NULL,
+          sent_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY idx_re_user_stage (user_id, stage),
+          KEY idx_re_sent (sent_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Throwable $e) {
+        error_log('[api] migration (recovery_emails) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+// Server-side onboarding draft column (2026-10-24): lets a member resume
+// onboarding from any device instead of losing a localStorage-only draft.
+function migrateAddOnboardingDraftColumn(): void
+{
+    try {
+        $cols = db()->query("SHOW COLUMNS FROM profiles LIKE 'onboarding_draft'")->fetchAll();
+        if (!$cols) {
+            db()->exec("ALTER TABLE profiles ADD COLUMN onboarding_draft MEDIUMTEXT DEFAULT NULL AFTER bio");
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (onboarding_draft) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }
 

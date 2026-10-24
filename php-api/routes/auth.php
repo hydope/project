@@ -78,7 +78,7 @@ function authRegister(): void
     mailSend([
         'to' => $email,
         'subject' => 'Verify your Shia Rishta email',
-        'text' => "Assalamu Alaikum {$displayName},\n\nConfirm your email to finish creating your account:\nhttps://shiarishta.com/verify/{$verifyToken}\n\nThis link expires in 24 hours.",
+        'text' => "Assalamu Alaikum {$displayName},\n\nConfirm your email to finish creating your account:\nhttps://shiarishta.com/verify/{$verifyToken}\n\nThis link expires in 72 hours.",
     ]);
 
     $userRow = ['id' => $userId, 'email' => $email, 'display_name' => $displayName, 'is_admin' => $isAdmin, 'email_verified' => false];
@@ -152,21 +152,6 @@ function mailEnabled(): bool
 
 // Issues (or replaces) the 24h verification token for a user. Returns the RAW
 // token — the only place it ever exists in cleartext; the table holds the hash.
-function issueVerificationToken(string $userId): string
-{
-    $token = bin2hex(random_bytes(32));
-    // Prune long-expired rows so kept (idempotent re-tap) tokens don't linger.
-    db()->prepare('DELETE FROM email_verifications WHERE expires_at < UTC_TIMESTAMP()')->execute();
-    db()->prepare(
-        'INSERT INTO email_verifications (user_id, token_hash, expires_at)
-         VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 24 HOUR))
-         ON DUPLICATE KEY UPDATE token_hash = VALUES(token_hash),
-                                 expires_at = VALUES(expires_at),
-                                 created_at = UTC_TIMESTAMP()'
-    )->execute([$userId, sha256Hex($token)]);
-    return $token;
-}
-
 // POST /api/auth/verify/request — signed-in member asks for a fresh link.
 function authVerifyRequest(): void
 {
@@ -189,7 +174,7 @@ function authVerifyRequest(): void
         mailSend([
             'to' => $row['email'],
             'subject' => 'Verify your Shia Rishta email',
-            'text' => "Assalamu Alaikum {$row['display_name']},\n\nConfirm your email to finish creating your account:\n{$verifyUrl}\n\nThis link expires in 24 hours.",
+            'text' => "Assalamu Alaikum {$row['display_name']},\n\nConfirm your email to finish creating your account:\n{$verifyUrl}\n\nThis link expires in 72 hours.",
         ]);
         json(['ok' => true, 'message' => 'Verification email sent — check your inbox.']);
     }
@@ -372,7 +357,7 @@ function authResendVerification(): void
     mailSend([
         'to' => $row['email'],
         'subject' => 'Verify your Shia Rishta email',
-        'text' => "Assalamu Alaikum {$row['display_name']},\n\nConfirm your email to finish creating your account:\n" . publicBase() . "/verify-email?token={$token}\n\nThis link expires in 24 hours.",
+        'text' => "Assalamu Alaikum {$row['display_name']},\n\nConfirm your email to finish creating your account:\n" . publicBase() . "/verify-email?token={$token}\n\nThis link expires in 72 hours.",
     ]);
 
     json(['ok' => true, 'message' => 'Verification email sent — check your inbox.']);

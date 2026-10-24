@@ -14,6 +14,9 @@ function routeUsers(string $method, array $segments): void
     if ($method === 'DELETE') { userDeleteMe(); return; }
     if ($method === 'PUT')     { userUpdateMe(); return; }
     if ($method === 'POST' && ($segments[1] ?? '') === 'role') { userSetRole(); return; }
+    if ($method === 'GET' && ($segments[1] ?? '') === 'completeness') { userCompleteness(); return; }
+    if ($method === 'GET' && ($segments[1] ?? '') === 'draft') { userGetDraft(); return; }
+    if ($method === 'PUT' && ($segments[1] ?? '') === 'draft') { userPutDraft(); return; }
 
     json(['error' => 'Users endpoint not found'], 404);
 }
@@ -161,4 +164,78 @@ function userUpdateMe(): void
     }
 
     json($out);
+}
+
+// GET /api/users/me/completeness — profile completion % + what's missing.
+// Used by the dashboard recovery banner and the "finish in 2 minutes" flow.
+// Never blocks: an incomplete profile is a normal state, not an error.
+function userCompleteness(): void
+{
+    $user = requireAuthUser();
+    $uid = $user['uid'];
+
+    $uRow = db()->prepare('SELECT email_verified FROM users WHERE id = ? LIMIT 1');
+    $uRow->execute([$uid]);
+    $u = $uRow->fetch();
+    if (!$u) { json(['error' => 'User not found'], 404); }
+
+    $pRow = db()->prepare('SELECT city, country, bio, about_family, photo_url FROM profiles WHERE user_id = ? LIMIT 1');
+    $pRow->execute([$uid]);
+    $p = $pRow->fetch() ?: [];
+
+    $missing = [];
+    if (!(int)$u['email_verified']) $missing[] = 'email';
+    if (empty($p['city']) || empty($p['country'])) $missing[] = 'location';
+    if (empty($p['bio']) && empty($p['about_family'])) $missing[] = 'bio';
+    if (empty($p['photo_url'])) $missing[] = 'photo';
+
+    // Weights: email 25, location 30, bio 30, photo 15.
+    $weights = ['email' => 25, 'location' => 30, 'bio' => 30, 'photo' => 15];
+    $pct = 100;
+    foreach ($missing as $m) $pct -= $weights[$m];
+
+    $next = null;
+    if (in_array('email', $missing, true)) $next = 'email';
+    elseif (in_array('location', $missing, true)) $next = 'location';
+    elseif (in_array('bio', $missing, true)) $next = 'bio';
+    elseif (in_array('photo', $missing, true)) $next = 'photo';
+
+    json([
+        'ok' => true,
+        'percent' => $pct,
+        'complete' => empty($missing),
+        'emailVerified' => (bool)(int)$u['email_verified'],
+        'missing' => $missing,
+        'nextStep' => $next,
+    ]);
+}
+
+// GET /api/users/me/draft — server-side onboarding draft (2026-10-24).
+// Replaces localStorage-only drafts so a member can resume from any device.
+function userGetDraft(): void
+{
+    $user = requireAuthUser();
+    $row = db()->prepare('SELECT onboarding_draft FROM profiles WHERE user_id = ? LIMIT 1');
+    $row->execute([$user['uid']]);
+    $p = $row->fetch();
+    $draft = null;
+    if ($p && !empty($p['onboarding_draft'])) {
+        $draft = json_decode($p['onboarding_draft'], true);
+    }
+    json(['ok' => true, 'draft' => $draft]);
+}
+
+// PUT /api/users/me/draft — save onboarding draft to the server.
+function userPutDraft(): void
+{
+    $user = requireAuthUser();
+    $body = requestJson();
+    $draft = $body['draft'] ?? null;
+    if (!is_array($draft)) { je('Draft must be an object.', 400); }
+    // Cap size: drafts are form answers, never large blobs.
+    $encoded = json_encode($draft);
+    if (strlen($encoded) > 20000) { je('Draft too large.', 400); }
+    db()->prepare('UPDATE profiles SET onboarding_draft = ? WHERE user_id = ?')
+        ->execute([$encoded, $user['uid']]);
+    json(['ok' => true]);
 }

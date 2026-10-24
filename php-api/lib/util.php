@@ -135,6 +135,24 @@ function uuid(): string {
 
 function sha256Hex(string $s): string { return hash('sha256', (string)$s); }
 
+// Issues a hashed email-verification token (72h expiry). Used by the auth
+// routes and the recovery-email cron. Tokens are stored hashed — a DB leak
+// must not yield usable verify links.
+function issueVerificationToken(string $userId): string
+{
+    $token = bin2hex(random_bytes(32));
+    // Prune long-expired rows so kept (idempotent re-tap) tokens don't linger.
+    db()->prepare('DELETE FROM email_verifications WHERE expires_at < UTC_TIMESTAMP()')->execute();
+    db()->prepare(
+        'INSERT INTO email_verifications (user_id, token_hash, expires_at)
+         VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 72 HOUR))
+         ON DUPLICATE KEY UPDATE token_hash = VALUES(token_hash),
+                                 expires_at = VALUES(expires_at),
+                                 created_at = UTC_TIMESTAMP()'
+    )->execute([$userId, sha256Hex($token)]);
+    return $token;
+}
+
 function randomBase64Url(int $bytes): string {
     return rtrim(strtr(base64_encode(random_bytes($bytes)), '+/', '-_'), '=');
 }

@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   sect               VARCHAR(120) DEFAULT NULL,
   profession         VARCHAR(160) DEFAULT NULL,
   bio                TEXT         DEFAULT NULL,
+  onboarding_draft   MEDIUMTEXT   DEFAULT NULL,
   expectations       TEXT         DEFAULT NULL,
   about_family       TEXT         DEFAULT NULL,
   visibility         VARCHAR(16)  NOT NULL DEFAULT 'members',
@@ -427,4 +428,13 @@ CREATE TABLE IF NOT EXISTS pageviews (
   KEY idx_pv_created (created_at),
   KEY idx_pv_path (path, created_at),
   KEY idx_pv_ref (referrer_host, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS recovery_emails (
+  id            BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id       CHAR(36)     NOT NULL,
+  stage         VARCHAR(32)  NOT NULL,
+  sent_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_re_user_stage (user_id, stage),
+  KEY idx_re_sent (sent_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
