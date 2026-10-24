@@ -4,6 +4,7 @@ import Layout from '../layouts/LandingLayout';
 import Seo from '../components/Seo';
 import { usePageTitle } from '../lib/usePageTitle';
 import { CITIES, COUNTRIES } from '../data/locationSeo';
+import { TAG_PLACES, tagPagesForPlace } from '../data/tagLandingPages';
 import snapshot from '../data/locationSnapshot.json';
 import { MapPin, Globe2, Search, X, Users, ArrowRight, ArrowLeft } from 'lucide-react';
 
@@ -265,6 +266,29 @@ export default function Locations() {
                 <p className="text-sm mt-2 leading-relaxed" style={{ color: 'var(--color-ink-secondary)' }}>{f.a}</p>
               </details>
             ))}
+          </div>
+        </section>
+
+        {/* Popular searches — one primary tag page per tag place (2026-10-24
+            indexing fix). Tag pages were sitemap-only orphans; this hub is
+            linked from the homepage, so one click here reaches every tag
+            family, and sibling links on tag pages reach the rest. */}
+        <section aria-labelledby="popular-searches-heading" className="mb-12">
+          <h2 id="popular-searches-heading" className="text-xl font-bold mb-4" style={{ color: 'var(--color-ink)' }}>
+            Popular Shia rishta searches
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {TAG_PLACES.map((place) => {
+              const pages = tagPagesForPlace(place.slug) || [];
+              const primary = pages[0];
+              if (!primary) return null;
+              return (
+                <Link key={place.slug} to={`/${primary.slug}`} className="px-3 py-1.5 rounded-full text-xs font-medium hover:underline"
+                  style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}>
+                  {primary.phrase}
+                </Link>
+              );
+            })}
           </div>
         </section>
 

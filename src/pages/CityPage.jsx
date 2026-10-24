@@ -8,6 +8,7 @@ import { MapPin, Users, Heart, ShieldCheck } from 'lucide-react';
 import ProfileCard from '../components/ProfileCard';
 import { countryAliases } from '../data/countryAliases';
 import { CITIES, COUNTRIES } from '../data/locationSeo';
+import { tagPagesForPlace } from '../data/tagLandingPages';
 import NotFound from './NotFound';
 
 /**
@@ -201,18 +202,29 @@ export default function CityPage() {
           </div>
         </section>
 
-        {/* All 11 keyword tags + country name variations — crawlable by Google & AI */}
+        {/* Popular searches — REAL LINKS when tag pages exist for this place
+            (2026-10-24 indexing fix). These used to be plain <span> pills:
+            visible to users but invisible to crawlers, which is exactly why
+            tag pages were sitemap-only orphans. Places without tag pages keep
+            the plain pills (no page exists to link to — never link to a 404). */}
         <section className="mt-6 p-6 rounded-2xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
           <h2 className="text-base font-bold mb-3" style={{ color: 'var(--color-ink)' }}>
             Popular searches
           </h2>
           <div className="flex flex-wrap gap-2">
-            {[kw.rishta, kw.rishtay, kw.nikah, kw.marriage, kw.matrimony, kw.brides, kw.grooms, kw.shaadi, kw.find, kw.matrimonial, kw.match, ...altKw].map((t, i) => (
-              <span key={i} className="px-3 py-1.5 rounded-full text-xs font-medium"
-                style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}>
-                {t}
-              </span>
-            ))}
+            {(tagPagesForPlace(slug) || []).length > 0
+              ? tagPagesForPlace(slug).map((t) => (
+                <Link key={t.slug} to={`/${t.slug}`} className="px-3 py-1.5 rounded-full text-xs font-medium hover:underline"
+                  style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}>
+                  {t.phrase}
+                </Link>
+              ))
+              : [kw.rishta, kw.rishtay, kw.nikah, kw.marriage, kw.matrimony, kw.brides, kw.grooms, kw.shaadi, kw.find, kw.matrimonial, kw.match, ...altKw].map((t, i) => (
+                <span key={i} className="px-3 py-1.5 rounded-full text-xs font-medium"
+                  style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}>
+                  {t}
+                </span>
+              ))}
           </div>
         </section>
 

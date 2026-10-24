@@ -35,7 +35,7 @@ import { CITIES, COUNTRIES, locationRouteSeo } from '../src/data/locationSeo.js'
 import { readFileSync } from 'fs';
 import { fileURLToPath as __f2u } from 'url';
 import { LANDING_PAGE_META } from '../src/pages/landing/landingPageMeta.js';
-import { tagLandingSeo } from '../src/data/tagLandingPages.js';
+import { tagLandingSeo, tagPagesForPlace, placeForTagSlug, TAG_PLACES } from '../src/data/tagLandingPages.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -210,6 +210,50 @@ function locationsHubHtml() {
 }
 
 /** The no-JS body: this route's own copy, never another route's. */
+// Build the "Related searches" link block for a route, or null when the route
+// has no tag relationship. Keeps every crawlable page one click from the tag
+// web (see the 2026-10-24 indexing fix): tag pages were sitemap-only orphans.
+function relatedSearchLinks(route) {
+  // /locations hub → one primary tag page per place (the 'rishta' variant).
+  // Sibling links on those tag pages reach the other 11 variants each.
+  if (route === '/locations') {
+    const items = [];
+    for (const place of TAG_PLACES) {
+      const pages = tagPagesForPlace(place.slug);
+      if (pages?.length) {
+        items.push(`<li><a href="${SITE_URL}/${pages[0].slug}/">${esc(pages[0].phrase)}</a></li>`);
+      }
+    }
+    if (!items.length) return null;
+    return `<h2>Popular Shia rishta searches</h2>\n<ul>\n${items.join('\n')}\n</ul>`;
+  }
+
+  // City / country page → all tag variants for that place (when it has any).
+  const locMatch = route.match(/^\/(city|country)\/([^/]+)$/);
+  if (locMatch) {
+    const pages = tagPagesForPlace(locMatch[2]);
+    if (!pages?.length) return null;
+    const items = pages.map(p => `<li><a href="${SITE_URL}/${p.slug}/">${esc(p.phrase)}</a></li>`);
+    return `<h2>Related searches</h2>\n<ul>\n${items.join('\n')}\n</ul>`;
+  }
+
+  // Tag page → sibling variants for the same place + parent location page.
+  const tagSlug = route.replace(/^\//, '');
+  const found = placeForTagSlug(tagSlug);
+  if (found) {
+    const { place } = found;
+    const pages = tagPagesForPlace(place.slug) || [];
+    const items = pages
+      .filter(p => p.slug !== tagSlug)
+      .map(p => `<li><a href="${SITE_URL}/${p.slug}/">${esc(p.phrase)}</a></li>`);
+    const parentPath = place.type === 'city' ? `/city/${place.slug}/` : `/country/${place.slug}/`;
+    items.push(`<li><a href="${SITE_URL}${parentPath}">Shia matrimony in ${esc(place.name)}</a></li>`);
+    return `<h2>More searches in ${esc(place.name)}</h2>\n<ul>\n${items.join('\n')}\n</ul>`;
+  }
+
+  return null;
+}
+
 function renderBody(meta, route) {
   const parts = [];
 
@@ -321,6 +365,19 @@ function renderBody(meta, route) {
       '<p class="seo-cta"><a class="seo-btn" href="' + SITE_URL + meta.liveFilter + '">' +
         'View profiles filtered to this location</a></p>'
     );
+  }
+
+  // ── Related-search links (2026-10-24, indexing fix) ──────────────────────
+  // Tag pages were sitemap-only orphans: zero internal links pointed at them,
+  // so Google crawled them slowly or not at all. Every crawlable page now
+  // links into the tag web, and tag pages link back out — no more dead ends.
+  // City/country pages link to all 12 tag variants for their place (when the
+  // place has tag pages); tag pages link to their 11 siblings + parent
+  // location page; the /locations hub links to one primary tag page per
+  // place, from which the sibling links reach the rest.
+  const relatedLinks = relatedSearchLinks(route);
+  if (relatedLinks) {
+    parts.push(relatedLinks);
   }
 
   parts.push('</main>');

@@ -10,6 +10,15 @@ function sitemapXml(): void
     $base = 'https://shiarishta.com';
     $urls = [];
 
+    // Honest lastmod for template-driven pages (2026-10-24 indexing fix).
+    // Static, tag, city and country pages used to stamp date('Y-m-d') — every
+    // page claiming "changed today" on every single day. Google learns to
+    // ignore a lastmod signal that cries wolf daily, which hurts the pages
+    // that ACTUALLY change (blog posts, new profiles — those keep real DB
+    // timestamps below). This date is the last time the shared templates
+    // changed; bump it ONLY when a template actually changes, never per deploy.
+    $templateLastmod = '2026-10-24';
+
     // Static public pages.
     $static = [
         '/', '/about', '/safety', '/guardians', '/blog', '/community',
@@ -36,7 +45,7 @@ function sitemapXml(): void
     // slash URL returns 200. Sitemap entries must be the final, canonical
     // URLs — the 2026-10-20 audit found 494 of 619 entries redirecting.
     foreach ($static as $p) {
-        $urls[] = ['loc' => $base . $p . ($p === '/' ? '' : '/'), 'lastmod' => date('Y-m-d'), 'priority' => $p === '/' ? '1.0' : '0.7'];
+        $urls[] = ['loc' => $base . $p . ($p === '/' ? '' : '/'), 'lastmod' => $templateLastmod, 'priority' => $p === '/' ? '1.0' : '0.7'];
     }
 
     // Programmatic tag landing pages: 11 tag phrases × every profile
@@ -75,7 +84,7 @@ function sitemapXml(): void
             $slug = $fn($place);
             if (in_array($slug, $tagSkip, true)) continue;
             if (isset($staticPaths['/' . $slug])) continue;
-            $urls[] = ['loc' => $base . '/' . $slug . '/', 'lastmod' => date('Y-m-d'), 'priority' => '0.7'];
+            $urls[] = ['loc' => $base . '/' . $slug . '/', 'lastmod' => $templateLastmod, 'priority' => '0.7'];
         }
     }
 
@@ -164,7 +173,7 @@ function sitemapXml(): void
     foreach ($curatedCities as $slug) {
         $urls[] = [
             'loc' => $base . '/city/' . rawurlencode($slug) . '/',
-            'lastmod' => date('Y-m-d'),
+            'lastmod' => $templateLastmod,
             'priority' => '0.7',
         ];
     }
@@ -178,7 +187,7 @@ function sitemapXml(): void
     foreach ($curatedCountries as $slug) {
         $urls[] = [
             'loc' => $base . '/country/' . rawurlencode($slug) . '/',
-            'lastmod' => date('Y-m-d'),
+            'lastmod' => $templateLastmod,
             'priority' => '0.7',
         ];
     }

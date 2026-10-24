@@ -389,6 +389,30 @@ export function tagLandingSlugs() {
   return slugs;
 }
 
+// ── Internal-link helpers (2026-10-24, indexing fix) ────────────────────────
+// Tag pages were sitemap-only orphans: nothing on the site linked to them, so
+// Google crawled them slowly or not at all. These helpers let city pages,
+// the /locations hub, and the prerender script link to tag pages from a
+// single source of truth (TAG_DEFS) — no duplicated slug patterns to drift.
+// Returns null when the place has no tag pages (most cities), so callers can
+// fall back to plain text instead of linking to a 404.
+export function tagPagesForPlace(placeSlug) {
+  const place = TAG_PLACES.find(p => p.slug === placeSlug);
+  if (!place) return null;
+  return TAG_DEFS.map(t => ({ slug: t.slug(place), phrase: t.phrase(place) }));
+}
+
+// Reverse map: given a tag-page slug, find its place + tag. Null when the
+// slug is not a generated tag page (e.g. a hand-written landing page).
+export function placeForTagSlug(tagSlug) {
+  for (const place of TAG_PLACES) {
+    for (const tag of TAG_DEFS) {
+      if (tag.slug(place) === tagSlug) return { place, tag };
+    }
+  }
+  return null;
+}
+
 export const TAG_LANDING_COUNT = TAG_PLACES.length * TAG_DEFS.length;
 
 // ── Prerender SEO: same shape as landingRouteSeo() output ───────────────────
