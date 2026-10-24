@@ -167,3 +167,14 @@ function publicBase(): string {
     $u = getenv('CLIENT_URL') ?: 'http://localhost:5173';
     return trim(explode(',', $u)[0]);
 }
+
+// MAIL_ENABLED='true' means a real mail transport is configured. Until SMTP is
+// set up the API runs in devMode and hands the verification URL straight back
+// so the stopgap is explicit, never silent. Moved here from routes/auth.php
+// (2026-10-24) so standalone scripts like recovery-cron.php can use it too —
+// auth.php's copy was the only definition, which is why the recovery cron
+// 500'd with "Call to undefined function mailEnabled()".
+function mailEnabled(): bool
+{
+    return strtolower(trim((string)(getenv('MAIL_ENABLED') ?: ''))) === 'true';
+}

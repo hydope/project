@@ -142,12 +142,13 @@ function authMe(): void
 
 // ─── Email verification (table-based, P0) ────────────────────────────────────
 
-// MAIL_ENABLED='true' means a real mail transport is configured. Until SMTP is
-// set up the API runs in devMode and hands the verification URL straight back
-// so the stopgap is explicit, never silent.
-function mailEnabled(): bool
-{
-    return strtolower(trim((string)(getenv('MAIL_ENABLED') ?: ''))) === 'true';
+// mailEnabled() now lives in lib/util.php (shared with recovery-cron.php).
+// Guarded copy kept so auth.php still works if loaded without util.php.
+if (!function_exists('mailEnabled')) {
+    function mailEnabled(): bool
+    {
+        return strtolower(trim((string)(getenv('MAIL_ENABLED') ?: ''))) === 'true';
+    }
 }
 
 // Issues (or replaces) the 24h verification token for a user. Returns the RAW
