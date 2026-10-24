@@ -18,6 +18,10 @@ jobs:
         env:
           BLOG_CRON_KEY: ${{ secrets.BLOG_CRON_KEY }}
         run: |
-          OUT=$(curl -s --max-time 60 -H "X-Blog-Cron-Key: $BLOG_CRON_KEY" https://shiarishta.com/api/recovery-cron.php)
-          echo "$OUT"
-          echo "$OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('ok'), d; print(f\"verify sent: {d['verify']['sent']}, complete sent: {d['complete']['sent']}\")"
+          HTTP_CODE=$(curl -s -o /tmp/recovery-out.txt -w "%{http_code}" --max-time 60 -H "X-Blog-Cron-Key: $BLOG_CRON_KEY" https://shiarishta.com/api/recovery-cron.php)
+          echo "HTTP: $HTTP_CODE"
+          echo "--- raw response (first 2000 chars) ---"
+          head -c 2000 /tmp/recovery-out.txt
+          echo ""
+          echo "--- parsed ---"
+          python3 -c "import json,sys; d=json.load(open('/tmp/recovery-out.txt')); assert d.get('ok'), d; print(f\"verify sent: {d['verify']['sent']}, complete sent: {d['complete']['sent']}\")"
