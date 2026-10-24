@@ -811,7 +811,7 @@ function profileUpdate(): void
         // migrateAddProfileColumns(); without this mapping the answers were
         // accepted by the form and silently thrown away on save.
         'religiosity', 'educationLevel', 'marja', 'prayer', 'modesty', 'diet',
-        'languages', 'ethnicity', 'incomeRange', 'maritalStatus', 'children',
+        'languages', 'ethnicity', 'sub_ethnicity', 'subEthnicity', 'incomeRange', 'maritalStatus', 'children',
         'childrenPlans', 'relocation', 'familyInvolvement', 'heightCm', 'timeline',
         'photoUrl', 'syedStatus', 'username'];
 
@@ -853,6 +853,7 @@ function profileUpdate(): void
             'photoUrl' => 'photo_url',
             'syedStatus' => 'syed_status',
             'seekingGender' => 'seeking_gender',
+            'subEthnicity' => 'sub_ethnicity',
             default => $key,
         };
         $v = in_array($key, ['age', 'heightCm'], true) && $b[$key] !== null && $b[$key] !== ''

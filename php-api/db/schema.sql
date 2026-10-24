@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   diet               VARCHAR(80)  DEFAULT NULL,
   languages          VARCHAR(255) DEFAULT NULL,
   ethnicity          VARCHAR(120) DEFAULT NULL,
+  sub_ethnicity      VARCHAR(120) DEFAULT NULL,
   income_range       VARCHAR(80)  DEFAULT NULL,
   marital_status     VARCHAR(60)  DEFAULT NULL,
   children           VARCHAR(60)  DEFAULT NULL,

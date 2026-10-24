@@ -153,6 +153,24 @@ export const ETHNICITIES = [
   'European', 'North American', 'Mixed heritage', 'Other'
 ];
 
+// Optional sub-ethnicity / community within each broad group (2026-10-24).
+// Shown only when the chosen ethnicity has entries here; members who prefer
+// just the broad group skip it entirely — it is never required and never
+// scored in completeness. 'Mixed heritage' and 'Other' intentionally have no
+// list: a single sub-choice doesn't make sense for them.
+export const SUB_ETHNICITIES = {
+  'South Asian': ['Indian', 'Pakistani', 'Bangladeshi', 'Sri Lankan', 'Nepali', 'Afghan', 'Kashmiri', 'Hyderabadi', 'Other South Asian'],
+  'Arab — Levantine': ['Lebanese', 'Syrian', 'Jordanian', 'Palestinian', 'Iraqi', 'Other Levantine'],
+  'Arab — Gulf': ['Saudi', 'Emirati', 'Kuwaiti', 'Qatari', 'Bahraini', 'Omani', 'Yemeni', 'Other Gulf'],
+  'Arab — North African': ['Egyptian', 'Moroccan', 'Algerian', 'Tunisian', 'Libyan', 'Sudanese', 'Other North African'],
+  'Persian / Iranian': ['Persian', 'Azeri', 'Kurdish', 'Balochi', 'Other Iranian'],
+  'Turkish': ['Turkish', 'Azerbaijani', 'Turkmen', 'Other Turkic'],
+  'East African': ['Somali', 'Ethiopian', 'Eritrean', 'Kenyan', 'Tanzanian', 'Ugandan', 'Other East African'],
+  'South-East Asian': ['Indonesian', 'Malaysian', 'Filipino', 'Thai', 'Vietnamese', 'Singaporean', 'Other South-East Asian'],
+  'European': ['British', 'French', 'German', 'Spanish', 'Italian', 'Other European'],
+  'North American': ['American', 'Canadian', 'Other North American'],
+};
+
 export const COUNTRIES = [
   'USA', 'Canada', 'United Kingdom', 'Germany', 'France', 'Netherlands',
   'Sweden', 'Norway', 'Australia', 'UAE', 'Saudi Arabia', 'Qatar', 'Kuwait',

@@ -17,7 +17,7 @@ import {
   MARITAL_STATUS_OPTIONS, TIMELINE_OPTIONS, RELOCATION_OPTIONS,
   FAMILY_INVOLVEMENT_OPTIONS, CHILDREN_OPTIONS, CHILDREN_PLANS_OPTIONS,
   PHOTO_ACCESS_OPTIONS, PROFILE_VISIBILITY_OPTIONS, MANAGEMENT_MODES,
-  EDUCATION_OPTIONS, LANGUAGES, ETHNICITIES, COUNTRIES, HEIGHT_OPTIONS,
+  EDUCATION_OPTIONS, LANGUAGES, ETHNICITIES, SUB_ETHNICITIES, COUNTRIES, HEIGHT_OPTIONS,
   computeProfileCompleteness, ONBOARDING_STEPS
 } from '../lib/onboardingData';
 
@@ -40,7 +40,7 @@ const EMPTY_FORM = {
   // Step 2 — Faith & practice
   sect: '', religiosity: '', prayer: '', marja: '', modesty: '', diet: '',
   // Step 3 — Background & lineage
-  syedStatus: '', ethnicity: '', languages: [], citizenships: [],
+  syedStatus: '', ethnicity: '', subEthnicity: '', languages: [], citizenships: [],
   // Step 4 — Education & career
   educationLevel: '', profession: '', incomeRange: '',
   // Step 5 — Marriage intentions
@@ -265,7 +265,7 @@ export default function Onboard() {
           displayName: p.displayName, age: p.age, gender: p.gender, city: p.city,
           country: p.country, maritalStatus: p.maritalStatus, sect: p.sect,
           religiosity: p.religiosity, prayer: p.prayer, marja: p.marja,
-          modesty: p.modesty, diet: p.diet, ethnicity: p.ethnicity,
+          modesty: p.modesty, diet: p.diet, ethnicity: p.ethnicity, subEthnicity: p.subEthnicity,
           educationLevel: p.educationLevel, profession: p.profession,
           incomeRange: p.incomeRange, timeline: p.timeline, relocation: p.relocation,
           familyInvolvement: p.familyInvolvement, bio: p.bio, lookingFor: p.expectations,
@@ -359,6 +359,7 @@ export default function Onboard() {
         modesty: data.modesty,
         diet: data.diet,
         ethnicity: data.ethnicity,
+        subEthnicity: data.subEthnicity || null,
         languages: Array.isArray(data.languages) ? data.languages.join(', ') : data.languages,
         educationLevel: data.educationLevel,
         profession: data.profession,
@@ -654,12 +655,20 @@ function StepLineage({ data, update, errors, toggleIn }) {
       </Field>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Ethnicity / heritage" required error={errors.ethnicity}>
-          <SelectInput value={data.ethnicity} onChange={e => update('ethnicity', e.target.value)} options={ETHNICITIES} error={errors.ethnicity} ariaLabel="Ethnicity" />
+          <SelectInput value={data.ethnicity} onChange={e => { update('ethnicity', e.target.value); update('subEthnicity', ''); }} options={ETHNICITIES} error={errors.ethnicity} ariaLabel="Ethnicity" />
         </Field>
         <Field label="Citizenships" hint="Select all that apply — dual citizens welcome">
           <CitizenshipPicker values={data.citizenships} onToggle={v => toggleIn('citizenships', v)} />
         </Field>
       </div>
+      {/* Optional sub-ethnicity (2026-10-24): e.g. South Asian → Indian / Pakistani.
+          Only appears when the chosen group has sub-options; never required, and
+          changing ethnicity clears it so a stale sub can't survive a group switch. */}
+      {(SUB_ETHNICITIES[data.ethnicity] || []).length > 0 && (
+        <Field label="Sub-ethnicity / community (optional)" hint="More specific, if you like — e.g. Indian, Pakistani. Leave blank to keep just the broad group.">
+          <SelectInput value={data.subEthnicity} onChange={e => update('subEthnicity', e.target.value)} options={SUB_ETHNICITIES[data.ethnicity]} ariaLabel="Sub-ethnicity" />
+        </Field>
+      )}
       <Field label="Languages you speak" required error={errors.languages}>
         <ChipGroup values={data.languages} onToggle={v => toggleIn('languages', v)} options={LANGUAGES} ariaLabel="Languages" />
       </Field>

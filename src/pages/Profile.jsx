@@ -255,30 +255,9 @@ export default function Profile() {
                 member" button on an example would invite a safety report we
                 cannot act on. */}
             {profile.isDemo !== true && (
-              <>
-                <button onClick={() => setShortlisted(!shortlisted)} className="w-full button flex items-center justify-center gap-2 py-2.5 font-semibold text-sm" style={{ background: shortlisted ? 'var(--color-primary)' : 'var(--color-elevated)', color: shortlisted ? '#fff' : 'var(--color-ink)', border: '1px solid var(--color-border)' }}>
-                  <Bookmark className="w-4 h-4" style={{ fill: shortlisted ? '#fff' : 'none' }} /> {shortlisted ? 'Shortlisted' : 'Shortlist'}
-                </button>
-                <div className="w-full rounded-xl p-3" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-                  <button
-                    onClick={handleBlockToggle}
-                    disabled={blockBusy}
-                    className="w-full text-xs font-semibold py-2 rounded-lg mb-2"
-                    style={{
-                      background: blocked ? 'var(--color-elevated)' : 'var(--color-danger, #c0392b)',
-                      color: blocked ? 'var(--color-ink)' : '#fff',
-                      border: '1px solid var(--color-border)',
-                      opacity: blockBusy ? 0.6 : 1,
-                    }}
-                  >
-                    {blockBusy ? 'Working…' : blocked ? 'Unblock this member' : 'Block this member'}
-                  </button>
-                  <ReportFlag targetType="profile" targetId={String(profile.id || id)} onDone={null} />
-                </div>
-                <p className="text-[11px] text-center" style={{ color: 'var(--color-ink-faint)' }}>
-                  Reports go to our safety team and are reviewed by a person.
-                </p>
-              </>
+              <button onClick={() => setShortlisted(!shortlisted)} className="w-full button flex items-center justify-center gap-2 py-2.5 font-semibold text-sm" style={{ background: shortlisted ? 'var(--color-primary)' : 'var(--color-elevated)', color: shortlisted ? '#fff' : 'var(--color-ink)', border: '1px solid var(--color-border)' }}>
+                <Bookmark className="w-4 h-4" style={{ fill: shortlisted ? '#fff' : 'none' }} /> {shortlisted ? 'Shortlisted' : 'Shortlist'}
+              </button>
             )}
           </div>
           <div className="space-y-5">
@@ -383,7 +362,7 @@ export default function Profile() {
                   { label: 'Sect', value: profile.sect },
                   { label: 'Lifestyle', value: profile.halalLifestyle },
                   { label: 'Education', value: profile.educationLevel },
-                  { label: 'Ethnicity', value: profile.ethnicity },
+                  { label: 'Ethnicity', value: profile.subEthnicity ? `${profile.ethnicity} / ${profile.subEthnicity}` : profile.ethnicity },
                   { label: 'Marital status', value: profile.maritalStatus },
                   { label: 'Children', value: profile.children },
                   { label: 'Intentions', value: profile.intentions },
@@ -444,6 +423,41 @@ export default function Profile() {
             </div>
           </div>
         </div>
+        {/* ── Safety, at the bottom (2026-10-24) ──────────────────────────────
+            Blocking and reporting used to sit at the top of the page, under the
+            photo — the first thing a visitor saw, before they'd even read the
+            profile. Safety actions belong at the end: read the person first,
+            then decide. Shortlisting stays at the top (it's a positive act);
+            blocking/reporting move here. Same behaviour, same confirm dialog,
+            just out of the way until needed. Not shown for sample profiles —
+            there is nobody at the other end to block or report. */}
+        {profile.isDemo !== true && (
+          <section aria-label="Safety" className="mt-8 pt-6" style={{ borderTop: '1px solid var(--color-border)' }}>
+            <p className="text-xs font-semibold mb-3" style={{ color: 'var(--color-ink-faint)' }}>
+              Safety
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleBlockToggle}
+                disabled={blockBusy}
+                className="text-xs font-semibold px-4 py-2 rounded-lg"
+                style={{
+                  background: blocked ? 'var(--color-elevated)' : 'var(--color-danger, #c0392b)',
+                  color: blocked ? 'var(--color-ink)' : '#fff',
+                  border: '1px solid var(--color-border)',
+                  opacity: blockBusy ? 0.6 : 1,
+                }}
+              >
+                {blockBusy ? 'Working…' : blocked ? 'Unblock this member' : 'Block this member'}
+              </button>
+              <ReportFlag targetType="profile" targetId={String(profile.id || id)} onDone={null} />
+            </div>
+            <p className="text-[11px] mt-2" style={{ color: 'var(--color-ink-faint)' }}>
+              Reports go to our safety team and are reviewed by a person. Blocking hides you
+              from each other and disables messaging both ways.
+            </p>
+          </section>
+        )}
       </main>
       {showLoginGate && <LoginGate reason="interest" onClose={() => setShowLoginGate(false)} />}
       {confirmBlock && (

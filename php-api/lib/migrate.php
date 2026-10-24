@@ -58,6 +58,7 @@ function migrateSchema(): void
     migrateAddTestFlag();
     migrateAddRecoveryEmailsTable();
     migrateAddOnboardingDraftColumn();
+    migrateAddSubEthnicityColumn();
     migrateSeedDefaultCommunities();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
@@ -1005,6 +1006,21 @@ function migrateAddOnboardingDraftColumn(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (onboarding_draft) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+// Optional sub-ethnicity (2026-10-24): e.g. ethnicity "South Asian" +
+// sub-ethnicity "Indian" or "Pakistani". Displayed as "South Asian / Indian".
+// Nullable, never required — members who prefer just the broad group skip it.
+function migrateAddSubEthnicityColumn(): void
+{
+    try {
+        $cols = db()->query("SHOW COLUMNS FROM profiles LIKE 'sub_ethnicity'")->fetchAll();
+        if (!$cols) {
+            db()->exec("ALTER TABLE profiles ADD COLUMN sub_ethnicity VARCHAR(120) DEFAULT NULL AFTER ethnicity");
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (sub_ethnicity) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }
 
