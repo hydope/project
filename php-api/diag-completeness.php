@@ -17,7 +17,7 @@ try {
         'total_real' => $q('1 = 1'),
         'no_city' => $q('(p.city IS NULL OR p.city = \'\')'),
         'no_country' => $q('(p.country IS NULL OR p.country = \'\')'),
-        'no_bio' => $q('(p.bio IS NULL OR p.bio = \'\') AND (p.aboutFamily IS NULL OR p.aboutFamily = \'\')'),
+        'no_bio' => $q('(p.bio IS NULL OR p.bio = \'\') AND (p.about_family IS NULL OR p.about_family = \'\')'),
         'no_photo' => $q('(p.photo_url IS NULL OR p.photo_url = \'\')'),
         'email_unverified' => $q('u.email_verified = 0'),
         'complete_bio_and_location' => $q('(p.bio IS NOT NULL AND p.bio != \'\') AND (p.city IS NOT NULL AND p.city != \'\')'),
