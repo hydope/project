@@ -116,6 +116,23 @@ RewriteRule ^sitemap_index\.xml$ - [G,L]
 RewriteRule ^wp-sitemap\.xml$ - [G,L]
 RewriteRule ^wp-sitemap-posts- - [G,L]
 
+# Dead URLs from Search Console (Sep 2026 crawls) — return 410 Gone so
+# Google drops them fast instead of re-crawling the SPA fallback's 200.
+# Without these, every junk URL serves index.html with a 200 status, which
+# Google reads as duplicate homepage content (soft 404). One exception:
+# /pages/guardian/ has a real destination (Guardians page), so it 301s.
+RewriteRule ^pages/guardian/?$ /guardians [R=301,L]
+RewriteRule ^pages/ - [G,L]
+RewriteRule ^wordpress/ - [G,L]
+RewriteRule ^pop/?$ - [G,L]
+RewriteRule ^7349477/?$ - [G,L]
+RewriteRule ^js/?$ - [G,L]
+RewriteRule ^404-2/?$ - [G,L]
+RewriteRule ^pricing\.html$ - [G,L]
+RewriteRule ^google[0-9a-f]+\.html$ - [G,L]
+RewriteRule \.md$ - [G,L]
+RewriteRule ^package-lock\.json$ - [G,L]
+
 # 3) ShiaRishta SPA — Apache fallback for client-side routes.
 #    Every non-file request serves index.html so React Router can take over.
 #    /blog/ is a real directory on disk (article images), so the !-d guard
