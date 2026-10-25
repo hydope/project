@@ -219,7 +219,7 @@ export default function Messages() {
         selectConvo(convoId);
         setTab('chats');
       } else {
-        await api.withdrawInterest(userId);
+        await api.declineInterest(userId);
         setRequests((prev) => prev.filter((r) => r.userId !== userId));
       }
     } catch (e) {

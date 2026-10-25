@@ -47,6 +47,7 @@ export const api = {
   getSuggestions: () => unwrap(matchesRepo.suggestions(), 'Could not load suggestions.'),
   expressInterest: (pid) => unwrap(matchesRepo.expressInterest(pid), 'Could not send interest.'),
   withdrawInterest: (pid) => unwrap(matchesRepo.withdrawInterest(pid), 'Could not withdraw interest.'),
+  declineInterest: (pid) => unwrap(matchesRepo.declineInterest(pid), 'Could not decline this request.'),
   getReceivedInterests: () => unwrap(matchesRepo.receivedInterests(), 'Could not load requests.'),
   startConversation: (pid) => unwrap(matchesRepo.startConversation(pid), 'Could not start the conversation.'),
 

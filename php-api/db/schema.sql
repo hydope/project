@@ -108,6 +108,17 @@ CREATE TABLE IF NOT EXISTS interests (
   KEY idx_interests_to (to_user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- A decline sticks: when member A declines member B's interest, the interest
+-- row is deleted AND this row is kept, so B cannot re-express interest and
+-- the declined request can never reappear. decliner_id declined sender_id.
+CREATE TABLE IF NOT EXISTS interest_declines (
+  decliner_id CHAR(36) NOT NULL,
+  sender_id   CHAR(36) NOT NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (decliner_id, sender_id),
+  KEY idx_declines_sender (sender_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS conversations (
   id                CHAR(36) NOT NULL PRIMARY KEY,
   user_a            CHAR(36) NOT NULL,

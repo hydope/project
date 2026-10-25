@@ -61,6 +61,7 @@ function routeProfiles(string $method, array $segments): void
     if ($method === 'GET' && $id !== null) { profileById($id); return; }
     if ($method === 'POST' && $id !== null && ($segments[1] ?? '') === 'interest') { profileInterest($id); return; }
     if ($method === 'DELETE' && $id !== null && ($segments[1] ?? '') === 'interest') { profileUninterest($id); return; }
+    if ($method === 'POST' && $id !== null && ($segments[1] ?? '') === 'decline') { profileDecline($id); return; }
 
     // A known path with the wrong verb is a 405, not a 404. Returning "endpoint
     // not found" for e.g. PATCH /profiles/me hides the fact that the route
@@ -528,10 +529,19 @@ function profilesList(): void
         $params[] = $viewer['uid'];
     }
 
+    // Pagination (2026-10-25): the directory hard-capped at 100 rows with no
+    // way past it, so the oldest profiles became unreachable once the roster
+    // passed 100 members. ?paged=1 returns an envelope {rows, total, hasMore}
+    // sliced from the full filtered roster; without it the response stays a
+    // plain array so every existing caller keeps working unchanged.
+    $paged = ($_GET['paged'] ?? '') === '1';
+    $pageLimit = isset($_GET['limit']) ? max(1, min(100, (int)$_GET['limit'])) : 100;
+    $pageOffset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
+
     // Real profiles first, seeded profiles after — then newest-first within
     // each group. Seeded profiles fill out the directory but never outrank
     // a real member.
-    $sql = 'SELECT p.* FROM profiles p WHERE ' . implode(' AND ', $where) . ' ORDER BY p.is_seeded ASC, p.created_at DESC LIMIT ' . (isset($limit) ? (int)$limit : 100);
+    $sql = 'SELECT p.* FROM profiles p WHERE ' . implode(' AND ', $where) . ' ORDER BY p.is_seeded ASC, p.created_at DESC' . ($paged ? '' : ' LIMIT ' . (isset($limit) ? (int)$limit : 100));
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
@@ -553,6 +563,15 @@ function profilesList(): void
             $rows,
             static fn(array $row): bool => !isTestShellRow($row)
         ));
+    }
+
+    // Paged mode slices AFTER the shell filter, so `total` counts only rows
+    // the viewer can actually see and `hasMore` is authoritative — a short
+    // page caused by filtered shells no longer looks like the end.
+    $pageTotal = null;
+    if ($paged) {
+        $pageTotal = count($rows);
+        $rows = array_slice($rows, $pageOffset, $pageLimit);
     }
 
     // Include interest state per card so the UI survives reloads (parity with profileById).
@@ -593,6 +612,9 @@ function profilesList(): void
         $list[] = $view;
     }
 
+    if ($paged) {
+        json(['rows' => $list, 'total' => $pageTotal, 'hasMore' => ($pageOffset + $pageLimit < $pageTotal)]);
+    }
     json($list);
 }
 
@@ -942,6 +964,14 @@ function profileInterest(string $id): void
         je('This is a sample profile, not a real member. It cannot receive interest or messages.', 409);
     }
 
+    // A decline sticks: if this member declined my interest, I cannot re-send.
+    // Without this, declining would be undone by one more tap on the card.
+    $declined = db()->prepare('SELECT 1 FROM interest_declines WHERE decliner_id = ? AND sender_id = ? LIMIT 1');
+    $declined->execute([$id, $user['uid']]);
+    if ($declined->fetch()) {
+        je('This member declined your interest.', 403);
+    }
+
     // Idempotent: PK conflict on (from,to) is a no-op, like ON CONFLICT DO NOTHING.
     $insert = db()->prepare('INSERT IGNORE INTO interests (from_user_id, to_user_id) VALUES (?, ?)');
     $insert->execute([$user['uid'], $id]);
@@ -963,6 +993,26 @@ function profileInterest(string $id): void
     }
 
     json(['success' => true, 'matched' => $mirrored]);
+}
+
+// Decline a received interest. Deletes the sender's interest row so the
+// request disappears for good, and records the decline so the sender cannot
+// re-express interest afterwards. No notification is sent to the sender —
+// a decline is a quiet pass, not a message. Idempotent: declining twice, or
+// declining after the sender withdrew, is a success with nothing left to do.
+function profileDecline(string $id): void
+{
+    $user = requireAuthUser();
+    if ($id === (string)$user['uid']) {
+        je('You cannot decline interest from yourself.', 400);
+    }
+    $row = db()->prepare('SELECT 1 FROM interests WHERE from_user_id = ? AND to_user_id = ? LIMIT 1');
+    $row->execute([$id, $user['uid']]);
+    if ($row->fetch()) {
+        db()->prepare('DELETE FROM interests WHERE from_user_id = ? AND to_user_id = ?')->execute([$id, $user['uid']]);
+        db()->prepare('INSERT IGNORE INTO interest_declines (decliner_id, sender_id) VALUES (?, ?)')->execute([$user['uid'], $id]);
+    }
+    json(['success' => true, 'declined' => true]);
 }
 
 // Withdraw an expressed interest. Idempotent — withdrawing twice is a no-op.

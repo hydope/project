@@ -144,9 +144,15 @@ export const matchesRepo = {
     if (useRemote) return http.get('/api/profiles/interests/received');
     return [];
   },
-  // Withdraw an expressed interest (declining a request removes their interest row).
+  // Withdraw your own sent interest.
   async withdrawInterest(profileId) {
     if (useRemote) return http.del(`/api/profiles/${encodeURIComponent(profileId)}/interest`);
+    return { success: true };
+  },
+  // Decline a received interest: server deletes their interest row and records
+  // the decline, so the request never reappears and they cannot re-send.
+  async declineInterest(profileId) {
+    if (useRemote) return http.post(`/api/profiles/${encodeURIComponent(profileId)}/decline`, {});
     return { success: true };
   },
   // ── Favourites ──

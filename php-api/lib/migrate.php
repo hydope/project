@@ -59,6 +59,7 @@ function migrateSchema(): void
     migrateAddRecoveryEmailsTable();
     migrateAddOnboardingDraftColumn();
     migrateAddSubEthnicityColumn();
+    migrateAddInterestDeclinesTable();
     migrateSeedDefaultCommunities();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
@@ -1012,6 +1013,21 @@ function migrateAddOnboardingDraftColumn(): void
 // Optional sub-ethnicity (2026-10-24): e.g. ethnicity "South Asian" +
 // sub-ethnicity "Indian" or "Pakistani". Displayed as "South Asian / Indian".
 // Nullable, never required — members who prefer just the broad group skip it.
+function migrateAddInterestDeclinesTable(): void
+{
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS interest_declines (
+          decliner_id CHAR(36) NOT NULL,
+          sender_id   CHAR(36) NOT NULL,
+          created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (decliner_id, sender_id),
+          KEY idx_declines_sender (sender_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Throwable $e) {
+        error_log('[api] migration (interest_declines) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
 function migrateAddSubEthnicityColumn(): void
 {
     try {

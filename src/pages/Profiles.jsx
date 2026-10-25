@@ -178,6 +178,11 @@ export function BrowseProfiles() {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // Server-side pagination: the directory used to hard-cap at 100 rows, so
+  // the oldest members were unreachable. serverHasMore comes from the API
+  // envelope (?paged=1) and is authoritative — a short page is not the end.
+  const [serverHasMore, setServerHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(9);
@@ -247,13 +252,14 @@ export function BrowseProfiles() {
     // Pass the params as an OBJECT. getProfiles() builds the query string itself
     // via Object.entries(); handing it a pre-built '?marja=Sistani' string made
     // it iterate the characters, sending ?0=%3F&1=m&2=a... and filtering nothing.
-    api.getProfiles(JSON.parse(serverFilterKey))
-      .then(data => { if (!cancelled) { setProfiles(data); setLoading(false); } })
+    // Paged mode fetches page 1 as an envelope {rows, total, hasMore}.
+    api.getProfiles({ ...JSON.parse(serverFilterKey), paged: 1, limit: 100, offset: 0 })
+      .then(resp => { if (cancelled) return; const rows = resp?.rows ?? resp ?? []; setProfiles(Array.isArray(rows) ? rows : []); setServerHasMore(resp?.hasMore ?? false); setLoading(false); })
       .catch(() => { if (!cancelled) { setError("We couldn't load profiles right now. Check your connection and try again."); setLoading(false); } });
     return () => { cancelled = true; };
   }, [serverFilterKey]);
 
-  useEffect(() => { setVisibleCount(9); }, [filters]);
+  useEffect(() => { setVisibleCount(9); setServerHasMore(false); }, [filters]);
 
   const filtered = useMemo(() => {
     // Filtering is server-side now. Only the sort stays local, plus a guard that
@@ -281,7 +287,25 @@ export function BrowseProfiles() {
   }, [profiles, filters]);
 
   const visible = filtered.slice(0, visibleCount);
-  const hasMore = visibleCount < filtered.length;
+  // Reveal already-fetched rows first; when those run out, fetch the next
+  // server page. The button disappears only when the server says hasMore.
+  const hasMore = visibleCount < filtered.length || serverHasMore;
+  const handleLoadMore = () => {
+    if (visibleCount < filtered.length) { setVisibleCount(c => c + 9); return; }
+    if (!serverHasMore || loadingMore) return;
+    setLoadingMore(true);
+    api.getProfiles({ ...JSON.parse(serverFilterKey), paged: 1, limit: 100, offset: profiles.length })
+      .then(resp => {
+        const rows = resp?.rows ?? [];
+        const known = new Set(profiles.map(p => p.id));
+        const fresh = rows.filter(p => !known.has(p.id));
+        setProfiles(prev => [...prev, ...fresh]);
+        setServerHasMore(resp?.hasMore ?? false);
+        setVisibleCount(c => c + 9);
+      })
+      .catch(() => { /* keep the button so the member can retry */ })
+      .finally(() => setLoadingMore(false));
+  };
   const activeFilterEntries = Object.entries(filters).filter(([k, v]) => {
     if (k === 'sort') return v !== 'match';
     if (k === 'verifiedOnly') return v === true;
@@ -546,10 +570,11 @@ export function BrowseProfiles() {
             {hasMore && (
               <div className="flex justify-center mt-8">
                 <button
-                  onClick={() => setVisibleCount(c => c + 9)}
-                  className="btn btn-secondary"
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                  className="btn btn-secondary disabled:opacity-60"
                 >
-                  Load more profiles
+                  {loadingMore ? 'Loading more profiles…' : 'Load more profiles'}
                 </button>
               </div>
             )}
