@@ -67,7 +67,12 @@ export default function Dashboard() {
   const [recoveryStatus, setRecoveryStatus] = useState(null);
 
   useEffect(() => {
-    http.get("/users/me/completeness").then(setRecoveryStatus).catch(() => { /* banner hidden on error */ });
+    // NOTE: the /api prefix is required. Production builds set VITE_API_URL
+    // to the site origin (not /api), so a bare "/users/..." path hits the SPA
+    // fallback (index.html) instead of the API — readApiResponse then returns
+    // {error: <html>} and the banner rendered "Your profile is% complete"
+    // with no number. That exact bug shipped 2026-10-24.
+    http.get("/api/users/me/completeness").then(setRecoveryStatus).catch(() => { /* banner hidden on error */ });
   }, []);
 
   // Verification-state refresh lives in AuthContext (boot + window focus), which
@@ -234,7 +239,7 @@ export default function Dashboard() {
             </button>
           </div>
         )}
-        {recoveryStatus && !recoveryStatus.complete && (
+        {recoveryStatus && typeof recoveryStatus.percent === 'number' && !recoveryStatus.complete && (
           <div className="mb-6 rounded-xl border px-4 py-4" style={{ borderColor: 'var(--color-primary)', background: 'var(--color-primary-soft)' }}>
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex-1">
