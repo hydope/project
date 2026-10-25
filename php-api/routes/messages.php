@@ -39,7 +39,10 @@ function messagesList(): void
                 (SELECT m.body FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
                 (SELECT m.created_at FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_at,
                 CASE WHEN c.user_a = ? THEN c.user_b ELSE c.user_a END AS other_id,
-                (SELECT p.display_name FROM profiles p WHERE p.user_id = CASE WHEN c.user_a = ? THEN c.user_b ELSE c.user_a END) AS other_name
+                (SELECT p.display_name FROM profiles p WHERE p.user_id = CASE WHEN c.user_a = ? THEN c.user_b ELSE c.user_a END) AS other_name,
+                (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id AND m.sender_id <> ?
+                    AND ((CASE WHEN c.user_a = ? THEN c.last_read_a ELSE c.last_read_b END) IS NULL
+                         OR m.created_at > (CASE WHEN c.user_a = ? THEN c.last_read_a ELSE c.last_read_b END))) AS unread_count
            FROM conversations c
           WHERE (c.user_a = ? OR c.user_b = ?)
             AND NOT EXISTS (
@@ -49,7 +52,7 @@ function messagesList(): void
             )
           ORDER BY c.created_at DESC'
     );
-    $stmt->execute([$user['uid'], $user['uid'], $user['uid'], $user['uid']]);
+    $stmt->execute([$user['uid'], $user['uid'], $user['uid'], $user['uid'], $user['uid'], $user['uid'], $user['uid']]);
     $rows = $stmt->fetchAll();
 
     // Re-sort in PHP for exact NULLS LAST semantics on the last message time.
@@ -65,13 +68,18 @@ function messagesList(): void
 
     $list = [];
     foreach ($rows as $row) {
+        $unreadCount = (int)($row['unread_count'] ?? 0);
         $list[] = [
             'id' => $row['id'],
             'participantId' => $row['other_id'],
             'participantName' => $row['other_name'] ?: 'Member',
             'lastMessage' => decAtRest($row['last_message']),
             'timestamp' => $row['last_at'] ?: $row['created_at'],
-            'unread' => false,
+            'unread' => $unreadCount > 0,
+            // Both casings: the Messages list reads unreadCount, the
+            // dashboard badge total reads unread_count. Same value.
+            'unread_count' => $unreadCount,
+            'unreadCount' => $unreadCount,
         ];
     }
 
@@ -96,6 +104,17 @@ function messageThread(string $id): void
     if (pairBlocked((string)$user['uid'], $other)) {
         je('This conversation is unavailable.', 403);
     }
+
+    // Opening the thread marks the other member's messages read up to now.
+    // Polling while the thread stays open re-marks, so the list badge clears
+    // the moment the member is looking at the messages. (Second-precision
+    // timestamps mean a message landing in the exact mark second can miss
+    // the badge once; it still appears in the open thread, and the next
+    // poll corrects the badge.)
+    try {
+        $readCol = $thread['user_a'] === (string)$user['uid'] ? 'last_read_a' : 'last_read_b';
+        db()->prepare("UPDATE conversations SET {$readCol} = NOW() WHERE id = ?")->execute([$id]);
+    } catch (Throwable) { /* columns may not exist yet */ }
 
     // Lazy purge: disappearing messages are deleted when the thread loads.
     // (No cron on shared hosting, so expiry is enforced on read.)

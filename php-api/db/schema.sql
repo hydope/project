@@ -125,6 +125,10 @@ CREATE TABLE IF NOT EXISTS conversations (
   user_b            CHAR(36) NOT NULL,
   created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   disappearing_after INT NOT NULL DEFAULT 0,
+  -- Last time each side opened the thread (mark-read). NULL = never opened,
+  -- so every message from the other side counts as unread.
+  last_read_a       DATETIME DEFAULT NULL,
+  last_read_b       DATETIME DEFAULT NULL,
   UNIQUE KEY uq_conversation (user_a, user_b),
   KEY idx_conv_user_a (user_a),
   KEY idx_conv_user_b (user_b)

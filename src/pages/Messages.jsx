@@ -160,17 +160,19 @@ export default function Messages() {
     if (!activeId) return;
     // Only do the full loading state the first time this thread opens.
     if (!messagesByConvo[activeId]) loadThread.current(activeId, false);
-    const poll = setInterval(() => loadThread.current(activeId, true), 8000);
+    const poll = setInterval(() => loadThread.current(activeId, true), 3000);
     return () => clearInterval(poll);
   }, [activeId]);
 
   // Keep the conversation list (unread badges, last message) fresh too.
+  // 10s: shared hosting has no persistent process for true push, so polling
+  // is the realtime mechanism — 10s keeps badges honest without hammering it.
   useEffect(() => {
     const poll = setInterval(() => {
       api.getConversations()
         .then((list) => setConvos(Array.isArray(list) ? list : []))
         .catch(() => {});
-    }, 20000);
+    }, 10000);
     return () => clearInterval(poll);
   }, []);
 

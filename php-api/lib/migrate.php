@@ -60,6 +60,7 @@ function migrateSchema(): void
     migrateAddOnboardingDraftColumn();
     migrateAddSubEthnicityColumn();
     migrateAddInterestDeclinesTable();
+    migrateAddConversationReadColumns();
     migrateSeedDefaultCommunities();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
@@ -1013,6 +1014,20 @@ function migrateAddOnboardingDraftColumn(): void
 // Optional sub-ethnicity (2026-10-24): e.g. ethnicity "South Asian" +
 // sub-ethnicity "Indian" or "Pakistani". Displayed as "South Asian / Indian".
 // Nullable, never required — members who prefer just the broad group skip it.
+function migrateAddConversationReadColumns(): void
+{
+    try {
+        foreach (['last_read_a', 'last_read_b'] as $col) {
+            $cols = db()->query("SHOW COLUMNS FROM conversations LIKE '$col'")->fetchAll();
+            if (!$cols) {
+                db()->exec("ALTER TABLE conversations ADD COLUMN $col DATETIME DEFAULT NULL");
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (conversation read columns) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
 function migrateAddInterestDeclinesTable(): void
 {
     try {
