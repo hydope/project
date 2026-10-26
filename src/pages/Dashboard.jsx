@@ -134,7 +134,15 @@ export default function Dashboard() {
   // copy, then null (honest "—", never a fabricated number). The local copy
   // used to be wiped on logout, which is how 100% silently became 75%.
   const savedProfile = typeof getMyProfile === 'function' ? getMyProfile() : null;
-  const completeness = (() => {
+  // Completeness: ONE number on this page — the server's activation
+  // percent (email 25 / location 30 / bio 30 / photo 15), the same value
+  // the banner shows. The old client field-count (filled/26 fields)
+  // measured profile richness, a different thing, and the two disagreed
+  // on one page (banner 40% vs card 12% for the same profile). The
+  // client count survives only as the fallback when the server value
+  // is unavailable, and null stays an honest "—".
+  const serverPercent = typeof recoveryStatus?.percent === 'number' ? recoveryStatus.percent : null;
+  const completeness = serverPercent ?? (() => {
     if (serverProfile) {
       const mapped = {
         ...serverProfile,
