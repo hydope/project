@@ -25,6 +25,7 @@ const Login = lazy(() => import('./pages/auth/Login'));
 const Register = lazy(() => import('./pages/auth/Register'));
 const VerifyEmail = lazy(() => import('./pages/auth/VerifyEmail'));
 const VerifyToken = lazy(() => import('./pages/auth/VerifyToken'));
+const VerifyPending = lazy(() => import('./pages/auth/VerifyPending'));
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'));
 const WaliView = lazy(() => import('./pages/WaliView'));
@@ -231,6 +232,10 @@ const router = createBrowserRouter([
       { path: '/dashboard', element: <LazyRoute component={Dashboard} /> },
       { path: '/messages', element: <LazyRoute component={Messages} /> },
       { path: '/onboard', element: <LazyRoute component={Onboard} /> },
+      // 2026-11-01 stuck-signup fix: shown right after registration so the
+      // verify step is visible before onboarding. Inside RequireAuth — the
+      // fresh session from Register exists by the time we land here.
+      { path: '/verify-pending', element: <LazyRoute component={VerifyPending} /> },
       { path: '/profile', element: <LazyRoute component={Onboard} /> },
       { path: '/settings', element: <LazyRoute component={Settings} /> },
       { path: '/drafts', element: <LazyRoute component={Drafts} /> },

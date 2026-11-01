@@ -38,10 +38,14 @@ export default function VerifyToken() {
             : state.ok
               ? state.already
                 ? 'This email is already confirmed — you’re all set.'
-                : 'Your email is confirmed. Sign in and complete your profile — verified emails get seen first.'
+                : 'Your email is confirmed. Continue and complete your profile — verified emails get seen first.'
               : state.error}
         </p>
-        <Link to="/auth/login" className="button primary inline-flex items-center px-5 py-2.5 font-semibold">Go to sign in</Link>
+        {state.ok ? (
+          <Link to="/onboard" className="button primary inline-flex items-center px-5 py-2.5 font-semibold">Continue to profile setup</Link>
+        ) : (
+          <Link to="/auth/login" className="button primary inline-flex items-center px-5 py-2.5 font-semibold">Go to sign in</Link>
+        )}
       </div>
     </div>
   );

@@ -212,6 +212,32 @@ export default function Onboard() {
   const [draftRestored, setDraftRestored] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState('');
+  // Verify banner (2026-11-01 stuck-signup fix): the wizard previously had
+  // NO verify prompt at all — the only one lived on the dashboard, which a
+  // new member only reaches after onboarding. Same resend call as Dashboard.
+  const [verifyMsg, setVerifyMsg] = useState('');
+  const [verifySending, setVerifySending] = useState(false);
+  const [verifyUrl, setVerifyUrl] = useState('');
+  const resendVerification = async () => {
+    setVerifySending(true);
+    setVerifyMsg('');
+    setVerifyUrl('');
+    try {
+      const res = await http.post('/api/auth/verify/request', {});
+      if (res?.devMode && res?.verifyUrl) {
+        setVerifyUrl(res.verifyUrl);
+        setVerifyMsg('Email sending is not configured yet — use this link to verify:');
+      } else if (res?.alreadyVerified) {
+        setVerifyMsg('Your email is already verified.');
+      } else {
+        setVerifyMsg(res?.message || 'Verification email sent — check your inbox.');
+      }
+    } catch (e) {
+      setVerifyMsg(e?.message || 'Could not send verification email.');
+    } finally {
+      setVerifySending(false);
+    }
+  };
   // Role selection (member/guardian/matchmaker) — asked right after account
   // creation, before the profile steps. Defaults to member.
   const [role, setRole] = useState('member');
@@ -309,11 +335,69 @@ export default function Onboard() {
 
   const completeness = useMemo(() => computeProfileCompleteness(data), [data]);
 
+  // Build the server profile payload from wizard data, dropping empty fields.
+  // The server 400s on an empty update, and omitting a field leaves its
+  // stored value alone — so only filled answers are ever sent.
+  const buildProfilePayload = (d) => {
+    const heightMatch = /(\d+)\s*cm/i.exec(d.height || '');
+    const payload = {
+      displayName: d.displayName,
+      age: d.age === '' ? null : parseInt(d.age, 10),
+      gender: d.gender,
+      seekingGender: d.seekingGender,
+      city: d.city,
+      country: d.country,
+      heightCm: heightMatch ? parseInt(heightMatch[1], 10) : null,
+      maritalStatus: d.maritalStatus,
+      sect: d.sect,
+      religiosity: d.religiosity,
+      prayer: d.prayer,
+      marja: d.marja,
+      modesty: d.modesty,
+      diet: d.diet,
+      ethnicity: d.ethnicity,
+      subEthnicity: d.subEthnicity || null,
+      languages: Array.isArray(d.languages) ? d.languages.join(', ') : d.languages,
+      educationLevel: d.educationLevel,
+      profession: d.profession,
+      incomeRange: d.incomeRange,
+      timeline: d.timeline,
+      relocation: d.relocation,
+      familyInvolvement: d.familyInvolvement,
+      children: d.childrenStatus,
+      childrenPlans: d.childrenPlans,
+      photosVisibility: d.photoAccess,
+      visibility: d.profileVisibility,
+      bio: d.bio,
+      expectations: d.lookingFor,
+      syedStatus: d.syedStatus,
+    };
+    const clean = {};
+    for (const [k, v] of Object.entries(payload)) {
+      if (v === '' || v === null || v === undefined) continue;
+      if (Number.isNaN(v)) continue;
+      clean[k] = v;
+    }
+    return clean;
+  };
+
+  // Best-effort save of what the member has filled SO FAR as a real profile
+  // row (2026-11-01 stuck-signup fix). Before this, answers lived only in
+  // the draft until the full 7-step publish — anyone who quit at step 3 had
+  // no profile row at all and was invisible in browse/search. Partial PUT is
+  // a safe upsert server-side (profiles.php validates only provided fields).
+  // Never blocks the wizard: failures are swallowed.
+  const saveProgress = () => {
+    const clean = buildProfilePayload(data);
+    if (Object.keys(clean).length === 0) return;
+    api.updateProfile(user?.uid || 'me', clean).catch(() => {});
+  };
+
   const goNext = () => {
     const e = validateStep(step, data);
     setErrors(e);
     if (Object.keys(e).length > 0) return;
-    if (step < totalSteps) { setStep(s => s + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    if (step < totalSteps) { saveProgress(); setStep(s => s + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
     else publish();
   };
 
@@ -328,6 +412,9 @@ export default function Onboard() {
   const skipOnboarding = () => {
     try { localStorage.setItem(scopedDraftKey(), JSON.stringify({ data, step })); } catch { /* ignore */ }
     http.put('/users/me/draft', { draft: { data, step } }).catch(() => { /* ignore */ });
+    // Save whatever they filled as a real profile too — skipping must not
+    // leave them invisible (2026-11-01 stuck-signup fix).
+    saveProgress();
     navigate('/dashboard');
   };
 
@@ -339,48 +426,21 @@ export default function Onboard() {
     setPublishing(true);
     setPublishError('');
     try {
+      // Publish is the moment a profile stops being "in progress" (2026-11-01,
+      // Syed's order: no profile stays in progress, every profile completed).
+      // Publishing requires a verified email — account creation, onboarding
+      // and progress saves all still work unverified; only the final publish
+      // asks for verification. Photo stays optional at publish: requiring one
+      // would stall people again at a later step for privacy reasons, and the
+      // dashboard completion flow keeps prompting for it after publish.
+      if (user?.emailVerified === false) {
+        setPublishError('Verify your email first — one tap, then publish. Use Resend above if the link never arrived.');
+        return;
+      }
       // Map the wizard's form fields to the backend profile columns.
       // Previously this only wrote to localStorage, so onboarding answers
       // never reached the database and other members saw an empty profile.
-      const heightMatch = /(\d+)\s*cm/i.exec(data.height || '');
-      const payload = {
-        displayName: data.displayName,
-        age: data.age === '' ? null : parseInt(data.age, 10),
-        gender: data.gender,
-        seekingGender: data.seekingGender,
-        city: data.city,
-        country: data.country,
-        heightCm: heightMatch ? parseInt(heightMatch[1], 10) : null,
-        maritalStatus: data.maritalStatus,
-        sect: data.sect,
-        religiosity: data.religiosity,
-        prayer: data.prayer,
-        marja: data.marja,
-        modesty: data.modesty,
-        diet: data.diet,
-        ethnicity: data.ethnicity,
-        subEthnicity: data.subEthnicity || null,
-        languages: Array.isArray(data.languages) ? data.languages.join(', ') : data.languages,
-        educationLevel: data.educationLevel,
-        profession: data.profession,
-        incomeRange: data.incomeRange,
-        timeline: data.timeline,
-        relocation: data.relocation,
-        familyInvolvement: data.familyInvolvement,
-        children: data.childrenStatus,
-        childrenPlans: data.childrenPlans,
-        photosVisibility: data.photoAccess,
-        visibility: data.profileVisibility,
-        bio: data.bio,
-        expectations: data.lookingFor,
-        syedStatus: data.syedStatus,
-      };
-      const clean = {};
-      for (const [k, v] of Object.entries(payload)) {
-        if (v === '' || v === null || v === undefined) continue;
-        if (Number.isNaN(v)) continue;
-        clean[k] = v;
-      }
+      const clean = buildProfilePayload(data);
       await api.updateProfile(user?.uid || 'me', clean);
       const profile = {
         ...data,
@@ -460,6 +520,39 @@ export default function Onboard() {
   return (
     <Layout>
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        {/* Verify banner — the wizard previously had NO verify prompt at all
+            (2026-11-01 stuck-signup fix). Unverified members see this on every
+            step, with a working resend, until they verify. */}
+        {user && user.emailVerified === false && (
+          <div className="mb-6 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="text-sm flex-1" style={{ color: 'var(--color-ink)' }}>
+              <strong>Verify your email</strong> to unlock messaging and publishing. Check your inbox for the verification link — it may be in spam.
+              {verifyMsg && <span className="block mt-1 text-xs opacity-80">{verifyMsg}</span>}
+              {verifyUrl && (
+                <a href={verifyUrl} className="block mt-1 text-xs font-semibold underline break-all" style={{ color: 'var(--color-primary)' }}>
+                  {verifyUrl}
+                </a>
+              )}
+            </p>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={resendVerification}
+                disabled={verifySending}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+                style={{ background: 'var(--color-primary)' }}
+              >
+                {verifySending ? 'Sending…' : 'Resend email'}
+              </button>
+              <button
+                onClick={() => navigate('/verify-pending')}
+                className="px-4 py-2 rounded-lg text-sm font-semibold"
+                style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)', color: 'var(--color-ink)' }}
+              >
+                Change email
+              </button>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <div className="mb-8 sm:mb-10">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary mb-2">

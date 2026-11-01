@@ -237,14 +237,23 @@ export default function Dashboard() {
                 </a>
               )}
             </p>
-            <button
-              onClick={resendVerification}
-              disabled={verifySending}
-              className="shrink-0 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
-              style={{ background: 'var(--color-primary)' }}
-            >
-              {verifySending ? 'Sending…' : 'Resend email'}
-            </button>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={resendVerification}
+                disabled={verifySending}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+                style={{ background: 'var(--color-primary)' }}
+              >
+                {verifySending ? 'Sending…' : 'Resend email'}
+              </button>
+              <Link
+                to="/verify-pending"
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-center"
+                style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)', color: 'var(--color-ink)' }}
+              >
+                Change email
+              </Link>
+            </div>
           </div>
         )}
         {recoveryStatus && typeof recoveryStatus.percent === 'number' && !recoveryStatus.complete && (

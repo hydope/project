@@ -14,6 +14,7 @@ function routeAuth(string $method, array $segments): void
     if ($method === 'POST' && $action === 'logout')   { authLogout();   return; }
     if ($method === 'GET'  && $action === 'verify-email') { authVerifyEmail(); return; }
     if ($method === 'POST' && $action === 'verify' && ($segments[1] ?? '') === 'request') { authVerifyRequest(); return; }
+    if ($method === 'POST' && $action === 'change-email') { authChangeEmail(); return; }
     if ($method === 'GET'  && $action === 'verify')   { authVerifyToken(); return; }
     if ($method === 'GET'  && $action === 'sessions') { authSessions(); return; }
     if ($method === 'GET'  && $action === 'me') { authMe(); return; }
@@ -181,6 +182,52 @@ function authVerifyRequest(): void
     }
 
     json(['ok' => true, 'devMode' => true, 'verifyUrl' => $verifyUrl]);
+}
+
+// POST /api/auth/change-email — signed-in, UNVERIFIED member corrects the
+// address they registered with (2026-11-01 stuck-signup fix: a typo'd email
+// could never be fixed, so the account was permanently unverifiable —
+// resending to a wrong address forever). Narrow scope on purpose: only
+// unverified accounts. A verified member changing email is a different flow
+// (re-verification of an established identity). The old verification link
+// dies automatically — issueVerificationToken upserts one live token per user.
+function authChangeEmail(): void
+{
+    $user = requireAuthUser();
+    $payload = requestJson();
+    $email = strtolower(trim((string)($payload['email'] ?? '')));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 320) {
+        je('Enter a valid email address.', 400);
+    }
+    $row = db()->prepare('SELECT id, email, display_name, email_verified FROM users WHERE id = ? LIMIT 1');
+    $row->execute([$user['uid']]);
+    $me = $row->fetch();
+    if (!$me) {
+        je('Authentication required', 401);
+    }
+    if (!empty($me['email_verified'])) {
+        je('Your email is already verified. To change a verified email, contact support.', 400);
+    }
+    if ($email === strtolower((string)$me['email'])) {
+        je('That is already your email address.', 400);
+    }
+    $taken = db()->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+    $taken->execute([$email]);
+    if ($taken->fetch()) {
+        je('An account with this email already exists.', 409);
+    }
+    db()->prepare('UPDATE users SET email = ?, email_verified = 0 WHERE id = ?')->execute([$email, $user['uid']]);
+    $token = issueVerificationToken((string)$user['uid']);
+    $verifyUrl = 'https://shiarishta.com/verify/' . $token;
+    if (mailEnabled()) {
+        mailSend([
+            'to' => $email,
+            'subject' => 'Verify your Shia Rishta email',
+            'text' => "Assalamu Alaikum {$me['display_name']},\n\nConfirm your email to finish creating your account:\n{$verifyUrl}\n\nThis link expires in 72 hours.",
+        ]);
+        json(['ok' => true, 'email' => $email, 'message' => 'Verification email sent to your new address — check your inbox.']);
+    }
+    json(['ok' => true, 'email' => $email, 'devMode' => true, 'verifyUrl' => $verifyUrl]);
 }
 
 // GET /api/auth/verify?token=... — public. Consumes the token on success.

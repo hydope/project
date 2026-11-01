@@ -13,17 +13,21 @@
  * profile is still incomplete. A member who completes their profile stops
  * receiving complete emails. Sends are recorded in recovery_emails.
  *
- * VERIFY drip (email_verified = 0):
+ * VERIFY drip (email_verified = 0) — tightened 2026-11-01 (stuck-signup fix):
+ *   the old 1/2/4-day gaps left most unverified members with no nudge on most
+ *   days (Oct 31: 3 sent, 21 skipped). Now daily for the first week.
  *   verify_1 — sent on first run if never sent ("Welcome back, verify your email")
  *   verify_2 — 1+ day after verify_1 ("Your profile is waiting")
- *   verify_3 — 2+ days after verify_2 ("New members joined this week")
- *   verify_4 — 4+ days after verify_3 ("Last call — your account stays hidden")
+ *   verify_3 — 1+ day after verify_2 ("New members joined this week")
+ *   verify_4 — 2+ days after verify_3 ("Last call — your account stays hidden")
  *   verify_weekly — every 7+ days after verify_4, until verified
  *
- * COMPLETE drip (verified but no bio AND no location):
+ * COMPLETE drip (verified but missing bio OR location — widened 2026-11-01:
+ *   the old query required BOTH bio and city missing, so partial profiles
+ *   got no nudge at all):
  *   complete_1 — sent on first run if never sent ("Finish your profile in 2 minutes")
- *   complete_2 — 2+ days after complete_1 ("You're almost there")
- *   complete_3 — 4+ days after complete_2 ("Last step to be seen")
+ *   complete_2 — 1+ day after complete_1 ("You're almost there")
+ *   complete_3 — 2+ days after complete_2 ("Last step to be seen")
  *   complete_weekly — every 7+ days after complete_3, until complete
  */
 
@@ -115,11 +119,11 @@ $verifyTemplates = [
 $completeTemplates = [
     'complete_1' => [
         'subject' => 'Finish your Shia Rishta profile in 2 minutes',
-        'body' => fn($name) => "Assalamu Alaikum {$name},\n\nYour email is verified — you're almost there. Your profile is missing just a location and a short bio, and without them other members can't find you.\n\nFinish in 2 minutes: https://shiarishta.com/onboard\n\nThat's all it takes to start appearing in searches and on the homepage.",
+        'body' => fn($name) => "Assalamu Alaikum {$name},\n\nYour email is verified — you're almost there. Your profile is still missing a location or a short bio, and without them other members can't find you as easily.\n\nFinish in 2 minutes: https://shiarishta.com/onboard\n\nThat's all it takes to start appearing in searches and on the homepage.",
     ],
     'complete_2' => [
         'subject' => 'You\'re almost there — one more step on Shia Rishta',
-        'body' => fn($name) => "Assalamu Alaikum {$name},\n\nYour Shia Rishta profile is still missing a location and bio. Members search by city first — without one, you're invisible in the results that matter most.\n\nAdd them now (2 minutes): https://shiarishta.com/onboard",
+        'body' => fn($name) => "Assalamu Alaikum {$name},\n\nYour Shia Rishta profile is still missing a location or a bio. Members search by city first — without one, you're invisible in the results that matter most.\n\nAdd them now (2 minutes): https://shiarishta.com/onboard",
     ],
     'complete_3' => [
         'subject' => 'Last step to be seen on Shia Rishta',
@@ -175,9 +179,9 @@ foreach ($unverified as $u) {
         $next = 'verify_1';
     } elseif (!isset($sent['verify_2']) && daysSince($sent['verify_1']) >= 1) {
         $next = 'verify_2';
-    } elseif (!isset($sent['verify_3']) && daysSince($sent['verify_2']) >= 2) {
+    } elseif (!isset($sent['verify_3']) && daysSince($sent['verify_2']) >= 1) {
         $next = 'verify_3';
-    } elseif (!isset($sent['verify_4']) && daysSince($sent['verify_3']) >= 4) {
+    } elseif (!isset($sent['verify_4']) && daysSince($sent['verify_3']) >= 2) {
         $next = 'verify_4';
     } elseif (isset($sent['verify_4']) && daysSince($sent['verify_weekly'] ?? $sent['verify_4']) >= 7) {
         // Persistent weekly reminder until verified (Syed's order 2026-10-24).
@@ -207,8 +211,7 @@ $incomplete = db()->query(
     "SELECT u.id, u.email, u.display_name FROM users u
      LEFT JOIN profiles p ON p.user_id = u.id
      WHERE {$real} AND u.email_verified = 1
-       AND (p.bio IS NULL OR p.bio = '')
-       AND (p.city IS NULL OR p.city = '')
+       AND ((p.bio IS NULL OR p.bio = '') OR (p.city IS NULL OR p.city = ''))
      ORDER BY u.created_at ASC"
 )->fetchAll(PDO::FETCH_ASSOC);
 
@@ -217,9 +220,9 @@ foreach ($incomplete as $u) {
     $next = null;
     if (!isset($sent['complete_1'])) {
         $next = 'complete_1';
-    } elseif (!isset($sent['complete_2']) && daysSince($sent['complete_1']) >= 2) {
+    } elseif (!isset($sent['complete_2']) && daysSince($sent['complete_1']) >= 1) {
         $next = 'complete_2';
-    } elseif (!isset($sent['complete_3']) && daysSince($sent['complete_2']) >= 4) {
+    } elseif (!isset($sent['complete_3']) && daysSince($sent['complete_2']) >= 2) {
         $next = 'complete_3';
     } elseif (isset($sent['complete_3']) && daysSince($sent['complete_weekly'] ?? $sent['complete_3']) >= 7) {
         // Persistent weekly reminder until complete (Syed's order 2026-10-24).

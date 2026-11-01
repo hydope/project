@@ -51,7 +51,11 @@ export default function Register() {
     try {
       await register({ email: formData.email, password: formData.password, displayName: formData.displayName, sect: formData.sect });
       analytics.track('account_created', { browser_local: true });
-      navigate('/onboard');
+      // 2026-11-01 stuck-signup fix: show the verify step FIRST. Before this
+      // we went straight to /onboard and 69% of real members never verified,
+      // so they stayed hidden and locked out of messaging. The pending screen
+      // always offers "Continue to profile setup", so onboarding is never blocked.
+      navigate('/verify-pending');
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {
