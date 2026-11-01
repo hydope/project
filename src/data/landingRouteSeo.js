@@ -150,6 +150,10 @@ const LANDING_BODY = {
     h1: 'Shia rishta in Seattle',
     more: 'Seattle\u2019s small, scattered Shia community means the local rishta grapevine is nearly silent. The answer is a national search with structure: verified profiles across America, West Coast clusters within natural reach, and video introductions plus wali workflows that make distance irrelevant.',
   },
+  'shia-rishtay': {
+    h1: 'Shia rishtay for nikah',
+    more: '\u201cRishta\u201d is singular; \u201crishtay\u201d is what families actually search for \u2014 the proposals a family weighs together, comparing deen, practice, and family values before choosing. Shia Rishta gathers that search into one verified pool across the UK, USA, and Canada: profiles filtered by marja and practice, photo privacy the member controls, and wali involvement from the first introduction \u2014 so the search stays family-led whether the match is local or an ocean away.',
+  },
   'shiamatch-alternative': {
     h1: 'Looking for a ShiaMatch alternative?',
     more: 'ShiaMatch has served the community for years, but its homepage states it is free except for men residing in the USA, UK, or Canada. ShiaRishta is the free alternative: no country-based charges, photo and ID verification badges, a free biodata maker families can share on WhatsApp, matchmaker accounts, and modern iOS and Android apps.',

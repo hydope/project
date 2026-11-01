@@ -1329,6 +1329,51 @@ Object.assign(LANDING_PAGES, {
       { to: '/shia-brides', label: 'Find a Shia bride' },
     ],
   },
+  'shia-rishtay': {
+    title: 'Shia Rishtay | Find Shia Rishta for Nikah in the UK, USA & Canada \u2013 Shia Rishta',
+    desc: 'Searching for Shia rishtay? Meet verified Shia brides and grooms across the UK, USA and Canada \u2014 filtered by marja, practice, and family values, with wali-involved introductions. Free to join.',
+    h1: 'Shia Rishtay for Nikah',
+    breadcrumb: 'Shia Rishtay',
+    intro: [
+      '\u201cRishta\u201d is singular. \u201cRishtay\u201d is what families actually search for \u2014 the plural, because no family looks at one proposal and stops. They compare, they ask around, they weigh deen against dunya, and they keep looking until the right match appears. That is what this page is for: the search itself, done properly.',
+      'Shia Rishta brings the rishtay search into one verified place. Every profile is Shia and seeking nikah, every filter understands Shia practice \u2014 marja, sect, Muharram observance \u2014 and your wali and family are part of the process from the first introduction, whether the match is in London, Houston, Toronto, or back home.',
+    ],
+    sections: [
+      {
+        h2: 'Rishta, rishtay, and the family-led search',
+        body: [
+          'In desi households the word does a lot of work. A rishta is a proposal; rishtay are the options a family considers together \u2014 discussed at the dinner table, vetted by parents, prayed over. The process has always been collective, and it works best when it stays that way. A platform that hides the search from the family is fighting the culture it claims to serve. Shia Rishta keeps the family in the room: wali workflows, family-to-family introductions, and photo privacy the member controls, so the search is shared without being exposed.',
+        ],
+      },
+      {
+        h2: 'How the search works here',
+        body: [
+          'Create a free profile with honest detail about your practice, family background, and what you are looking for. Search verified Shia brides and grooms by marja, practice, education, location, and family values. Express interest privately \u2014 nothing is shared until interest is mutual \u2014 and when both sides are serious, families connect through private video introductions and guardian messaging. The platform handles the introduction; your family and your marja handle the rest.',
+        ],
+      },
+      {
+        h2: 'Rishtay across the UK, USA and Canada',
+        body: [
+          'The diaspora search is rarely local. A family in London considers rishtay from Toronto; a Houston family looks at Chicago and the UK. Shia Rishta is built for that reality: search by city or country, or widen to worldwide, with time-zone-friendly guardian tools and private video introductions that make a cross-border courtship as structured as one across town. Wherever your family is, the pool is the same verified one.',
+        ],
+      },
+    ],
+    faqs: [
+      { q: 'What does \u201crishtay\u201d mean?', a: '\u201cRishta\u201d is a marriage proposal or match; \u201crishtay\u201d is the plural \u2014 the proposals and matches a family considers while searching. On Shia Rishta, families search verified Shia rishtay across the UK, USA, Canada, and worldwide.' },
+      { q: 'How do we find Shia rishtay in our city?', a: 'Use location filters to search your city or metro \u2014 London, Toronto, Houston, Chicago, and more \u2014 then widen to nationwide or worldwide when the right match is worth the distance.' },
+      { q: 'Can our wali be involved from the start?', a: 'Yes. Wali and guardian workflows are built in: approvals, family-to-family messaging, and private video introductions work across cities and countries, so your family is part of every step.' },
+      { q: 'Is it really free?', a: 'Yes. Creating a profile, browsing, messaging, verification badges, and the biodata maker are all free \u2014 no paid tier gates the rishta search.' },
+    ],
+    related: [
+      { to: '/shia-rishta-london', label: 'Shia rishta in London' },
+      { to: '/shia-rishta-toronto', label: 'Shia rishta in Toronto' },
+      { to: '/shia-rishta-chicago', label: 'Shia rishta in Chicago' },
+      { to: '/shia-marriage', label: 'Shia marriage, explained' },
+      { to: '/shia-nikah', label: 'The Shia nikah, explained' },
+      { to: '/shia-brides', label: 'Find a Shia bride' },
+      { to: '/shia-grooms', label: 'Find a Shia groom' },
+    ],
+  },
 });
 
 export default LANDING_PAGES;
