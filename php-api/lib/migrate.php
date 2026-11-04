@@ -829,6 +829,42 @@ function migrateAddBlogQueueTable(): void
         ['Shia simple nikah: a minimal, beautiful guide', 'Stripping it to the essentials', 'Guidance', 'shia simple nikah guide'],
         ['Shia nikah before the visa arrives: long-distance rules', 'Paperwork, patience and rulings', 'Guidance', 'shia nikah before visa'],
         ['Shia rishta from Pakistan to the USA: the full playbook', 'Immigration-aware searching', 'Guidance', 'shia rishta pakistan to usa'],
+        // Batch 8 (2026-11-04): fourth month of topics. Topic queue was empty
+        // (queue_empty on 2026-11-03 and 2026-11-04 runs) with scheduled at
+        // 87/90 and deficit 3 — refill blocked until new topics exist. Same
+        // rules: real long-tail queries, geo expansion (US cities, UK/CA,
+        // Europe, Africa) + life-stage and profession angles. All keywords
+        // verified absent from batches 1-7 and from published /blog/ slugs.
+        ['Shia matrimony in San Jose: Silicon Valley rishta guide', 'Tech-community searching in the Bay Area', 'Guidance', 'shia matrimony san jose'],
+        ['Shia matrimony in Portland: Oregon rishta guide', 'Pacific Northwest community overview', 'Guidance', 'shia matrimony portland'],
+        ['Shia matrimony in Charlotte: North Carolina rishta guide', 'Community overview and search tips', 'Guidance', 'shia matrimony charlotte'],
+        ['Shia matrimony in Nashville: Tennessee rishta guide', 'Community overview', 'Guidance', 'shia matrimony nashville'],
+        ['Shia matrimony in Columbus: Ohio rishta guide', 'Community and search tips', 'Guidance', 'shia matrimony columbus ohio'],
+        ['Shia matrimony in Pittsburgh: Pennsylvania rishta guide', 'Steel City community overview', 'Guidance', 'shia matrimony pittsburgh'],
+        ['Shia matrimony in St. Louis: Missouri rishta guide', 'Community overview', 'Guidance', 'shia matrimony st louis'],
+        ['Shia matrimony in Orlando: Central Florida rishta guide', 'Community and search tips', 'Guidance', 'shia matrimony orlando'],
+        ['Shia matrimony in Tampa: Florida Gulf Coast rishta guide', 'Community overview', 'Guidance', 'shia matrimony tampa'],
+        ['Shia matrimony in Las Vegas: Nevada rishta guide', 'Community and search tips', 'Guidance', 'shia matrimony las vegas'],
+        ['Shia matrimony in Salt Lake City: Utah rishta guide', 'Small-community playbook', 'Guidance', 'shia matrimony salt lake city'],
+        ['Shia matrimony in Raleigh: North Carolina Triangle guide', 'Community overview', 'Guidance', 'shia matrimony raleigh'],
+        ['Shia matrimony in New Orleans: Louisiana rishta guide', 'Community and search tips', 'Guidance', 'shia matrimony new orleans'],
+        ['Shia matrimony in Indianapolis: Indiana rishta guide', 'Community overview', 'Guidance', 'shia matrimony indianapolis'],
+        ['Shia matrimony in Leeds: Yorkshire rishta guide', 'UK community overview', 'Guidance', 'shia matrimony leeds uk'],
+        ['Shia matrimony in Glasgow: Scotland rishta guide', 'Community and search tips', 'Guidance', 'shia matrimony glasgow'],
+        ['Shia matrimony in Calgary: Alberta rishta guide', 'Community overview', 'Guidance', 'shia matrimony calgary'],
+        ['Shia matrimony in Ottawa: Canada capital rishta guide', 'Community and search tips', 'Guidance', 'shia matrimony ottawa'],
+        ['Shia rishtay in Dublin: Ireland community guide', 'Small community, smart searching', 'Guidance', 'shia rishtay in dublin'],
+        ['Shia rishtay in Norway: Oslo community guide', 'Scandinavian searching, done right', 'Guidance', 'shia rishtay in norway'],
+        ['Shia rishtay in Denmark: Copenhagen community guide', 'Community overview and channels', 'Guidance', 'shia rishtay in denmark'],
+        ['Shia rishtay in Austria: Vienna community guide', 'Community overview', 'Guidance', 'shia rishtay in austria'],
+        ['Shia rishtay in Switzerland: Zurich and Geneva guide', 'Community and practical search tips', 'Guidance', 'shia rishtay in switzerland'],
+        ['Shia rishtay in South Africa: Johannesburg and Cape Town guide', 'Community overview and channels', 'Guidance', 'shia rishtay in south africa'],
+        ['Shia rishtay in Kenya: Nairobi community guide', 'Small-community playbook', 'Guidance', 'shia rishtay in kenya'],
+        ['Shia rishta after divorce for men: starting again with dignity', 'What men and families should know', 'Guidance', 'shia rishta divorced men'],
+        ['Rishta for Shia teachers: balancing school and the marriage search', 'Practical advice for educators', 'Profiles', 'shia teacher rishta'],
+        ['Rishta for Shia nurses and healthcare workers', 'Shift work, schedules and searching well', 'Profiles', 'shia nurse rishta'],
+        ['Shia rishta and financial compatibility: money talks before nikah', 'Expectations, debts and honest conversations', 'Guidance', 'shia rishta financial compatibility'],
+        ['Shia rishta in Ramadan: searching during the holy month', 'Timing, etiquette and practical tips', 'Guidance', 'shia rishta ramadan'],
     ];
 
     try {

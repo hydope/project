@@ -6,6 +6,8 @@
 -- users.is_test backfill (QA emails + test-shell profile patterns).
 -- Marker bump 2026-10-13: re-run migrations to seed blog_queue batch 7
 -- (30 fresh topics) and pick up the queue-save earliest-free-slot fix.
+-- Marker bump 2026-11-04: re-run migrations to seed blog_queue batch 8
+-- (30 fresh topics) — topic queue was empty, blocking the daily refill.
 
 SET NAMES utf8mb4;
 
