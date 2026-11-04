@@ -300,6 +300,8 @@ function routeAdmin(string $method, array $segments): void
     // Member search with pagination. The old adminUsers() returned a flat
     // LIMIT 100 list with no way to find anybody and no way to page.
     if ($method === 'GET' && $action === 'users') { adminUsers(); return; }
+    // Deleted profiles — why members left, newest first.
+    if ($method === 'GET' && $action === 'deleted-profiles') { adminDeletedProfiles(); return; }
     if ($method === 'GET' && $action === 'user' && ($segments[1] ?? null) !== null) {
         adminUserDetail((string)$segments[1]);
         return;
@@ -1057,6 +1059,33 @@ function adminUsers(): void
     unset($r);
 
     json(['rows' => $rows, 'hasMore' => $hasMore, 'count' => count($rows), 'total' => $total]);
+}
+
+// GET /api/admin/deleted-profiles — why members left, newest first.
+//
+// Reads the account_deletion_feedback rows written at delete time (the user
+// row itself is gone, so this table is the only record). Read-only by design:
+// the API exposes no mutation route for this table. Tolerates the table not
+// existing yet (migration pending) by returning an empty list instead of 500ing.
+function adminDeletedProfiles(): void
+{
+    $limit = max(1, min(100, (int)($_GET['limit'] ?? 25)));
+    $offset = max(0, (int)($_GET['offset'] ?? 0));
+
+    $total = 0;
+    try {
+        $total = (int)(db()->query('SELECT COUNT(*) AS n FROM account_deletion_feedback')->fetch()['n'] ?? 0);
+    } catch (Throwable) {
+        json(['rows' => [], 'total' => 0, 'hasMore' => false]);
+    }
+
+    $stmt = db()->prepare('SELECT id, user_id, display_name, email, city, country, joined_at, reason, detail, created_at FROM account_deletion_feedback ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?');
+    $stmt->bindValue(1, $limit, PDO::PARAM_INT);
+    $stmt->bindValue(2, $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    $rows = $stmt->fetchAll();
+
+    json(['rows' => $rows, 'total' => $total, 'hasMore' => ($offset + $limit < $total)]);
 }
 
 // GET /api/admin/queue — one ranked moderation worklist.

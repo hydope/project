@@ -415,10 +415,14 @@ function authDeleteAccount(): void
 {
     $user = requireAuthUser();
     $uid = (string)$user['uid'];
+    $body = requestJson();
     $pdo = db();
 
     try {
         $pdo->beginTransaction();
+        // Feedback FIRST, inside the same transaction: the identity snapshot
+        // reads the rows this transaction is about to delete.
+        recordDeletionFeedback($pdo, $uid, $body);
         // Delete in dependency order. Foreign keys with ON DELETE CASCADE
         // handle most of this, but explicit deletes are safer.
         $pdo->prepare('DELETE FROM messages WHERE sender_id = ?')->execute([$uid]);

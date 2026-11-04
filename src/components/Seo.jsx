@@ -53,6 +53,7 @@ const PRIVATE_TITLES = {
   '/admin': 'Admin Dashboard | Shia Rishta',
   '/admin/content': 'Blog & Content | Shia Rishta Admin',
   '/admin/members': 'Members | Shia Rishta Admin',
+  '/admin/deleted-profiles': 'Deleted Profiles | Shia Rishta Admin',
   '/admin/moderation': 'Moderation | Shia Rishta Admin',
   '/admin/biodata': 'Biodata Maker | Shia Rishta Admin',
   '/admin/verifications': 'Verifications | Shia Rishta Admin',

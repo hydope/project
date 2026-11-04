@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/auth/AuthContext';
 import Seo from '../components/Seo';
 import {
-  LayoutDashboard, ShieldAlert, UserCheck, Users, LifeBuoy, BadgeCheck,
+  LayoutDashboard, ShieldAlert, UserCheck, Users, UserX, LifeBuoy, BadgeCheck,
   KeyRound, History, BookOpen, BarChart3, LogOut, HeartHandshake, Home,
   Sun, Moon, FileText, Sprout,
 } from 'lucide-react';
@@ -13,6 +13,7 @@ const ADMIN_LINKS = [
   { path: '/admin/queue', label: 'Moderation Queue', icon: ShieldAlert },
   { path: '/admin/verify-accounts', label: 'Verify Accounts', icon: UserCheck },
   { path: '/admin/members', label: 'Members', icon: Users },
+  { path: '/admin/deleted-profiles', label: 'Deleted profiles', icon: UserX },
   { path: '/admin/members', to: '/admin/members?seeded=1', label: 'Seed Members', icon: Sprout, seeded: true },
   { path: '/admin/matchmaker', label: 'Matchmaker Queue', icon: HeartHandshake },
   { path: '/admin/biodata', label: 'Biodata Maker', icon: FileText },

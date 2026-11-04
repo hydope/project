@@ -60,6 +60,7 @@ function migrateSchema(): void
     migrateAddOnboardingDraftColumn();
     migrateAddSubEthnicityColumn();
     migrateAddInterestDeclinesTable();
+    migrateAddDeletionFeedbackTable();
     migrateAddConversationReadColumns();
     migrateSeedDefaultCommunities();
 
@@ -1076,6 +1077,28 @@ function migrateAddInterestDeclinesTable(): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     } catch (Throwable $e) {
         error_log('[api] migration (interest_declines) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+function migrateAddDeletionFeedbackTable(): void
+{
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS account_deletion_feedback (
+          id            CHAR(36)     NOT NULL PRIMARY KEY,
+          user_id       CHAR(36)     NOT NULL,
+          display_name  VARCHAR(120) DEFAULT NULL,
+          email         VARCHAR(190) DEFAULT NULL,
+          city          VARCHAR(120) DEFAULT NULL,
+          country       VARCHAR(120) DEFAULT NULL,
+          joined_at     DATETIME     DEFAULT NULL,
+          reason        VARCHAR(64)  DEFAULT NULL,
+          detail        TEXT         DEFAULT NULL,
+          created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          KEY idx_adf_created (created_at),
+          KEY idx_adf_reason (reason)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Throwable $e) {
+        error_log('[api] migration (account_deletion_feedback) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }
 

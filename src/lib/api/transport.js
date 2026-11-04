@@ -88,7 +88,21 @@ export const http = {
   post: (path, body, opts) => request(path, { method: 'POST', body: JSON.stringify(body ?? {}), ...(opts || {}) }),
   put: (path, body, opts) => request(path, { method: 'PUT', body: JSON.stringify(body ?? {}), ...(opts || {}) }),
   patch: (path, body, opts) => request(path, { method: 'PATCH', body: JSON.stringify(body ?? {}), ...(opts || {}) }),
-  del: (path, opts) => request(path, { method: 'DELETE', ...(opts || {}) }),
+  // DELETE with an optional JSON body: del(path) for plain deletes,
+  // del(path, body) when the endpoint takes input (e.g. account deletion
+  // records the exit-survey answer). Backwards-compatible: a second argument
+  // that looks like request options ({ timeout } etc.) is still treated as
+  // opts, since every existing caller passes at most one argument.
+  del: (path, body, opts) => {
+    if (body && typeof body === 'object' && !('reason' in body) && !('detail' in body)
+      && ('timeout' in body || 'signal' in body || 'headers' in body)) {
+      opts = body;
+      body = undefined;
+    }
+    const init = { method: 'DELETE', ...(opts || {}) };
+    if (body !== undefined) init.body = JSON.stringify(body);
+    return request(path, init);
+  },
   // Returns the raw Response (not JSON) for binary endpoints. Accepts either a
   // path or an already-absolute URL — apiUrl() output must not be double-prefixed
   // with BASE.

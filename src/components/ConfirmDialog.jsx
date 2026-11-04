@@ -14,6 +14,7 @@ export default function ConfirmDialog({
   cancelLabel = 'Cancel',
   danger = false,
   busy = false,
+  children = null,
   onConfirm,
   onCancel,
 }) {
@@ -94,6 +95,9 @@ export default function ConfirmDialog({
             <p style={{ fontSize: '0.9375rem', color: 'var(--color-ink-secondary)', marginBottom: '1.5rem', lineHeight: 1.6 }}>
               {message}
             </p>
+          )}
+          {children && (
+            <div style={{ marginBottom: '1.5rem' }}>{children}</div>
           )}
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
             <button

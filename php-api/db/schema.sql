@@ -456,3 +456,23 @@ CREATE TABLE IF NOT EXISTS recovery_emails (
   UNIQUE KEY idx_re_user_stage (user_id, stage),
   KEY idx_re_sent (sent_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Why members leave. Written at account-deletion time, BEFORE the user row
+-- is deleted, and deliberately WITHOUT a foreign key to users: the row must
+-- survive the deletion it describes, or the reason is lost with the account.
+-- reason is one of the DELETION_REASONS keys (see src/lib/api/safety.js);
+-- unknown values are stored as 'other', a skipped question as NULL.
+CREATE TABLE IF NOT EXISTS account_deletion_feedback (
+  id            CHAR(36)     NOT NULL PRIMARY KEY,
+  user_id       CHAR(36)     NOT NULL,
+  display_name  VARCHAR(120) DEFAULT NULL,
+  email         VARCHAR(190) DEFAULT NULL,
+  city          VARCHAR(120) DEFAULT NULL,
+  country       VARCHAR(120) DEFAULT NULL,
+  joined_at     DATETIME     DEFAULT NULL,
+  reason        VARCHAR(64)  DEFAULT NULL,
+  detail        TEXT         DEFAULT NULL,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_adf_created (created_at),
+  KEY idx_adf_reason (reason)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

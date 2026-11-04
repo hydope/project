@@ -135,6 +135,48 @@ function uuid(): string {
 
 function sha256Hex(string $s): string { return hash('sha256', (string)$s); }
 
+// Record why a member is deleting their account — called FIRST inside the
+// delete transaction, before any row is removed. Snapshots identity
+// (name/email/city/country/join date) from the live rows, because after the
+// deletes there is nothing left to join against. The feedback table has no
+// foreign key to users by design: the row must survive the deletion.
+// Never throws: if the table is not migrated yet, log and let the deletion
+// proceed — losing a reason is bad, blocking a deletion is worse.
+function recordDeletionFeedback(PDO $pdo, string $uid, array $body): void
+{
+    $validReasons = ['found_match_elsewhere', 'no_suitable_matches', 'too_few_members', 'nobody_replies', 'privacy', 'too_complicated', 'other', 'prefer_not_to_say'];
+    $reason = isset($body['reason']) ? trim((string)$body['reason']) : '';
+    if ($reason !== '' && !in_array($reason, $validReasons, true)) {
+        $reason = 'other';
+    }
+    $detail = isset($body['detail']) ? trim((string)$body['detail']) : '';
+    if (mb_strlen($detail) > 1000) {
+        $detail = mb_substr($detail, 0, 1000);
+    }
+    try {
+        $u = $pdo->prepare('SELECT display_name, email, created_at FROM users WHERE id = ? LIMIT 1');
+        $u->execute([$uid]);
+        $user = $u->fetch() ?: [];
+        $p = $pdo->prepare('SELECT city, country FROM profiles WHERE user_id = ? LIMIT 1');
+        $p->execute([$uid]);
+        $prof = $p->fetch() ?: [];
+        $pdo->prepare('INSERT INTO account_deletion_feedback (id, user_id, display_name, email, city, country, joined_at, reason, detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+            ->execute([
+                uuid(),
+                $uid,
+                (string)($user['display_name'] ?? ''),
+                (string)($user['email'] ?? ''),
+                ($prof['city'] ?? null) !== '' ? ($prof['city'] ?? null) : null,
+                ($prof['country'] ?? null) !== '' ? ($prof['country'] ?? null) : null,
+                $user['created_at'] ?? null,
+                $reason === '' ? null : $reason,
+                $detail === '' ? null : $detail,
+            ]);
+    } catch (Throwable $e) {
+        error_log('[api] deletion feedback not recorded: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
 // Issues a hashed email-verification token (72h expiry). Used by the auth
 // routes and the recovery-email cron. Tokens are stored hashed — a DB leak
 // must not yield usable verify links.

@@ -7,6 +7,7 @@ import GetVerified from '../components/GetVerified';
 import PhotoUpload from '../components/PhotoUpload';
 import WaliLinks from '../components/WaliLinks';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { DELETION_REASONS } from '../lib/api/safety';
 import {
   Shield, Bell, User, Lock, Moon, Sun, AlertTriangle
 } from 'lucide-react';
@@ -218,6 +219,11 @@ export default function Settings() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  // Exit survey — optional, one tap to skip (confirm without answering).
+  // Sent with the delete request so the reason is recorded before the
+  // account is wiped; the admin "Deleted profiles" page reads it back.
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleteDetail, setDeleteDetail] = useState('');
 
   const [notifications, setNotifications] = useState({
     emailMessages: true, emailMatches: true, emailWeeklyDigest: true,
@@ -702,7 +708,10 @@ export default function Settings() {
                       setDeleteError('');
                       try {
                         const { deleteAccount } = await import('../lib/api/safety');
-                        await deleteAccount();
+                        await deleteAccount({
+                          reason: deleteReason || undefined,
+                          detail: deleteDetail.trim() || undefined,
+                        });
                         logout();
                         window.location.href = '/';
                       } catch (e) {
@@ -712,7 +721,37 @@ export default function Settings() {
                         setConfirmDeleteOpen(false);
                       }
                     }}
-                  />
+                  >
+                    <p className="text-sm font-medium text-ink mb-2">
+                      Before you go — mind telling us why? <span className="font-normal text-muted">(optional)</span>
+                    </p>
+                    <div role="radiogroup" aria-label="Why are you leaving?" className="space-y-1.5 mb-3">
+                      {DELETION_REASONS.map((r) => (
+                        <label key={r.key} className="flex items-center gap-2 text-sm text-ink cursor-pointer">
+                          <input
+                            type="radio"
+                            name="delete-reason"
+                            value={r.key}
+                            checked={deleteReason === r.key}
+                            onChange={() => setDeleteReason(r.key)}
+                            disabled={deleteBusy}
+                          />
+                          {r.label}
+                        </label>
+                      ))}
+                    </div>
+                    <textarea
+                      value={deleteDetail}
+                      onChange={(e) => setDeleteDetail(e.target.value)}
+                      placeholder="Anything else you'd like us to know? (optional)"
+                      rows={2}
+                      maxLength={1000}
+                      disabled={deleteBusy}
+                      className="input w-full text-sm"
+                      aria-label="Anything else you'd like us to know? (optional)"
+                    />
+                    <p className="text-xs text-muted mt-2">You can delete without answering — just press &ldquo;Yes, delete everything&rdquo;.</p>
+                  </ConfirmDialog>
                 </div>
               </div>
             )}
