@@ -509,6 +509,11 @@ function profilesList(): void
         $params[] = $term; $params[] = $term; $params[] = $term;
     }
 
+    // "Unfinished" is exactly the old "Profile in progress" badge condition
+    // (ProfileCard.jsx): no city, no country, and no bio/about-family text.
+    // excerptText() trims, so whitespace-only values count as empty here too.
+    $unfinished = "(TRIM(COALESCE(p.city, '')) = '' AND TRIM(COALESCE(p.country, '')) = '' AND TRIM(COALESCE(p.bio, '')) = '' AND TRIM(COALESCE(p.about_family, '')) = '')";
+
     if ($viewer === null) {
         // Signed-out visitors browse the same non-private roster a member sees.
         // Only `private` hides a profile now — it is the one setting a member
@@ -520,9 +525,19 @@ function profilesList(): void
         // accepted trade: everything returned still honours the member's photo
         // setting, and `private` profiles remain fully invisible.
         $where[] = "p.visibility <> 'private'";
+        // Hide unfinished profiles from browse (2026-11-04, Syed's call): no
+        // city, no country, no bio and no about-family text — the exact
+        // condition behind the old "Profile in progress" badge. They stay
+        // countable members, just not browsable until they add even one of
+        // those fields, at which point they reappear immediately.
+        $where[] = "NOT $unfinished";
         $limit = 100;
     } else {
         $where[] = "(p.visibility <> 'private' OR p.user_id = ?)";
+        $params[] = $viewer['uid'];
+        // Same unfinished filter, except the viewer's own profile, which stays
+        // visible to themselves (mirrors the visibility exemption above).
+        $where[] = "(NOT $unfinished OR p.user_id = ?)";
         $params[] = $viewer['uid'];
         // Never show members their own profile as a match.
         $where[] = 'p.user_id <> ?';

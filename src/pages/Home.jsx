@@ -61,14 +61,12 @@ export default function Home() {
   const reduceMotion = useReducedMotion();
   const { isLoggedIn, user } = useAuth();
   const { data, isLoading: profilesLoading } = useProfiles({});
-  // Homepage members: the newest real profiles, period — including ones
-  // still in progress. The old bio-only filter hid every new signup from the
-  // homepage (they showed in /profiles but never here), which is exactly the
-  // complaint. The API already orders real-first, newest-first, so the first
-  // 6 are the newest members. Incomplete profiles get a "Profile in progress"
-  // badge from ProfileCard instead of dead-end placeholder text, so they read
-  // as new, not broken. (2026-10-24: a separate "New members" section was
-  // tried and rejected by Syed — one members section, not two.)
+  // Homepage members: the newest real profiles, period. Unfinished profiles
+  // (no city, no country, no bio) are hidden from browse by the API since
+  // 2026-11-04 (Syed's call), so they never reach this list — the first 6
+  // here are the newest finished members. (2026-10-24: a separate "New
+  // members" section was tried and rejected by Syed — one members section,
+  // not two.)
   const featured = (data || []).slice(0, 6);
 
   // Community counts, straight from the database. Until this resolves we show

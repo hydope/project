@@ -257,15 +257,6 @@ export default function ProfileCard({ profile, className = '' }) {
           {profile.isDemo === true && (
             <SampleProfileBadge className="w-fit" />
           )}
-          {/* Incomplete profile: no location and no bio yet. Show a warm
-              "in progress" badge instead of dead-end placeholder text
-              ("Location not shared" / "No profile summary yet.") — a profile
-              should never look broken, only in progress (2026-10-24). */}
-          {!profile.city && !profile.country && !about && !isTeaser && (
-            <span className="badge-primary text-[10px] px-2 py-0.5 rounded-full font-semibold w-fit mt-1" style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}>
-              Profile in progress
-            </span>
-          )}
           {profile.city || profile.country ? (
             <p className="flex items-center gap-1.5 text-[13px] leading-6 truncate mt-1" style={{ color: 'var(--color-ink-secondary)' }}>
               <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-primary)' }} />
