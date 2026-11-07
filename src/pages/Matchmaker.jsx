@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import Layout from '../layouts/MainLayout';
 import { http } from '../lib/api/transport';
 import { useAuthedImage } from '../lib/api/useAuthedImage';
@@ -38,6 +38,7 @@ const FIELDS = [
 export default function Matchmaker() {
   usePageTitle('Matchmaker');
   const { isLoggedIn, user } = useAuth();
+  const location = useLocation();
   const [form, setForm] = useState({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -64,6 +65,26 @@ export default function Matchmaker() {
     if (!isLoggedIn) return;
     http.get('/api/matchmaker/mine').then(r => setMine(r.submissions || [])).catch(() => {});
   }, [isLoggedIn]);
+
+  // The sidebar's "My submissions" link lands here with #my-submissions.
+  // The router's ScrollToTop ignores hash-only changes (and scrolls to top
+  // on pathname changes), so scroll to the card ourselves — retrying briefly,
+  // since the card only renders once the submissions fetch lands.
+  useEffect(() => {
+    if (location.hash !== '#my-submissions') return;
+    let tries = 0;
+    let timer;
+    const tick = () => {
+      const el = document.getElementById('my-submissions');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      if (++tries < 25) timer = setTimeout(tick, 100);
+    };
+    timer = setTimeout(tick, 50);
+    return () => clearTimeout(timer);
+  }, [location.hash, mine.length]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -248,7 +269,7 @@ export default function Matchmaker() {
         )}
 
         {isLoggedIn && mine.length > 0 && (
-          <div className="card p-6">
+          <div id="my-submissions" className="card p-6" style={{ scrollMarginTop: '4.5rem' }}>
             <h2 className="font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>My submissions</h2>
             <div className="space-y-2">
               {mine.map(s => (
