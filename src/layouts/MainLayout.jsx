@@ -7,8 +7,9 @@ import {
   Moon, Search, Command, X, LayoutDashboard, Users, MessageCircle,
   BookOpen, LifeBuoy, Settings, LogOut, Home, Menu,
   Shield, ShieldAlert, BarChart3, History, HandHeart, BadgeCheck, KeyRound, UserCheck, Bookmark,
-  HeartHandshake, FileText
+  HeartHandshake, FileText, ListChecks
 } from 'lucide-react';
+import { http } from '../lib/api/transport';
 // Lazy: the assistant widget + brain load on demand, not in the entry chunk.
 const AIAssistant = lazy(() => import('../components/AIAssistant'));
 const FeedbackWidget = lazy(() => import('../components/FeedbackWidget'));
@@ -231,19 +232,34 @@ const ADMIN_NAV_ITEMS = [
   { path: '/admin/analytics', label: 'Analytics', icon: BarChart3, section: 'Admin' },
 ];
 
-function Nav({ isLoggedIn, isAdmin, isActive, onNavigate, inAdmin }) {
+function Nav({ isLoggedIn, isAdmin, isMatchmaker, pendingSubmissions, isActive, onNavigate, inAdmin }) {
   if (!isLoggedIn) return null;
+  const location = useLocation();
 
   // Inside the admin console an admin sees the admin tree, not the member one.
   // Showing "Messages / Introductions / Browse Profiles" alongside moderation
   // controls made the console feel like a member site with an extra panel, and
   // gave an operator one stray click to leave the queue mid-review. One escape
   // hatch back to the member side is deliberate; a second nav is not.
-  const items = !isAdmin
-    ? NAV_ITEMS
-    : inAdmin
+  let items;
+  if (isAdmin) {
+    items = inAdmin
       ? [...ADMIN_NAV_ITEMS, { path: '/dashboard', label: 'Member dashboard', icon: LayoutDashboard, section: 'Admin', divider: true }]
       : [...NAV_ITEMS, ...ADMIN_NAV_ITEMS];
+  } else if (isMatchmaker) {
+    // Matchmakers get their own section, right after Overview. The generic
+    // "Matchmaker" link under Tools and "Introductions" under Connect are
+    // dropped here, so each destination appears exactly once.
+    const rest = NAV_ITEMS.filter((i) => i.path !== '/matchmaker' && i.path !== '/drafts');
+    const overviewCount = rest.filter((i) => i.section === 'Overview').length;
+    items = [
+      ...rest.slice(0, overviewCount),
+      ...getMatchmakerNavItems(pendingSubmissions),
+      ...rest.slice(overviewCount),
+    ];
+  } else {
+    items = NAV_ITEMS;
+  }
 
   // Group by section
   const sections = {};
@@ -257,22 +273,54 @@ function Nav({ isLoggedIn, isAdmin, isActive, onNavigate, inAdmin }) {
       {Object.entries(sections).map(([section, sectionItems]) => (
         <div key={section}>
           <div className="sidebar-section">{section}</div>
-          {sectionItems.map(item => (
-            <Link
-              key={item.path}
-              to={item.path}
-              onClick={onNavigate}
-              className={isActive(item.path) ? 'active' : ''}
-              aria-current={isActive(item.path) ? 'page' : undefined}
-            >
-              <item.icon />
-              <span>{item.label}</span>
-            </Link>
-          ))}
+          {sectionItems.map(item => {
+            // Hash links (My submissions) are active only when the hash matches;
+            // everything else uses the shared pathname check.
+            const itemActive = item.hash
+              ? location.pathname === (item.activePath || item.path) && location.hash === item.hash
+              : isActive(item.activePath || item.path);
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={onNavigate}
+                className={itemActive ? 'active' : ''}
+                aria-current={itemActive ? 'page' : undefined}
+                aria-label={item.badge > 0 ? `${item.label}, ${item.badge} pending review` : undefined}
+              >
+                <item.icon />
+                <span>{item.label}</span>
+                {item.badge > 0 && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      marginLeft: 'auto', flexShrink: 0, minWidth: 20, height: 20,
+                      padding: '0 6px', borderRadius: 999, display: 'inline-flex',
+                      alignItems: 'center', justifyContent: 'center',
+                      background: 'var(--color-primary-subtle)', color: 'var(--color-primary)',
+                      fontSize: 11, fontWeight: 700, lineHeight: 1,
+                    }}
+                  >
+                    {item.badge}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </div>
       ))}
     </nav>
   );
+}
+
+// Matchmaker workspace — shown to matchmaker-role users only. The badge is
+// the count of submissions still under review (hidden when 0).
+function getMatchmakerNavItems(pendingCount) {
+  return [
+    { path: '/matchmaker', label: 'Submit a profile', icon: HeartHandshake, section: 'Matchmaker' },
+    { path: '/matchmaker#my-submissions', label: 'My submissions', icon: ListChecks, section: 'Matchmaker', hash: '#my-submissions', activePath: '/matchmaker', badge: pendingCount },
+    { path: '/drafts', label: 'Introductions', icon: HandHeart, section: 'Matchmaker' },
+  ];
 }
 
 // ── Main Layout ──────────────────────────────────────────────────────────────
@@ -300,6 +348,29 @@ export default function MainLayout({ children }) {
     (path) => location.pathname === path || location.pathname.startsWith(path + '/'),
     [location.pathname]
   );
+
+  // Matchmaker workspace: the sidebar gets a dedicated section for
+  // matchmaker-role users, with a badge counting submissions still under
+  // review. Refetched on navigation so the count stays accurate after a
+  // submission; a failed fetch simply hides the badge — it must never
+  // break the nav.
+  const isMatchmaker = user?.role === 'matchmaker';
+  const [pendingSubmissions, setPendingSubmissions] = useState(0);
+  useEffect(() => {
+    if (!isLoggedIn || !isMatchmaker) {
+      setPendingSubmissions(0);
+      return;
+    }
+    let cancelled = false;
+    http.get('/api/matchmaker/mine')
+      .then((r) => {
+        if (cancelled) return;
+        const list = Array.isArray(r?.submissions) ? r.submissions : [];
+        setPendingSubmissions(list.filter((s) => s.status === 'pending').length);
+      })
+      .catch(() => { /* badge stays hidden */ });
+    return () => { cancelled = true; };
+  }, [isLoggedIn, isMatchmaker, location.pathname]);
 
   // Global ⌘K / Ctrl+K listener
   useEffect(() => {
@@ -349,7 +420,7 @@ export default function MainLayout({ children }) {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <Nav isLoggedIn={isLoggedIn} isAdmin={isAdmin} isActive={isActive} onNavigate={() => setMobileNavOpen(false)} inAdmin={inAdmin} />
+              <Nav isLoggedIn={isLoggedIn} isAdmin={isAdmin} isMatchmaker={isMatchmaker} pendingSubmissions={pendingSubmissions} isActive={isActive} onNavigate={() => setMobileNavOpen(false)} inAdmin={inAdmin} />
               <div className="sidebar-footer">
                 <button onClick={() => { setCmdOpen(true); setMobileNavOpen(false); }} className="sidebar-nav-btn">
                   <Search className="w-4 h-4" /> Search
@@ -364,7 +435,7 @@ export default function MainLayout({ children }) {
       {/* Desktop sidebar */}
       <aside className="app-sidebar">
         <BrandMark />
-        <Nav isLoggedIn={isLoggedIn} isAdmin={isAdmin} isActive={isActive} inAdmin={inAdmin} />
+        <Nav isLoggedIn={isLoggedIn} isAdmin={isAdmin} isMatchmaker={isMatchmaker} pendingSubmissions={pendingSubmissions} isActive={isActive} inAdmin={inAdmin} />
         <div className="sidebar-footer">
           <div className="flex items-center gap-1.5">
             <button onClick={() => setCmdOpen(true)} className="sidebar-nav-btn flex-1 min-w-0">
