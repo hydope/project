@@ -5,6 +5,23 @@
 
 function routeMatchmaker(string $method, array $segments): void
 {
+    // Photo upload for a pending submission. The upload lives under
+    // /matchmaker/photo (not /profiles/me/photo) because a submission is a
+    // pending JSON payload, not a profile row — the profile-photo endpoint
+    // requires a profile and would 409.
+    if ($method === 'POST' && ($segments[0] ?? null) === 'photo') {
+        matchmakerPhotoUpload();
+        return;
+    }
+    if ($method === 'DELETE' && ($segments[0] ?? null) === 'photo') {
+        matchmakerPhotoDelete();
+        return;
+    }
+    // Serves a pending submission's uploaded photo to its owner or an admin.
+    if ($method === 'GET' && ($segments[0] ?? null) === 'photo') {
+        matchmakerPhotoServe((string)($segments[1] ?? ''), (string)($segments[2] ?? ''));
+        return;
+    }
     if ($method === 'POST' && ($segments[0] ?? null) === null) {
         matchmakerSubmit();
         return;
@@ -16,11 +33,189 @@ function routeMatchmaker(string $method, array $segments): void
     json(['error' => 'Matchmaker endpoint not found'], 404);
 }
 
+// ── Pending-submission photos ─────────────────────────────────────────────
+// Uploaded matchmaker photos live under <photo root>/matchmaker/<uid>/<uuid>.<ext>:
+// same storage root as profile photos (outside the web root), segregated so a
+// pending photo can never be confused with a live member photo. The stored
+// value is the server filesystem path — exactly what profiles.photo_url holds
+// for uploaded member photos — so the approval path copies it verbatim and the
+// existing photoServe() serves it unchanged once the profile exists.
+
+// A matchmaker photo is a server-generated file under
+// <photo root>/matchmaker/<uid>/<uuid>.<ext>. Anything else (a pasted http
+// link, a data: URI, a profile photo path) is not ours to delete or serve.
+function matchmakerLocalPhotoPath(string $p): ?string
+{
+    if (!preg_match('#^/.+/photos/matchmaker/[0-9a-f-]{36}/[0-9a-f-]{36}\.(?:jpg|png|webp)$#', $p)) {
+        return null;
+    }
+    return is_file($p) ? $p : null;
+}
+
+// URL an <img> (or useAuthedImage) can render for a submission's photo:
+// pasted links as-is; uploaded files via the authed serve endpoint.
+function matchmakerPhotoPreviewUrl(string $photoUrl, string $submittedBy): ?string
+{
+    $p = trim($photoUrl);
+    if ($p === '') {
+        return null;
+    }
+    if (preg_match('#^https?://#i', $p)) {
+        return $p;
+    }
+    if (!preg_match('#^/.+/photos/matchmaker/([0-9a-f-]{36})/([0-9a-f-]{36}\.(?:jpg|png|webp))$#', $p, $m)) {
+        return null;
+    }
+    if (!is_file($p)) {
+        return null;
+    }
+    return '/api/matchmaker/photo/' . $m[1] . '/' . $m[2];
+}
+
+// POST /api/matchmaker/photo — upload a photo for a pending submission.
+//
+// Mirrors the member photoUpload() validation pipeline step for step:
+// multipart read, 5 MB cap, byte-sniffed mime, decode check, pixel cap,
+// structural completeness, EXIF strip. The file is written under the
+// submitter's matchmaker directory with a server-generated name (the client
+// filename is never used). No profile row is needed — the returned server
+// path is what the form puts in photo_url, and the approval path copies it
+// into profiles.photo_url verbatim, so photoServe() serves it unchanged.
+function matchmakerPhotoUpload(): void
+{
+    $user = requireAuthUser();
+    $uid = (string)$user['uid'];
+    $bytes = photoReadUpload();
+
+    if ($bytes === '') {
+        je('Attach a photo to upload.', 400);
+    }
+    if (strlen($bytes) > PHOTO_MAX_BYTES) {
+        je('Photo must be under 5 MB.', 400);
+    }
+
+    // 1. Sniff the ACTUAL bytes.
+    $mime = sniffImageMime($bytes);
+    if (!isset(PHOTO_ALLOWED[$mime])) {
+        je('Photo must be a JPEG, PNG or WebP image.', 400);
+    }
+
+    // 2. Confirm it really decodes, and get the real dimensions.
+    $info = @getimagesizefromstring($bytes);
+    if ($info === false || (int)$info[0] < 1 || (int)$info[1] < 1) {
+        je('That file is not a readable image.', 400);
+    }
+    if ((int)$info[0] * (int)$info[1] > PHOTO_MAX_PIXELS) {
+        je('Photo resolution is too large.', 400);
+    }
+
+    // 2b. Structural completeness — refuse trailing-byte payloads outright.
+    if (!imageIsComplete($bytes, $mime)) {
+        je('That file is not a complete image.', 400);
+    }
+
+    // 3. Strip EXIF (selfies carry GPS coordinates).
+    $bytes = stripJpegExif($bytes);
+    $ext = PHOTO_ALLOWED[$mime];
+
+    // 4. Write it under the submitter's matchmaker directory.
+    $dir = photoBaseDir() . '/matchmaker/' . $uid;
+    if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+        error_log(sprintf('[api] matchmaker photo mkdir failed for uid=%s', $uid));
+        je('Could not save your photo — server storage is not writable.', 500);
+    }
+    $path = $dir . '/' . uuid() . '.' . $ext;
+    if (@file_put_contents($path, $bytes) === false) {
+        error_log(sprintf('[api] matchmaker photo write failed path=%s bytes=%d', $path, strlen($bytes)));
+        je('Could not save your photo.', 500);
+    }
+
+    // 5. A replaced upload leaves its file behind with nothing referencing
+    // it. The client sends the previous server path; remove it (own files
+    // only — the pattern check plus the uid match make another member's
+    // path unlinkable).
+    $prev = trim((string)($_POST['previous_path'] ?? ''));
+    if ($prev !== '' && $prev !== $path
+        && preg_match('#^/.+/photos/matchmaker/([0-9a-f-]{36})/[0-9a-f-]{36}\.(?:jpg|png|webp)$#', $prev, $m)
+        && $m[1] === $uid) {
+        $old = matchmakerLocalPhotoPath($prev);
+        if ($old !== null) {
+            @unlink($old);
+        }
+    }
+
+    auditLog('matchmaker.photo_uploaded', 'matchmaker_photo', basename($path), ['by' => $uid]);
+    json(['ok' => true, 'photo_url' => $path, 'preview_url' => '/api/matchmaker/photo/' . $uid . '/' . basename($path)], 201);
+}
+
+// DELETE /api/matchmaker/photo — remove an uploaded-but-unsubmitted photo
+// (the form's Remove button). Only the owner's own files, matched by the
+// strict server-generated pattern.
+function matchmakerPhotoDelete(): void
+{
+    $user = requireAuthUser();
+    $body = requestJson();
+    $path = trim((string)($body['path'] ?? ''));
+    if (!preg_match('#^/.+/photos/matchmaker/([0-9a-f-]{36})/[0-9a-f-]{36}\.(?:jpg|png|webp)$#', $path, $m)) {
+        je('Nothing to remove.', 400);
+    }
+    if ($m[1] !== (string)$user['uid']) {
+        je('Not found.', 404);
+    }
+    $real = matchmakerLocalPhotoPath($path);
+    if ($real !== null) {
+        @unlink($real);
+    }
+    json(['ok' => true]);
+}
+
+// GET /api/matchmaker/photo/:uid/:file — serve a pending submission's photo.
+// Owner or admin only; everyone else (including other signed-in members) gets
+// the same 404, so the file's existence cannot be probed.
+function matchmakerPhotoServe(string $uid, string $file): void
+{
+    $viewer = requireAuthUser();
+    if (!preg_match('/^[0-9a-f-]{36}$/', $uid)
+        || !preg_match('/^[0-9a-f-]{36}\.(jpg|png|webp)$/', $file)) {
+        je('Not found.', 404);
+    }
+    $isOwner = (string)($viewer['uid'] ?? '') === $uid;
+    if (!$isOwner && empty($viewer['isAdmin'])) {
+        je('Not found.', 404);
+    }
+    $base = realpath(photoBaseDir() . '/matchmaker/' . $uid) ?: '';
+    $real = realpath(photoBaseDir() . '/matchmaker/' . $uid . '/' . $file) ?: '';
+    if ($real === '' || $base === '' || strncmp($real, $base, strlen($base)) !== 0 || !is_file($real)) {
+        je('Not found.', 404);
+    }
+    $mime = class_exists('finfo')
+        ? ((new finfo(FILEINFO_MIME_TYPE))->file($real) ?: 'application/octet-stream')
+        : (sniffImageMime((string)@file_get_contents($real, false, null, 0, 16)) ?: 'application/octet-stream');
+    $size = filesize($real);
+    header('Content-Type: ' . $mime);
+    header('Content-Length: ' . $size);
+    header('Cache-Control: private, no-store, max-age=0');
+    header('X-Content-Type-Options: nosniff');
+    header('Content-Disposition: inline');
+    readfile($real);
+    exit;
+}
+
 // Delete pending submissions older than 7 days. Runs lazily on every
 // matchmaker read — there is no cron on shared hosting.
 function matchmakerPurgeExpired(): void
 {
     try {
+        $rows = db()->query(
+            "SELECT payload FROM matchmaker_profiles WHERE status = 'pending' AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)"
+        )->fetchAll();
+        foreach ($rows as $r) {
+            $p = json_decode((string)($r['payload'] ?? ''), true) ?: [];
+            $local = matchmakerLocalPhotoPath((string)($p['photo_url'] ?? ''));
+            if ($local !== null) {
+                @unlink($local);
+            }
+        }
         db()->prepare("DELETE FROM matchmaker_profiles WHERE status = 'pending' AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)")
             ->execute();
     } catch (Throwable) { /* table may not exist yet */ }
@@ -127,11 +322,15 @@ function adminMatchmakerQueue(): void
     }
     $out = [];
     foreach ($rows as $r) {
+        $payload = json_decode((string)$r['payload'], true) ?: [];
         $out[] = [
             'id' => $r['id'],
-            'payload' => json_decode((string)$r['payload'], true) ?: [],
+            'payload' => $payload,
             'submitter_email' => $r['submitter_email'] ?? '',
             'created_at' => $r['created_at'],
+            // Renderable photo for review: pasted links as-is, uploaded files
+            // via the authed serve endpoint (null when there is no photo).
+            'photo_preview' => matchmakerPhotoPreviewUrl((string)($payload['photo_url'] ?? ''), (string)$r['submitted_by']),
             // Days left before automatic deletion.
             'expires_in_days' => max(0, 7 - (int)floor((time() - strtotime((string)$r['created_at'])) / 86400)),
         ];
@@ -188,10 +387,17 @@ function adminMatchmakerReject(string $id): void
     $admin = requireAdminUser();
     $body = requestJson();
     $reason = trim((string)($body['reason'] ?? ''));
-    $stmt = db()->prepare("SELECT id FROM matchmaker_profiles WHERE id = ? AND status = 'pending' LIMIT 1");
+    $stmt = db()->prepare("SELECT payload FROM matchmaker_profiles WHERE id = ? AND status = 'pending' LIMIT 1");
     $stmt->execute([$id]);
-    if (!$stmt->fetch()) {
+    $row = $stmt->fetch();
+    if (!$row) {
         je('Submission not found or already reviewed.', 404);
+    }
+    // A rejected upload leaves its file behind with nothing referencing it.
+    $p = json_decode((string)($row['payload'] ?? ''), true) ?: [];
+    $local = matchmakerLocalPhotoPath((string)($p['photo_url'] ?? ''));
+    if ($local !== null) {
+        @unlink($local);
     }
     db()->prepare('DELETE FROM matchmaker_profiles WHERE id = ?')->execute([$id]);
     auditLog('matchmaker.rejected', 'matchmaker_profile', $id, ['reason' => $reason]);

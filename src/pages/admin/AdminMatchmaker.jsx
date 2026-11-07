@@ -1,8 +1,21 @@
 import { useState, useEffect } from 'react';
 import Layout from '@/layouts/AdminLayout';
 import { http } from '@/lib/api/transport';
+import { useAuthedImage } from '@/lib/api/useAuthedImage';
 import { usePageTitle } from '@/lib/usePageTitle';
 import { HeartHandshake, Check, X, Clock } from 'lucide-react';
+
+// The serve endpoint needs the bearer token, which a plain <img src> cannot
+// send. Pasted links are public URLs and render directly — never fetch those
+// with the token attached.
+function QueuePhoto({ preview }) {
+  const isExternal = /^https?:\/\//i.test(preview);
+  const { url, loading } = useAuthedImage(isExternal ? null : preview);
+  if (isExternal) return <img src={preview} alt="Submitted photo" className="w-full h-full object-cover" />;
+  if (loading) return <span className="text-xs px-2 text-center" style={{ color: '#8b949e' }}>Loading…</span>;
+  if (!url) return <span className="text-xs px-2 text-center" style={{ color: '#8b949e' }}>Couldn’t load photo</span>;
+  return <img src={url} alt="Submitted photo" className="w-full h-full object-cover" />;
+}
 
 export default function AdminMatchmaker() {
   usePageTitle('Matchmaker Queue');
@@ -76,6 +89,11 @@ export default function AdminMatchmaker() {
                   </button>
                 </div>
               </div>
+              {q.photo_preview && (
+                <div className="w-20 h-20 rounded-xl overflow-hidden mb-3 flex-shrink-0" style={{ background: '#0d1117', border: '1px solid #21262d' }}>
+                  <QueuePhoto preview={q.photo_preview} />
+                </div>
+              )}
               {q.payload.bio && <p className="text-sm mb-2" style={{ color: '#c9d1d9' }}>{q.payload.bio}</p>}
               <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs" style={{ color: '#8b949e' }}>
                 {['profession', 'education_level', 'marital_status', 'country', 'contact_note'].map(k =>
