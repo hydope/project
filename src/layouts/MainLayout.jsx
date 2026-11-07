@@ -248,9 +248,10 @@ function Nav({ isLoggedIn, isAdmin, isMatchmaker, pendingSubmissions, isActive, 
       : [...NAV_ITEMS, ...ADMIN_NAV_ITEMS];
   } else if (isMatchmaker) {
     // Matchmakers get their own section, right after Overview. The generic
-    // "Matchmaker" link under Tools and "Introductions" under Connect are
-    // dropped here, so each destination appears exactly once.
-    const rest = NAV_ITEMS.filter((i) => i.path !== '/matchmaker' && i.path !== '/drafts');
+    // "Matchmaker" link under Tools is dropped here — the section replaces it.
+    // "Introductions" under Connect stays: it deliberately appears in BOTH
+    // places for matchmakers (Connect and the Matchmaker section), per Syed.
+    const rest = NAV_ITEMS.filter((i) => i.path !== '/matchmaker');
     const overviewCount = rest.filter((i) => i.section === 'Overview').length;
     items = [
       ...rest.slice(0, overviewCount),

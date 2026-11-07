@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, Bookmark, MapPin, Briefcase, Lock, Sparkles } from 'lucide-react';
+import { Heart, Bookmark, MapPin, Briefcase, Lock, Sparkles, MessageCircle } from 'lucide-react';
+import { whatsappShareUrl } from '../lib/shareProfile';
 import VerifiedBadge from './VerifiedBadge';
 import { useAuthedImage } from '../lib/api/useAuthedImage';
 import { computeCompatibility, getMyProfile } from '../lib/compatibility';
@@ -343,6 +344,24 @@ export default function ProfileCard({ profile, className = '' }) {
             style={{ color: saved ? 'var(--color-primary)' : 'var(--color-ink-tertiary)', fill: saved ? 'var(--color-primary)' : 'none' }}
           />
         </button>
+        {/* WhatsApp share — one tap opens WhatsApp with a pre-written
+            message (link only, never the photo or bio). No login needed:
+            sharing is just opening a link. Skipped for sample profiles,
+            same as interest/save. The actions row sits outside the card
+            Link, so a plain anchor works here. */}
+        {profile.isDemo !== true && (
+          <a
+            href={whatsappShareUrl(profile)}
+            target="_blank"
+            rel="noreferrer"
+            className="btn-secondary p-2.5 flex items-center justify-center"
+            aria-label={`Share ${profile.displayName} on WhatsApp`}
+            title="Share on WhatsApp"
+            style={{ minWidth: '38px', minHeight: '38px' }}
+          >
+            <MessageCircle className="w-3.5 h-3.5" style={{ color: 'var(--color-primary)' }} />
+          </a>
+        )}
       </div>
       {saveError && (
         <p className="px-3.5 pb-3 -mt-2 text-[11px]" style={{ color: 'var(--color-danger, #b3261e)' }}>{saveError}</p>

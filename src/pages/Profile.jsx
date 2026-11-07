@@ -15,6 +15,7 @@ import { blockMember, unblockMember } from '../lib/api/safety';
 import { computeCompatibility } from '../lib/compatibility';
 import { apiUrl, http } from '../lib/api/transport';
 import SampleProfileBadge from '../components/SampleProfileBadge';
+import { whatsappShareUrl, copyProfileLink } from '../lib/shareProfile';
 
 // No stock/placeholder photo is injected into the gallery. A member who hides
 // their photos gets an honest "photos are private" state, never someone else's
@@ -30,6 +31,7 @@ export default function Profile() {
   const [interestBusy, setInterestBusy] = useState(false);
   const [messageBusy, setMessageBusy] = useState(false);
   const [actionNote, setActionNote] = useState(null);
+  const [copied, setCopied] = useState(false);
   const [showLoginGate, setShowLoginGate] = useState(false);
   // Distinct from actionNote (interest/message feedback) — this drives the
   // email-verification interstitial when the server gates the profile view.
@@ -336,6 +338,27 @@ export default function Profile() {
                   {profile.isDemo !== true && (
                     <button onClick={handleMessage} disabled={messageBusy} className="button px-4 py-2 text-sm font-semibold flex items-center gap-1.5" style={{ background: 'var(--color-elevated)', color: 'var(--color-ink)', border: '1px solid var(--color-border)' }}>
                       <MessageCircle className="w-4 h-4" /> Message
+                    </button>
+                  )}
+                  {/* Share — link only, never the photo or bio. WhatsApp opens
+                      with a pre-written message; Copy link gives "Copied"
+                      feedback. No login gate: sharing is just opening a link.
+                      Skipped for sample profiles. */}
+                  {profile.isDemo !== true && (
+                    <a href={whatsappShareUrl(profile)} target="_blank" rel="noreferrer" className="button px-4 py-2 text-sm font-semibold flex items-center gap-1.5" style={{ background: 'var(--color-elevated)', color: 'var(--color-ink)', border: '1px solid var(--color-border)' }}>
+                      <MessageCircle className="w-4 h-4" style={{ color: 'var(--color-primary)' }} /> WhatsApp
+                    </a>
+                  )}
+                  {profile.isDemo !== true && (
+                    <button
+                      onClick={async () => {
+                        const ok = await copyProfileLink(profile);
+                        if (ok) { setCopied(true); setTimeout(() => setCopied(false), 2500); }
+                      }}
+                      className="button px-4 py-2 text-sm font-semibold flex items-center gap-1.5"
+                      style={{ background: 'var(--color-elevated)', color: 'var(--color-ink)', border: '1px solid var(--color-border)' }}
+                    >
+                      {copied ? 'Copied' : 'Copy link'}
                     </button>
                   )}
                 </div>
