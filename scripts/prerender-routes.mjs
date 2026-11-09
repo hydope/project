@@ -66,12 +66,131 @@ const ALL_LOCATIONS = {
   cities: CITIES.map((c) => ({ ...c, count: SNAP.cities[c.slug] || 0 })),
   countries: COUNTRIES.map((c) => ({ ...c, count: SNAP.countries[c.slug] || 0 })),
 };
+
+// Dynamic location pages (2026-11-09, Syed's call): cities/countries with
+// real profiles that are NOT in the curated list get a page too, prerendered
+// like curated ones. CI has no database access, so the source is the PUBLIC
+// /api/profiles endpoint — the same pattern scripts/snapshot-locations.mjs
+// uses (its snapshot is committed; this fetch is live at build time, so a
+// new city is prerendered on the very next deploy). A fetch failure must NOT
+// fail the build: dynamic pages fall back to client-rendered (still
+// indexable at runtime) and the next deploy retries.
+const DYNAMIC_API = process.env.DYNAMIC_LOCATIONS_API || 'https://shiarishta.com/api/profiles';
+
+const slugifyLocation = (s) =>
+  String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const displayNameFromSlug = (slug) =>
+  slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+// Generic community note for a location with no curated note. The runtime
+// CityPage renders this exact sentence for non-curated places, so the
+// prerendered document and the live page agree.
+const dynamicLocationNote = (name) =>
+  `Shia families in ${name} are part of the growing Shia Rishta community. Browse member profiles from ${name} seeking a serious nikah match — photos stay private by default, and a conversation opens only after interest is mutual.`;
+
+function dynamicLocationRouteSeo(dynamic) {
+  const out = {};
+  for (const c of dynamic.cities) {
+    out[`/city/${c.slug}`] = {
+      title: `Shia Matrimony in ${c.name} | Shia Rishta & Matchmaking`,
+      desc: `Browse Shia matrimonial profiles in ${c.name}. Privacy-first photos, mutual-interest messaging and wali-supported introductions. Free to join.`,
+      h1: `Shia matrimony in ${c.name}`,
+      lede: `Shia Rishta profiles in ${c.name}${c.country ? `, ${c.country}` : ''}. Every profile is created with marriage intent, photos stay private by default, and a conversation opens only after interest is mutual.`,
+      sections: [{ h2: `About Shia families in ${c.name}`, p: dynamicLocationNote(c.name) }],
+      faq: [],
+      liveFilter: `/profiles?city=${encodeURIComponent(c.name)}`,
+    };
+  }
+  for (const k of dynamic.countries) {
+    out[`/country/${k.slug}`] = {
+      title: `Shia Matrimony in ${k.name} | Free Shia Rishta Platform`,
+      desc: `Find verified Shia brides and grooms in ${k.name}. Privacy-first profiles, wali and guardian workflows, mutual-interest messaging. Free.`,
+      h1: `Shia matrimony in ${k.name}`,
+      lede: `Shia matrimonial profiles across ${k.name}, filterable by city, sect, marja and practice. Free to browse, and no account is needed to view public profiles.`,
+      sections: [{ h2: `Shia families in ${k.name}`, p: dynamicLocationNote(k.name) }],
+      faq: [],
+      liveFilter: `/profiles?country=${encodeURIComponent(k.name)}`,
+    };
+  }
+  return out;
+}
+
+async function fetchDynamicLocations() {
+  const curatedCitySlugs = new Set(CITIES.map((c) => c.slug));
+  const curatedCountrySlugs = new Set(COUNTRIES.map((c) => c.slug));
+  const cities = new Map(); // slug -> { slug, name, countryVotes: Map }
+  const countries = new Map(); // slug -> { slug, name }
+  try {
+    let offset = 0;
+    const limit = 100;
+    for (;;) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 20000);
+      let res;
+      try {
+        res = await fetch(`${DYNAMIC_API}?paged=1&limit=${limit}&offset=${offset}`, {
+          headers: { Accept: 'application/json' },
+          signal: ctrl.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+      if (!res.ok) throw new Error(`${DYNAMIC_API} returned ${res.status}`);
+      const data = await res.json();
+      const rows = Array.isArray(data) ? data : (data.rows || []);
+      for (const p of rows) {
+        const city = String(p.city || '').trim();
+        if (city) {
+          const slug = slugifyLocation(city);
+          const name = displayNameFromSlug(slug);
+          // Round-trip: the page derives `name` from the slug and queries
+          // LOWER(city) = name — only list the slug when that finds the city.
+          if (slug && !curatedCitySlugs.has(slug) && name.toLowerCase() === city.toLowerCase()) {
+            const entry = cities.get(slug) || { slug, name, countryVotes: new Map() };
+            const country = String(p.country || '').trim();
+            if (country) entry.countryVotes.set(country, (entry.countryVotes.get(country) || 0) + 1);
+            cities.set(slug, entry);
+          }
+        }
+        const country = String(p.country || '').trim();
+        if (country) {
+          const slug = slugifyLocation(country);
+          const name = displayNameFromSlug(slug);
+          if (slug && !curatedCountrySlugs.has(slug) && name.toLowerCase() === country.toLowerCase()) {
+            countries.set(slug, { slug, name });
+          }
+        }
+      }
+      const hasMore = !Array.isArray(data) && data.hasMore;
+      if (!hasMore || rows.length === 0) break;
+      offset += rows.length;
+    }
+  } catch (err) {
+    console.warn(`dynamic locations: live API fetch failed (${err.message}) — prerendering curated locations only.`);
+    return { cities: [], countries: [] };
+  }
+  const cityList = [...cities.values()].map((c) => {
+    let country = '';
+    let best = 0;
+    for (const [name, votes] of c.countryVotes) {
+      if (votes > best) { best = votes; country = name; }
+    }
+    return { slug: c.slug, name: c.name, country };
+  });
+  const out = { cities: cityList, countries: [...countries.values()] };
+  console.log(`dynamic locations: ${out.cities.length} cities, ${out.countries.length} countries with member profiles (not in the curated list)`);
+  return out;
+}
+
+const DYNAMIC_LOCATIONS = await fetchDynamicLocations();
+
 const ALL = {
   ...ROUTE_SEO,
   ...tagLandingSeo(),
   ...landingRouteSeo(LANDING_PAGE_META),
   ...locationRouteSeo(ALL_LOCATIONS),
-  '/locations': { title: 'Shia Matrimony by City & Country | Shia Rishta', desc: 'Find Shia matrimonial profiles by city or country. Browse verified Shia rishta in Karachi, London, Toronto, Dubai and more. Free to browse.', h1: 'Shia matrimony by location', lede: 'Find Shia matrimonial profiles by city or country. Every location listed is a real Shia community with its own page, and each page links to live, filtered results.', sections: [{ h2: 'Where are members?', p: ['This directory lists every city and country with a real Shia community. Pages with members show live profiles; pages without members yet describe the community and invite the first profile.', 'Where a location is not listed, it has no recognized Shia community page yet.'] }], faq: [] },
+  ...dynamicLocationRouteSeo(DYNAMIC_LOCATIONS),
+  '/locations': { title: 'Shia Matrimony by City & Country | Shia Rishta', desc: 'Find Shia matrimonial profiles by city or country. Browse verified Shia rishta in Karachi, London, Toronto, Dubai and more. Free to browse.', h1: 'Shia matrimony by location', lede: 'Find Shia matrimonial profiles by city or country. Every location listed is a real Shia community with its own page, and each page links to live, filtered results.', sections: [{ h2: 'Where are members?', p: ['This directory lists every city and country with a real Shia community. Pages with members show live profiles; pages without members yet describe the community and invite the first profile.', 'Where a location is not listed here, it has no curated community page yet — but any city or country with member profiles has its own page, linked from those members\' profiles.'] }], faq: [] },
 };
 
 /**

@@ -59,9 +59,16 @@ export default function CityPage() {
   const name = locationName || displayName;
   const count = profiles.length;
 
-  // Unknown slug → NotFound. Must come after hooks (useEffect above) — hooks
-  // cannot be conditional, so the guard lives here, before the render.
-  if (!curated) return <NotFound />;
+  // Dynamic location pages (2026-11-09, Syed's call): a city/country with
+  // real profiles gets a page even when it is not in the curated list — the
+  // card links already point at /city/:slug for every member city, so a
+  // member's city must never 404. While the fetch is loading, do NOT 404
+  // yet; after it resolves, 404 only when the slug is not curated AND zero
+  // profiles came back. A junk slug with no members still 404s — the
+  // anti-spam guard stays, it just keys on real profiles now.
+  // Must come after hooks (useEffect above) — hooks cannot be conditional,
+  // so the guard lives here, before the render.
+  if (!loading && !curated && profiles.length === 0) return <NotFound />;
 
   // Keyword variations — 11 base + country alternate names
   const kw = {
@@ -140,7 +147,9 @@ export default function CityPage() {
             About Shia families in {name}
           </h2>
           <p className="text-sm leading-relaxed" style={{ color: 'var(--color-ink-secondary)' }}>
-            {curated.note}
+            {curated
+              ? curated.note
+              : `Shia families in ${name} are part of the growing Shia Rishta community. Browse member profiles from ${name} seeking a serious nikah match — photos stay private by default, and a conversation opens only after interest is mutual.`}
           </p>
         </section>
 

@@ -200,6 +200,60 @@ function sitemapXml(): void
         ];
     }
 
+    // Dynamic city + country pages (2026-11-09, Syed's call): every distinct
+    // city/country with at least one qualifying profile gets a page — the
+    // same browse-list conditions as the profile URLs above (non-blocked,
+    // non-test, non-private, finished). Slugs use the frontend's slugify
+    // (lowercase, [^a-z0-9]+ → '-', trim dashes). A slug is emitted ONLY if
+    // the display name the page derives from it round-trips back to the
+    // stored value, so the page's own API query (LOWER(city) = LOWER(?))
+    // will find the profiles — e.g. "St. Louis" is skipped: its slug
+    // "st-louis" derives "St Louis", which matches nothing. Curated slugs
+    // are already emitted above; dedupe by slug. lastmod is the newest
+    // qualifying profile in that place, so Google sees real change.
+    $slugify = static function (string $s): string {
+        $s = strtolower($s);
+        $s = preg_replace('/[^a-z0-9]+/', '-', $s);
+        return trim((string)$s, '-');
+    };
+    $derivedName = static function (string $slug): string {
+        return implode(' ', array_map(
+            static fn($w) => $w === '' ? '' : strtoupper($w[0]) . substr($w, 1),
+            explode('-', $slug)
+        ));
+    };
+    $seenCitySlugs = array_flip($curatedCities);
+    $seenCountrySlugs = array_flip($curatedCountries);
+    try {
+        $stmt = $pdo->query("SELECT city, MAX(updated_at) AS lm FROM profiles WHERE is_blocked = 0 AND {$noTest} AND visibility <> 'private' AND NOT {$unfinished} AND TRIM(COALESCE(city, '')) <> '' GROUP BY city");
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $city = trim((string)$row['city']);
+            $slug = $slugify($city);
+            if ($slug === '' || isset($seenCitySlugs[$slug])) continue;
+            if (strtolower($derivedName($slug)) !== strtolower($city)) continue;
+            $seenCitySlugs[$slug] = 1;
+            $urls[] = [
+                'loc' => $base . '/city/' . rawurlencode($slug) . '/',
+                'lastmod' => substr((string)($row['lm'] ?? $templateLastmod), 0, 10),
+                'priority' => '0.7',
+            ];
+        }
+    } catch (Throwable $e) { /* skip */ }
+    try {
+        $stmt = $pdo->query("SELECT country, MAX(updated_at) AS lm FROM profiles WHERE is_blocked = 0 AND {$noTest} AND visibility <> 'private' AND NOT {$unfinished} AND TRIM(COALESCE(country, '')) <> '' GROUP BY country");
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $country = trim((string)$row['country']);
+            $slug = $slugify($country);
+            if ($slug === '' || isset($seenCountrySlugs[$slug])) continue;
+            if (strtolower($derivedName($slug)) !== strtolower($country)) continue;
+            $seenCountrySlugs[$slug] = 1;
+            $urls[] = [
+                'loc' => $base . '/country/' . rawurlencode($slug) . '/',
+                'lastmod' => substr((string)($row['lm'] ?? $templateLastmod), 0, 10),
+                'priority' => '0.7',
+            ];
+        }
+    } catch (Throwable $e) { /* skip */ }
 
     $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
     $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'

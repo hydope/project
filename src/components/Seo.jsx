@@ -87,6 +87,15 @@ function getTagLandingPage(slug) {
   return TAG_LANDING_PAGES[slug] || null;
 }
 
+// Display name from a location slug — the same derivation CityPage uses
+// (hyphens to spaces, title-case each word).
+function displayNameFromSlug(slug) {
+  return slug
+    .split('-')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
 function resolveMeta(pathname) {
   // Trailing-slash normalization: /blog/ must resolve exactly like /blog.
   // Without this, /blog/ fell into the /blog/ article branch, matched no
@@ -145,9 +154,14 @@ function resolveMeta(pathname) {
       index: true,
     };
   }
-  // Curated location pages — the /city/ + /country/ SEO expansion. These fell
-  // through to the unknown-route noindex below, which hid all 143 cities and
-  // 37 countries from Google. Unknown slugs still noindex (CityPage 404s).
+  // Location pages — curated AND dynamic (2026-11-09, Syed's call: any city
+  // or country with real profiles gets a page, and it is indexable). Curated
+  // slugs keep their exact meta. A non-curated slug gets the same template
+  // built from the slug's display name. The page component still 404s for a
+  // slug with no profiles at all, so a junk slug gets indexable meta but
+  // NotFound content — a soft 404 Google will not index, the same pattern
+  // as /blog/<slug> above. The sitemap only lists slugs with real profiles,
+  // so crawlers discover the real pages, not the junk ones.
   if (path.startsWith('/city/')) {
     const city = CITIES.find((c) => `/city/${c.slug}` === path);
     if (city) {
@@ -157,7 +171,12 @@ function resolveMeta(pathname) {
         index: true,
       };
     }
-    return { title: 'Page Not Found | Shia Rishta', desc: '', index: false };
+    const name = displayNameFromSlug(path.slice('/city/'.length));
+    return {
+      title: `Shia Matrimony in ${name} | Shia Rishta & Matchmaking`,
+      desc: `Browse Shia matrimonial profiles in ${name}. Privacy-first photos, mutual-interest messaging and wali-supported introductions. Free to join.`,
+      index: true,
+    };
   }
   if (path.startsWith('/country/')) {
     const country = COUNTRIES.find((c) => `/country/${c.slug}` === path);
@@ -168,7 +187,12 @@ function resolveMeta(pathname) {
         index: true,
       };
     }
-    return { title: 'Page Not Found | Shia Rishta', desc: '', index: false };
+    const name = displayNameFromSlug(path.slice('/country/'.length));
+    return {
+      title: `Shia Matrimony in ${name} | Free Shia Rishta Platform`,
+      desc: `Find verified Shia brides and grooms in ${name}. Privacy-first profiles, wali and guardian workflows, mutual-interest messaging. Free.`,
+      index: true,
+    };
   }
   if (PRIVATE_TITLES[path]) {
     return { title: PRIVATE_TITLES[path], desc: '', index: false };
@@ -299,7 +323,14 @@ function canonicalFor(pathname) {
     LANDING_PAGE_META[slug] != null ||
     getTagLandingPage(slug) !== null ||
     CITIES.some((c) => `/city/${c.slug}` === path) ||
-    COUNTRIES.some((c) => `/country/${c.slug}` === path);
+    COUNTRIES.some((c) => `/country/${c.slug}` === path) ||
+    // Dynamic location pages are prerendered from the live API at build time
+    // (2026-11-09), so every /city/ and /country/ URL in the sitemap is a
+    // directory on disk and its canonical is the trailing-slash form. A city
+    // that appears between deploys is client-rendered, but its trailing-slash
+    // URL still serves 200 via the SPA fallback, so the canonical stays valid.
+    path.startsWith('/city/') ||
+    path.startsWith('/country/');
   return isPrerendered ? `${SITE}${path}/` : `${SITE}${path}`;
 }
 
