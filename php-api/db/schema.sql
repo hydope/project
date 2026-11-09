@@ -75,6 +75,13 @@ CREATE TABLE IF NOT EXISTS profiles (
   languages          VARCHAR(255) DEFAULT NULL,
   ethnicity          VARCHAR(120) DEFAULT NULL,
   sub_ethnicity      VARCHAR(120) DEFAULT NULL,
+  -- Guardian-managed profiles (2026-11-09): onboarding collects a wali's
+  -- name + email and promises an invite; these columns store them. NULL
+  -- management_mode = self-managed. The guardian's email is NEVER exposed
+  -- in a public payload — only in the invite email itself.
+  management_mode    VARCHAR(16)  DEFAULT NULL,
+  guardian_name      VARCHAR(120) DEFAULT NULL,
+  guardian_email     VARCHAR(190) DEFAULT NULL,
   income_range       VARCHAR(80)  DEFAULT NULL,
   marital_status     VARCHAR(60)  DEFAULT NULL,
   children           VARCHAR(60)  DEFAULT NULL,

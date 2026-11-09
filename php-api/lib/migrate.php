@@ -45,6 +45,7 @@ function migrateSchema(): void
     migrateAddWaliLinksTable();
     migrateAddUserVerificationColumns();
     migrateAddReportActionColumns();
+    migrateAddGuardianColumns();
     migrateAddBlogPostsTable();
     migrateAddBlogImageColumn();
     migrateAddContactSpamColumn();
@@ -373,6 +374,39 @@ function migrateAddReportActionColumns(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (report action columns) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Guardian-managed profiles (2026-11-09, Syed's call): onboarding collects
+ * a wali's name + email and promises an invite. The columns the code needs
+ * did not exist, so the promise was silently discarded. Same add-if-missing
+ * pattern as migrateAddReportActionColumns().
+ */
+function migrateAddGuardianColumns(): void
+{
+    $additions = [
+        'management_mode' => 'VARCHAR(16) DEFAULT NULL',
+        'guardian_name'   => 'VARCHAR(120) DEFAULT NULL',
+        'guardian_email'  => 'VARCHAR(190) DEFAULT NULL',
+    ];
+
+    try {
+        $existing = [];
+        foreach (db()->query('SHOW COLUMNS FROM profiles')->fetchAll() as $c) {
+            $existing[strtolower((string)$c['Field'])] = true;
+        }
+        foreach ($additions as $col => $def) {
+            if (isset($existing[$col])) continue;
+            try {
+                db()->exec("ALTER TABLE profiles ADD COLUMN `$col` $def");
+                error_log("[api] migration: added profiles.$col");
+            } catch (Throwable $e) {
+                error_log("[api] migration: could not add profiles.$col — " . substr($e->getMessage(), 0, 120));
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (guardian columns) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }
 

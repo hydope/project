@@ -368,6 +368,9 @@ export default function Onboard() {
       childrenPlans: d.childrenPlans,
       photosVisibility: d.photoAccess,
       visibility: d.profileVisibility,
+      managementMode: d.managementMode,
+      guardianName: d.guardianName,
+      guardianEmail: d.guardianEmail,
       bio: d.bio,
       expectations: d.lookingFor,
       syedStatus: d.syedStatus,
@@ -1002,7 +1005,7 @@ function StepPrivacy({ data, update, errors }) {
               <Field label="Guardian's name" required error={errors.guardianName}>
                 <TextInput value={data.guardianName} onChange={e => update('guardianName', e.target.value)} placeholder="e.g. Muhammad H. (father)" error={errors.guardianName} ariaLabel="Guardian's name" />
               </Field>
-              <Field label="Guardian's email" required error={errors.guardianEmail} hint="They'll receive a secure invite to co-manage">
+              <Field label="Guardian's email" required error={errors.guardianEmail} hint="They'll receive a secure link to view this profile — view only, they cannot edit it">
                 <TextInput type="email" value={data.guardianEmail} onChange={e => update('guardianEmail', e.target.value)} placeholder="guardian@email.com" error={errors.guardianEmail} ariaLabel="Guardian's email" />
               </Field>
             </div>

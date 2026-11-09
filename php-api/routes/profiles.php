@@ -784,6 +784,13 @@ function profileUpdate(): void
     $user = requireAuthUser();
     $b = requestJson();
 
+    // Guardian-managed profiles (2026-11-09): what is already stored, so a
+    // partial save can be validated against it and an invite is only sent
+    // when the guardian email is newly set or changed.
+    $prevStmt = db()->prepare('SELECT management_mode, guardian_name, guardian_email FROM profiles WHERE user_id = ? LIMIT 1');
+    $prevStmt->execute([(string)$user['uid']]);
+    $prevRow = $prevStmt->fetch(PDO::FETCH_ASSOC) ?: ['management_mode' => null, 'guardian_name' => null, 'guardian_email' => null];
+
     // Validation parity with profileMutations.js.
     $age = ($b['age'] ?? null) === null || $b['age'] === '' ? null : (int)$b['age'];
     if ($age !== null && (!ctype_digit((string)$b['age']) || $age < 18 || $age > 100)) {
@@ -821,6 +828,43 @@ function profileUpdate(): void
         je('Bio must be under 2000 characters.', 400);
     }
 
+    // Guardian fields (2026-11-09): a guardian-managed profile needs a
+    // guardian name and a reachable email — enforced here, not only in the
+    // wizard, so a direct API call cannot create one with nobody to invite.
+    // Effective values are the provided ones, falling back to what is already
+    // stored (an explicitly-sent empty string clears); a partial save is not
+    // rejected for a value that is already on file.
+    if (!empty($b['managementMode']) && !in_array($b['managementMode'], ['self', 'guardian'], true)) {
+        je('Invalid managementMode.', 400);
+    }
+    if (array_key_exists('guardianEmail', $b) && $b['guardianEmail'] !== null && $b['guardianEmail'] !== '' && !validEmail((string)$b['guardianEmail'])) {
+        je('Enter a valid guardian email.', 400);
+    }
+    if (!empty($b['guardianName']) && strlen((string)$b['guardianName']) > 120) {
+        je('Guardian name must be under 120 characters.', 400);
+    }
+    $effMode = $b['managementMode'] ?? $prevRow['management_mode'] ?? null;
+    if ($effMode === 'guardian') {
+        $effEmail = array_key_exists('guardianEmail', $b)
+            ? (($b['guardianEmail'] === '' || $b['guardianEmail'] === null) ? null : (string)$b['guardianEmail'])
+            : (string)($prevRow['guardian_email'] ?? '');
+        $effName = array_key_exists('guardianName', $b)
+            ? (($b['guardianName'] === '' || $b['guardianName'] === null) ? null : (string)$b['guardianName'])
+            : (string)($prevRow['guardian_name'] ?? '');
+        if ($effEmail === null || trim($effEmail) === '' || !validEmail($effEmail)) {
+            je('A guardian email is required for a guardian-managed profile.', 400);
+        }
+        if ($effName === null || trim($effName) === '') {
+            je('A guardian name is required for a guardian-managed profile.', 400);
+        }
+    }
+    // Switching back to self-managed clears the stored guardian details —
+    // a self-managed profile has no guardian to invite.
+    if (($b['managementMode'] ?? null) === 'self') {
+        $b['guardianName'] = null;
+        $b['guardianEmail'] = null;
+    }
+
     // Public handle. Optional, member-chosen, and unique across the platform so
     // it can be used to address someone. Validated here rather than trusted:
     // it is rendered in links and shown to other members.
@@ -850,7 +894,11 @@ function profileUpdate(): void
         'religiosity', 'educationLevel', 'marja', 'prayer', 'modesty', 'diet',
         'languages', 'ethnicity', 'sub_ethnicity', 'subEthnicity', 'incomeRange', 'maritalStatus', 'children',
         'childrenPlans', 'relocation', 'familyInvolvement', 'heightCm', 'timeline',
-        'photoUrl', 'syedStatus', 'username'];
+        'photoUrl', 'syedStatus', 'username',
+        // Guardian management (2026-11-09). managementMode is the only one
+        // of the three ever exposed publicly (via visibleProfile); the
+        // guardian's name/email stay server-side.
+        'managementMode', 'guardianName', 'guardianEmail'];
 
     // Accept the same key under both shapes. The browse filter sends `education`
     // (that is the query-param name) while the onboarding form sends
@@ -891,6 +939,9 @@ function profileUpdate(): void
             'syedStatus' => 'syed_status',
             'seekingGender' => 'seeking_gender',
             'subEthnicity' => 'sub_ethnicity',
+            'managementMode' => 'management_mode',
+            'guardianName' => 'guardian_name',
+            'guardianEmail' => 'guardian_email',
             default => $key,
         };
         $v = in_array($key, ['age', 'heightCm'], true) && $b[$key] !== null && $b[$key] !== ''
@@ -949,6 +1000,37 @@ function profileUpdate(): void
     $row = $fetch->fetch();
     if (!$row) {
         je('Could not save this profile.', 500);
+    }
+
+    // Guardian invite (2026-11-09): when the profile is guardian-managed
+    // and the guardian email is newly set or changed, issue a secure wali
+    // view link and email it to the guardian. Only on change — never on
+    // every save. Best-effort: a mail failure must never fail the profile
+    // save itself, so it is caught and logged.
+    $finalMode = (string)($row['management_mode'] ?? '');
+    $finalEmail = trim((string)($row['guardian_email'] ?? ''));
+    $prevEmail = trim((string)($prevRow['guardian_email'] ?? ''));
+    if ($finalMode === 'guardian' && $finalEmail !== '' && $finalEmail !== $prevEmail) {
+        try {
+            $token = randomBase64Url(24);
+            db()->prepare('INSERT INTO wali_links (token, user_id) VALUES (?, ?)')->execute([$token, (string)$user['uid']]);
+            $waliUrl = publicBase() . '/wali/' . $token;
+            $memberName = trim((string)($row['display_name'] ?? 'A member'));
+            $guardianName = trim((string)($row['guardian_name'] ?? ''));
+            mailSend([
+                'to' => $finalEmail,
+                'subject' => $memberName . ' invited you to view their Shia Rishta profile',
+                'text' => 'Assalamu alaikum' . ($guardianName !== '' ? ' ' . $guardianName : '') . ",\n\n"
+                    . $memberName . " listed you as their guardian (wali) on Shia Rishta, a Shia matrimony platform, and asked us to share their profile with you.\n\n"
+                    . 'View the profile here (no account needed): ' . $waliUrl . "\n\n"
+                    . "This link lets you view the profile only — you cannot edit it or contact anyone through it. "
+                    . "The member can revoke this link at any time.\n\n"
+                    . "If this invitation was not meant for you, please ignore this email.\n\n"
+                    . '— Shia Rishta',
+            ]);
+        } catch (Throwable $e) {
+            error_log('[api] guardian invite failed for ' . (string)$user['uid'] . ': ' . substr($e->getMessage(), 0, 120));
+        }
     }
 
     json(['ok' => true, 'profile' => $row]);

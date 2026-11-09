@@ -257,6 +257,9 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'verified_kind' => (string)($row['verified_kind'] ?? 'none'),
             'isDemo' => (bool)($row['is_demo'] ?? false),
             'visibility' => $row['visibility'] ?? 'members',
+            // Guardian management only — the guardian's name/email are NEVER
+            // exposed here; only the fact the profile is guardian-managed.
+            'managementMode' => !empty($row['management_mode']) ? (string)$row['management_mode'] : null,
             'username' => $row['username'] ?? null,
             'religiosity' => $row['religiosity'] ?? null,
             'educationLevel' => $row['education_level'] ?? null,
@@ -306,6 +309,9 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'verified_kind' => (string)($row['verified_kind'] ?? 'none'),
             'isDemo' => (bool)($row['is_demo'] ?? false),
             'visibility' => $row['visibility'] ?? 'members',
+            // Guardian management only — the guardian's name/email are NEVER
+            // exposed here; only the fact the profile is guardian-managed.
+            'managementMode' => !empty($row['management_mode']) ? (string)$row['management_mode'] : null,
             // Public handle the member chose for themselves. Null when unset.
             'username' => $row['username'] ?? null,
             // ── Filterable fields ────────────────────────────────────────────
@@ -354,6 +360,7 @@ function visibleProfile(array $row, ?array $viewer): ?array
         'expectations' => $row['expectations'] ?? null,
         'aboutFamily' => $row['about_family'] ?? null,
         'visibility' => $row['visibility'] ?? 'members',
+        'managementMode' => !empty($row['management_mode']) ? (string)$row['management_mode'] : null,
         'photosVisibility' => (string)($row['photos_visibility'] ?? 'members'),
         'photosLocked' => !$isOwner,
         'locked' => true,

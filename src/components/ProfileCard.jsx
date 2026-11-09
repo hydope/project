@@ -312,6 +312,13 @@ export default function ProfileCard({ profile, className = '' }) {
               {profile.religiosity && (
                 <span className="badge-primary text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}>{profile.religiosity}</span>
               )}
+              {/* Guardian-managed (2026-11-09): the same wording as the
+                  detail page, so a browser can tell at a glance who manages
+                  this profile. Shown only when the API says so — the payload
+                  carries managementMode, never the guardian's name/email. */}
+              {profile.managementMode === 'guardian' && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }} title="Wali / guardian managed">Wali / guardian managed</span>
+              )}
             </>
           )}
         </div>
