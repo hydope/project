@@ -227,11 +227,16 @@ export default function ProfileCard({ profile, className = '' }) {
             className="absolute top-2.5 right-2.5"
           />
 
-          {/* Syed / Sadat badge */}
+          {/* Syed / Sadat badge — stacked ABOVE the photo-privacy chip when
+              both are present (2026-11-09): both were `absolute bottom-2.5
+              left-2.5`, so the gold pill sat directly on top of "Members
+              only", covering its lock icon. The privacy chip is ~30px tall,
+              so 3rem clears it with a gap. */}
           {(profile.syedStatus === 'sadat-both' || profile.syedStatus === 'syed-paternal') && (
             <div
-              className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+              className="absolute left-2.5 px-2 py-0.5 rounded-full text-[10px] font-semibold"
               style={{
+                bottom: photoLocked ? '3rem' : '0.625rem',
                 background: 'linear-gradient(135deg,#d4af37,#b8860b)',
                 color: '#1a1a1a',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.3)',

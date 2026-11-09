@@ -3790,10 +3790,14 @@ button, a, input, select, textarea {
   transition: all var(--transition-base);
   white-space: nowrap;
 }
+/* Hardcoded dark ink (2026-11-09): the background was var(--color-ink),
+   which is pale cream #f5ede1 in the dark theme — white text on a pale pill,
+   invisible. Every use of this class sits on a light section (hero, featured,
+   premium), so a fixed dark button is correct in both themes. */
 .hp-btn-primary {
-  background: var(--color-ink);
+  background: #17130f;
   color: #fff;
-  border: 1px solid var(--color-ink);
+  border: 1px solid #17130f;
   box-shadow: 0 14px 30px rgba(33, 27, 23, 0.18);
 }
 .hp-btn-primary:hover {
@@ -3894,17 +3898,27 @@ button, a, input, select, textarea {
   border: 1px solid rgba(234, 223, 212, 0.9);
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
-  color: var(--color-ink);
+  /* Hardcoded dark ink (2026-11-09): color was var(--color-ink), pale cream
+     in the dark theme on a near-white pill — white on white. The pills are
+     always light, so the text is fixed dark in both themes. max-width keeps a
+     long label inside the photo at narrow widths. */
+  color: #17130f;
+  max-width: calc(100% - 24px);
   font-size: 0.8rem;
   font-weight: 700;
   box-shadow: 0 12px 30px rgba(33, 27, 23, 0.12);
   animation: hp-float 6s ease-in-out infinite;
 }
-.hp-chip svg { color: var(--color-primary); }
-.hp-chip.c1 { top: 6%; left: -20px; }
-.hp-chip.c2 { top: 24%; right: -22px; animation-delay: 0.08s; }
-.hp-chip.c3 { bottom: 34%; left: -28px; animation-delay: 0.16s; }
-.hp-chip.c4 { bottom: 24%; right: -12px; animation-delay: 0.24s; }
+/* Chip icon: the light sage #416b5b, not the dark-theme var (#8fb3a0), which
+   is too pale on the near-white pill. */
+.hp-chip svg { color: #416b5b; }
+/* Chips sit INSIDE the photo (2026-11-09): the old negative offsets hung
+   them 12–28px past the visual's edges, where ancestor overflow clipped the
+   "Smart matching" label ("mart matching" at desktop, icon-only at 390px). */
+.hp-chip.c1 { top: 6%; left: 12px; }
+.hp-chip.c2 { top: 24%; right: 12px; animation-delay: 0.08s; }
+.hp-chip.c3 { bottom: 34%; left: 12px; animation-delay: 0.16s; }
+.hp-chip.c4 { bottom: 24%; right: 12px; animation-delay: 0.24s; }
 @keyframes hp-float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-9px); }
@@ -3943,14 +3957,20 @@ button, a, input, select, textarea {
   font-family: var(--font-display);
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--color-ink);
+  /* Hardcoded dark ink (2026-11-09): color was var(--color-ink), pale cream
+     #f5ede1 in the dark theme on a near-white card — the "185 members" number
+     was white-on-white, invisible. The font (Cormorant Garamond 700) was
+     never the problem. */
+  color: #17130f;
   line-height: 1.1;
 }
 .hp-float-card > div > span {
   display: block;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--color-ink-tertiary);
+  /* Same fix: the dark-theme tertiary (#a08e79) is readable but faint; the
+     light-theme secondary is dark on this light card in both themes. */
+  color: #5d5449;
 }
 .hp-visual-caption {
   max-width: 1200px;

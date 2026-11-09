@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Bot, X, Send, Sparkles, BadgeCheck, MessageCircle, MessageCircleHeart } from 'lucide-react';
 import { SUGGESTIONS, WELCOME } from '../lib/aiAssistantBrain';
 import { AI_OPEN_EVENT } from '../lib/aiAssistant';
@@ -96,9 +97,28 @@ export default function AIAssistant() {
     return () => vv.removeEventListener('resize', onResize);
   }, []);
 
+  // Hide the floating button on profile-detail pages at phone widths
+  // (2026-11-09): the fixed bottom-right pill otherwise covers the right
+  // end of the "Send interest" button and the at-a-glance tiles while
+  // scrolling at 390px. The assistant stays reachable from every other
+  // page, and from profile detail on wider screens. (The button the live
+  // check called "WhatsApp" is this pill: icon-only green circle with a
+  // message-heart icon at phone widths. There is no floating WhatsApp
+  // button in the codebase — the WhatsApp share is an inline button in
+  // the action row.)
+  const { pathname } = useLocation();
+  const [isNarrow, setIsNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    const onChange = () => setIsNarrow(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  const hideFabOnProfile = isNarrow && /^\/profiles\/[^/]+$/.test(pathname);
+
   return (
     <>
-      {!isOpen && !keyboardOpen && (
+      {!isOpen && !keyboardOpen && !hideFabOnProfile && (
         <button type="button" className="ai-fab" data-ai-fab onClick={() => setIsOpen(true)} aria-label="Open AI assistant">
           <MessageCircleHeart className="w-4 h-4" /><span>Ask Assistant</span>
         </button>
