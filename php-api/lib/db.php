@@ -409,12 +409,33 @@ function visibleProfile(array $row, ?array $viewer): ?array
 
     if (($row['visibility'] ?? 'members') === 'public' || isset($viewer['uid']) || $isOwner) {
         $photosVisibility = (string)($row['photos_visibility'] ?? 'members');
-        // Mirror photoServe() exactly (2026-11-09): a non-owner may fetch
-        // the photo only for a public tier, or with a mutual interest.
-        // The old rule withheld only `private`, so a members-tier profile
-        // advertised a photo URL the serve endpoint then 404'd — the card
-        // promised a photo nobody without a match could open.
-        $photosLocked = !$isOwner && $photosVisibility !== 'public' && !$isMutual;
+        // Per-tier entitlement (2026-11-09; the brief's rule + the repo's
+        // own visibility test, admin-routing-test.php:768): a non-owner
+        // sees the photo for a public tier (anyone), for the 'members'
+        // tier when signed in, and for a legacy restricted tier
+        // ('request'/'match') only with a mutual interest; 'private'
+        // never. The first version of this fix mirrored photoServe()
+        // exactly (mutual interest for every non-public tier) and broke
+        // the deploy gate — the test codifies 'members' = any signed-in
+        // member. photoServe() is NOT changed (brief: keep it as-is), so
+        // a residual mismatch remains: a non-mutual signed-in viewer gets
+        // a payload URL the serve endpoint still 404s. That needs a
+        // product call (relax photoServe for 'members', or change the
+        // tier copy) — it is NOT silently fixed here.
+        if ($isOwner || $photosVisibility === 'public') {
+            $photosLocked = false;
+        } elseif ($photosVisibility === 'members') {
+            // This branch is reached only by signed-in viewers (anonymous
+            // returns above), so a signed-in member sees a members-tier
+            // photo; the $viewer check keeps the rule true if the branch
+            // is ever reached signed-out.
+            $photosLocked = $viewer === null;
+        } elseif ($photosVisibility === 'private') {
+            $photosLocked = true;
+        } else {
+            // Legacy restricted tiers ('request'/'match'): mutual interest only.
+            $photosLocked = !$isMutual;
+        }
         return applyHiddenFields([
             'id' => $ownerId,
             'displayName' => $row['display_name'] ?? null,
