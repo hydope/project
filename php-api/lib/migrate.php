@@ -44,6 +44,7 @@ function migrateSchema(): void
     migrateAddAdminAuditTable();
     migrateAddWaliLinksTable();
     migrateAddUserVerificationColumns();
+    migrateAddReportActionColumns();
     migrateAddBlogPostsTable();
     migrateAddBlogImageColumn();
     migrateAddContactSpamColumn();
@@ -337,6 +338,41 @@ function migrateAddUserVerificationColumns(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (user verification) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Report action columns.
+ *
+ * AdminService::actionReport() and dismissReport() already reference these
+ * columns; without them every report action died with a SQL error and the
+ * whole transaction (including the hide) rolled back, so no report could
+ * ever be actioned. Adding the columns here AND to schema.sql (which busts
+ * the migration marker digest) is what makes production run this.
+ */
+function migrateAddReportActionColumns(): void
+{
+    $additions = [
+        'actioned_by' => 'CHAR(36) DEFAULT NULL',
+        'actioned_at' => 'DATETIME DEFAULT NULL',
+    ];
+
+    try {
+        $existing = [];
+        foreach (db()->query('SHOW COLUMNS FROM reports')->fetchAll() as $c) {
+            $existing[strtolower((string)$c['Field'])] = true;
+        }
+        foreach ($additions as $col => $def) {
+            if (isset($existing[$col])) continue;
+            try {
+                db()->exec("ALTER TABLE reports ADD COLUMN `$col` $def");
+                error_log("[api] migration: added reports.$col");
+            } catch (Throwable $e) {
+                error_log("[api] migration: could not add reports.$col — " . substr($e->getMessage(), 0, 120));
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (report action columns) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }
 

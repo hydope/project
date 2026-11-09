@@ -201,6 +201,8 @@ CREATE TABLE IF NOT EXISTS reports (
   target_id   VARCHAR(64)   NOT NULL,
   reason      VARCHAR(1000) NOT NULL,
   status      VARCHAR(16)   NOT NULL DEFAULT 'open',
+  actioned_by CHAR(36)      DEFAULT NULL,
+  actioned_at DATETIME      DEFAULT NULL,
   created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_reports_status (status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

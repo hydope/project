@@ -953,7 +953,13 @@ function adminReportAction(string $reportId): void
         // The test harness signals json() via RuntimeException('JSON_CAPTURED') —
         // that is success, not a report error. Let it bubble.
         if ($e->getMessage() === 'JSON_CAPTURED') throw $e;
-        je($e->getMessage(), 404);
+        // Only a missing report is a 404. Anything else reaching here is a
+        // database/server failure — PDOException is a RuntimeException, so the
+        // old code returned its raw message (SQLSTATE text) as a 404. Never
+        // leak it: log it server-side and answer a generic 500.
+        if ($e->getMessage() === 'Report not found.') je($e->getMessage(), 404);
+        logError('admin report action failed', ['report' => $reportId, 'error' => substr($e->getMessage(), 0, 200)]);
+        je('Something went wrong. Please try again.', 500);
     }
 }
 
