@@ -90,6 +90,13 @@ CREATE TABLE IF NOT EXISTS profiles (
   -- Display-only: the values stay stored and are still used for matching
   -- and filters; visibleProfile() omits them for non-owners.
   hidden_fields      TEXT         DEFAULT NULL,
+  -- Privacy toggles (2026-11-09, P0 batch): block_unverified hides the
+  -- profile from members whose email is not verified (and blocks their
+  -- interest); allow_family_view gates the wali view links. Both are
+  -- enforced server-side — the Settings toggles used to be localStorage-only
+  -- while the copy claimed server enforcement.
+  block_unverified   TINYINT(1)   NOT NULL DEFAULT 0,
+  allow_family_view  TINYINT(1)   NOT NULL DEFAULT 1,
   income_range       VARCHAR(80)  DEFAULT NULL,
   marital_status     VARCHAR(60)  DEFAULT NULL,
   children           VARCHAR(60)  DEFAULT NULL,

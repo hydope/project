@@ -73,7 +73,12 @@ export default function Home() {
   // nothing rather than a placeholder number — a wrong figure on a marriage
   // site is worse than an absent one, and the endpoint is a single cheap query.
   const { data: stats } = useStats();
-  const memberCount = Number(stats?.members ?? 0);
+  // One true total (2026-11-09, P0 batch): `browsable` is the count a visitor
+  // actually sees in /profiles. `members` counts private and unfinished
+  // profiles too, and the featured line used to count the loaded page
+  // (98/99) — three different denominators on one page. Fall back to
+  // `members` only if the endpoint predates the `browsable` field.
+  const memberCount = Number(stats?.browsable ?? stats?.members ?? 0);
   const cityCount = Number(stats?.cities ?? 0);
   const verifiedCount = Number(stats?.verified ?? 0);
   const hasStats = !!stats;
@@ -256,7 +261,7 @@ export default function Home() {
           </div>
           <div className="hp-featured-cta">
             {isLoggedIn ? (<Link to="/dashboard" className="hp-btn-primary">Go to your dashboard <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>) : (<Link to="/profiles" className="hp-btn-primary">Browse all profiles <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>)}
-            <span>{profilesLoading ? 'Finding members…' : `${(data || []).length} curated members`} · {isLoggedIn ? "welcome back" : "free to join"}</span>
+            <span>{profilesLoading ? 'Finding members…' : `${memberCount > 0 ? memberCount : (data || []).length} curated members`} · {isLoggedIn ? "welcome back" : "free to join"}</span>
           </div>
         </section>
 

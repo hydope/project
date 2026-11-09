@@ -553,6 +553,9 @@ function profilesList(): void
         // accepted trade: everything returned still honours the member's photo
         // setting, and `private` profiles remain fully invisible.
         $where[] = "p.visibility <> 'private'";
+        // "Block unverified members": an owner who turned it on is invisible
+        // to signed-out visitors, who are unverified by definition.
+        $where[] = 'p.block_unverified = 0';
         // Hide unfinished profiles from browse (2026-11-04, Syed's call): no
         // city, no country, no bio and no about-family text — the exact
         // condition behind the old "Profile in progress" badge. They stay
@@ -570,6 +573,19 @@ function profilesList(): void
         // Never show members their own profile as a match.
         $where[] = 'p.user_id <> ?';
         $params[] = $viewer['uid'];
+        // User blocks (2026-11-09, P0 batch): never list a profile whose
+        // member blocked me or whom I blocked. Filtering in SQL keeps the
+        // paged `total` honest — visibleProfile() is the safety net for the
+        // single-profile and favourites paths.
+        $where[] = 'NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?))';
+        $params[] = $viewer['uid'];
+        $params[] = $viewer['uid'];
+        // "Block unverified members": an unverified viewer never sees those
+        // profiles. One lookup here; visibleProfile() re-checks per row for
+        // the single-profile and favourites paths.
+        if (!viewerIsEmailVerified($viewer)) {
+            $where[] = 'p.block_unverified = 0';
+        }
     }
 
     // Pagination (2026-10-25): the directory hard-capped at 100 rows with no
@@ -957,7 +973,11 @@ function profileUpdate(): void
         'managementMode', 'guardianName', 'guardianEmail',
         // Hide-any-field (2026-11-09). Normalized to a JSON string (or null)
         // above, so the $sets loop stores it as plain text.
-        'hidden_fields'];
+        'hidden_fields',
+        // Privacy toggles + contact phone (2026-11-09, P0 batch). These were
+        // collected in Settings but never sent to the server — the save wrote
+        // localStorage and only the bio reached the API.
+        'contactPhone', 'blockUnverified', 'allowFamilyView'];
 
     // Accept the same key under both shapes. The browse filter sends `education`
     // (that is the query-param name) while the onboarding form sends
@@ -973,7 +993,15 @@ function profileUpdate(): void
         'income_range'       => 'incomeRange',
         'height_cm'          => 'heightCm',
         'photo_url'          => 'photoUrl',
+        'phone'              => 'contactPhone',
     ];
+    // Privacy toggles arrive as JSON booleans; the columns are TINYINT.
+    // Normalize here so a string "false" can never store as truthy.
+    foreach (['blockUnverified', 'allowFamilyView'] as $toggle) {
+        if (array_key_exists($toggle, $b)) {
+            $b[$toggle] = !empty($b[$toggle]) && $b[$toggle] !== 'false' && $b[$toggle] !== '0' ? 1 : 0;
+        }
+    }
     foreach ($aliases as $from => $to) {
         if (!array_key_exists($to, $b) && array_key_exists($from, $b)) {
             $b[$to] = $b[$from];
@@ -1001,6 +1029,9 @@ function profileUpdate(): void
             'managementMode' => 'management_mode',
             'guardianName' => 'guardian_name',
             'guardianEmail' => 'guardian_email',
+            'contactPhone' => 'contact_phone',
+            'blockUnverified' => 'block_unverified',
+            'allowFamilyView' => 'allow_family_view',
             default => $key,
         };
         $v = in_array($key, ['age', 'heightCm'], true) && $b[$key] !== null && $b[$key] !== ''
@@ -1128,6 +1159,25 @@ function profileInterest(string $id): void
         je('This member declined your interest.', 403);
     }
 
+    // A block in either direction stops interest (2026-11-09, P0 batch).
+    // The message names the blocker's own action; the blocked side hears
+    // only that the member is unavailable.
+    if (isBlockedBetween($user['uid'], $id)) {
+        if (didBlock($user['uid'], $id)) {
+            je('You have blocked this member. Unblock them to send interest.', 403);
+        }
+        je('This member is not available.', 403);
+    }
+
+    // "Block unverified members": the target only accepts interest from
+    // members whose email is verified.
+    $targetPrefs = db()->prepare('SELECT block_unverified FROM profiles WHERE user_id = ? LIMIT 1');
+    $targetPrefs->execute([$id]);
+    $targetRow = $targetPrefs->fetch();
+    if (!empty($targetRow['block_unverified']) && !viewerIsEmailVerified($user)) {
+        je('This member only accepts interest from verified members.', 403);
+    }
+
     // Idempotent: PK conflict on (from,to) is a no-op, like ON CONFLICT DO NOTHING.
     $insert = db()->prepare('INSERT IGNORE INTO interests (from_user_id, to_user_id) VALUES (?, ?)');
     $insert->execute([$user['uid'], $id]);
@@ -1142,8 +1192,15 @@ function profileInterest(string $id): void
     $nameRow = $fromName->fetch();
     $senderName = $nameRow['display_name'] ?? 'Someone';
     if ($mirrored) {
+        // The completing side's notification must name the OTHER person.
+        // $senderName is this member's own name — using it here told the
+        // member they had matched with themselves.
+        $otherName = db()->prepare('SELECT display_name FROM profiles WHERE user_id = ? LIMIT 1');
+        $otherName->execute([$id]);
+        $otherRow = $otherName->fetch();
+        $targetName = $otherRow['display_name'] ?? 'Someone';
         notifyUser($id, 'match', 'It\'s a mutual match!', $senderName . ' also expressed interest. Start a conversation.', $user['uid']);
-        notifyUser($user['uid'], 'match', 'It\'s a mutual match!', 'You and ' . $senderName . ' both expressed interest.', $id);
+        notifyUser($user['uid'], 'match', 'It\'s a mutual match!', 'You and ' . $targetName . ' both expressed interest.', $id);
     } else {
         notifyUser($id, 'interest', 'New interest received', $senderName . ' expressed interest in your profile.', $user['uid']);
     }

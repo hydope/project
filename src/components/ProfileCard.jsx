@@ -142,7 +142,7 @@ export default function ProfileCard({ profile, className = '' }) {
     >
       <Link to={'/profiles/' + profile.id} className="block flex-1">
         {/* Photo */}
-        <div className="relative aspect-[4/4.6] overflow-hidden" style={{ background: 'var(--color-surface)' }}>
+        <div className="relative aspect-[4/3.2] sm:aspect-[4/4.6] overflow-hidden" style={{ background: 'var(--color-surface)' }}>
           {/* Only ever render a real photo. The old `|| stock-unsplash-url`
               fallback put the same stranger's face on every card and
               misrepresented every member shown. */}
@@ -191,23 +191,20 @@ export default function ProfileCard({ profile, className = '' }) {
           {/* Bottom gradient scrim */}
           <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent" />
 
+          {/* Photo-privacy signal — a small chip, not a full-cover overlay
+              (2026-11-09, P0 batch): the old overlay dimmed the whole photo
+              area with a dark scrim, so the monogram initials underneath
+              rendered small, faded and half-hidden behind the lock. */}
           {photoLocked && (
-            <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(7,10,18,0.55)' }}>
-              <div className="text-center text-white space-y-1 px-4">
-                <div
-                  className="w-10 h-10 mx-auto rounded-full flex items-center justify-center mb-1.5"
-                  style={{ background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.2)' }}
-                >
-                  <Lock className="w-4 h-4" />
-                </div>
-                <p className="text-[11px] font-semibold">
-                  {profile.photosVisibility === 'match' ? '💍 After match'
-                    : profile.photosVisibility === 'request' ? '👁️ After interest'
-                    : profile.photosVisibility === 'private' ? '🔒 Private'
-                    : '👁️ Members only'}
-                </p>
-                <p className="text-[9px] opacity-60">Private until mutual step</p>
-              </div>
+            <div
+              className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-white"
+              style={{ background: 'rgba(11,15,23,0.65)', border: '1px solid rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)' }}
+            >
+              <Lock className="w-3.5 h-3.5" />
+              {profile.photosVisibility === 'match' ? 'After match'
+                : profile.photosVisibility === 'request' ? 'After interest'
+                : profile.photosVisibility === 'private' ? 'Private'
+                : 'Members only'}
             </div>
           )}
 

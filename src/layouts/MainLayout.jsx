@@ -339,6 +339,51 @@ export default function MainLayout({ children }) {
   const [dark, setDark] = useState(() => readIsDark());
   const [cmdOpen, setCmdOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const mobilePanelRef = useRef(null);
+  const mobileToggleRef = useRef(null);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
+  // Mobile drawer a11y (2026-11-09, P0 batch — copied from LandingLayout):
+  // Escape closes, Tab cycles inside the panel, the body cannot scroll
+  // behind it, focus returns to the hamburger on close, and the floating
+  // AI FAB + feedback button hide while the drawer is open (the FAB's
+  // z-200 used to sit on top of the drawer).
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.body.classList.add('nav-open');
+    mobilePanelRef.current?.querySelector('button')?.focus();
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setMobileNavOpen(false);
+      if (event.key !== 'Tab') return;
+      const controls = mobilePanelRef.current?.querySelectorAll('a[href], button:not([disabled])');
+      if (!controls?.length) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const closeOnDesktop = () => { if (desktop.matches) setMobileNavOpen(false); };
+    desktop.addEventListener('change', closeOnDesktop);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.classList.remove('nav-open');
+      document.removeEventListener('keydown', handleKeyDown);
+      desktop.removeEventListener('change', closeOnDesktop);
+      mobileToggleRef.current?.focus();
+    };
+  }, [mobileNavOpen]);
 
   useEffect(() => {
     writeIsDark(dark);
@@ -404,6 +449,10 @@ export default function MainLayout({ children }) {
               onClick={() => setMobileNavOpen(false)}
             />
             <motion.aside
+              ref={mobilePanelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Navigation menu"
               initial={{ x: -280 }}
               animate={{ x: 0 }}
               exit={{ x: -280 }}
@@ -482,7 +531,7 @@ export default function MainLayout({ children }) {
 
       {/* Mobile top bar */}
       <div className="mobile-topbar">
-        <button className="mobile-menu-btn" onClick={() => setMobileNavOpen(true)} aria-label="Open menu">
+        <button ref={mobileToggleRef} className="mobile-menu-btn" onClick={() => setMobileNavOpen(true)} aria-label="Open menu" aria-expanded={mobileNavOpen}>
           <Menu className="w-5 h-5" />
         </button>
         <BrandMark />

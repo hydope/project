@@ -22,13 +22,21 @@ export default function AdminMatchmaker() {
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
+  // Real error state (2026-11-09, P0 batch): the old `catch {}` rendered
+  // "No pending submissions" on a failed fetch — an outage read as an
+  // empty queue, and submissions sat unreviewed with no signal.
+  const [error, setError] = useState('');
 
   const load = async () => {
     setLoading(true);
+    setError('');
     try {
       const r = await http.get('/api/admin/matchmaker');
       setQueue(r.queue || []);
-    } catch { /* ignore */ }
+    } catch (e) {
+      setError(e?.message || 'Could not load the matchmaker queue.');
+      setQueue([]);
+    }
     setLoading(false);
   };
 
@@ -57,6 +65,12 @@ export default function AdminMatchmaker() {
 
       {loading ? (
         <p style={{ color: '#8b949e' }}>Loading…</p>
+      ) : error ? (
+        <div className="rounded-xl p-5" style={{ background: '#161b22', border: '1px solid #f85149' }} role="alert">
+          <p className="text-sm font-semibold" style={{ color: '#f0f6fc' }}>Couldn’t load the queue</p>
+          <p className="text-sm mt-1" style={{ color: '#8b949e' }}>{error}</p>
+          <button onClick={load} className="mt-3 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: '#388bfd', color: '#fff' }}>Try again</button>
+        </div>
       ) : queue.length === 0 ? (
         <div className="rounded-xl p-8 text-center" style={{ background: '#161b22', border: '1px solid #21262d' }}>
           <p style={{ color: '#8b949e' }}>No pending submissions.</p>

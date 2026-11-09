@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import Layout from '@/layouts/AdminLayout';
 import { http } from '@/lib/api/transport';
 import { AlertTriangle, ShieldCheck, Flag, RefreshCw, Check, X, Inbox } from 'lucide-react';
@@ -120,14 +121,14 @@ export default function AdminQueue() {
         </header>
 
         {data && (
-          <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
             {[
               { label: 'Open reports', value: data.openReports, icon: Flag },
               { label: 'Pending verifications', value: data.pendingVerifications, icon: ShieldCheck },
               { label: 'Breaching SLA', value: data.urgent, icon: AlertTriangle, danger: data.urgent > 0 },
             ].map(({ label, value, icon: Icon, danger }) => (
               <div key={label}
-                className={`rounded-xl p-4 border ${danger ? 'border-danger/30 bg-danger/5' : 'border-line/20 bg-elevated'}`}>
+                className={`rounded-xl p-3 sm:p-4 border ${danger ? 'border-danger/30 bg-danger/5' : 'border-line/20 bg-elevated'}`}>
                 <div className="flex items-center gap-2 mb-1">
                   <Icon className={`w-4 h-4 ${danger ? 'text-danger' : 'text-muted'}`} />
                   <span className="text-xs text-muted">{label}</span>
@@ -209,6 +210,11 @@ export default function AdminQueue() {
                     </>
                   ) : (
                     <>
+                      {/* Blind approval was the P0: the row showed only a name,
+                          email and age. Review opens the document queue where
+                          the file can be seen before any decision. */}
+                      <Link to="/admin/verifications"
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-line/30 text-muted hover:text-ink">Review</Link>
                       <button onClick={() => act(item.id, 'approve')} disabled={busy}
                         className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white disabled:opacity-50">Approve</button>
                       <button onClick={() => act(item.id, 'reject')} disabled={busy}

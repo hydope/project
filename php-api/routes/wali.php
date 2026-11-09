@@ -20,6 +20,16 @@ function routeWali(string $method, array $segments): void
 function createWaliLink(): void
 {
     $user = requireAuthUser();
+    // "Allow family members to view profile" (2026-11-09, P0 batch): when
+    // the member turned it off, no new wali link can be created. The toggle
+    // used to be localStorage-only while Settings claimed server enforcement.
+    $pref = db()->prepare('SELECT allow_family_view FROM profiles WHERE user_id = ? LIMIT 1');
+    $pref->execute([$user['uid']]);
+    $prefRow = $pref->fetch();
+    $familyViewOff = is_array($prefRow) && array_key_exists('allow_family_view', $prefRow) && empty($prefRow['allow_family_view']);
+    if ($familyViewOff) {
+        je('Family viewing is turned off in your privacy settings.', 403);
+    }
     $token = randomBase64Url(24);
     db()->prepare('INSERT INTO wali_links (token, user_id) VALUES (?, ?)')->execute([$token, $user['uid']]);
 
@@ -48,7 +58,7 @@ function listWaliLinks(): void
 function publicWaliView(string $token): void
 {
     $stmt = db()->prepare(
-        'SELECT u.id, p.display_name, p.age, p.city, p.country, p.sect, p.profession, p.bio, p.is_verified, p.verified_kind, l.revoked
+        'SELECT u.id, p.display_name, p.age, p.city, p.country, p.sect, p.profession, p.bio, p.is_verified, p.verified_kind, p.allow_family_view, l.revoked
            FROM wali_links l
            JOIN users u ON u.id = l.user_id
            LEFT JOIN profiles p ON p.user_id = u.id
@@ -57,7 +67,11 @@ function publicWaliView(string $token): void
     $stmt->execute([$token]);
     $row = $stmt->fetch();
 
-    if (!$row || !empty($row['revoked'])) {
+    // A member who turned family viewing off revokes every wali link by
+    // that same act — the link reads as invalid, same as a revoked one, so
+    // the setting itself is never disclosed to the link holder.
+    $familyViewOff = is_array($row) && array_key_exists('allow_family_view', $row) && empty($row['allow_family_view']);
+    if (!$row || !empty($row['revoked']) || $familyViewOff) {
         je('This wali link is invalid or was revoked.', 404);
     }
 

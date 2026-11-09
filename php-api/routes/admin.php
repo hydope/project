@@ -410,7 +410,8 @@ function adminVerificationsList(): void
 
     $stmt = db()->prepare(
         'SELECT v.id, v.kind, v.status, v.created_at, v.reviewed_at, v.review_note,
-                u.email AS member_email, p.display_name AS member_name
+                u.email AS member_email, u.verification_status AS account_status,
+                p.display_name AS member_name, p.is_verified AS account_badge
            FROM verifications v
            JOIN users u ON u.id = v.user_id
            LEFT JOIN profiles p ON p.user_id = v.user_id
@@ -1437,11 +1438,12 @@ function adminVerificationQueue(): void
     $reportsBy = [];
     $waliBy = [];
     $verifBy = [];
+    $pendingDocBy = [];
     $dupes = [];
 
     if ($ids) {
         $ph = implode(',', array_fill(0, count($ids), '?'));
-        $load = static function (string $sql, array $args) use (&$photoCounts, &$reportsBy, &$waliBy, &$verifBy) {
+        $load = static function (string $sql, array $args) use (&$photoCounts, &$reportsBy, &$waliBy, &$verifBy, &$pendingDocBy) {
             try {
                 $st = db()->prepare($sql);
                 $st->execute($args);
@@ -1461,6 +1463,12 @@ function adminVerificationQueue(): void
         }
         foreach ((array)$load("SELECT user_id, COUNT(*) AS n FROM verifications WHERE status = 'approved' AND user_id IN ({$ph}) GROUP BY user_id", $ids) as $r) {
             $verifBy[(string)$r['user_id']] = (int)$r['n'];
+        }
+        // Pending identity documents (2026-11-09, P0 batch): the cross-state
+        // chip in AdminVerifyAccounts — an account whose ID doc is still
+        // waiting must not be rejected blindly from the accounts queue.
+        foreach ((array)$load("SELECT user_id, COUNT(*) AS n FROM verifications WHERE status = 'pending' AND user_id IN ({$ph}) GROUP BY user_id", $ids) as $r) {
+            $pendingDocBy[(string)$r['user_id']] = (int)$r['n'];
         }
 
         // Same display name AND same city is the shape a re-registration or a
@@ -1505,6 +1513,7 @@ function adminVerificationQueue(): void
             'photos' => (int)$photoN,
             'hasWali' => (int)($waliBy[$id] ?? 0) > 0,
             'documentApproved' => (int)($verifBy[$id] ?? 0) > 0,
+            'documentPending' => (int)($pendingDocBy[$id] ?? 0) > 0,
             'openReports' => (int)($reportsBy[$id] ?? 0),
             'accountAgeDays' => max(0, $ageDays),
             'duplicateOf' => $dupes[$dupKey] ?? null,
@@ -1566,8 +1575,25 @@ function applyVerification(string $userId, string $decision, ?string $note, arra
     // Without this sync, an admin approval never showed the verified check on
     // the member's card — verification looked broken.
     try {
-        db()->prepare('UPDATE profiles SET is_verified = ? WHERE user_id = ?')
-            ->execute([$decision === 'approve' ? 1 : 0, $userId]);
+        if ($decision === 'approve') {
+            db()->prepare('UPDATE profiles SET is_verified = 1 WHERE user_id = ?')
+                ->execute([$userId]);
+        } else {
+            // Rejecting the ACCOUNT must not strip a badge earned by an
+            // approved identity document (2026-11-09, P0 batch): the two
+            // queues are separate decisions. Only clear the badge when no
+            // approved document exists for this member.
+            $hasApprovedDoc = false;
+            try {
+                $doc = db()->prepare("SELECT 1 FROM verifications WHERE user_id = ? AND status = 'approved' LIMIT 1");
+                $doc->execute([$userId]);
+                $hasApprovedDoc = (bool)$doc->fetch();
+            } catch (Throwable) { /* verifications table not migrated yet — clear as before */ }
+            if (!$hasApprovedDoc) {
+                db()->prepare('UPDATE profiles SET is_verified = 0 WHERE user_id = ?')
+                    ->execute([$userId]);
+            }
+        }
     } catch (Throwable) { /* member may have no profile row yet */ }
 
     auditLog('account.' . $decision . 'd', 'user', $userId, [

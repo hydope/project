@@ -43,7 +43,7 @@ export default function LoginGate({ onClose, reason = 'community' }) {
             {reason === 'favourites' ? (
               <Link to="/auth/login" className="button primary w-full text-center py-2.5 font-semibold" onClick={onClose}>{copy.primary}</Link>
             ) : (
-              <Link to="/register" className="button primary w-full text-center py-2.5 font-semibold" onClick={onClose}>{copy.primary}</Link>
+              <Link to="/auth/register" className="button primary w-full text-center py-2.5 font-semibold" onClick={onClose}>{copy.primary}</Link>
             )}
             <Link
               to="/auth/login"

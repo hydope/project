@@ -64,6 +64,7 @@ export default function FeedbackWidget() {
         onClick={() => setOpen(true)}
         aria-label="Give feedback"
         title="Give feedback"
+        data-feedback-widget
         className="fixed z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105"
         style={{ left: '1rem', bottom: '1rem', background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-primary)' }}
       >

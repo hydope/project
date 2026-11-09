@@ -953,6 +953,19 @@ select.input {
   .ai-fab { padding: 0.85rem; }
   .ai-fab span { display: none; }
 }
+/* While the mobile nav drawer is open the floating buttons must not sit on
+   top of it (2026-11-09, P0 batch: the z-200 FAB painted over the drawer).
+   MainLayout toggles `nav-open` on <body> while the drawer is open. */
+body.nav-open .ai-fab,
+body.nav-open [data-feedback-widget] {
+  display: none !important;
+}
+/* Curated feed photo: full 3:4 on desktop, shorter on phones so the name
+   and actions sit above the fold (2026-11-09, P0 batch). */
+.curated-photo { aspect-ratio: 3 / 4; }
+@media (max-width: 640px) {
+  .curated-photo { aspect-ratio: 4 / 3; }
+}
 .ai-drawer {
   position: fixed;
   top: 0;
@@ -1278,9 +1291,9 @@ select.input {
   align-items: center;
   gap: 0.75rem;
   padding: 0.6rem 1rem;
-  background: var(--color-overlay);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  /* Solid, not glass (2026-11-09, P0 batch): the 86% overlay + blur let
+     page text bleed through behind the nav while scrolling on dark pages. */
+  background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -1348,9 +1361,11 @@ select.input {
   border-bottom: 1px solid var(--color-border-subtle);
   transition: background 0.25s ease, box-shadow 0.25s ease;
 }
-/* Scrolled: near-opaque so page content never bleeds through behind nav links. */
+/* Scrolled: solid so page content never bleeds through behind nav links
+   (2026-11-09, P0 batch: the 96% + blur still ghosted bright text on dark
+   pages while scrolling). */
 .landing-header.is-scrolled {
-  background: color-mix(in srgb, var(--color-canvas) 96%, transparent);
+  background: var(--color-canvas);
   box-shadow: 0 1px 12px rgba(0, 0, 0, 0.08);
 }
 
@@ -3798,8 +3813,10 @@ button, a, input, select, textarea {
 }
 .hp-btn-gold {
   background: linear-gradient(135deg, #b98334, #d4a559);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  /* Dark text on the gold pill (2026-11-09, P0 batch): white on this
+     gradient is ~2:1 contrast — unreadable. Dark ink is ~7:1. */
+  color: #211b17;
+  border: 1px solid rgba(33, 27, 23, 0.25);
   box-shadow: 0 14px 30px rgba(185, 131, 52, 0.35);
 }
 .hp-btn-gold:hover {

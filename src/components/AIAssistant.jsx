@@ -81,11 +81,28 @@ export default function AIAssistant() {
 
   const reset = () => setMessages([]);
 
+  // Hide the floating button while the mobile keyboard is open (2026-11-09,
+  // P0 batch): the fixed bottom-right pill otherwise covers the field being
+  // typed in and the submit button beneath it. visualViewport shrinks when
+  // the keyboard opens; on desktop it stays equal to the layout viewport.
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return undefined;
+    const onResize = () => {
+      setKeyboardOpen(vv.height < window.innerHeight * 0.75 && window.innerWidth < 640);
+    };
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
+
   return (
     <>
-      <button type="button" className="ai-fab" data-ai-fab onClick={() => setIsOpen(true)} aria-label="Open AI assistant">
-        <MessageCircleHeart className="w-4 h-4" /><span>Ask Assistant</span>
-      </button>
+      {!isOpen && !keyboardOpen && (
+        <button type="button" className="ai-fab" data-ai-fab onClick={() => setIsOpen(true)} aria-label="Open AI assistant">
+          <MessageCircleHeart className="w-4 h-4" /><span>Ask Assistant</span>
+        </button>
+      )}
       {isOpen && (<>
         <div className="ai-backdrop" onClick={() => setIsOpen(false)} />
         <aside className="ai-drawer" role="dialog" aria-label="AI assistant">

@@ -123,14 +123,14 @@ export default function AdminVerifyAccounts() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-3 gap-3 mb-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
               {[
                 { key: 'unverified', label: 'Awaiting review' },
                 { key: 'verified', label: 'Verified' },
                 { key: 'rejected', label: 'Rejected' },
               ].map((c) => (
                 <button key={c.key} onClick={() => setStatus(c.key)}
-                  className={`rounded-xl border p-4 text-left transition-all ${
+                  className={`rounded-xl border p-3 sm:p-4 text-left transition-all ${
                     status === c.key ? 'border-primary bg-primary/5' : 'border-line/20 bg-elevated hover:border-line/40'}`}>
                   <p className="text-xs text-muted">{c.label}</p>
                   <p className={`text-2xl font-bold mt-1 ${status === c.key ? 'text-primary' : 'text-ink'}`}>
@@ -215,6 +215,15 @@ export default function AdminVerifyAccounts() {
                             )}
                             {ev.documentApproved && (
                               <span title="Identity document approved" className="text-success"><ShieldCheck className="w-4 h-4" /></span>
+                            )}
+                            {/* Cross-state chip (2026-11-09, P0 batch): the
+                                document queue and the accounts queue are
+                                separate decisions. A pending ID doc means
+                                rejecting the account here would strand that
+                                review — and the server now keeps an approved
+                                document's badge when an account is rejected. */}
+                            {ev.documentPending && (
+                              <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-warning/10 text-warning">ID doc pending</span>
                             )}
                             {ev.hasWali && (
                               <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary">Wali linked</span>

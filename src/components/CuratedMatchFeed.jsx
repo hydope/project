@@ -1,8 +1,10 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Bookmark, MapPin, Shield, Sparkles, Check } from 'lucide-react';
+import { Heart, Bookmark, MapPin, Shield, Sparkles, Check, Lock } from 'lucide-react';
 import { computeCompatibility, getMyProfile } from '../lib/compatibility';
 import VerifiedBadge from './VerifiedBadge';
+import { useAuth } from '../lib/auth/AuthContext';
+import LoginGate from './LoginGate';
 
 /**
  * CuratedMatchFeed — Intentional profile browsing for marriage-minded users.
@@ -16,9 +18,25 @@ export default function CuratedMatchFeed({ profiles = [], onExpressInterest }) {
   const [saved, setSaved] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [exitDirection, setExitDirection] = useState(0);
+  // Interest and save are server state, not local chrome: "Interest sent"
+  // must mean the API accepted it, and a bookmark must survive a reload.
+  // (2026-11-09, P0 batch — both used to be setState-only.)
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const { isLoggedIn } = useAuth();
+  const [loginGateOpen, setLoginGateOpen] = useState(false);
+  const [gateReason, setGateReason] = useState('interest');
 
   const current = profiles[currentIndex];
   const next = profiles[currentIndex + 1];
+
+  // Seed the per-card state from the server payload each time the card
+  // changes, so a profile already interested-in or saved renders as such.
+  useEffect(() => {
+    setInterested(current?.interestSent === true);
+    setSaved(current?.favourited === true);
+    setError('');
+  }, [current?.id]);
 
   // Single source of truth for match scores: computed from the viewer's own
   // onboarding answers. No hardcoded fallback — when there isn't enough data
@@ -34,18 +52,9 @@ export default function CuratedMatchFeed({ profiles = [], onExpressInterest }) {
     }
   }, [current, me]);
 
-  const handleDecision = useCallback((decision) => {
-    if (exiting || !current) return;
+  const advance = useCallback((direction) => {
     setExiting(true);
-    setExitDirection(decision === 'interested' ? 1 : -1);
-
-    if (decision === 'interested') {
-      setInterested(true);
-      onExpressInterest?.(current);
-    } else if (decision === 'save') {
-      setSaved(true);
-    }
-
+    setExitDirection(direction);
     setTimeout(() => {
       setCurrentIndex(i => i + 1);
       setInterested(false);
@@ -53,7 +62,47 @@ export default function CuratedMatchFeed({ profiles = [], onExpressInterest }) {
       setExiting(false);
       setExitDirection(0);
     }, 200);
-  }, [exiting, current, onExpressInterest]);
+  }, []);
+
+  const handleDecision = useCallback(async (decision) => {
+    if (exiting || busy || !current) return;
+    // A pass is local — there is nothing to send.
+    if (decision === 'pass') { advance(-1); return; }
+    // Sample profiles have nobody on the other end: interest or a save
+    // would promise an action that can never happen.
+    if (current.isDemo === true) {
+      setError('This is a sample profile written to show the format — there is no one behind it. Browse real members to send interest.');
+      return;
+    }
+    if (!isLoggedIn) {
+      setGateReason(decision === 'save' ? 'favourites' : 'interest');
+      setLoginGateOpen(true);
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const { api } = await import('../lib/api/client');
+      if (decision === 'interested') {
+        await api.expressInterest(current.id);
+        setInterested(true);
+        onExpressInterest?.(current);
+        advance(1);
+      } else if (decision === 'save') {
+        const nextSaved = !saved;
+        if (nextSaved) await api.addFavourite(current.id);
+        else await api.removeFavourite(current.id);
+        setSaved(nextSaved);
+        // Saving keeps the card up so the member sees the state change;
+        // it does not advance — the profile is still in front of them.
+      }
+    } catch (err) {
+      // Never advance, never show "Interest sent", on a failed call.
+      setError(err.message || (decision === 'save' ? 'Could not save this profile.' : 'Could not send interest.'));
+    } finally {
+      setBusy(false);
+    }
+  }, [exiting, busy, current, isLoggedIn, saved, onExpressInterest, advance]);
 
   // Keyboard: → interested, ↓ save, ← pass
   const handleKeyDown = useCallback((e) => {
@@ -118,8 +167,9 @@ export default function CuratedMatchFeed({ profiles = [], onExpressInterest }) {
               zIndex: 1,
             }}
           >
-            {/* Photo */}
-            <div className="relative" style={{ aspectRatio: '3/4', background: 'var(--color-surface)' }}>
+            {/* Photo — shorter on phones so the name and actions sit above
+                the fold (2026-11-09, P0 batch). */}
+            <div className="relative curated-photo" style={{ background: 'var(--color-surface)' }}>
               {current.photo ? (
                 <img
                   src={current.photo}
@@ -129,10 +179,15 @@ export default function CuratedMatchFeed({ profiles = [], onExpressInterest }) {
                   style={{ objectPosition: 'center top' }}
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center">
+                <div className="w-full h-full flex flex-col items-center justify-center gap-2">
                   <span className="text-6xl font-bold" style={{ color: 'var(--color-ink-tertiary)' }}>
                     {(current.displayName || '?').charAt(0).toUpperCase()}
                   </span>
+                  {current.photosLocked && (
+                    <span className="text-xs font-semibold flex items-center gap-1.5" style={{ color: 'var(--color-ink-secondary)' }}>
+                      <Lock className="w-3.5 h-3.5" /> Photos private
+                    </span>
+                  )}
                 </div>
               )}
               {/* Gradient scrim */}
@@ -199,6 +254,7 @@ export default function CuratedMatchFeed({ profiles = [], onExpressInterest }) {
               <div className="flex items-center gap-3 pt-2">
                 <button
                   onClick={() => handleDecision('pass')}
+                  disabled={busy}
                   className="btn btn-secondary flex-1 py-3"
                   aria-label="Pass on this profile"
                 >
@@ -206,21 +262,26 @@ export default function CuratedMatchFeed({ profiles = [], onExpressInterest }) {
                 </button>
                 <button
                   onClick={() => handleDecision('save')}
+                  disabled={busy}
                   className="btn btn-secondary p-3"
-                  aria-label="Save for later"
+                  aria-label={saved ? 'Remove from saved' : 'Save for later'}
                   style={saved ? { background: 'var(--color-primary-subtle)', borderColor: 'var(--color-primary)' } : undefined}
                 >
                   <Bookmark className="w-5 h-5" style={saved ? { color: 'var(--color-primary)', fill: 'var(--color-primary)' } : undefined} />
                 </button>
                 <button
                   onClick={() => handleDecision('interested')}
+                  disabled={busy || interested}
                   className="btn btn-primary flex-1 py-3"
                   aria-label="Express interest"
                   style={interested ? { background: 'var(--color-success)' } : undefined}
                 >
-                  {interested ? <><Check className="w-4 h-4" /> Interest sent</> : <><Heart className="w-4 h-4" /> Express interest</>}
+                  {busy ? 'Sending…' : interested ? <><Check className="w-4 h-4" /> Interest sent</> : <><Heart className="w-4 h-4" /> Express interest</>}
                 </button>
               </div>
+              {error && (
+                <p className="text-xs mt-3" role="alert" style={{ color: 'var(--color-danger, #c0392b)' }}>{error}</p>
+              )}
             </div>
           </motion.div>
         </AnimatePresence>
@@ -239,6 +300,10 @@ export default function CuratedMatchFeed({ profiles = [], onExpressInterest }) {
           />
         ))}
       </div>
+
+      {loginGateOpen && (
+        <LoginGate reason={gateReason} onClose={() => setLoginGateOpen(false)} />
+      )}
     </div>
   );
 }

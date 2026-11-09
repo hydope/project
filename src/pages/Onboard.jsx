@@ -47,7 +47,7 @@ const EMPTY_FORM = {
   // Step 5 — Marriage intentions
   timeline: '', relocation: '', familyInvolvement: '', childrenStatus: '', childrenPlans: '',
   // Step 6 — Privacy & photos
-  photoAccess: 'match', profileVisibility: 'public', incognito: false, managementMode: '', guardianName: '', guardianEmail: '',
+  photoAccess: 'match', profileVisibility: 'public', managementMode: '', guardianName: '', guardianEmail: '',
   // Step 7 — Story
   bio: '', lookingFor: ''
 };
@@ -182,23 +182,6 @@ function ChipGroup({ values, onToggle, options }) {
         );
       })}
     </div>
-  );
-}
-
-// Accessible toggle switch
-function Toggle({ checked, onChange, label, desc }) {
-  return (
-    <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)}
-      className="w-full flex items-center justify-between gap-4 p-4 rounded-xl border border-line/20 bg-elevated text-left hover:border-line/40 transition-all">
-      <span>
-        <span className="block text-sm font-semibold text-ink">{label}</span>
-        {desc && <span className="block text-xs text-muted mt-0.5">{desc}</span>}
-      </span>
-      <span className={`h-6 w-11 rounded-full relative flex-shrink-0 transition-colors ${checked ? 'bg-primary' : 'bg-line/40'}`}>
-        <span className="absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"
-          style={{ transform: checked ? 'translateX(1.25rem)' : 'translateX(0)' }} />
-      </span>
-    </button>
   );
 }
 
@@ -985,9 +968,11 @@ function StepPrivacy({ data, update, errors }) {
         <OptionCards value={data.profileVisibility} onChange={v => update('profileVisibility', v)} options={PROFILE_VISIBILITY_OPTIONS} />
       </Field>
 
-      <Toggle checked={data.incognito} onChange={v => update('incognito', v)}
-        label="Discreet browsing (Incognito)"
-        desc="View profiles without appearing in anyone's visitor list or online status." />
+      {/* No "incognito" toggle (2026-11-09, P0 batch): it promised "view
+          profiles without appearing in anyone's visitor list or online
+          status" — but there is no visitor list and no online status
+          anywhere in the product, so the toggle was a fiction. Profile
+          visibility above is the real control for staying out of browse. */}
 
       <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/15 flex items-start gap-2.5">
         <Lock className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />

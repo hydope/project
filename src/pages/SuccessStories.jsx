@@ -33,7 +33,7 @@ const STEPS = [
     icon: Lock,
     title: 'Messaging stays closed until you both agree',
     body: 'Anyone can send interest. A conversation opens only when interest runs both ways. There are no cold approaches, and nobody can reach you because they guessed your email address.',
-    points: ['Mutual interest required before a single message', 'Phone numbers, emails and handles are removed before a message is stored', 'Blocking cuts existing history too, not just new sends'],
+    points: ['Mutual interest required before a single message', 'Phone numbers, emails and handles are removed before a message is stored', 'Blocking hides the conversation and stops new messages — unblocking brings it back'],
   },
   {
     icon: ShieldCheck,

@@ -160,7 +160,7 @@ function mutualInterest(string $a, string $b): bool
  */
 function profilesStats(): void
 {
-    $rows = db()->query('SELECT display_name, city, visibility, is_blocked FROM profiles WHERE (is_blocked = 0 OR (blocked_until IS NOT NULL AND blocked_until <= NOW()))')->fetchAll();
+    $rows = db()->query('SELECT display_name, city, country, bio, about_family, visibility, block_unverified, is_blocked FROM profiles WHERE (is_blocked = 0 OR (blocked_until IS NOT NULL AND blocked_until <= NOW()))')->fetchAll();
     // Negate. array_filter KEEPS rows whose callback returns TRUE, and
     // isTestShellRow() returns true FOR THE SHELLS — so passing it straight
     // through would count 48 QA shells as "members" and report the top cities as
@@ -192,8 +192,29 @@ function profilesStats(): void
         $verified = 0;
     }
 
+    // Browsable (2026-11-09, P0 batch): the count a signed-out visitor
+    // actually sees in /profiles — not private, not unfinished, not
+    // restricted to verified members. The homepage, the featured section
+    // and the browse page all show THIS number now, so the three can never
+    // disagree again (199 vs 100 vs 98 was three different denominators:
+    // all members, page length, page length). `members` stays in the
+    // response for the admin/analytics view: private and unfinished members
+    // are real people and still count as members of the community.
+    $browsable = 0;
+    foreach ($real as $r) {
+        if ((string)($r['visibility'] ?? 'members') === 'private') continue;
+        if (!empty($r['block_unverified'])) continue;
+        $city = trim((string)($r['city'] ?? ''));
+        $country = trim((string)($r['country'] ?? ''));
+        $bio = trim((string)($r['bio'] ?? ''));
+        $about = trim((string)($r['about_family'] ?? ''));
+        if ($city === '' && $country === '' && $bio === '' && $about === '') continue;
+        $browsable++;
+    }
+
     json([
         'members' => count($real),
+        'browsable' => $browsable,
         'cities' => count($cities),
         'verified' => $verified,
         // Names only — a city label a member published themselves.
@@ -212,6 +233,50 @@ function blockIsActive(array $row): bool
     $until = (string)($row['blocked_until'] ?? '');
     if ($until === '') return true; // permanent
     return strtotime($until) > time();
+}
+
+// User-to-user block (2026-11-09, P0 batch): a row in `blocks` in EITHER
+// direction hides both members' profiles from each other and stops interest
+// and messaging. The moderation `is_blocked` flag above is a different thing
+// (admin action against one account); this is a member action against another.
+function isBlockedBetween(string $a, string $b): bool
+{
+    if ($a === '' || $b === '' || $a === $b) return false;
+    $stmt = db()->prepare('SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?) LIMIT 1');
+    $stmt->execute([$a, $b, $b, $a]);
+    return (bool)$stmt->fetch();
+}
+
+// Which side of a block is the blocker, for an honest 403 message: a member
+// who blocked someone hears their own action named; a member who was blocked
+// hears only that the profile is unavailable.
+function didBlock(string $blocker, string $blocked): bool
+{
+    if ($blocker === '' || $blocked === '') return false;
+    $stmt = db()->prepare('SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ? LIMIT 1');
+    $stmt->execute([$blocker, $blocked]);
+    return (bool)$stmt->fetch();
+}
+
+// Whether a signed-in viewer's email is verified. The JWT carries no
+// emailVerified claim, so this reads users once per request (static cache —
+// visibleProfile() runs once per row in a list, and must not N+1 the query).
+function viewerIsEmailVerified(?array $viewer): bool
+{
+    static $cache = [];
+    $uid = (string)($viewer['uid'] ?? '');
+    if ($uid === '') return false;
+    if (!array_key_exists($uid, $cache)) {
+        try {
+            $stmt = db()->prepare('SELECT email_verified FROM users WHERE id = ? LIMIT 1');
+            $stmt->execute([$uid]);
+            $row = $stmt->fetch();
+            $cache[$uid] = !empty($row['email_verified']);
+        } catch (Throwable) {
+            $cache[$uid] = false;
+        }
+    }
+    return $cache[$uid];
 }
 
 // Hide-any-field (2026-11-09): profiles.hidden_fields holds a JSON array of
@@ -252,6 +317,21 @@ function visibleProfile(array $row, ?array $viewer): ?array
         && mutualInterest((string)$viewer['uid'], $ownerId);
     if (($row['visibility'] ?? 'members') === 'private' && !$isOwner && !$isMutual) {
         return null;
+    }
+    // User block (2026-11-09, P0 batch): a block in either direction hides
+    // both profiles from each other. The owner always sees their own profile.
+    // Anonymous visitors have no identity to block against, so this only
+    // applies to signed-in viewers.
+    if (!$isOwner && $viewer !== null && isBlockedBetween((string)$viewer['uid'], $ownerId)) {
+        return null;
+    }
+    // "Block unverified members" (2026-11-09, P0 batch): an owner who turned
+    // it on is invisible to anyone whose email is not verified — including
+    // signed-out visitors, who are unverified by definition.
+    if (!$isOwner && !empty($row['block_unverified'])) {
+        if ($viewer === null || !viewerIsEmailVerified($viewer)) {
+            return null;
+        }
     }
     $isAnonymous = $viewer === null;
 
@@ -381,6 +461,15 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'photo' => ($photosLocked || (string)($row['photo_url'] ?? '') === '')
                 ? null
                 : '/api/profiles/' . $ownerId . '/photo',
+            // Owner-only settings (2026-11-09): the member's own privacy
+            // toggles and contact phone, so Settings can load and save them.
+            // Never sent to another viewer.
+            ...($isOwner ? [
+                'contactPhone' => $row['contact_phone'] ?? null,
+                'contactVisibility' => $row['contact_visibility'] ?? 'members',
+                'blockUnverified' => !empty($row['block_unverified']),
+                'allowFamilyView' => !empty($row['allow_family_view'] ?? 1),
+            ] : []),
         ], $row, $isOwner);
     }
     return applyHiddenFields([

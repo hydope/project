@@ -132,10 +132,10 @@ return (
 
         {/* Counts on every tab, so an empty queue is distinguishable from a
             broken one and past decisions stay discoverable. */}
-        <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
           {TABS.map((t) => (
             <button key={t.key} onClick={() => setStatus(t.key)}
-              className={`rounded-xl border p-4 text-left transition-colors ${
+              className={`rounded-xl border p-3 sm:p-4 text-left transition-colors ${
                 status === t.key ? 'border-primary bg-primary/5' : 'border-line/20 bg-elevated hover:border-line/40'}`}>
               <p className="text-xs font-semibold text-muted">{t.label}</p>
               <p className="text-2xl font-bold text-ink mt-1">{counts[t.key] ?? 0}</p>
@@ -193,6 +193,15 @@ return (
                     <p className="text-xs text-muted mt-0.5">
                       {v.member_email} · {KIND_LABEL[v.kind] || v.kind} · submitted {ago(v.created_at)}
                     </p>
+                    {/* Cross-state chip (2026-11-09, P0 batch): the document
+                        queue and the accounts queue are separate decisions —
+                        an approved document here does not mean the account
+                        was verified there, and vice versa. */}
+                    {(v.account_status === 'verified' || v.account_badge) && (
+                      <p className="mt-1.5">
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-success/10 text-success">Account already verified</span>
+                      </p>
+                    )}
                     {v.review_note && <p className="text-xs text-muted mt-1 italic">Note: {v.review_note}</p>}
                     {v.reviewed_at && <p className="text-xs text-muted mt-0.5">Reviewed {ago(v.reviewed_at)}</p>}
                   </div>

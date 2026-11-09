@@ -66,7 +66,11 @@ function MemberPicker({ value, onChange, label, busy }) {
           {searching && <li className="px-3 py-2 text-xs" style={{ color: 'var(--color-ink-secondary)' }}>Searching…</li>}
           {results.map((r) => (
             <li key={r.id}>
-              <button type="button" onClick={() => { onChange(r.id); setTerm(''); setResults([]); }}
+              {/* Pass the whole row, not just r.id (2026-11-09, P0 batch):
+                  assign() and the unblock form read pickedRole.id /
+                  pickedBlock.id and .display_name — a bare id string made
+                  both post to /api/admin/users/undefined/role. */}
+              <button type="button" onClick={() => { onChange(r); setTerm(''); setResults([]); }}
                 className="w-full px-3 py-2 text-left transition-colors hover:bg-[var(--color-hover)]">
                 <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>{r.display_name}</p>
                 <p className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>{r.email} · {r.role}</p>

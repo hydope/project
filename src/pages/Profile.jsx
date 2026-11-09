@@ -229,7 +229,7 @@ export default function Profile() {
         <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 lg:gap-8">
           <div className="space-y-4 lg:sticky lg:top-24 self-start">
             <div className="rounded-2xl overflow-hidden shadow-lg" style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)' }}>
-              <div className="aspect-[3/4] relative" style={{ background: 'var(--color-surface)' }}>
+              <div className="aspect-[4/3] sm:aspect-[3/4] relative" style={{ background: 'var(--color-surface)' }}>
                  {(profile.gallery || []).length > 0 ? (
                   <img src={apiUrl((profile.gallery || [])[activePhoto])} alt={profile.displayName} className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none'; }} />
                  ) : (
@@ -330,18 +330,21 @@ export default function Profile() {
                     )}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                {/* Action row wraps and stacks full-width on phones (2026-11-09,
+                    P0 batch): four ~110px buttons in a 318px column overflowed
+                    and cut "Copy link" off the edge, untappable. */}
+                <div className="flex flex-wrap gap-2">
                   {profile.isDemo === true ? (
-                    <span className="text-xs px-3 py-2 rounded-lg flex items-center gap-1.5" style={{ background: 'var(--color-surface)', color: 'var(--color-ink-tertiary)', border: '1px solid var(--color-border)' }}>
+                    <span className="text-xs px-3 py-2 rounded-lg flex items-center gap-1.5 w-full sm:w-auto justify-center" style={{ background: 'var(--color-surface)', color: 'var(--color-ink-tertiary)', border: '1px solid var(--color-border)' }}>
                       Example profile — not contactable
                     </span>
                   ) : (
-                    <button onClick={handleInterest} disabled={interestBusy} className="button primary px-4 py-2 text-sm font-semibold flex items-center gap-1.5">
+                    <button onClick={handleInterest} disabled={interestBusy} className="button primary px-4 py-2 text-sm font-semibold flex items-center justify-center gap-1.5 w-full sm:w-auto">
                       <Heart className="w-4 h-4" style={{ fill: interestSent ? '#fff' : 'none' }} /> {interestSent ? 'Interest sent' : 'Send interest'}
                     </button>
                   )}
                   {profile.isDemo !== true && (
-                    <button onClick={handleMessage} disabled={messageBusy} className="button px-4 py-2 text-sm font-semibold flex items-center gap-1.5" style={{ background: 'var(--color-elevated)', color: 'var(--color-ink)', border: '1px solid var(--color-border)' }}>
+                    <button onClick={handleMessage} disabled={messageBusy} className="button px-4 py-2 text-sm font-semibold flex items-center justify-center gap-1.5 w-full sm:w-auto" style={{ background: 'var(--color-elevated)', color: 'var(--color-ink)', border: '1px solid var(--color-border)' }}>
                       <MessageCircle className="w-4 h-4" /> Message
                     </button>
                   )}
@@ -350,7 +353,7 @@ export default function Profile() {
                       feedback. No login gate: sharing is just opening a link.
                       Skipped for sample profiles. */}
                   {profile.isDemo !== true && (
-                    <a href={whatsappShareUrl(profile)} target="_blank" rel="noreferrer" className="button px-4 py-2 text-sm font-semibold flex items-center gap-1.5" style={{ background: 'var(--color-elevated)', color: 'var(--color-ink)', border: '1px solid var(--color-border)' }}>
+                    <a href={whatsappShareUrl(profile)} target="_blank" rel="noreferrer" className="button px-4 py-2 text-sm font-semibold flex items-center justify-center gap-1.5 w-full sm:w-auto" style={{ background: 'var(--color-elevated)', color: 'var(--color-ink)', border: '1px solid var(--color-border)' }}>
                       <MessageCircle className="w-4 h-4" style={{ color: 'var(--color-primary)' }} /> WhatsApp
                     </a>
                   )}
@@ -360,7 +363,7 @@ export default function Profile() {
                         const ok = await copyProfileLink(profile);
                         if (ok) { setCopied(true); setTimeout(() => setCopied(false), 2500); }
                       }}
-                      className="button px-4 py-2 text-sm font-semibold flex items-center gap-1.5"
+                      className="button px-4 py-2 text-sm font-semibold flex items-center justify-center gap-1.5 w-full sm:w-auto"
                       style={{ background: 'var(--color-elevated)', color: 'var(--color-ink)', border: '1px solid var(--color-border)' }}
                     >
                       {copied ? 'Copied' : 'Copy link'}

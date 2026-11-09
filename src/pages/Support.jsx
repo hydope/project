@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import Layout from '../layouts/LandingLayout';
 import { useToast } from '../lib/useToast';
+import { useAuth } from '../lib/auth/AuthContext';
 import { HelpCircle, MessageSquare, Send, ChevronDown, Search, BookOpen, Shield, Gift, UserCheck, Sparkles, CheckCircle, Clock, Mail } from 'lucide-react';
 
 const FAQ_CATEGORIES = [
@@ -44,6 +45,8 @@ export default function Support() {
   const [ticketForm, setTicketForm] = useState({ subject: '', category: '', description: '', email: '' });
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [ticketError, setTicketError] = useState('');
+  const { user } = useAuth();
   const { addToast } = useToast();
 
   const filteredFaqs = FAQ_ITEMS.filter(item => {
@@ -55,12 +58,33 @@ export default function Support() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-    await new Promise(r => setTimeout(r, 1200));
-    setSubmitting(false);
-    setSubmitted(true);
-    setTicketForm({ subject: '', category: '', description: '', email: '' });
-    addToast('Support ticket submitted!', 'success');
-    setTimeout(() => setSubmitted(false), 5000);
+    setTicketError('');
+    // Real endpoint (2026-11-09, P0 batch): POST /api/contact, the same
+    // inbox the Contact form feeds — the admin support page reads it. The
+    // old handler waited 1.2s and toasted success without sending anything.
+    try {
+      const category = TICKET_CATEGORIES.find(c => c.value === ticketForm.category);
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: user?.displayName || 'Support visitor',
+          email: ticketForm.email.trim(),
+          subject: `[Support: ${category ? category.label : 'Other'}] ${ticketForm.subject.trim()}`,
+          message: ticketForm.description.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not send your ticket. Please try again.');
+      setSubmitting(false);
+      setSubmitted(true);
+      setTicketForm({ subject: '', category: '', description: '', email: '' });
+      addToast('Support ticket submitted!', 'success');
+      setTimeout(() => setSubmitted(false), 5000);
+    } catch (err) {
+      setSubmitting(false);
+      setTicketError(err.message || 'Could not send your ticket. Please try again.');
+    }
   };
 
   const inputCls = 'w-full px-4 py-3 rounded-xl border border-line/30 bg-elevated text-sm text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all';
@@ -178,6 +202,9 @@ export default function Support() {
                   <button type="submit" disabled={submitting} className="button primary px-8 py-3 font-semibold flex items-center gap-2 disabled:opacity-60">
                     {submitting ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Submitting…</> : <><Send className="w-4 h-4" /> Submit Ticket</>}
                   </button>
+                  {ticketError && (
+                    <p className="text-sm" role="alert" style={{ color: 'var(--color-danger, #c0392b)' }}>{ticketError}</p>
+                  )}
                 </form>
               )}
             </motion.div>

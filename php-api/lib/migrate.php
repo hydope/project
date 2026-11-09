@@ -47,6 +47,7 @@ function migrateSchema(): void
     migrateAddReportActionColumns();
     migrateAddGuardianColumns();
     migrateAddHiddenFieldsColumn();
+    migrateAddPrivacyColumns();
     migrateAddCitizenshipsColumn();
     migrateAddBlogPostsTable();
     migrateAddBlogImageColumn();
@@ -435,6 +436,40 @@ function migrateAddHiddenFieldsColumn(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (hidden_fields column) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Privacy toggles (2026-11-09, P0 batch): Settings showed "Block unverified
+ * members" and "Allow family members to view profile" toggles whose values
+ * never left the browser while the copy claimed server enforcement. These
+ * columns store them; visibleProfile(), profileInterest() and wali.php
+ * enforce them. Declared in db/schema.sql too — migrateSchema() only runs
+ * when the schema.sql digest changes.
+ */
+function migrateAddPrivacyColumns(): void
+{
+    $additions = [
+        'block_unverified'  => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'allow_family_view' => 'TINYINT(1) NOT NULL DEFAULT 1',
+    ];
+
+    try {
+        $existing = [];
+        foreach (db()->query('SHOW COLUMNS FROM profiles')->fetchAll() as $c) {
+            $existing[strtolower((string)$c['Field'])] = true;
+        }
+        foreach ($additions as $col => $def) {
+            if (isset($existing[$col])) continue;
+            try {
+                db()->exec("ALTER TABLE profiles ADD COLUMN `$col` $def");
+                error_log("[api] migration: added profiles.$col");
+            } catch (Throwable $e) {
+                error_log("[api] migration: could not add profiles.$col — " . substr($e->getMessage(), 0, 120));
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (privacy columns) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }
 

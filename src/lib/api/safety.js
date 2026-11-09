@@ -26,7 +26,10 @@ export async function unblockMember(userId) {
 }
 
 export async function listBlocks() {
-  if (useRemote) return http.get('/api/reports/blocks');
+  if (useRemote) {
+    const res = await http.get('/api/reports/blocks');
+    return Array.isArray(res) ? res : (res?.blocks ?? []);
+  }
   return read('blocks', []);
 }
 

@@ -157,6 +157,11 @@ export default function BiodataMaker() {
   const [photo, setPhoto] = useState(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Honest save state (2026-11-09, P0 batch): the server draft used to 401
+  // for every logged-in member (biodata.php read $user['id'] while the JWT
+  // carries uid) and the catch swallowed it, then setSaved(true) anyway.
+  // A failed server save must say so — never "Draft saved ✓".
+  const [saveError, setSaveError] = useState('');
   // Export button feedback states: 'idle' | 'working' | 'done'. exportError
   // surfaces failures inline — a silent button is worse than an error.
   const [pdfState, setPdfState] = useState('idle');
@@ -242,13 +247,23 @@ export default function BiodataMaker() {
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
     } catch { /* storage full */ }
+    setSaveError('');
     if (isLoggedIn) {
       setSaving(true);
       try {
         await http.post('/api/biodata/draft', payload);
-      } catch { /* server save failed — local copy remains */ }
-      setSaving(false);
+        setSaved(true);
+      } catch (err) {
+        // The local copy is safe on this device, but the server copy failed
+        // — say so plainly instead of claiming the draft was saved.
+        setSaved(false);
+        setSaveError((err && err.message) || 'Could not save your draft to your account. It is saved on this device only — try again.');
+      } finally {
+        setSaving(false);
+      }
+      return;
     }
+    // Signed-out: localStorage is the only copy, and the button says so.
     setSaved(true);
   };
 
@@ -498,8 +513,11 @@ export default function BiodataMaker() {
 
             <div className="flex gap-3 flex-wrap">
               <button onClick={saveDraft} disabled={saving} className="btn btn-ghost flex items-center gap-2">
-                <Save className="w-4 h-4" /> {saving ? 'Saving…' : saved ? 'Draft saved ✓' : 'Save draft'}
+                <Save className="w-4 h-4" /> {saving ? 'Saving…' : saved ? (isLoggedIn ? 'Draft saved ✓' : 'Saved on this device ✓') : 'Save draft'}
               </button>
+              {saveError && (
+                <p className="text-xs mt-2" role="alert" style={{ color: 'var(--color-danger, #c0392b)' }}>{saveError}</p>
+              )}
               <button onClick={downloadImage} disabled={imgState === 'working'} className="btn btn-secondary flex items-center gap-2">
                 <Download className="w-4 h-4" /> {imgState === 'working' ? 'Preparing…' : imgState === 'done' ? 'Image saved ✓' : 'Save as Image'}
               </button>

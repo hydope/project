@@ -16,7 +16,10 @@ function routeBiodata(string $method, array $segments): void
     }
 
     $user = requireAuthUser();
-    $userId = (string)($user['id'] ?? '');
+    // The JWT carries `uid`, not `id` (see lib/jwt.php). Reading `id` made
+    // every logged-in draft read/write 401 — the maker then fell back to
+    // localStorage and told the member the draft was "saved" on the server.
+    $userId = (string)($user['uid'] ?? $user['id'] ?? '');
     if ($userId === '') {
         json(['error' => 'Unauthorized'], 401);
     }

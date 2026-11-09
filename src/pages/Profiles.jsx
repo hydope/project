@@ -182,6 +182,10 @@ export function BrowseProfiles() {
   // the oldest members were unreachable. serverHasMore comes from the API
   // envelope (?paged=1) and is authoritative — a short page is not the end.
   const [serverHasMore, setServerHasMore] = useState(false);
+  // The filtered total across ALL pages (2026-11-09, P0 batch): the count
+  // line must show this, not the number of rows loaded so far — "100 members
+  // found" was the page size, not the roster.
+  const [serverTotal, setServerTotal] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -254,7 +258,7 @@ export function BrowseProfiles() {
     // it iterate the characters, sending ?0=%3F&1=m&2=a... and filtering nothing.
     // Paged mode fetches page 1 as an envelope {rows, total, hasMore}.
     api.getProfiles({ ...JSON.parse(serverFilterKey), paged: 1, limit: 100, offset: 0 })
-      .then(resp => { if (cancelled) return; const rows = resp?.rows ?? resp ?? []; setProfiles(Array.isArray(rows) ? rows : []); setServerHasMore(resp?.hasMore ?? false); setLoading(false); })
+      .then(resp => { if (cancelled) return; const rows = resp?.rows ?? resp ?? []; setProfiles(Array.isArray(rows) ? rows : []); setServerHasMore(resp?.hasMore ?? false); setServerTotal(typeof resp?.total === 'number' ? resp.total : null); setLoading(false); })
       .catch(() => { if (!cancelled) { setError("We couldn't load profiles right now. Check your connection and try again."); setLoading(false); } });
     return () => { cancelled = true; };
   }, [serverFilterKey]);
@@ -309,7 +313,9 @@ export function BrowseProfiles() {
   const activeFilterEntries = Object.entries(filters).filter(([k, v]) => {
     if (k === 'sort') return v !== 'match';
     if (k === 'verifiedOnly') return v === true;
-    if (typeof v === 'string') return v && !['Any sect', 'Any level', 'Any education', 'any'].includes(v);
+    // 'Any' is a default, not a selection — the bare value is what the
+    // syedStatus/modesty selects send (the others send 'Any sect' etc).
+    if (typeof v === 'string') return v && !['Any', 'Any sect', 'Any level', 'Any education', 'any'].includes(v);
     return false;
   });
   const activeFilterCount = activeFilterEntries.length;
@@ -500,10 +506,11 @@ export function BrowseProfiles() {
           )}
         </AnimatePresence>
 
-        {/* Results count */}
+        {/* Results count — the server total for the active filters, not the
+            number of rows loaded onto this page (2026-11-09, P0 batch). */}
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm" style={{ color: 'var(--color-ink-secondary)' }}>
-            {loading ? 'Loading profiles...' : filtered.length + ' member' + (filtered.length !== 1 ? 's' : '') + ' found'}
+            {loading ? 'Loading profiles...' : ((serverTotal ?? filtered.length) + ' member' + ((serverTotal ?? filtered.length) !== 1 ? 's' : '') + ' found')}
           </p>
         </div>
 

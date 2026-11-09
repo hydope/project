@@ -223,6 +223,13 @@ const router = createBrowserRouter([
   { path: '/login', element: <Navigate to="/auth/login" replace /> },
   { path: '/signup', element: <Navigate to="/auth/register" replace /> },
   { path: '/signin', element: <Navigate to="/auth/login" replace /> },
+  // Stale auth paths (2026-11-09, P0 batch): /register was linked from the
+  // LoginGate modal and 404'd; /auth/sign-in and /auth/sign-up never existed
+  // but were reported from the mobile menu. Redirect defensively so a stale
+  // bookmark or old link can never land on a dead page.
+  { path: '/register', element: <Navigate to="/auth/register" replace /> },
+  { path: '/auth/sign-in', element: <Navigate to="/auth/login" replace /> },
+  { path: '/auth/sign-up', element: <Navigate to="/auth/register" replace /> },
   { path: '/auth/forgot', element: <LazyRoute component={ForgotPassword} /> },
   { path: '/auth/reset', element: <LazyRoute component={ResetPassword} /> },
   { path: '/verify-email', element: <LazyRoute component={VerifyEmail} /> },

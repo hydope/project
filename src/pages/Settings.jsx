@@ -96,18 +96,41 @@ export default function Settings() {
   const [usernameSaving, setUsernameSaving] = useState(false);
 
   // Load the current handle once so the field is not blank for members who
-  // already set one.
+  // already set one. The same owner payload carries the server truth for the
+  // privacy toggles, the location/phone fields and the blocked list — Settings
+  // used to show localStorage defaults for all of them (2026-11-09, P0 batch).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const { api } = await import('../lib/api/client');
         const me = await api.getProfile(user?.uid);
-        if (!cancelled && me?.username) setUsername(me.username);
+        if (cancelled || !me) return;
+        setProfileLoaded(true);
+        if (me?.username) setUsername(me.username);
         // Hidden profile details (2026-11-09): the owner payload carries
         // `hiddenFields` — the list this member chose to hide.
-        if (!cancelled && Array.isArray(me?.hiddenFields)) setHiddenFields(me.hiddenFields);
+        if (Array.isArray(me?.hiddenFields)) setHiddenFields(me.hiddenFields);
+        setProfile((pp) => ({
+          ...pp,
+          city: typeof me.city === 'string' ? me.city : pp.city,
+          country: typeof me.country === 'string' ? me.country : pp.country,
+          phone: typeof me.contactPhone === 'string' ? me.contactPhone : pp.phone,
+        }));
+        setPrivacy((p) => ({
+          ...p,
+          profileVisibility: me.visibility || p.profileVisibility,
+          photoVisibility: me.photosVisibility || p.photoVisibility,
+          contactVisibility: me.contactVisibility || p.contactVisibility,
+          blockUnverified: typeof me.blockUnverified === 'boolean' ? me.blockUnverified : p.blockUnverified,
+          allowFamilyView: typeof me.allowFamilyView === 'boolean' ? me.allowFamilyView : p.allowFamilyView,
+        }));
       } catch { /* leave blank — a missing handle is not an error */ }
+      try {
+        const { listBlocks } = await import('../lib/api/safety');
+        const list = await listBlocks().catch(() => []);
+        if (!cancelled && Array.isArray(list)) setBlocks(list);
+      } catch { /* blocked list is best-effort on load */ }
     })();
     return () => { cancelled = true; };
   }, [user?.uid]);
@@ -258,12 +281,20 @@ export default function Settings() {
     email: user?.email || '',
     phone: '', city: '', country: '', bio: ''
   });
+  // True once the owner profile has loaded from the server. The Save button
+  // stays disabled until then: the fields start blank, and sending blanks
+  // would wipe the stored city/country/phone before they ever load.
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
   const [privacy, setPrivacy] = useState({
     profileVisibility: 'members', photoVisibility: 'members',
     contactVisibility: 'members',
-    showOnlineStatus: true, allowFamilyView: true, blockUnverified: false,
-    incognito: false
+    // "Show online status" was removed (2026-11-09, P0 batch): no online
+    // status is displayed anywhere in the product, so the toggle promised
+    // a feature that did not exist. The two toggles below are enforced by
+    // the server — blockUnverified hides your profile from unverified
+    // members and blocks their interest; allowFamilyView gates wali links.
+    allowFamilyView: true, blockUnverified: false
   });
   const [privacySaved, setPrivacySaved] = useState('');
   // Hide-any-field (2026-11-09): payload keys the member wants hidden from
@@ -314,15 +345,26 @@ export default function Settings() {
     writeIsDark(theme === 'dark');
     applyIsDark(theme === 'dark');
     // The bio textarea used to be decorative (uncontrolled, never sent
-    // anywhere). Persist it to the server profile so Save actually saves.
+    // anywhere). Persist it to the server profile so Save actually saves —
+    // along with the city, country and phone, which used to be written to
+    // localStorage only (2026-11-09, P0 batch).
     setSaveError('');
+    if (!profileLoaded) {
+      setSaveError('Still loading your profile — try again in a moment.');
+      return;
+    }
     setBioSaving(true);
     try {
       const { api } = await import('../lib/api/client');
-      await api.updateProfile('me', { bio: profile.bio });
+      await api.updateProfile('me', {
+        bio: profile.bio,
+        city: profile.city,
+        country: profile.country,
+        contactPhone: profile.phone,
+      });
       setSaved(true);
     } catch (e) {
-      setSaveError(e.message || 'Could not save your bio.');
+      setSaveError(e.message || 'Could not save your profile.');
       setSaved(false);
     } finally {
       setBioSaving(false);
@@ -443,6 +485,21 @@ export default function Settings() {
                 <div><label htmlFor="settings-bio" className="text-sm font-medium text-muted mb-1.5 block">Bio</label>
                   <textarea id="settings-bio" rows={4} value={profile.bio} onChange={e => setProfile(pp => ({ ...pp, bio: e.target.value }))} placeholder="Tell others about yourself..." className="input w-full resize-none" aria-label="Bio" />
                 </div>
+                {/* Location and phone (2026-11-09, P0 batch): these fields
+                    existed in state but had no inputs and never reached the
+                    server — "Save account changes" saved only the bio. */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><label htmlFor="settings-city" className="text-sm font-medium text-muted mb-1.5 block">City</label>
+                    <input id="settings-city" type="text" value={profile.city} onChange={e => setProfile(pp => ({ ...pp, city: e.target.value }))} className="input w-full" aria-label="City" placeholder="e.g. Baltimore" />
+                  </div>
+                  <div><label htmlFor="settings-country" className="text-sm font-medium text-muted mb-1.5 block">Country</label>
+                    <input id="settings-country" type="text" value={profile.country} onChange={e => setProfile(pp => ({ ...pp, country: e.target.value }))} className="input w-full" aria-label="Country" placeholder="e.g. United States" />
+                  </div>
+                  <div><label htmlFor="settings-phone" className="text-sm font-medium text-muted mb-1.5 block">Phone</label>
+                    <input id="settings-phone" type="tel" value={profile.phone} onChange={e => setProfile(pp => ({ ...pp, phone: e.target.value }))} className="input w-full" aria-label="Phone" placeholder="Optional" />
+                    <p className="text-xs text-muted mt-1">Shown only to members your contact visibility allows.</p>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -454,9 +511,8 @@ export default function Settings() {
                   { key: 'profileVisibility', label: 'Who can see my profile', type: 'select', options: [{ v: 'public', l: 'Public — anyone' }, { v: 'members', l: 'Members only' }, { v: 'private', l: 'Private — only me' }] },
                   { key: 'photoVisibility', label: 'Who can see my photos', type: 'select', options: [{ v: 'public', l: 'Public — anyone' }, { v: 'members', l: 'Members only' }, { v: 'private', l: 'Private — only me' }] },
                   { key: 'contactVisibility', label: 'Who can see my contact details', hint: 'Your phone number and email shown on your profile', type: 'select', options: [{ v: 'public', l: 'Public — anyone' }, { v: 'members', l: 'Members only' }, { v: 'private', l: 'Private — only me' }] },
-                  { key: 'showOnlineStatus', label: 'Show online status', type: 'toggle' },
-                  { key: 'allowFamilyView', label: 'Allow family members to view profile', type: 'toggle' },
-                  { key: 'blockUnverified', label: 'Block unverified members', type: 'toggle' }
+                  { key: 'allowFamilyView', label: 'Allow family members to view profile', hint: 'Wali view links stop working while this is off', type: 'toggle' },
+                  { key: 'blockUnverified', label: 'Block unverified members', hint: 'Members whose email is not verified cannot see your profile or send interest', type: 'toggle' }
                 ].map(item => (
                   <div key={item.key} className="flex items-center justify-between py-3 border-b border-line/10 last:border-0">
                     <span className="text-sm font-medium text-ink">
@@ -520,6 +576,11 @@ export default function Settings() {
                         // vocabulary as profile/photos (public/members/private).
                         contact_visibility: privacy.contactVisibility,
                         contactVisibility: privacy.contactVisibility,
+                        // Privacy toggles (2026-11-09, P0 batch): enforced by
+                        // the server — blockUnverified hides the profile from
+                        // unverified members, allowFamilyView gates wali links.
+                        blockUnverified: privacy.blockUnverified,
+                        allowFamilyView: privacy.allowFamilyView,
                         // Hide-any-field (2026-11-09): the list of payload
                         // keys to omit for other viewers.
                         hiddenFields,
@@ -653,13 +714,24 @@ export default function Settings() {
                 {[
                   { key: 'emailMessages', label: 'New messages (email)' },
                   { key: 'emailMatches', label: 'New matches (email)' },
+                  { key: 'emailWeeklyDigest', label: 'Weekly activity digest' },
                   { key: 'pushMessages', label: 'New messages (push)' },
                   { key: 'pushMatches', label: 'New matches (push)' },
-                  { key: 'weeklyDigest', label: 'Weekly activity digest' }
+                  { key: 'pushProfileViews', label: 'Profile views (push)' }
                 ].map(item => (
                   <div key={item.key} className="flex items-center justify-between py-3 border-b border-line/10 last:border-0">
                     <span className="text-sm font-medium text-ink">{item.label}</span>
-                    <button onClick={() => setNotifications(n => ({ ...n, [item.key]: !n[item.key] }))} className={`relative h-6 w-11 flex items-center transition-all duration-200 ${notifications[item.key] ? 'btn btn-primary' : 'btn btn-ghost'} `}>
+                    <button onClick={() => {
+                      const next = { ...notifications, [item.key]: !notifications[item.key] };
+                      setNotifications(next);
+                      // The notifications tab has no save button, so a flip
+                      // must persist immediately — otherwise it is lost on
+                      // reload unless the member also saves from the Profile
+                      // tab. (2026-11-09, P0 batch: the digest toggle also
+                      // wrote a phantom key, `weeklyDigest`, that nothing
+                      // read; the state key is `emailWeeklyDigest`.)
+                      try { localStorage.setItem(settingsKey(), JSON.stringify({ privacy, notifications: next, profile, twoFactor })); } catch { /* storage full */ }
+                    }} className={`relative h-6 w-11 flex items-center transition-all duration-200 ${notifications[item.key] ? 'btn btn-primary' : 'btn btn-ghost'} `}>
                       <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${notifications[item.key] ? 'translate-x-5' : 'translate-x-0.5'}`} />
                     </button>
                   </div>
@@ -858,7 +930,7 @@ export default function Settings() {
             <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-line/10">
               {saved && <span className="text-sm text-success font-medium">Saved!</span>}
               {saveError && <span className="text-sm text-danger font-medium">{saveError}</span>}
-              <button onClick={handleSave} disabled={bioSaving} className="button primary px-6 py-2.5 font-semibold disabled:opacity-50">{bioSaving ? 'Saving…' : 'Save account changes'}</button>
+              <button onClick={handleSave} disabled={bioSaving || !profileLoaded} className="button primary px-6 py-2.5 font-semibold disabled:opacity-50">{bioSaving ? 'Saving…' : 'Save account changes'}</button>
             </div>
           </div>
         </div>

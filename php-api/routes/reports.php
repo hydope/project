@@ -10,6 +10,11 @@ function routeReports(string $method, array $segments): void
     if ($method === 'POST' && $action === null) { createReport(); return; }
     if ($method === 'POST' && $action === 'block') { blockMember(); return; }
     if ($method === 'DELETE' && $action === 'block' && ($segments[1] ?? null) !== null) { unblockMember((string)$segments[1]); return; }
+    // GET /api/reports/blocks — the members I blocked, for the Settings
+    // "Blocked members" list. It used to 404 ("Report endpoint not found"),
+    // so the page silently fell back to an empty list and unblocking from
+    // Settings was impossible.
+    if ($method === 'GET' && $action === 'blocks') { listBlocks(); return; }
 
     json(['error' => 'Report endpoint not found'], 404);
 }
@@ -68,4 +73,27 @@ function unblockMember(string $id): void
     $stmt = db()->prepare('DELETE FROM blocks WHERE blocker_id = ? AND blocked_id = ?');
     $stmt->execute([$user['uid'], $id]);
     json(['ok' => true]);
+}
+
+function listBlocks(): void
+{
+    $user = requireAuthUser();
+    $stmt = db()->prepare(
+        'SELECT p.user_id AS id, p.display_name, p.photo_url
+           FROM blocks b
+           JOIN profiles p ON p.user_id = b.blocked_id
+          WHERE b.blocker_id = ?
+          ORDER BY p.display_name ASC'
+    );
+    $stmt->execute([$user['uid']]);
+    $rows = $stmt->fetchAll();
+    $out = [];
+    foreach ($rows as $row) {
+        $out[] = [
+            'id' => (string)($row['id'] ?? ''),
+            'displayName' => $row['display_name'] ?? 'Member',
+            'photo' => !empty($row['photo_url']) ? '/api/profiles/' . (string)($row['id'] ?? '') . '/photo' : null,
+        ];
+    }
+    json(['blocks' => $out]);
 }
