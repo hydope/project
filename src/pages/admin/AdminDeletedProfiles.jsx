@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/layouts/AdminLayout';
 import { http } from '@/lib/api/transport';
-import { deletionReasonLabel } from '@/lib/api/safety';
+import { deletionReasonLabel, DELETION_REASONS } from '@/lib/api/safety';
 import { UserX, RefreshCw } from 'lucide-react';
 
 /**
@@ -15,11 +15,14 @@ import { UserX, RefreshCw } from 'lucide-react';
 export default function AdminDeletedProfiles() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
+  const [byReason, setByReason] = useState({});
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
+  const [reasonFilter, setReasonFilter] = useState('');
+  const [query, setQuery] = useState('');
 
   const LIMIT = 25;
 
@@ -28,10 +31,16 @@ export default function AdminDeletedProfiles() {
     else setLoading(true);
     setError('');
     try {
-      const result = await http.get(`/api/admin/deleted-profiles?limit=${LIMIT}&offset=${nextOffset}`);
+      const params = new URLSearchParams();
+      params.set('limit', String(LIMIT));
+      params.set('offset', String(nextOffset));
+      if (reasonFilter) params.set('reason', reasonFilter);
+      if (query.trim()) params.set('q', query.trim());
+      const result = await http.get(`/api/admin/deleted-profiles?${params}`);
       if (append) setRows((prev) => [...prev, ...(result.rows || [])]);
       else setRows(result.rows || []);
       setTotal(result.total || 0);
+      setByReason(result.byReason || {});
       setHasMore(!!result.hasMore);
       setOffset(nextOffset);
     } catch (e) {
@@ -40,9 +49,13 @@ export default function AdminDeletedProfiles() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, []);
+  }, [reasonFilter, query]);
 
-  useEffect(() => { load(0, false); }, [load]);
+  useEffect(() => {
+    // Filter/search changes re-run from the top, debounced like AdminSupport.
+    const t = setTimeout(() => load(0, false), query ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [load, query]);
 
   const formatDate = (d) => {
     if (!d) return '—';
@@ -72,6 +85,38 @@ export default function AdminDeletedProfiles() {
         {error && (
           <div className="mb-4 rounded-xl border border-line/20 bg-elevated p-3 text-sm text-muted">{error}</div>
         )}
+
+        {/* Reason breakdown — the exit data's whole point is "why are people
+            leaving". Counts cover all leavers; tapping a chip filters the table. */}
+        {Object.keys(byReason).length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-4">
+            <button onClick={() => setReasonFilter('')}
+              className={`px-2.5 py-1.5 rounded-full text-xs font-semibold border ${reasonFilter === '' ? 'bg-primary text-white border-primary' : 'border-line/30 text-muted hover:text-ink'}`}>
+              All ({total})
+            </button>
+            {[...DELETION_REASONS.map((r) => r.key), 'none'].map((key) => {
+              const n = byReason[key] || 0;
+              if (n === 0 && key !== 'none') return null;
+              return (
+                <button key={key} onClick={() => setReasonFilter(key)}
+                  className={`px-2.5 py-1.5 rounded-full text-xs font-semibold border ${reasonFilter === key ? 'bg-primary text-white border-primary' : 'border-line/30 text-muted hover:text-ink'}`}>
+                  {deletionReasonLabel(key === 'none' ? null : key)} ({n})
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2 mb-4">
+          <input value={query} onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search name, email or what they said" aria-label="Search deleted profiles"
+            className="input flex-1 min-w-[220px]" />
+          <select value={reasonFilter} onChange={(e) => setReasonFilter(e.target.value)}
+            aria-label="Filter by reason" className="input">
+            <option value="">All reasons</option>
+            {DELETION_REASONS.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+            <option value="none">No reason given</option>
+          </select>
+        </div>
 
         {loading && !rows.length ? (
           <div className="space-y-2">{[0, 1, 2].map((i) => <div key={i} className="skeleton h-12 rounded-xl" />)}</div>

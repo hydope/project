@@ -7,7 +7,7 @@ import { useAuth } from '../lib/auth/AuthContext';
 import LoginGate from '../components/LoginGate';
 import { formatCity, formatCountry } from '../lib/format';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { ArrowLeft, ShieldCheck, MapPin, Heart, MessageCircle, Bookmark, Lock, Users, Award, Sparkles, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, MapPin, Heart, MessageCircle, Bookmark, Lock, Users, Award, Sparkles, ChevronRight, HeartHandshake } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
 import CompatibilityIndex from '../components/CompatibilityIndex';
 import { ReportFlag } from '../components/ReportFlag';
@@ -456,6 +456,21 @@ export default function Profile() {
                 <div>
                   <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>Wali / guardian managed</p>
                   <p className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>Family-involved matchmaking with chaperone support</p>
+                </div>
+              </div>
+            )}
+
+            {/* Matchmaker-uploaded (2026-11-09): an admin-approved submission
+                with no member behind it yet. The claim flow already exists
+                elsewhere; this box only says what the profile is. */}
+            {profile.isMatchmaker === true && (
+              <div className="p-4 rounded-xl flex items-start gap-3" style={{ background: 'var(--color-primary-subtle)', border: '1px solid var(--color-border)' }}>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-primary)', color: '#fff' }}>
+                  <HeartHandshake className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>Uploaded by a matchmaker</p>
+                  <p className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>Submitted by a matchmaker and not yet claimed by the member.</p>
                 </div>
               </div>
             )}

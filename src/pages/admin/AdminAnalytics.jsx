@@ -188,8 +188,8 @@ export default function AdminAnalytics() {
         <section className="rounded-xl border border-line/20 bg-elevated p-5 mb-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-success/15 text-success">
-                <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" /> GA4 Connected
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-hover text-muted">
+                Tag installed — verify in GA console
               </span>
               <div>
                 <p className="text-sm font-bold text-ink">Google Analytics 4</p>
@@ -220,7 +220,7 @@ export default function AdminAnalytics() {
           <TrafficChart labels={traffic.labels} pageviews={traffic.pageviews} visitors={traffic.visitors} loading={loading} />
         </div>
 
-        {/* Real signups — the 10/day KPI (excludes seeded profiles) */}
+        {/* Real signups — the 5/day KPI (excludes seeded profiles) */}
         <section className="rounded-xl border border-line/20 bg-elevated p-5 mb-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
             <h3 className="text-sm font-bold text-ink inline-flex items-center gap-2">
@@ -228,7 +228,7 @@ export default function AdminAnalytics() {
             </h3>
             <p className="text-xs text-muted">
               Today: <span className="font-bold text-ink">{signups.real_today ?? 0}</span>
-              <span className="text-muted"> / target 10</span>
+              <span className="text-muted"> / target 5</span>
             </p>
           </div>
           {loading ? <div className="skeleton h-24 rounded" /> : (
@@ -236,7 +236,7 @@ export default function AdminAnalytics() {
               {(signups.daily || []).map((v, i) => {
                 const max = Math.max(...(signups.daily || [1]));
                 const pct = max > 0 ? Math.round((v / max) * 100) : 0;
-                const met = v >= 10;
+                const met = v >= 5;
                 return (
                   <div key={i} className="flex-1 flex flex-col items-center justify-end h-full" title={`${signups.labels?.[i] || ''}: ${v}`}>
                     <span className="text-[10px] font-semibold text-muted mb-1">{v > 0 ? v : ''}</span>
@@ -248,7 +248,7 @@ export default function AdminAnalytics() {
             </div>
           )}
           <p className="text-[11px] text-muted mt-3">
-            Green bar = hit the 10/day target. Seeded profiles are excluded — this is real people only.
+            Green bar = hit the 5/day target. Seeded profiles are excluded — this is real people only.
           </p>
         </section>
 

@@ -370,6 +370,11 @@ function visibleProfile(array $row, ?array $viewer): ?array
             // Guardian management only — the guardian's name/email are NEVER
             // exposed here; only the fact the profile is guardian-managed.
             'managementMode' => !empty($row['management_mode']) ? (string)$row['management_mode'] : null,
+            // Matchmaker origin (2026-11-09): an admin-approved matchmaker
+            // submission is browsable but has no member behind it. Browsers
+            // must be able to tell it apart from a personal profile, so the
+            // origin travels in every payload — anonymous included.
+            'isMatchmaker' => !empty($row['is_matchmaker']),
             'username' => $row['username'] ?? null,
             'religiosity' => $row['religiosity'] ?? null,
             'educationLevel' => $row['education_level'] ?? null,
@@ -404,9 +409,12 @@ function visibleProfile(array $row, ?array $viewer): ?array
 
     if (($row['visibility'] ?? 'members') === 'public' || isset($viewer['uid']) || $isOwner) {
         $photosVisibility = (string)($row['photos_visibility'] ?? 'members');
-        // For a signed-in viewer only `private` withholds the photo; a
-        // members/match tier is open to anyone who can see the profile.
-        $photosLocked = $photosVisibility === 'private' && !$isOwner;
+        // Mirror photoServe() exactly (2026-11-09): a non-owner may fetch
+        // the photo only for a public tier, or with a mutual interest.
+        // The old rule withheld only `private`, so a members-tier profile
+        // advertised a photo URL the serve endpoint then 404'd — the card
+        // promised a photo nobody without a match could open.
+        $photosLocked = !$isOwner && $photosVisibility !== 'public' && !$isMutual;
         return applyHiddenFields([
             'id' => $ownerId,
             'displayName' => $row['display_name'] ?? null,
@@ -427,6 +435,8 @@ function visibleProfile(array $row, ?array $viewer): ?array
             // Guardian management only — the guardian's name/email are NEVER
             // exposed here; only the fact the profile is guardian-managed.
             'managementMode' => !empty($row['management_mode']) ? (string)$row['management_mode'] : null,
+            // Matchmaker origin (2026-11-09): see the anonymous branch.
+            'isMatchmaker' => !empty($row['is_matchmaker']),
             // Public handle the member chose for themselves. Null when unset.
             'username' => $row['username'] ?? null,
             // ── Filterable fields ────────────────────────────────────────────
@@ -489,6 +499,7 @@ function visibleProfile(array $row, ?array $viewer): ?array
         'aboutFamily' => $row['about_family'] ?? null,
         'visibility' => $row['visibility'] ?? 'members',
         'managementMode' => !empty($row['management_mode']) ? (string)$row['management_mode'] : null,
+        'isMatchmaker' => !empty($row['is_matchmaker']),
         'photosVisibility' => (string)($row['photos_visibility'] ?? 'members'),
         'photosLocked' => !$isOwner,
         'locked' => true,

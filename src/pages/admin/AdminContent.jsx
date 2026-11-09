@@ -187,6 +187,9 @@ export default function AdminContent() {
   const [scheduledFor, setScheduledFor] = useState('');
   const [busy, setBusy] = useState(false);
   const [topics, setTopics] = useState([]);
+  // Pending destructive action: { kind: 'delete' | 'publish', id, title }.
+  // Delete and list-Publish used to fire on one click with no confirmation.
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -237,6 +240,13 @@ export default function AdminContent() {
 
   const save = async (status) => {
     if (!draft) return;
+    // A past datetime must never be scheduled: the old code only disabled
+    // the button when no datetime was chosen at all, so a past one sailed
+    // through and its fate (immediate publish vs error) was unknowable.
+    if (status === 'scheduled' && scheduledFor && new Date(scheduledFor) <= new Date()) {
+      setError('Choose a future date and time to schedule.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -271,6 +281,14 @@ export default function AdminContent() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const runConfirmed = async () => {
+    if (!confirmAction) return;
+    const { kind, id } = confirmAction;
+    setConfirmAction(null);
+    if (kind === 'delete') await remove(id);
+    else await setStatus(id, 'published');
   };
 
   const remove = async (id) => {
@@ -430,7 +448,8 @@ export default function AdminContent() {
               <input type="datetime-local" value={scheduledFor}
                 onChange={(e) => setScheduledFor(e.target.value)}
                 className="input" aria-label="Schedule for" />
-              <button onClick={() => save('scheduled')} disabled={busy || !scheduledFor}
+              <button onClick={() => save('scheduled')} disabled={busy || !scheduledFor || new Date(scheduledFor) <= new Date()}
+                title={scheduledFor && new Date(scheduledFor) <= new Date() ? 'Choose a future date and time' : undefined}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-line/30 text-muted disabled:opacity-50">
                 <Calendar className="w-3.5 h-3.5" /> Schedule
               </button>
@@ -500,7 +519,7 @@ export default function AdminContent() {
                   </span>
                   <div className="flex items-center gap-1.5">
                     {p.status !== 'published' && (
-                      <button onClick={() => setStatus(p.id, 'published')} disabled={busy}
+                      <button onClick={() => setConfirmAction({ kind: 'publish', id: p.id, title: p.title })} disabled={busy}
                         className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white disabled:opacity-50">Publish</button>
                     )}
                     {p.status === 'published' && (!p.scheduled_for || new Date(p.scheduled_for) <= new Date()) && (
@@ -509,7 +528,7 @@ export default function AdminContent() {
                         <Eye className="w-3.5 h-3.5" /> View
                       </a>
                     )}
-                    <button onClick={() => remove(p.id)} disabled={busy}
+                    <button onClick={() => setConfirmAction({ kind: 'delete', id: p.id, title: p.title })} disabled={busy}
                       aria-label={`Delete ${p.title}`}
                       className="p-1.5 rounded-lg text-muted hover:text-danger disabled:opacity-50">
                       <Trash2 className="w-4 h-4" />
@@ -522,6 +541,34 @@ export default function AdminContent() {
           })()}
         </section>
       </main>
+
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div role="dialog" aria-modal="true" aria-label={confirmAction.kind === 'delete' ? 'Confirm delete' : 'Confirm publish'}
+            className="w-full max-w-sm rounded-xl bg-elevated border border-line/20 p-5 shadow-xl">
+            <h3 className="text-base font-bold text-ink">
+              {confirmAction.kind === 'delete' ? 'Delete this post?' : 'Publish this post?'}
+            </h3>
+            <p className="text-sm text-muted mt-2 break-words">
+              “{confirmAction.title}”
+              {confirmAction.kind === 'delete'
+                ? ' will be permanently deleted.'
+                : ' will go live on the blog immediately.'}
+            </p>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setConfirmAction(null)}
+                className="px-3 py-2 rounded-lg text-sm font-semibold border border-line/30 text-muted">
+                Cancel
+              </button>
+              <button onClick={runConfirmed} disabled={busy}
+                className={`px-3 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 ${
+                  confirmAction.kind === 'delete' ? 'bg-danger' : 'bg-primary'}`}>
+                {confirmAction.kind === 'delete' ? 'Delete' : 'Publish'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

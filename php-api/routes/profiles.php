@@ -802,8 +802,8 @@ function profileById(string $id): void
     // to earn trust. Verification is a gate on CONTACT, not on LOOKING: it is
     // enforced where a real action happens (POST /messages to start a
     // conversation, and the interest write path). An unverified member can
-    // browse, read profiles and express interest, but cannot message until they
-    // verify.
+    // browse and read profiles, but cannot express interest or message until
+    // they verify.
 
     // Include interest state so the UI survives reloads.
     if ($viewer !== null) {
@@ -1051,6 +1051,38 @@ function profileUpdate(): void
         $sets[] = "{$col} = ?";
         $values[] = $v;
     }
+
+    // Publish gate, server-side (2026-11-09): completing a profile requires
+    // a verified email. The wizard enforces this client-side, but a direct
+    // API call bypassed it entirely — an unverified PUT could publish a
+    // complete profile. Partial saves stay open: only the transition from
+    // incomplete to complete is gated, so an unverified member can keep
+    // drafting, and a profile that is already complete can still be edited.
+    // "Complete" is the browse-visible minimum: city + country + bio +
+    // looking-for (expectations). Values are read from the normalized
+    // $sets, so a "Hyderabad, India" city that splits out a country counts.
+    $eff = [];
+    foreach ($sets as $i => $set) {
+        $eff[explode(' = ', $set)[0]] = $values[$i];
+    }
+    $storedStmt = db()->prepare('SELECT city, country, bio, expectations FROM profiles WHERE user_id = ? LIMIT 1');
+    $storedStmt->execute([(string)$user['uid']]);
+    $storedRow = $storedStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $isComplete = static fn(array $src): bool => trim((string)($src['city'] ?? '')) !== ''
+        && trim((string)($src['country'] ?? '')) !== ''
+        && trim((string)($src['bio'] ?? '')) !== ''
+        && trim((string)($src['expectations'] ?? '')) !== '';
+    $wasComplete = $isComplete($storedRow);
+    $willBeComplete = $isComplete([
+        'city' => $eff['city'] ?? $storedRow['city'] ?? null,
+        'country' => $eff['country'] ?? $storedRow['country'] ?? null,
+        'bio' => $eff['bio'] ?? $storedRow['bio'] ?? null,
+        'expectations' => $eff['expectations'] ?? $storedRow['expectations'] ?? null,
+    ]);
+    if (!$wasComplete && $willBeComplete && !viewerIsEmailVerified($user)) {
+        je('Verify your email to publish your profile. You can keep saving a draft until then.', 403);
+    }
+
     if (!$sets) {
         je('Nothing to update.', 400);
     }
@@ -1137,6 +1169,14 @@ function profileInterest(string $id): void
     $stmt->execute([$id]);
     if (!$stmt->fetch()) {
         je('Profile not found.', 404);
+    }
+
+    // Verification gates CONTACT: an unverified member can browse and read
+    // profiles, but expressing interest is a real action that requires a
+    // verified email. A direct API call used to bypass the client-side
+    // gate entirely and return 200.
+    if (!viewerIsEmailVerified($user)) {
+        je('Verify your email to express interest.', 403);
     }
 
     // Sample profiles exist to show the format of a complete profile. There is no

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/auth/AuthContext';
 import Seo from '../components/Seo';
 import {
-  LayoutDashboard, ShieldAlert, UserCheck, Users, UserX, LifeBuoy, BadgeCheck,
+  LayoutDashboard, ShieldAlert, ShieldCheck, UserCheck, Users, UserX, LifeBuoy, BadgeCheck,
   KeyRound, History, BookOpen, BarChart3, LogOut, HeartHandshake, Home,
   Sun, Moon, FileText, Sprout,
 } from 'lucide-react';
@@ -18,7 +18,7 @@ const ADMIN_LINKS = [
   { path: '/admin/matchmaker', label: 'Matchmaker Queue', icon: HeartHandshake },
   { path: '/admin/biodata', label: 'Biodata Maker', icon: FileText },
   { path: '/admin/verifications', label: 'ID Verifications', icon: BadgeCheck },
-  { path: '/admin/guardians', label: 'Guardians', icon: Users },
+  { path: '/admin/guardians', label: 'Guardians', icon: ShieldCheck },
   { path: '/admin/roles', label: 'Roles', icon: KeyRound },
   { path: '/admin/support', label: 'Support', icon: LifeBuoy },
   { path: '/admin/content', label: 'Blog & Content', icon: BookOpen },
@@ -156,17 +156,25 @@ export default function AdminLayout({ children }) {
               {light ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             </button>
             <Link to="/dashboard" className="text-xs" style={{ color: t.muted }}>Member site</Link>
+            <button onClick={doLogout} aria-label="Log out"
+              className="flex items-center gap-1 text-xs" style={{ color: t.muted }}>
+              <LogOut className="w-4 h-4" /> Log out
+            </button>
           </div>
         </header>
-        <nav className="md:hidden flex gap-1 overflow-x-auto px-3 py-2" style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
+        {/* Labelled, scrollable strip (2026-11-09): 15 bare icons forced a
+            sighted admin to memorise icon order, and Members/Guardians shared
+            the same glyph. Each item is now icon + label with a 44px tap area. */}
+        <nav className="md:hidden flex gap-1 overflow-x-auto px-2 py-2" style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
           {ADMIN_LINKS.map(l => {
             const active = isActiveLink(l);
             const Icon = l.icon;
             return (
-              <Link key={l.to || l.path} to={l.to || l.path} aria-label={l.label}
-                className="p-2 rounded-lg flex-shrink-0"
+              <Link key={l.to || l.path} to={l.to || l.path}
+                className="px-3 py-2 rounded-lg flex-shrink-0 flex flex-col items-center gap-0.5 min-w-[56px]"
                 style={{ background: active ? (light ? 'rgba(9,105,218,0.1)' : 'rgba(56,139,253,0.15)') : 'transparent', color: active ? t.fg : t.muted }}>
                 <Icon className="w-4 h-4" />
+                <span className="text-[10px] leading-tight font-semibold whitespace-nowrap">{l.label}</span>
               </Link>
             );
           })}

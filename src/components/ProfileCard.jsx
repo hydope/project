@@ -326,6 +326,13 @@ export default function ProfileCard({ profile, className = '' }) {
               {profile.managementMode === 'guardian' && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }} title="Wali / guardian managed">Wali / guardian managed</span>
               )}
+              {/* Matchmaker-uploaded (2026-11-09): same pattern as the
+                  guardian badge. An approved matchmaker submission has no
+                  member behind it yet — the payload carries isMatchmaker so
+                  a browser can tell it apart from a personal profile. */}
+              {profile.isMatchmaker === true && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }} title="Uploaded by a matchmaker — this profile is unclaimed">Uploaded by a matchmaker</span>
+              )}
             </>
           )}
         </div>

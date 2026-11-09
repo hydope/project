@@ -352,6 +352,7 @@ function routeAdmin(string $method, array $segments): void
     }
     if ($method === 'GET' && $action === 'funnel') { adminFunnel(); return; }
     if ($method === 'GET' && $action === 'wali') { adminWaliLinks(); return; }
+    if ($method === 'POST' && $action === 'wali' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === 'revoke') { adminWaliRevoke((string)$segments[1]); return; }
     if ($method === 'GET' && $action === 'reports') { adminReports(); return; }
     if ($method === 'POST' && $action === 'reports' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === 'action') {
         adminReportAction((string)$segments[1]);
@@ -653,13 +654,13 @@ function adminHealth(): void
     ]);
 }
 
-// GET /api/admin/analytics?range=7d|30d — real series from created_at buckets.
+// GET /api/admin/analytics?range=7d|30d|90d — real series from created_at buckets.
 // Node uses generate_series (Postgres); MySQL has none, so the day axis is
 // built in PHP and counts come from one grouped query each.
 function adminAnalytics(): void
 {
-    $range = ($_GET['range'] ?? '') === '30d' ? '30d' : '7d';
-    $days = $range === '30d' ? 30 : 7;
+    $range = in_array($_GET['range'] ?? '', ['7d', '30d', '90d'], true) ? (string)$_GET['range'] : '7d';
+    $days = ['7d' => 7, '30d' => 30, '90d' => 90][$range];
 
     // generate_series(now() - days, now()) is inclusive → days + 1 buckets.
     $labels = [];
@@ -736,8 +737,8 @@ function adminAnalytics(): void
 // the GA console, linked from the dashboard.
 function adminSeoAnalytics(): void
 {
-    $range = ($_GET['range'] ?? '') === '30d' ? '30d' : '7d';
-    $days = $range === '30d' ? 30 : 7;
+    $range = in_array($_GET['range'] ?? '', ['7d', '30d', '90d'], true) ? (string)$_GET['range'] : '7d';
+    $days = ['7d' => 7, '30d' => 30, '90d' => 90][$range];
 
     $labels = [];
     $dayKeys = [];
@@ -907,7 +908,9 @@ function adminSeoAnalytics(): void
         'ga' => [
             'measurementId' => 'G-KNR7541E3G',
             'propertyUrl' => 'https://analytics.google.com/analytics/web/#/a324835995p453783207/',
-            'status' => 'connected',
+            // Honest literal: the tag is installed (see index.html), but no
+            // GA API call verifies the connection — never 'connected'.
+            'status' => 'tag_installed',
         ],
         'overview' => [
             ['key' => 'visitors', 'label' => 'Unique visitors', 'value' => $visitors, 'delta' => $delta($visitors, $prevVisitors)],
@@ -1078,21 +1081,59 @@ function adminDeletedProfiles(): void
 {
     $limit = max(1, min(100, (int)($_GET['limit'] ?? 25)));
     $offset = max(0, (int)($_GET['offset'] ?? 0));
+    // Filters (2026-11-09): the exit data's whole point is "why are people
+    // leaving", but the page could only eyeball rows. reason = one of the
+    // exit-survey keys (or 'none' for no answer); q = free text across
+    // name, email and what they said.
+    $reason = trim((string)($_GET['reason'] ?? ''));
+    $q = trim((string)($_GET['q'] ?? ''));
+    $where = [];
+    $params = [];
+    if ($reason !== '') {
+        if ($reason === 'none') {
+            $where[] = '(reason IS NULL OR reason = \'\')';
+        } elseif (preg_match('/^[a-z0-9_]+$/', $reason)) {
+            $where[] = 'reason = ?';
+            $params[] = $reason;
+        }
+    }
+    if ($q !== '') {
+        $where[] = '(display_name LIKE ? OR email LIKE ? OR detail LIKE ?)';
+        $params[] = '%' . $q . '%';
+        $params[] = '%' . $q . '%';
+        $params[] = '%' . $q . '%';
+    }
+    $whereSql = $where === [] ? '' : 'WHERE ' . implode(' AND ', $where);
 
     $total = 0;
     try {
-        $total = (int)(db()->query('SELECT COUNT(*) AS n FROM account_deletion_feedback')->fetch()['n'] ?? 0);
+        $countStmt = db()->prepare("SELECT COUNT(*) AS n FROM account_deletion_feedback {$whereSql}");
+        $countStmt->execute($params);
+        $total = (int)($countStmt->fetch()['n'] ?? 0);
     } catch (Throwable) {
-        json(['rows' => [], 'total' => 0, 'hasMore' => false]);
+        json(['rows' => [], 'total' => 0, 'hasMore' => false, 'byReason' => []]);
     }
 
-    $stmt = db()->prepare('SELECT id, user_id, display_name, email, city, country, joined_at, reason, detail, created_at FROM account_deletion_feedback ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?');
-    $stmt->bindValue(1, $limit, PDO::PARAM_INT);
-    $stmt->bindValue(2, $offset, PDO::PARAM_INT);
+    // Reason breakdown across ALL leavers (not the filtered page): the
+    // distribution is the answer, and filtering by one reason must not
+    // hide the size of the others.
+    $byReason = [];
+    try {
+        foreach (db()->query("SELECT reason, COUNT(*) AS n FROM account_deletion_feedback GROUP BY reason")->fetchAll() as $r) {
+            $byReason[($r['reason'] ?? '') === '' ? 'none' : (string)$r['reason']] = (int)$r['n'];
+        }
+    } catch (Throwable) { /* breakdown is advisory; the rows still load */ }
+
+    $stmt = db()->prepare("SELECT id, user_id, display_name, email, city, country, joined_at, reason, detail, created_at FROM account_deletion_feedback {$whereSql} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?");
+    foreach ($params as $i => $p) {
+        $stmt->bindValue($i + 1, $p);
+    }
+    $stmt->bindValue(count($params) + 1, $limit, PDO::PARAM_INT);
+    $stmt->bindValue(count($params) + 2, $offset, PDO::PARAM_INT);
     $stmt->execute();
     $rows = $stmt->fetchAll();
 
-    json(['rows' => $rows, 'total' => $total, 'hasMore' => ($offset + $limit < $total)]);
+    json(['rows' => $rows, 'total' => $total, 'hasMore' => ($offset + $limit < $total), 'byReason' => $byReason]);
 }
 
 // GET /api/admin/queue — one ranked moderation worklist.
@@ -1320,15 +1361,34 @@ function adminUserDetail(string $userId): void
 function adminAuditList(): void
 {
     $limit = max(1, min(200, (int)($_GET['limit'] ?? 50)));
+    $offset = max(0, (int)($_GET['offset'] ?? 0));
     $action = trim((string)($_GET['action'] ?? ''));
-    $where = '';
+    // Filters (2026-11-09): the trail was newest-100-only, so finding "who
+    // approved verification X last month" meant scrolling and re-loading.
+    // actor = admin email (prefix match), q = free text across action,
+    // target and actor. All LIKEs are bound parameters, never interpolated.
+    $actor = trim((string)($_GET['actor'] ?? ''));
+    $q = trim((string)($_GET['q'] ?? ''));
+    $where = [];
     $params = [];
     if ($action !== '' && preg_match('/^[a-z0-9_.-]+$/i', $action)) {
-        $where = 'WHERE action = ?';
+        $where[] = 'action = ?';
         $params[] = $action;
     }
+    if ($actor !== '') {
+        $where[] = 'actor_email LIKE ?';
+        $params[] = '%' . $actor . '%';
+    }
+    if ($q !== '') {
+        $where[] = '(action LIKE ? OR target_type LIKE ? OR target_id LIKE ? OR actor_email LIKE ?)';
+        $params[] = '%' . $q . '%';
+        $params[] = '%' . $q . '%';
+        $params[] = '%' . $q . '%';
+        $params[] = '%' . $q . '%';
+    }
+    $whereSql = $where === [] ? '' : 'WHERE ' . implode(' AND ', $where);
     $stmt = db()->prepare("SELECT id, actor_id, actor_email, action, target_type, target_id, meta, created_at
-                           FROM admin_audit {$where} ORDER BY created_at DESC, id DESC LIMIT {$limit}");
+                           FROM admin_audit {$whereSql} ORDER BY created_at DESC, id DESC LIMIT {$limit} OFFSET {$offset}");
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
     foreach ($rows as &$r) {
@@ -1368,7 +1428,8 @@ function adminWaliLinks(): void
             'SELECT LEFT(SHA2(w.token, 256), 12) AS ref,
                     w.user_id, w.created_at, w.revoked,
                     u.display_name AS member_name, u.email,
-                    p.display_name AS profile_name
+                    p.display_name AS profile_name,
+                    p.guardian_name, p.guardian_email
                FROM wali_links w
                LEFT JOIN users u ON u.id = w.user_id
                LEFT JOIN profiles p ON p.user_id = w.user_id
@@ -1389,6 +1450,27 @@ function adminWaliLinks(): void
     unset($r);
 
     json(['rows' => $rows, 'available' => true]);
+}
+
+// POST /api/admin/wali/:ref/revoke — kill a compromised companion link.
+//
+// The ref is the 12-char SHA-256 prefix adminWaliLinks() returns; the token
+// itself is never exposed, so revocation matches on the same prefix. An admin
+// asked to kill a link had no UI path at all — the member page could revoke,
+// the admin page could only watch.
+function adminWaliRevoke(string $ref): void
+{
+    $admin = requireAdminUser();
+    if (!preg_match('/^[0-9a-f]{12}$/', $ref)) {
+        je('Unknown companion link.', 404);
+    }
+    $stmt = db()->prepare('UPDATE wali_links SET revoked = 1 WHERE LEFT(SHA2(token, 256), 12) = ? AND revoked = 0');
+    $stmt->execute([$ref]);
+    if ($stmt->rowCount() === 0) {
+        je('Link not found or already revoked.', 404);
+    }
+    auditLog('wali.revoked', 'wali_link', $ref, ['by' => (string)($admin['uid'] ?? $admin['id'] ?? '')]);
+    json(['ok' => true, 'ref' => $ref]);
 }
 
 // GET /api/admin/verification-queue

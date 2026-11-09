@@ -147,14 +147,19 @@ export default function AdminSupport() {
 
   /**
    * Reply opens the operator's mail client with the original quoted. There is no
-   * outbound transport for admin replies yet; pretending otherwise would be worse
-   * than making the extra step explicit.
+   * outbound transport for admin replies yet — and opening a mail client is not
+   * sending an email: the operator can cancel it, close it, or never press
+   * send. So this deliberately does NOT mark the message replied. Use the
+   * "Mark replied" button after the email is actually sent.
    */
   const reply = (m) => {
     const quoted = `\n\n---\nOn ${m.created_at}, ${m.name} <${m.email}> wrote:\n${m.message}`;
     window.location.href = `mailto:${encodeURIComponent(m.email)}`
       + `?subject=${encodeURIComponent(`Re: ${m.subject}`)}`
       + `&body=${encodeURIComponent(quoted)}`;
+  };
+
+  const markReplied = (m) => {
     setMsgStatus(m.id, { status: 'replied' }, 'Marked as replied.');
   };
 
@@ -364,6 +369,11 @@ return (
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white">
                           <Reply className="w-3.5 h-3.5" /> Reply
                         </button>
+                        <button onClick={() => markReplied(active)}
+                          title="Only tap this after you have actually sent the reply email"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-line/30 text-muted">
+                          <CheckCheck className="w-3.5 h-3.5" /> Mark replied
+                        </button>
                         <button
                           onClick={() => setMsgStatus(active.id, { spam: !active.is_spam },
                             active.is_spam ? 'Moved out of spam.' : 'Marked as spam.')}
@@ -384,7 +394,9 @@ return (
                       {active.message}
                     </div>
                     <p className="text-[11px] text-muted mt-3">
-                      Reply opens your mail client with this message quoted.
+                      Reply opens your mail client with this message quoted. It does not
+                      mark anything replied — tap “Mark replied” only after you have
+                      actually sent the email.
                     </p>
                   </>
                 )}

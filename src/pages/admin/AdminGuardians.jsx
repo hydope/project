@@ -16,6 +16,8 @@ export default function AdminGuardians() {
   const [available, setAvailable] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [revoking, setRevoking] = useState(null); // ref awaiting a second tap
+  const [busyRef, setBusyRef] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,6 +36,27 @@ export default function AdminGuardians() {
   useEffect(() => { load(); }, [load]);
 
   const active = rows.filter((r) => r.active).length;
+
+  // Revoke is two taps, not a native confirm(): the first arms it, the
+  // second kills the link. A companion link is a live credential — revoking
+  // it must never be one stray click away.
+  const revoke = async (ref) => {
+    if (revoking !== ref) {
+      setRevoking(ref);
+      return;
+    }
+    setBusyRef(ref);
+    setError('');
+    try {
+      await http.post(`/api/admin/wali/${encodeURIComponent(ref)}/revoke`, {});
+      setRevoking(null);
+      await load();
+    } catch (e) {
+      setError(e?.message || 'Could not revoke that link.');
+    } finally {
+      setBusyRef(null);
+    }
+  };
 
   return (
     <Layout>
@@ -76,16 +99,23 @@ export default function AdminGuardians() {
                 <thead className="bg-hover/50">
                   <tr className="text-left text-xs text-muted">
                     <th className="px-4 py-3 font-semibold">Member</th>
+                    <th className="px-4 py-3 font-semibold">Guardian</th>
                     <th className="px-4 py-3 font-semibold">Created</th>
                     <th className="px-4 py-3 font-semibold">Status</th>
+                    <th className="px-4 py-3 font-semibold">Link</th>
+                    <th className="px-4 py-3 font-semibold" />
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.id} className="border-t border-line/15">
+                    <tr key={r.ref} className="border-t border-line/15">
                       <td className="px-4 py-3">
                         <p className="font-semibold text-ink">{r.profile_name || r.member_name || 'Member'}</p>
                         <p className="text-xs text-muted">{r.email}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-ink">{r.guardian_name || '—'}</p>
+                        <p className="text-xs text-muted">{r.guardian_email || ''}</p>
                       </td>
                       <td className="px-4 py-3 text-xs text-muted">{String(r.created_at).slice(0, 16)}</td>
                       <td className="px-4 py-3">
@@ -95,6 +125,21 @@ export default function AdminGuardians() {
                           </span>
                         ) : (
                           <span className="text-xs text-muted">Revoked</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <code className="text-xs text-muted" title="Link reference (the token itself is never shown)">{r.ref}</code>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {r.active && (
+                          <button onClick={() => revoke(r.ref)} disabled={busyRef === r.ref}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50 ${
+                              revoking === r.ref
+                                ? 'bg-danger text-white'
+                                : 'border border-line/30 text-muted hover:text-danger'
+                            }`}>
+                            {busyRef === r.ref ? 'Revoking…' : revoking === r.ref ? 'Tap again to revoke' : 'Revoke'}
+                          </button>
                         )}
                       </td>
                     </tr>

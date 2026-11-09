@@ -193,6 +193,7 @@ export default function AdminDashboard() {
   const [loadError, setLoadError] = useState(null);
   const [pending, setPending] = useState(true);
   const [health, setHealth] = useState(null);
+  const [activity, setActivity] = useState([]);
 
   // Live aggregates. /overview gives the six KPIs, /analytics gives the real
   // day series. Both are already admin-guarded server-side.
@@ -200,7 +201,7 @@ export default function AdminDashboard() {
     setPending(true);
     setLoadError(null);
     try {
-      const range = timeRange === '90d' ? '30d' : timeRange; // API supports 7d | 30d
+      const range = timeRange; // API supports 7d | 30d | 90d (2026-11-09)
       const [overview, analytics, healthRes] = await Promise.all([
         http.get('/api/admin/overview'),
         http.get(`/api/admin/analytics?range=${range}`),
@@ -228,11 +229,23 @@ export default function AdminDashboard() {
     } finally {
       setPending(false);
     }
+    // Recent Activity reads the append-only audit trail (2026-11-09) — the
+    // same source the Audit Trail page shows. Advisory like health: a failure
+    // leaves the panel honestly empty instead of blanking the dashboard.
+    try {
+      const rows = await http.get('/api/admin/audit?limit=10');
+      setActivity((Array.isArray(rows) ? rows : []).map((r) => ({
+        id: r.id,
+        type: activityType(r.action),
+        description: `${r.actor_email || 'system'} — ${activityLabel(r.action)}${r.target_type ? ` · ${r.target_type}` : ''}`,
+        timestamp: r.created_at,
+      })));
+    } catch {
+      setActivity([]);
+    }
   }, [timeRange]);
 
   useEffect(() => { load(); }, [load]);
-
-  const activity = []; // no activity feed endpoint exists; nothing is invented
 
   return (
     <Layout>
@@ -287,8 +300,7 @@ export default function AdminDashboard() {
               <div className="flex items-center gap-1 bg-hover rounded-lg p-1">
                 {[
                   { key: 'members', label: 'Members' },
-                  { key: 'messages', label: 'Messages' },
-                  { key: 'matches', label: 'Matches' }
+                  { key: 'messages', label: 'Messages' }
                 ].map(m => (
                   <button key={m.key} onClick={() => setChartMetric(m.key)}
                     className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${chartMetric === m.key ? 'bg-elevated text-ink shadow-sm' : 'text-muted hover:text-ink'}`}>
@@ -326,8 +338,8 @@ export default function AdminDashboard() {
                 <div className="flex items-start gap-3 p-3 rounded-xl bg-hover/40">
                   <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-muted leading-relaxed">
-                    No activity feed exists yet. This panel previously showed six
-                    invented events with fixed timestamps.
+                    No admin activity recorded yet. Actions appear here the
+                    moment an admin approves, blocks, or changes something.
                   </p>
                 </div>
               ) : activity.map(item => {
@@ -364,4 +376,24 @@ function getTimeAgo(timestamp) {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
+}
+
+// Map an audit action (e.g. "verification.approved") onto the feed's icon
+// set and a readable label. Unknown actions fall back to the generic icon
+// rather than inventing a meaning for them.
+function activityType(action) {
+  const a = String(action || '');
+  if (a.startsWith('verification.')) return 'verification_completed';
+  if (a.startsWith('matchmaker.')) return 'match_made';
+  if (a.startsWith('wali.') || a.startsWith('guardian.')) return 'guardian_invite';
+  if (a.startsWith('report.')) return 'profile_flagged';
+  if (a.startsWith('message.')) return 'message_sent';
+  return 'member_joined';
+}
+
+function activityLabel(action) {
+  return String(action || '')
+    .split('.')
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
 }
