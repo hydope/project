@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, Bookmark, MapPin, Briefcase, Lock, Sparkles, MessageCircle } from 'lucide-react';
 import { whatsappShareUrl } from '../lib/shareProfile';
+import { cmToFeetInches } from '../lib/height';
 import VerifiedBadge from './VerifiedBadge';
 import { useAuthedImage } from '../lib/api/useAuthedImage';
 import { computeCompatibility, getMyProfile } from '../lib/compatibility';
@@ -259,7 +260,7 @@ export default function ProfileCard({ profile, className = '' }) {
           {(profile.gender || profile.heightCm) && (
             <p className="text-xs truncate" style={{ color: 'var(--color-ink-secondary)' }}>
               {[profile.gender ? profile.gender.charAt(0).toUpperCase() + profile.gender.slice(1) : null,
-                profile.heightCm ? `${profile.heightCm} cm` : null].filter(Boolean).join(' · ')}
+                cmToFeetInches(profile.heightCm)].filter(Boolean).join(' · ')}
             </p>
           )}
           {/* Labelled before anything else the card says. A sample profile is

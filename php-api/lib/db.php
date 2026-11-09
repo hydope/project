@@ -288,12 +288,17 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'username' => $row['username'] ?? null,
             'religiosity' => $row['religiosity'] ?? null,
             'educationLevel' => $row['education_level'] ?? null,
-            'marja' => $row['marja'] ?? null,
+            // Marja' is owner-only (2026-11-09): the value is never sent to
+            // another viewer — not even as null — so it cannot be read from
+            // the payload. The owner still receives their own (their biodata
+            // document and edit form need it); admin reads it directly.
+            ...($isOwner ? ['marja' => $row['marja'] ?? null] : []),
             'syedStatus' => $row['syed_status'] ?? null,
             'prayer' => $row['prayer'] ?? null,
             'modesty' => $row['modesty'] ?? null,
             'diet' => $row['diet'] ?? null,
             'languages' => $row['languages'] ?? null,
+            'citizenships' => $row['citizenships'] ?? null,
             'ethnicity' => $row['ethnicity'] ?? null,
             'subEthnicity' => $row['sub_ethnicity'] ?? null,
             'incomeRange' => $row['income_range'] ?? null,
@@ -341,16 +346,20 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'username' => $row['username'] ?? null,
             // ── Filterable fields ────────────────────────────────────────────
             // The browse filters (sect, religiosity, education, Marja') match on
-            // these. They were absent from the response entirely, so selecting
-            // any of those filters silently returned zero results.
+            // these server-side. They were absent from the response entirely, so
+            // selecting any of those filters silently returned zero results.
+            // Marja' is owner-only in the payload (2026-11-09): the filter
+            // still matches on the stored value, but another viewer never
+            // receives it — not even as null.
             'religiosity' => $row['religiosity'] ?? null,
             'educationLevel' => $row['education_level'] ?? null,
-            'marja' => $row['marja'] ?? null,
+            ...($isOwner ? ['marja' => $row['marja'] ?? null] : []),
             'syedStatus' => $row['syed_status'] ?? null,
             'prayer' => $row['prayer'] ?? null,
             'modesty' => $row['modesty'] ?? null,
             'diet' => $row['diet'] ?? null,
             'languages' => $row['languages'] ?? null,
+            'citizenships' => $row['citizenships'] ?? null,
             'ethnicity' => $row['ethnicity'] ?? null,
             'subEthnicity' => $row['sub_ethnicity'] ?? null,
             'incomeRange' => $row['income_range'] ?? null,

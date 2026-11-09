@@ -47,6 +47,7 @@ function migrateSchema(): void
     migrateAddReportActionColumns();
     migrateAddGuardianColumns();
     migrateAddHiddenFieldsColumn();
+    migrateAddCitizenshipsColumn();
     migrateAddBlogPostsTable();
     migrateAddBlogImageColumn();
     migrateAddContactSpamColumn();
@@ -434,6 +435,34 @@ function migrateAddHiddenFieldsColumn(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (hidden_fields column) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Citizenships (2026-11-09): onboarding collected citizenships in the
+ * wizard but buildProfilePayload() never sent it and no column existed, so
+ * it was silently discarded — same class of bug as managementMode. Stored
+ * like languages: a comma-joined string in VARCHAR(255). The column is also
+ * declared in db/schema.sql — migrateSchema() only runs migrations when
+ * the schema.sql digest changes, so a migration function alone would never
+ * execute on production.
+ */
+function migrateAddCitizenshipsColumn(): void
+{
+    try {
+        $existing = [];
+        foreach (db()->query('SHOW COLUMNS FROM profiles')->fetchAll() as $c) {
+            $existing[strtolower((string)$c['Field'])] = true;
+        }
+        if (isset($existing['citizenships'])) return;
+        try {
+            db()->exec('ALTER TABLE profiles ADD COLUMN `citizenships` VARCHAR(255) DEFAULT NULL');
+            error_log('[api] migration: added profiles.citizenships');
+        } catch (Throwable $e) {
+            error_log('[api] migration: could not add profiles.citizenships — ' . substr($e->getMessage(), 0, 120));
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (citizenships column) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }
 

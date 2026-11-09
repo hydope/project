@@ -44,7 +44,7 @@ const HIDEABLE_FIELDS = [
     { key: 'ethnicity', label: 'Ethnicity' },
     { key: 'subEthnicity', label: 'Sub-ethnicity' },
     { key: 'languages', label: 'Languages' },
-    { key: 'citizenships', label: 'Citizenship', hint: 'Not displayed on profiles yet' },
+    { key: 'citizenships', label: 'Citizenship' },
   ] },
   { section: 'Career', fields: [
     { key: 'educationLevel', label: 'Education' },

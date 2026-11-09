@@ -11,13 +11,14 @@ import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
 import { apiUrl, http } from '../lib/api/transport';
 import { saveMyProfile } from '../lib/storage';
+import { parseHeightToCm } from '../lib/height';
 import {
   SECTS, MARJA_OPTIONS, RELIGIOSITY_LEVELS, PRAYER_OPTIONS,
   MODESTY_OPTIONS_FEMALE, MODESTY_OPTIONS_MALE, DIET_OPTIONS, SYED_OPTIONS,
   MARITAL_STATUS_OPTIONS, TIMELINE_OPTIONS, RELOCATION_OPTIONS,
   FAMILY_INVOLVEMENT_OPTIONS, CHILDREN_OPTIONS, CHILDREN_PLANS_OPTIONS,
   PHOTO_ACCESS_OPTIONS, PROFILE_VISIBILITY_OPTIONS, MANAGEMENT_MODES,
-  EDUCATION_OPTIONS, LANGUAGES, ETHNICITIES, SUB_ETHNICITIES, COUNTRIES, HEIGHT_OPTIONS,
+  EDUCATION_OPTIONS, LANGUAGES, ETHNICITIES, SUB_ETHNICITIES, COUNTRIES,
   computeProfileCompleteness, ONBOARDING_STEPS
 } from '../lib/onboardingData';
 
@@ -62,6 +63,8 @@ function validateStep(step, d) {
     if (!d.age || Number.isNaN(age) || age < 18 || age > 100) e.age = 'Age must be between 18 and 100.';
     if (!d.city.trim()) e.city = 'City is required.';
     if (!d.country) e.country = 'Country is required.';
+    // Height is optional, but a typed value must parse — feet/inches or cm.
+    if (d.height && parseHeightToCm(d.height) === null) e.height = 'Enter height like 5\'7" or 170 cm.';
   }
   if (step === 2) {
     if (!d.sect) e.sect = 'Please select your sect / community.';
@@ -339,7 +342,6 @@ export default function Onboard() {
   // The server 400s on an empty update, and omitting a field leaves its
   // stored value alone — so only filled answers are ever sent.
   const buildProfilePayload = (d) => {
-    const heightMatch = /(\d+)\s*cm/i.exec(d.height || '');
     const payload = {
       displayName: d.displayName,
       age: d.age === '' ? null : parseInt(d.age, 10),
@@ -347,7 +349,8 @@ export default function Onboard() {
       seekingGender: d.seekingGender,
       city: d.city,
       country: d.country,
-      heightCm: heightMatch ? parseInt(heightMatch[1], 10) : null,
+      // Stored as cm; the member may type feet/inches or cm.
+      heightCm: parseHeightToCm(d.height),
       maritalStatus: d.maritalStatus,
       sect: d.sect,
       religiosity: d.religiosity,
@@ -358,6 +361,7 @@ export default function Onboard() {
       ethnicity: d.ethnicity,
       subEthnicity: d.subEthnicity || null,
       languages: Array.isArray(d.languages) ? d.languages.join(', ') : d.languages,
+      citizenships: Array.isArray(d.citizenships) ? d.citizenships.join(', ') : d.citizenships,
       educationLevel: d.educationLevel,
       profession: d.profession,
       incomeRange: d.incomeRange,
@@ -688,8 +692,8 @@ function StepAbout({ data, update, errors }) {
         <Field label="Age" required error={errors.age}>
           <TextInput type="number" min="18" max="100" value={data.age} onChange={e => update('age', e.target.value)} placeholder="e.g. 27" ariaLabel="Age" error={errors.age} />
         </Field>
-        <Field label="Height">
-          <SelectInput value={data.height} onChange={e => update('height', e.target.value)} options={HEIGHT_OPTIONS} placeholder="Optional" ariaLabel="Height" />
+        <Field label="Height" error={errors.height} hint="e.g. 5'7&quot; — or type cm, e.g. 170 cm">
+          <TextInput value={data.height} onChange={e => update('height', e.target.value)} placeholder="e.g. 5'7&quot;" ariaLabel="Height" error={errors.height} />
         </Field>
         <Field label="City" required error={errors.city}>
           <TextInput value={data.city} onChange={e => update('city', e.target.value)} placeholder="e.g. Chicago" ariaLabel="City" error={errors.city} />
@@ -871,6 +875,13 @@ function StepPhotoUpload() {
     const file = e.target.files?.[0];
     if (!file) return;
     setError('');
+    // Fast feedback, same cap as the server (5 MB): without this an
+    // oversize file is sent, the POST exceeds post_max_size, and the
+    // server can only say the body never arrived.
+    if (file.size > 5_000_000) {
+      setError('Photo must be under 5 MB.');
+      return;
+    }
     setUploading(true);
     try {
       const res = await api.uploadPhoto(file);

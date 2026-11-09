@@ -73,6 +73,9 @@ CREATE TABLE IF NOT EXISTS profiles (
   modesty            VARCHAR(80)  DEFAULT NULL,
   diet               VARCHAR(80)  DEFAULT NULL,
   languages          VARCHAR(255) DEFAULT NULL,
+  -- Citizenships (2026-11-09): collected in onboarding, stored like
+  -- languages as a comma-joined string.
+  citizenships       VARCHAR(255) DEFAULT NULL,
   ethnicity          VARCHAR(120) DEFAULT NULL,
   sub_ethnicity      VARCHAR(120) DEFAULT NULL,
   -- Guardian-managed profiles (2026-11-09): onboarding collects a wali's

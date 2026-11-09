@@ -16,6 +16,7 @@ import { computeCompatibility } from '../lib/compatibility';
 import { apiUrl, http } from '../lib/api/transport';
 import SampleProfileBadge from '../components/SampleProfileBadge';
 import { whatsappShareUrl, copyProfileLink } from '../lib/shareProfile';
+import { cmToFeetInches } from '../lib/height';
 
 // No stock/placeholder photo is injected into the gallery. A member who hides
 // their photos gets an honest "photos are private" state, never someone else's
@@ -396,11 +397,12 @@ export default function Profile() {
                   // Fields the profile already collects but the page never
                   // showed (2026-11-09). Only rows with a value render.
                   { label: 'Gender', value: profile.gender ? profile.gender.charAt(0).toUpperCase() + profile.gender.slice(1) : null },
-                  { label: 'Height', value: profile.heightCm ? `${profile.heightCm} cm` : null },
+                  { label: 'Height', value: cmToFeetInches(profile.heightCm) },
                   { label: 'Seeking', value: profile.seekingGender ? profile.seekingGender.charAt(0).toUpperCase() + profile.seekingGender.slice(1) : null },
                   { label: 'Diet', value: profile.diet },
                   { label: 'Modesty', value: profile.modesty },
                   { label: 'Languages', value: profile.languages },
+                  { label: 'Citizenship', value: profile.citizenships },
                   { label: 'Income range', value: profile.incomeRange },
                   { label: 'Nikah timeline', value: profile.timeline },
                   { label: 'Relocation', value: profile.relocation },

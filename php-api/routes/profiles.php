@@ -378,10 +378,38 @@ function photoBaseDir(): string
     je('Photo storage is not available on this server. Please contact support.', 500);
 }
 
+// Parse a php.ini size ("8M", "512K", "1G", "0" = unlimited) to bytes.
+function parsePhpSize(string $size): int
+{
+    $size = trim($size);
+    if ($size === '' || $size === '0' || $size === '-1') return 0;
+    $unit = strtolower(substr($size, -1));
+    $num = (float)$size;
+    if ($unit === 'g') return (int)($num * 1024 * 1024 * 1024);
+    if ($unit === 'm') return (int)($num * 1024 * 1024);
+    if ($unit === 'k') return (int)($num * 1024);
+    return (int)$num;
+}
+
 // Accepts multipart/form-data (what a browser sends) and a base64 JSON body
 // (what API clients use, matching the verification endpoint).
 function photoReadUpload(): string
 {
+    // Oversize guard (2026-11-09): when the whole POST exceeds PHP's
+    // post_max_size, PHP discards the body entirely — $_FILES is empty and
+    // php://input is empty — so without this the caller reports the
+    // misleading "Attach a photo to upload." for a file that was actually
+    // far too big. CONTENT_LENGTH survives the discard, and post_max_size
+    // here sits above the 5 MB cap, so a discarded body is always an
+    // over-limit photo. A small empty POST still falls through to the
+    // honest "Attach a photo" error below.
+    $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if ($contentLength > 0 && empty($_FILES['photo'])) {
+        $postMax = parsePhpSize((string)ini_get('post_max_size'));
+        if ($postMax > 0 && $contentLength > $postMax) {
+            je('Photo must be under 5 MB.', 400);
+        }
+    }
     if (!empty($_FILES['photo']) && is_array($_FILES['photo'])) {
         $f = $_FILES['photo'];
         $err = (int)($f['error'] ?? UPLOAD_ERR_NO_FILE);
@@ -920,7 +948,7 @@ function profileUpdate(): void
         // migrateAddProfileColumns(); without this mapping the answers were
         // accepted by the form and silently thrown away on save.
         'religiosity', 'educationLevel', 'marja', 'prayer', 'modesty', 'diet',
-        'languages', 'ethnicity', 'sub_ethnicity', 'subEthnicity', 'incomeRange', 'maritalStatus', 'children',
+        'languages', 'citizenships', 'ethnicity', 'sub_ethnicity', 'subEthnicity', 'incomeRange', 'maritalStatus', 'children',
         'childrenPlans', 'relocation', 'familyInvolvement', 'heightCm', 'timeline',
         'photoUrl', 'syedStatus', 'username',
         // Guardian management (2026-11-09). managementMode is the only one
