@@ -28,6 +28,7 @@ function sitemapXml(): void
         '/shia-matrimony-chicago', '/shia-matrimony-houston',
         '/shia-matrimony-new-york', '/shia-matrimony-london',
         '/shia-matrimonial', '/shia-marriage', '/shia-nikah',
+        '/shia-nikah-guide', '/shia-rishtay',
         '/nikah-checklist', '/duas-for-marriage', '/shia-matrimony-toronto',
         '/shia-matrimony-dearborn', '/shia-matrimony-dallas',
         '/shia-matrimony-los-angeles', '/shia-matrimony-bay-area',

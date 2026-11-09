@@ -170,6 +170,7 @@ const router = createBrowserRouter([
   { path: '/shia-matrimonial', element: <LazyRoute component={LandingPage} /> },
   { path: '/shia-marriage', element: <LazyRoute component={LandingPage} /> },
   { path: '/shia-nikah', element: <LazyRoute component={LandingPage} /> },
+  { path: '/shia-nikah-guide', element: <LazyRoute component={LandingPage} /> },
   { path: '/nikah-checklist', element: <LazyRoute component={LandingPage} /> },
   { path: '/duas-for-marriage', element: <LazyRoute component={LandingPage} /> },
   { path: '/shia-matrimony-toronto', element: <LazyRoute component={LandingPage} /> },
