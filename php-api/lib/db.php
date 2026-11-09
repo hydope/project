@@ -527,3 +527,70 @@ function visibleProfile(array $row, ?array $viewer): ?array
         'gallery' => [],
     ], $row, $isOwner);
 }
+
+/**
+ * Location slugify — the frontend's slugify, exactly
+ * (ProfileCard.jsx / CityPage.jsx / scripts/prerender-routes.mjs):
+ * lowercase, every run of non-[a-z0-9] → '-', trim dashes.
+ *
+ * mb_strtolower (not strtolower) so Unicode lowercase matches JS
+ * toLowerCase: 'İzmir' lowercases to 'i̇zmir' in both, giving slug
+ * 'i-zmir', where byte-wise strtolower would give 'zmir'. mbstring is
+ * already used across lib/ (ai.php, ProfileService.php) and bootstrap.php
+ * sets mb_internal_encoding('UTF-8'), so this is not a new dependency;
+ * the function_exists fallback keeps a stripped build from fataling.
+ * preg_replace without /u is deliberate: UTF-8 continuation bytes are all
+ * outside [a-z0-9], so a multibyte char collapses to one '-' exactly as
+ * the single UTF-16 code unit does in JS.
+ */
+if (!function_exists('slugifyLocation')) {
+function slugifyLocation(string $s): string
+{
+    $s = function_exists('mb_strtolower') ? mb_strtolower($s, 'UTF-8') : strtolower($s);
+    $s = preg_replace('/[^a-z0-9]+/', '-', $s);
+    return trim((string)$s, '-');
+}
+}
+
+/**
+ * Resolve a ?city= / ?country= filter value to the exact stored values
+ * whose slug matches.
+ *
+ * A member's stored city is free text ("D.i.khan"), the card links
+ * /city/d-i-khan, and CityPage queries ?city=<name derived from the slug>
+ * ("D I Khan"). Exact LOWER() equality can never join those three
+ * spellings, so the filter is resolved here first: DISTINCT stored values
+ * are slugified in PHP (the same function the sitemap and the prerender
+ * use) and only the exact values with a matching slug are returned.
+ *
+ * Deliberately NOT a SQL-side slugify: the production DB version is not
+ * pinned anywhere in the repo, and REGEXP_REPLACE does not exist before
+ * MySQL 8.0 / MariaDB 10.0.5 — if it were absent, the whole profile list
+ * would 500 and the deploy pipeline (php -l only) could not catch it.
+ * Deliberately NOT stored slug columns either: a migration plus every
+ * write path (profileUpdate, matchmaker approve, drafts) would have to
+ * maintain them forever, and any missed path would silently drift. The
+ * profiles table is ~200 rows and the list endpoint already loads its
+ * rows into PHP for paging, so one tiny DISTINCT lookup per filtered
+ * request costs nothing.
+ *
+ * Returns [] when nothing matches (including an empty slug) — the caller
+ * turns that into a match-nothing filter, never a LIKE fallback, which
+ * would false-positive ("D I Khan" matching the wrong city).
+ */
+if (!function_exists('resolveLocationFilterValues')) {
+function resolveLocationFilterValues(string $column, string $requested): array
+{
+    $slug = slugifyLocation($requested);
+    if ($slug === '') return [];
+    $col = $column === 'country' ? 'country' : 'city';
+    $stmt = db()->prepare("SELECT DISTINCT {$col} FROM profiles WHERE {$col} IS NOT NULL AND TRIM({$col}) <> ''");
+    $stmt->execute();
+    $values = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $stored) {
+        $stored = (string)$stored;
+        if (slugifyLocation(trim($stored)) === $slug) $values[] = $stored;
+    }
+    return $values;
+}
+}

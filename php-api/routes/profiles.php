@@ -517,16 +517,43 @@ function profilesList(): void
     if ($searchable($marja, 'marja')) { $where[] = 'p.marja = ?'; $params[] = $marja; }
     if ($searchable($syedStatus, 'syed')) { $where[] = 'p.syed_status = ?'; $params[] = $syedStatus; }
     if ($modesty !== null && $modesty !== '' && $modesty !== 'Any') { $where[] = 'p.modesty = ?'; $params[] = $modesty; }
-    if ($searchable($country, 'country')) { $where[] = 'LOWER(p.country) = LOWER(?)'; $params[] = $country; }
-    // Exact city filter. `search` does a LIKE across city as part of a free-text
-    // query, which is not the same thing: searching "Lahore" in a profile named
-    // "Lahore Kid" would match, and a city called "Springfield" would match
-    // "Springfield Gardens". A /city/<slug> page needs the city and only the
-    // city, or it would advertise a location page containing strangers.
-    // Case-insensitive so "Hyderabad", "hyderabad", "HYDERABAD" all map to
-    // the same /city/hyderabad page automatically.
+    // Slug-matched country filter — same rule as the city filter below
+    // (2026-11-09, D.i.khan fix): the stored value is free text, the card
+    // links /country/<slug>, and the page queries the name derived from
+    // the slug. Exact LOWER() equality can never join those spellings, so
+    // the requested value is resolved to the exact stored values with the
+    // same slug first; a slug with no stored value matches nothing.
+    if ($searchable($country, 'country')) {
+        $countryValues = resolveLocationFilterValues('country', (string)$country);
+        if ($countryValues === []) { $where[] = '1 = 0'; }
+        else {
+            $where[] = 'LOWER(p.country) IN (' . implode(',', array_fill(0, count($countryValues), 'LOWER(?)')) . ')';
+            foreach ($countryValues as $v) $params[] = $v;
+        }
+    }
+    // Slug-matched city filter. `search` does a LIKE across city as part of
+    // a free-text query, which is not the same thing: searching "Lahore" in
+    // a profile named "Lahore Kid" would match, and a city called
+    // "Springfield" would match "Springfield Gardens". A /city/<slug> page
+    // needs the city and only the city, or it would advertise a location
+    // page containing strangers.
+    //
+    // The match is on the slug, not the spelling: the stored value is free
+    // text ("D.i.khan"), the card links /city/d-i-khan, and CityPage queries
+    // ?city=<name derived from the slug> ("D I Khan"). Exact LOWER()
+    // equality can never join those three, so the requested value is
+    // resolved to the exact stored values with the same slug first (see
+    // resolveLocationFilterValues in lib/db.php). A slug with no stored
+    // value matches nothing — never a LIKE fallback.
     $city = $_GET['city'] ?? null;
-    if ($searchable($city, 'city')) { $where[] = 'LOWER(p.city) = LOWER(?)'; $params[] = $city; }
+    if ($searchable($city, 'city')) {
+        $cityValues = resolveLocationFilterValues('city', (string)$city);
+        if ($cityValues === []) { $where[] = '1 = 0'; }
+        else {
+            $where[] = 'LOWER(p.city) IN (' . implode(',', array_fill(0, count($cityValues), 'LOWER(?)')) . ')';
+            foreach ($cityValues as $v) $params[] = $v;
+        }
+    }
     if ($searchable($photoAccess, 'photo')) { $where[] = 'p.photos_visibility = ?'; $params[] = $photoAccess; }
     $verifiedOnly = ($_GET['verifiedOnly'] ?? 'false') === 'true';
     if ($verifiedOnly) { $where[] = 'p.is_verified = 1'; }

@@ -143,9 +143,11 @@ async function fetchDynamicLocations() {
         if (city) {
           const slug = slugifyLocation(city);
           const name = displayNameFromSlug(slug);
-          // Round-trip: the page derives `name` from the slug and queries
-          // LOWER(city) = name — only list the slug when that finds the city.
-          if (slug && !curatedCitySlugs.has(slug) && name.toLowerCase() === city.toLowerCase()) {
+          // No round-trip check: the API matches ?city= on the slug
+          // (resolveLocationFilterValues), so the page's query for `name`
+          // finds the city however it was spelled ("D.i.khan" → slug
+          // d-i-khan → page queries "D I Khan" → same slug → match).
+          if (slug && !curatedCitySlugs.has(slug)) {
             const entry = cities.get(slug) || { slug, name, countryVotes: new Map() };
             const country = String(p.country || '').trim();
             if (country) entry.countryVotes.set(country, (entry.countryVotes.get(country) || 0) + 1);
@@ -156,7 +158,8 @@ async function fetchDynamicLocations() {
         if (country) {
           const slug = slugifyLocation(country);
           const name = displayNameFromSlug(slug);
-          if (slug && !curatedCountrySlugs.has(slug) && name.toLowerCase() === country.toLowerCase()) {
+          // Same as cities above: the API matches ?country= on the slug.
+          if (slug && !curatedCountrySlugs.has(slug)) {
             countries.set(slug, { slug, name });
           }
         }
