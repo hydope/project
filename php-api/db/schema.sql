@@ -54,6 +54,16 @@ CREATE TABLE IF NOT EXISTS profiles (
   about_family       TEXT         DEFAULT NULL,
   visibility         VARCHAR(16)  NOT NULL DEFAULT 'members',
   photos_visibility  VARCHAR(16)  NOT NULL DEFAULT 'members',
+  -- Contact phone + who may see contact details (2026-11-09, P0 follow-up):
+  -- Settings has collected a phone number and a contact-visibility choice
+  -- for a long time, and profileUpdate() maps contactPhone/contactVisibility
+  -- to these columns — but they never existed on `profiles` (contact_phone
+  -- only exists on matchmaker_profiles). Any PUT containing them 500d the
+  -- whole upsert with "Unknown column", so the Settings save silently saved
+  -- nothing at all — not even the city/bio in the same request. The live
+  -- P0 test caught it: city stayed Baltimore, phone stayed null.
+  contact_phone      VARCHAR(40)  DEFAULT NULL,
+  contact_visibility VARCHAR(16)  NOT NULL DEFAULT 'members',
   is_verified        TINYINT(1)   NOT NULL DEFAULT 0,
   -- Two-tier verification: 'none' | 'selfie' | 'id_document'. Set when an
   -- admin approves a verification submission; mirrors verifications.kind.

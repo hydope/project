@@ -160,7 +160,12 @@ function mutualInterest(string $a, string $b): bool
  */
 function profilesStats(): void
 {
-    $rows = db()->query('SELECT display_name, city, country, bio, about_family, visibility, block_unverified, is_blocked FROM profiles WHERE (is_blocked = 0 OR (blocked_until IS NOT NULL AND blocked_until <= NOW()))')->fetchAll();
+    // Same roster as the browse list: test accounts (is_test = 1) never
+    // count — the browse SQL excludes them, and browsable must equal the
+    // browse total or the homepage and the directory disagree again
+    // (2026-11-09 P0 follow-up: stats said 187, browse said 185 — two
+    // lingering is_test accounts with real-looking names).
+    $rows = db()->query("SELECT display_name, city, country, bio, about_family, visibility, block_unverified, is_blocked FROM profiles WHERE (is_blocked = 0 OR (blocked_until IS NOT NULL AND blocked_until <= NOW())) AND user_id NOT IN (SELECT id FROM users WHERE is_test = 1)")->fetchAll();
     // Negate. array_filter KEEPS rows whose callback returns TRUE, and
     // isTestShellRow() returns true FOR THE SHELLS — so passing it straight
     // through would count 48 QA shells as "members" and report the top cities as

@@ -48,6 +48,7 @@ function migrateSchema(): void
     migrateAddGuardianColumns();
     migrateAddHiddenFieldsColumn();
     migrateAddPrivacyColumns();
+    migrateAddContactColumns();
     migrateAddCitizenshipsColumn();
     migrateAddBlogPostsTable();
     migrateAddBlogImageColumn();
@@ -470,6 +471,41 @@ function migrateAddPrivacyColumns(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (privacy columns) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Contact phone + contact visibility (2026-11-09, P0 follow-up): Settings
+ * collects a phone number and a contact-visibility choice, and
+ * profileUpdate() maps contactPhone/contactVisibility to these columns —
+ * but they never existed on `profiles` (contact_phone only exists on
+ * matchmaker_profiles). Any PUT containing them 500d the whole upsert, so
+ * the Settings save silently saved nothing at all. Same SHOW COLUMNS
+ * pattern as the privacy columns; declared in db/schema.sql too.
+ */
+function migrateAddContactColumns(): void
+{
+    $additions = [
+        'contact_phone'      => 'VARCHAR(40) DEFAULT NULL',
+        'contact_visibility' => "VARCHAR(16) NOT NULL DEFAULT 'members'",
+    ];
+
+    try {
+        $existing = [];
+        foreach (db()->query('SHOW COLUMNS FROM profiles')->fetchAll() as $c) {
+            $existing[strtolower((string)$c['Field'])] = true;
+        }
+        foreach ($additions as $col => $def) {
+            if (isset($existing[$col])) continue;
+            try {
+                db()->exec("ALTER TABLE profiles ADD COLUMN `$col` $def");
+                error_log("[api] migration: added profiles.$col");
+            } catch (Throwable $e) {
+                error_log("[api] migration: could not add profiles.$col — " . substr($e->getMessage(), 0, 120));
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (contact columns) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }
 
