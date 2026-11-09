@@ -637,9 +637,17 @@ export default function Onboard() {
               </button>
               <div className="flex items-center gap-3">
                 <span className="hidden sm:inline text-xs text-muted">Progress autosaves automatically</span>
-                <button onClick={skipOnboarding} className="text-sm font-semibold text-muted hover:text-ink px-2 py-2 underline underline-offset-2">
-                  Skip for now
-                </button>
+                {/* No Skip on the final step (Syed's order 2026-11-09: "Looking for"
+                    is mandatory). The Story step is where lookingFor is collected,
+                    and skipping from here would save a live profile without it —
+                    bypassing the step-7 validation that Publish enforces. Skip stays
+                    on steps 1–6, so signup is never blocked by onboarding, and the
+                    dashboard "Create my profile" action resumes the draft. */}
+                {step < totalSteps && (
+                  <button onClick={skipOnboarding} className="text-sm font-semibold text-muted hover:text-ink px-2 py-2 underline underline-offset-2">
+                    Skip for now
+                  </button>
+                )}
                 {publishError && (
                   <span className="text-xs font-medium" style={{ color: 'var(--color-danger)' }}>{publishError}</span>
                 )}
