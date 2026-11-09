@@ -130,12 +130,19 @@ function sitemapXml(): void
         }
     } catch (Throwable $e) { /* skip */ }
 
-    // Public, non-blocked member profiles. QA/test accounts are excluded —
-    // their city slugs ("testville", "test-profile-for-qa-please-ignore")
-    // were leaking into the public sitemap.
+    // Public, finished, non-blocked member profiles. QA/test accounts are
+    // excluded — their city slugs ("testville",
+    // "test-profile-for-qa-please-ignore") were leaking into the public
+    // sitemap. Private-visibility and unfinished profiles are excluded too
+    // (2026-11-09, Syed's call): they are thin pages Google crawls instead
+    // of real ones, wasting crawl budget. The conditions match the browse
+    // list in routes/profiles.php exactly (same unfinished definition,
+    // same visibility rule), so a profile enters the sitemap the moment it
+    // becomes browsable.
     $noTest = 'user_id NOT IN (SELECT id FROM users WHERE is_test = 1)';
+    $unfinished = "(TRIM(COALESCE(city, '')) = '' AND TRIM(COALESCE(country, '')) = '' AND TRIM(COALESCE(bio, '')) = '' AND TRIM(COALESCE(about_family, '')) = '')";
     try {
-        $stmt = $pdo->query("SELECT user_id, updated_at FROM profiles WHERE is_blocked = 0 AND {$noTest} ORDER BY updated_at DESC LIMIT 5000");
+        $stmt = $pdo->query("SELECT user_id, updated_at FROM profiles WHERE is_blocked = 0 AND {$noTest} AND visibility <> 'private' AND NOT {$unfinished} ORDER BY updated_at DESC LIMIT 5000");
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $urls[] = [
                 'loc' => $base . '/profiles/' . rawurlencode((string)$row['user_id']),
