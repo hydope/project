@@ -112,6 +112,13 @@ emit('two_way_is_match', mutualInterest('u1', 'u2'));
 // A seeded example profile must be labelled as one in every payload, so the UI
 // can badge it and block contact. Missing this is how polished sample content
 // ends up reading as a real person.
+//
+// visibleProfile() now consults the blocks table for signed-in viewers
+// (isBlockedBetween, P0 batch 2026-11-09). The stub's fetch() hands back
+// whatever rows the match-gating section queued above, so clear them first —
+// in this probe's world there are no blocks, and a stale match row must not
+// read as one.
+$GLOBALS['probe_rows'] = [];
 $demoAnon = visibleProfile(probeRow(['is_demo' => 1]), null);
 emit('demo_flag_anon', $demoAnon['isDemo'] ?? null);
 $demoAuthed = visibleProfile(probeRow(['is_demo' => 1]), ['uid' => 'u1']);

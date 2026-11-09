@@ -489,16 +489,16 @@ export default function Settings() {
                     existed in state but had no inputs and never reached the
                     server — "Save account changes" saved only the bio. */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><label htmlFor="settings-city" className="text-sm font-medium text-muted mb-1.5 block">City</label>
-                    <input id="settings-city" type="text" value={profile.city} onChange={e => setProfile(pp => ({ ...pp, city: e.target.value }))} className="input w-full" aria-label="City" placeholder="e.g. Baltimore" />
-                  </div>
-                  <div><label htmlFor="settings-country" className="text-sm font-medium text-muted mb-1.5 block">Country</label>
-                    <input id="settings-country" type="text" value={profile.country} onChange={e => setProfile(pp => ({ ...pp, country: e.target.value }))} className="input w-full" aria-label="Country" placeholder="e.g. United States" />
-                  </div>
-                  <div><label htmlFor="settings-phone" className="text-sm font-medium text-muted mb-1.5 block">Phone</label>
-                    <input id="settings-phone" type="tel" value={profile.phone} onChange={e => setProfile(pp => ({ ...pp, phone: e.target.value }))} className="input w-full" aria-label="Phone" placeholder="Optional" />
-                    <p className="text-xs text-muted mt-1">Shown only to members your contact visibility allows.</p>
-                  </div>
+                  {[
+                    { key: 'city', label: 'City', type: 'text', placeholder: 'e.g. Baltimore' },
+                    { key: 'country', label: 'Country', type: 'text', placeholder: 'e.g. United States' },
+                    { key: 'phone', label: 'Phone', type: 'tel', placeholder: 'Optional', hint: 'Shown only to members your contact visibility allows.' },
+                  ].map((f) => (
+                    <div key={f.key}><label htmlFor={`settings-${f.key}`} className="text-sm font-medium text-muted mb-1.5 block">{f.label}</label>
+                      <input id={`settings-${f.key}`} type={f.type} value={profile[f.key]} onChange={e => setProfile(pp => ({ ...pp, [f.key]: e.target.value }))} className="input w-full" aria-label={f.label} placeholder={f.placeholder} />
+                      {f.hint && <p className="text-xs text-muted mt-1">{f.hint}</p>}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, ChevronLeft, Check, User, Moon, Landmark, GraduationCap,
   Heart, Shield, ClipboardCheck, Globe, KeyRound, Lock, UserRound,
-  Sparkles, AlertCircle, Save, HeartHandshake, Camera, X, Loader2
+  Sparkles, AlertCircle, Save, HeartHandshake, Camera, Loader2
 } from 'lucide-react';
 import Layout from '../layouts/MainLayout';
 import { useAuth } from '../lib/auth/AuthContext';
@@ -226,7 +226,7 @@ export default function Onboard() {
   };
   // Role selection (member/guardian/matchmaker) — asked right after account
   // creation, before the profile steps. Defaults to member.
-  const [role, setRole] = useState('member');
+  const [, setRole] = useState('member');
   const [roleChosen, setRoleChosen] = useState(false);
   const [roleSaving, setRoleSaving] = useState(false);
 
