@@ -884,6 +884,34 @@ function profileUpdate(): void
         }
     }
 
+    // Hide-any-field (2026-11-09): the member may hide ANY profile detail
+    // from other viewers. Accepts `hiddenFields` (camelCase, what the
+    // Settings UI sends) or `hidden_fields`. Keys are the payload keys
+    // visibleProfile() returns — 'heightCm' for height, 'children' for
+    // childrenStatus, 'expectations' for "what I'm looking for". Validated
+    // against the allowlist, unknown keys dropped, stored as JSON text.
+    // 'citizenships' is accepted although it has no display surface yet
+    // (never stored) — the toggle is harmless until that field is stored.
+    $hiddenRaw = $b['hiddenFields'] ?? $b['hidden_fields'] ?? null;
+    if ($hiddenRaw !== null) {
+        if (is_string($hiddenRaw)) {
+            $decoded = json_decode($hiddenRaw, true);
+            $hiddenRaw = is_array($decoded) ? $decoded : null;
+        }
+        if (!is_array($hiddenRaw)) {
+            je('hiddenFields must be an array of field names.', 400);
+        }
+        $hiddenAllowed = ['age', 'gender', 'seekingGender', 'heightCm', 'city', 'country',
+            'maritalStatus', 'sect', 'religiosity', 'prayer', 'modesty', 'diet', 'syedStatus',
+            'ethnicity', 'subEthnicity', 'languages', 'citizenships', 'educationLevel',
+            'profession', 'incomeRange', 'timeline', 'relocation', 'familyInvolvement',
+            'children', 'childrenPlans', 'bio', 'expectations', 'aboutFamily'];
+        $hiddenClean = array_values(array_unique(array_intersect(
+            array_map('strval', $hiddenRaw), $hiddenAllowed)));
+        $b['hidden_fields'] = $hiddenClean === [] ? null : json_encode($hiddenClean);
+        unset($b['hiddenFields']);
+    }
+
     $cols = ['display_name', 'displayName', 'age', 'gender', 'seekingGender', 'city', 'country',
         'sect', 'profession', 'bio', 'expectations', 'aboutFamily',
         'visibility', 'photos_visibility', 'photosVisibility',
@@ -898,7 +926,10 @@ function profileUpdate(): void
         // Guardian management (2026-11-09). managementMode is the only one
         // of the three ever exposed publicly (via visibleProfile); the
         // guardian's name/email stay server-side.
-        'managementMode', 'guardianName', 'guardianEmail'];
+        'managementMode', 'guardianName', 'guardianEmail',
+        // Hide-any-field (2026-11-09). Normalized to a JSON string (or null)
+        // above, so the $sets loop stores it as plain text.
+        'hidden_fields'];
 
     // Accept the same key under both shapes. The browse filter sends `education`
     // (that is the query-param name) while the onboarding form sends

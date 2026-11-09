@@ -126,7 +126,11 @@ export default function Profile() {
         // Only real photos. If the server sent none (locked or not yet set),
         // the gallery is empty and we render an honest placeholder instead.
         const gallery = [p.photo].filter(Boolean);
-        setProfile({ ...p, gallery });
+        // The API returns "what I'm looking for" as `expectations`; the
+        // page reads `lookingFor`. Without this mapping the Looking-for
+        // section never rendered in remote mode even though the answer was
+        // collected and stored (2026-11-09).
+        setProfile({ ...p, lookingFor: p.expectations ?? p.lookingFor, gallery });
         // Restore interest state from the server so it survives reloads.
         setInterestSent(!!p.interestSent);
         analytics.track('profile_viewed', { id });
@@ -389,6 +393,19 @@ export default function Profile() {
                   { label: 'Marital status', value: profile.maritalStatus },
                   { label: 'Children', value: profile.children },
                   { label: 'Intentions', value: profile.intentions },
+                  // Fields the profile already collects but the page never
+                  // showed (2026-11-09). Only rows with a value render.
+                  { label: 'Gender', value: profile.gender ? profile.gender.charAt(0).toUpperCase() + profile.gender.slice(1) : null },
+                  { label: 'Height', value: profile.heightCm ? `${profile.heightCm} cm` : null },
+                  { label: 'Seeking', value: profile.seekingGender ? profile.seekingGender.charAt(0).toUpperCase() + profile.seekingGender.slice(1) : null },
+                  { label: 'Diet', value: profile.diet },
+                  { label: 'Modesty', value: profile.modesty },
+                  { label: 'Languages', value: profile.languages },
+                  { label: 'Income range', value: profile.incomeRange },
+                  { label: 'Nikah timeline', value: profile.timeline },
+                  { label: 'Relocation', value: profile.relocation },
+                  { label: 'Family involvement', value: profile.familyInvolvement },
+                  { label: 'Children plans', value: profile.childrenPlans },
                 ].filter(item => item.value).map(item => (
                   <div key={item.label} className="p-3 rounded-xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
                     <p className="text-[11px] uppercase tracking-wider font-bold mb-0.5" style={{ color: 'var(--color-ink-faint)' }}>{item.label}</p>

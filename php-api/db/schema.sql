@@ -82,6 +82,11 @@ CREATE TABLE IF NOT EXISTS profiles (
   management_mode    VARCHAR(16)  DEFAULT NULL,
   guardian_name      VARCHAR(120) DEFAULT NULL,
   guardian_email     VARCHAR(190) DEFAULT NULL,
+  -- Hide-any-field (2026-11-09): JSON array of payload keys the member
+  -- wants hidden from other viewers (e.g. ["incomeRange","heightCm"]).
+  -- Display-only: the values stay stored and are still used for matching
+  -- and filters; visibleProfile() omits them for non-owners.
+  hidden_fields      TEXT         DEFAULT NULL,
   income_range       VARCHAR(80)  DEFAULT NULL,
   marital_status     VARCHAR(60)  DEFAULT NULL,
   children           VARCHAR(60)  DEFAULT NULL,

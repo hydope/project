@@ -253,6 +253,15 @@ export default function ProfileCard({ profile, className = '' }) {
             </h3>
             <Sparkles className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-primary)', opacity: 0.7 }} />
           </div>
+          {/* Gender + height (2026-11-09): the profile already collects
+              both, the card never showed them. One short line, only when
+              either exists. Income stays off the card by design. */}
+          {(profile.gender || profile.heightCm) && (
+            <p className="text-xs truncate" style={{ color: 'var(--color-ink-secondary)' }}>
+              {[profile.gender ? profile.gender.charAt(0).toUpperCase() + profile.gender.slice(1) : null,
+                profile.heightCm ? `${profile.heightCm} cm` : null].filter(Boolean).join(' · ')}
+            </p>
+          )}
           {/* Labelled before anything else the card says. A sample profile is
               fully written and could otherwise read as a real person. */}
           {profile.isDemo === true && (

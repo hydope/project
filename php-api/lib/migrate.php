@@ -46,6 +46,7 @@ function migrateSchema(): void
     migrateAddUserVerificationColumns();
     migrateAddReportActionColumns();
     migrateAddGuardianColumns();
+    migrateAddHiddenFieldsColumn();
     migrateAddBlogPostsTable();
     migrateAddBlogImageColumn();
     migrateAddContactSpamColumn();
@@ -407,6 +408,32 @@ function migrateAddGuardianColumns(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (guardian columns) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Hide-any-field (2026-11-09): profiles.hidden_fields is a JSON array of
+ * payload keys the member wants hidden from other viewers. The column is
+ * also declared in db/schema.sql — migrateSchema() only runs migrations
+ * when the schema.sql digest changes, so a migration function alone would
+ * never execute on production.
+ */
+function migrateAddHiddenFieldsColumn(): void
+{
+    try {
+        $existing = [];
+        foreach (db()->query('SHOW COLUMNS FROM profiles')->fetchAll() as $c) {
+            $existing[strtolower((string)$c['Field'])] = true;
+        }
+        if (isset($existing['hidden_fields'])) return;
+        try {
+            db()->exec('ALTER TABLE profiles ADD COLUMN `hidden_fields` TEXT DEFAULT NULL');
+            error_log('[api] migration: added profiles.hidden_fields');
+        } catch (Throwable $e) {
+            error_log('[api] migration: could not add profiles.hidden_fields — ' . substr($e->getMessage(), 0, 120));
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (hidden_fields column) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }
 

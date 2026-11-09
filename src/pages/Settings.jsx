@@ -12,6 +12,59 @@ import {
   Shield, Bell, User, Lock, Moon, Sun, AlertTriangle
 } from 'lucide-react';
 
+// Hide-any-field (2026-11-09): every user-provided profile detail, grouped
+// by onboarding section. Keys are the payload keys visibleProfile() returns
+// ('heightCm' for height, 'children' for children status, 'expectations'
+// for "what I'm looking for"). Shown by default; a field in `hiddenFields`
+// is omitted from the card and detail page for other viewers — but the
+// stored value is still used for matching and filters. Not hideable:
+// display name, verification badges, the guardian badge, the photo (it has
+// its own visibility tiers). Marja is never displayed at all, so it has no
+// toggle. Citizenship has no display surface yet (it is collected but never
+// stored) — its toggle is listed and harmless until that field is stored.
+const HIDEABLE_FIELDS = [
+  { section: 'Basics', fields: [
+    { key: 'age', label: 'Age' },
+    { key: 'gender', label: 'Gender' },
+    { key: 'seekingGender', label: "Who I'm seeking" },
+    { key: 'heightCm', label: 'Height' },
+    { key: 'city', label: 'City' },
+    { key: 'country', label: 'Country' },
+    { key: 'maritalStatus', label: 'Marital status' },
+  ] },
+  { section: 'Faith', fields: [
+    { key: 'sect', label: 'Sect' },
+    { key: 'religiosity', label: 'Religiosity' },
+    { key: 'prayer', label: 'Prayer' },
+    { key: 'modesty', label: 'Modesty' },
+    { key: 'diet', label: 'Diet' },
+  ] },
+  { section: 'Background', fields: [
+    { key: 'syedStatus', label: 'Syed / Sadat status' },
+    { key: 'ethnicity', label: 'Ethnicity' },
+    { key: 'subEthnicity', label: 'Sub-ethnicity' },
+    { key: 'languages', label: 'Languages' },
+    { key: 'citizenships', label: 'Citizenship', hint: 'Not displayed on profiles yet' },
+  ] },
+  { section: 'Career', fields: [
+    { key: 'educationLevel', label: 'Education' },
+    { key: 'profession', label: 'Profession' },
+    { key: 'incomeRange', label: 'Income range' },
+  ] },
+  { section: 'Intentions', fields: [
+    { key: 'timeline', label: 'Nikah timeline' },
+    { key: 'relocation', label: 'Willing to relocate' },
+    { key: 'familyInvolvement', label: 'Family involvement' },
+    { key: 'children', label: 'Children' },
+    { key: 'childrenPlans', label: 'Plans for children' },
+  ] },
+  { section: 'Story', fields: [
+    { key: 'bio', label: 'About me (bio)' },
+    { key: 'expectations', label: "What I'm looking for" },
+    { key: 'aboutFamily', label: 'About my family' },
+  ] },
+];
+
 // Settings are per-member: the key follows the signed-in account
 // (sh_session.uid), never the bare browser. Two accounts on one browser must
 // never read each other's privacy choices. Same-device preferences only —
@@ -51,6 +104,9 @@ export default function Settings() {
         const { api } = await import('../lib/api/client');
         const me = await api.getProfile(user?.uid);
         if (!cancelled && me?.username) setUsername(me.username);
+        // Hidden profile details (2026-11-09): the owner payload carries
+        // `hiddenFields` — the list this member chose to hide.
+        if (!cancelled && Array.isArray(me?.hiddenFields)) setHiddenFields(me.hiddenFields);
       } catch { /* leave blank — a missing handle is not an error */ }
     })();
     return () => { cancelled = true; };
@@ -210,6 +266,12 @@ export default function Settings() {
     incognito: false
   });
   const [privacySaved, setPrivacySaved] = useState('');
+  // Hide-any-field (2026-11-09): payload keys the member wants hidden from
+  // other viewers. Empty = everything shown (the default).
+  const [hiddenFields, setHiddenFields] = useState([]);
+  const toggleHiddenField = (key) => {
+    setHiddenFields(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  };
   const [blocks, setBlocks] = useState([]);
   const [blocking, setBlocking] = useState('');
   const [blockError, setBlockError] = useState('');
@@ -412,6 +474,40 @@ export default function Settings() {
                     )}
                   </div>
                 ))}
+                {/* Hide-any-field (2026-11-09): every profile detail can be
+                    hidden from other members. Toggle on = shown (the
+                    default); toggle off = hidden from the card and detail
+                    page for everyone but you. The stored value is still
+                    used for matching and filters. Saved by the same button
+                    below, alongside the other privacy settings. */}
+                <div className="pt-4 border-t border-line/10">
+                  <h3 className="text-base font-semibold text-ink mb-1">Choose what to show</h3>
+                  <p className="text-sm text-muted mb-3">
+                    Everything is shown by default. Turn a detail off and other members will not see it on your card or profile — it is still used for matching and filters, and you always see your own full profile.
+                  </p>
+                  {HIDEABLE_FIELDS.map(group => (
+                    <div key={group.section} className="mb-4">
+                      <p className="text-xs uppercase tracking-wider font-bold text-muted mb-1">{group.section}</p>
+                      {group.fields.map(f => {
+                        const hidden = hiddenFields.includes(f.key);
+                        return (
+                          <div key={f.key} className="flex items-center justify-between py-2.5 border-b border-line/10 last:border-0">
+                            <span className="text-sm font-medium text-ink">
+                              {f.label}
+                              <span className="block text-xs font-normal text-muted mt-0.5">
+                                {hidden ? 'Hidden from other members' : 'Shown to other members'}
+                                {f.hint ? ` — ${f.hint}` : ''}
+                              </span>
+                            </span>
+                            <button onClick={() => toggleHiddenField(f.key)} aria-pressed={!hidden} aria-label={`${hidden ? 'Show' : 'Hide'} ${f.label}`} className={`relative h-6 w-11 flex items-center transition-all duration-200 ${!hidden ? 'btn btn-primary' : 'btn btn-ghost'} `}>
+                              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${!hidden ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
                 <button
                   onClick={async () => {
                     setPrivacySaved('');
@@ -424,6 +520,9 @@ export default function Settings() {
                         // vocabulary as profile/photos (public/members/private).
                         contact_visibility: privacy.contactVisibility,
                         contactVisibility: privacy.contactVisibility,
+                        // Hide-any-field (2026-11-09): the list of payload
+                        // keys to omit for other viewers.
+                        hiddenFields,
                       });
                       setPrivacySaved('Privacy saved — enforced for every other member.');
                     } catch (e) {

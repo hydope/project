@@ -214,6 +214,30 @@ function blockIsActive(array $row): bool
     return strtotime($until) > time();
 }
 
+// Hide-any-field (2026-11-09): profiles.hidden_fields holds a JSON array of
+// payload keys the member wants hidden from other viewers. DISPLAY-ONLY —
+// the stored values stay in the row, so server-side matching and browse
+// filters keep using them. The owner always sees their own full profile (and
+// gets the list back as `hiddenFields` so Settings can render the toggles);
+// anyone else sees the field omitted entirely, indistinguishable from a
+// field the member never filled in. The guardian's name/email are never in
+// a payload at all, so there is nothing to hide there.
+function applyHiddenFields(array $payload, array $row, bool $isOwner): array
+{
+    $raw = (string)($row['hidden_fields'] ?? '');
+    $hidden = $raw === '' ? [] : json_decode($raw, true);
+    if (!is_array($hidden)) $hidden = [];
+    $hidden = array_values(array_unique(array_map('strval', $hidden)));
+    if ($isOwner) {
+        $payload['hiddenFields'] = $hidden;
+        return $payload;
+    }
+    foreach ($hidden as $key) {
+        unset($payload[$key]);
+    }
+    return $payload;
+}
+
 // Node's visibleProfile(): privacy tiers + blocks enforced here, not in the UI.
 // $viewer is the decoded JWT (or null). Returns null when the row must be hidden.
 function visibleProfile(array $row, ?array $viewer): ?array
@@ -241,11 +265,12 @@ function visibleProfile(array $row, ?array $viewer): ?array
     if ($isAnonymous) {
         $tier = (string)($row['photos_visibility'] ?? 'members');
         $photosLocked = $tier !== 'public';
-        return [
+        return applyHiddenFields([
             'id' => $ownerId,
             'displayName' => $row['display_name'] ?? null,
             'age' => $row['age'] ?? null,
             'gender' => $row['gender'] ?? null,
+            'seekingGender' => $row['seeking_gender'] ?? null,
             'city' => $row['city'] ?? null,
             'country' => $row['country'] ?? null,
             'sect' => $row['sect'] ?? null,
@@ -284,7 +309,7 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'photo' => ($photosLocked || (string)($row['photo_url'] ?? '') === '')
                 ? null
                 : '/api/profiles/' . $ownerId . '/photo',
-        ];
+        ], $row, $isOwner);
     }
 
     if (($row['visibility'] ?? 'members') === 'public' || isset($viewer['uid']) || $isOwner) {
@@ -292,7 +317,7 @@ function visibleProfile(array $row, ?array $viewer): ?array
         // For a signed-in viewer only `private` withholds the photo; a
         // members/match tier is open to anyone who can see the profile.
         $photosLocked = $photosVisibility === 'private' && !$isOwner;
-        return [
+        return applyHiddenFields([
             'id' => $ownerId,
             'displayName' => $row['display_name'] ?? null,
             'age' => $row['age'] ?? null,
@@ -347,9 +372,9 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'photo' => ($photosLocked || (string)($row['photo_url'] ?? '') === '')
                 ? null
                 : '/api/profiles/' . $ownerId . '/photo',
-        ];
+        ], $row, $isOwner);
     }
-    return [
+    return applyHiddenFields([
         'id' => $ownerId,
         'displayName' => $row['display_name'] ?? null,
         'age' => $row['age'] ?? null,
@@ -365,5 +390,5 @@ function visibleProfile(array $row, ?array $viewer): ?array
         'photosLocked' => !$isOwner,
         'locked' => true,
         'gallery' => [],
-    ];
+    ], $row, $isOwner);
 }
