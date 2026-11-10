@@ -55,11 +55,14 @@ function routeProfiles(string $method, array $segments): void
     }
     if ($method === 'POST' && $id === 'me' && $sub === 'photo') { photoUpload(); return; }
     if ($method === 'DELETE' && $id === 'me' && $sub === 'photo') { photoDelete(); return; }
+    if ($method === 'POST' && $id === 'me' && $sub === 'video') { videoUpload(); return; }
+    if ($method === 'DELETE' && $id === 'me' && $sub === 'video') { videoDelete(); return; }
     if ($method === 'GET' && $id === 'interests' && ($segments[1] ?? '') === 'received') { interestsReceived(); return; }
     if ($method === 'GET' && $id === 'notifications') { notificationsList(); return; }
     if ($method === 'POST' && $id === 'notifications' && ($segments[1] ?? '') === 'read') { notificationsRead(); return; }
     if ($method === 'GET' && $id === 'notifications' && ($segments[1] ?? '') === 'unread-count') { notificationsUnreadCount(); return; }
     if ($method === 'GET' && $id !== null && $sub === 'photo') { photoServe($id); return; }
+    if ($method === 'GET' && $id !== null && $sub === 'video') { videoServe($id); return; }
     if ($method === 'GET' && $id !== null) { profileById($id); return; }
     if ($method === 'POST' && $id !== null && ($segments[1] ?? '') === 'interest') { profileInterest($id); return; }
     if ($method === 'DELETE' && $id !== null && ($segments[1] ?? '') === 'interest') { profileUninterest($id); return; }
@@ -229,6 +232,242 @@ function photoDelete(): void
         @unlink($old);
     }
     json(['ok' => true]);
+}
+
+// ── Profile video (2026-11-10) ────────────────────────────────────────────
+// One short video per profile, same discipline as the photo flow: the server
+// sniffs the bytes (never trusts the extension or the Content-Type), caps
+// duration at 30s and size at 25 MB, generates the filename, and serves it
+// through the same photo-tier gate (public → anyone, members → any signed-in
+// member, legacy request/match → mutual interest only, private → never,
+// owner always). NO transcoding — the file is stored and served as-is, so a
+// member whose phone records in an unusual codec may get a video their own
+// browser cannot play; the upload still succeeds, and the client checks
+// playability before uploading where it can.
+const VIDEO_MAX_BYTES = 25 * 1024 * 1024;
+const VIDEO_MAX_SECONDS = 30;
+const VIDEO_ALLOWED = ['video/mp4' => 'mp4', 'video/webm' => 'webm'];
+
+// Byte-sniff a video. finfo first, magic bytes as the fallback: MP4 carries
+// the 'ftyp' box at offset 4, WebM starts with the EBML header 1A 45 DF A3.
+function sniffVideoMime(string $bytes): ?string
+{
+    if (class_exists('finfo')) {
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->buffer($bytes);
+        if ($mime !== false && isset(VIDEO_ALLOWED[$mime])) return $mime;
+    }
+    if (strlen($bytes) >= 8 && substr($bytes, 4, 4) === 'ftyp') return 'video/mp4';
+    if (strlen($bytes) >= 4 && substr($bytes, 0, 4) === "\x1A\x45\xDF\xA3") return 'video/webm';
+    return null;
+}
+
+// Read the duration in seconds, or null when it cannot be parsed. MP4:
+// scan for the 'mvhd' atom and read its timescale + duration (version 0 and
+// 1 have different field widths). WebM: the Duration element (0x4489) in
+// the Info block is a float in milliseconds at the default timecode scale.
+// A file whose duration cannot be read is rejected — a silent long video
+// would break the 30s promise to every viewer.
+function videoDurationSeconds(string $bytes, string $mime): ?float
+{
+    if ($mime === 'video/mp4') {
+        $p = strpos($bytes, 'mvhd');
+        if ($p === false) return null;
+        $version = ord($bytes[$p + 4] ?? "\x00");
+        if ($version === 0) {
+            $ts = unpack('N', substr($bytes, $p + 16, 4));
+            $dur = unpack('N', substr($bytes, $p + 20, 4));
+            if ($ts === false || $dur === false || $ts[1] === 0) return null;
+            return $dur[1] / $ts[1];
+        }
+        if ($version === 1) {
+            $ts = unpack('N', substr($bytes, $p + 24, 4));
+            $dur = unpack('J', substr($bytes, $p + 28, 8));
+            if ($ts === false || $dur === false || $ts[1] === 0) return null;
+            return $dur[1] / $ts[1];
+        }
+        return null;
+    }
+    if ($mime === 'video/webm') {
+        // The Info element lives near the start of the file; searching the
+        // whole 25 MB for a two-byte pattern would be a false-positive farm.
+        $head = substr($bytes, 0, 8192);
+        $p = strpos($head, "\x44\x89");
+        if ($p === false) return null;
+        $b = ord($head[$p + 2] ?? "\x00");
+        // EBML variable-length size: the leading set bit marks the length.
+        if (($b & 0x80) !== 0) { $size = $b & 0x7F; $off = $p + 3; }
+        elseif (($b & 0x40) !== 0) { $size = (($b & 0x3F) << 8) | ord($head[$p + 3] ?? "\x00"); $off = $p + 4; }
+        else return null;
+        if ($size !== 8) return null; // Duration is an 8-byte double.
+        $v = unpack('E', substr($head, $off, 8));
+        if ($v === false) return null;
+        return $v[1] / 1000.0; // milliseconds at the default timecode scale
+    }
+    return null;
+}
+
+// Multipart or base64 JSON, mirroring photoReadUpload — including the
+// CONTENT_LENGTH oversize guard, because a POST over post_max_size arrives
+// with an empty $_FILES and an empty body.
+function videoReadUpload(): string
+{
+    $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if ($contentLength > 0 && empty($_FILES['video'])) {
+        $postMax = parsePhpSize((string)ini_get('post_max_size'));
+        if ($postMax > 0 && $contentLength > $postMax) {
+            je('Video must be under 25 MB.', 400);
+        }
+    }
+    if (!empty($_FILES['video']) && is_array($_FILES['video'])) {
+        $f = $_FILES['video'];
+        $err = (int)($f['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) {
+            je('Video must be under 25 MB.', 400);
+        }
+        if ($err !== UPLOAD_ERR_OK) {
+            je('Could not read the uploaded video.', 400);
+        }
+        $tmp = (string)($f['tmp_name'] ?? '');
+        if ($tmp === '' || !is_uploaded_file($tmp)) {
+            je('Could not read the uploaded video.', 400);
+        }
+        $bytes = @file_get_contents($tmp);
+        if ($bytes === false || $bytes === '') {
+            je('Attach a video to upload.', 400);
+        }
+        return $bytes;
+    }
+    $payload = readJsonBody();
+    $b64 = $payload['video'] ?? $payload['data'] ?? null;
+    if (!is_string($b64) || $b64 === '') {
+        je('Attach a video to upload.', 400);
+    }
+    $b64 = preg_replace('#^data:video/[a-z0-9.+-]+;base64,#i', '', $b64);
+    $bytes = base64_decode($b64, true);
+    if ($bytes === false || $bytes === '') {
+        je('Attach a video to upload.', 400);
+    }
+    return $bytes;
+}
+
+function videoUpload(): void
+{
+    $user = requireAuthUser();
+    $bytes = videoReadUpload();
+    if (strlen($bytes) > VIDEO_MAX_BYTES) {
+        je('Video must be under 25 MB.', 400);
+    }
+    $mime = sniffVideoMime($bytes);
+    if ($mime === null || !isset(VIDEO_ALLOWED[$mime])) {
+        je('Video must be an MP4 or WebM file.', 400);
+    }
+    $duration = videoDurationSeconds($bytes, $mime);
+    if ($duration === null) {
+        je('Could not read this video — try exporting it as MP4.', 400);
+    }
+    if ($duration > VIDEO_MAX_SECONDS) {
+        je('Video must be 30 seconds or shorter.', 400);
+    }
+    $ext = VIDEO_ALLOWED[$mime];
+    $dir = rtrim(photoBaseDir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'videos'
+        . DIRECTORY_SEPARATOR . $user['uid'];
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+        je('Could not save the video. Try again.', 500);
+    }
+    $stored = $dir . DIRECTORY_SEPARATOR . uuid() . '.' . $ext;
+    if (@file_put_contents($stored, $bytes) === false) {
+        je('Could not save the video. Try again.', 500);
+    }
+
+    $stmt = db()->prepare('SELECT video_url FROM profiles WHERE user_id = ? LIMIT 1');
+    $stmt->execute([$user['uid']]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        @unlink($stored);
+        je('Set up your profile first, then add a video.', 409);
+    }
+    $old = (string)($row['video_url'] ?? '');
+    db()->prepare('UPDATE profiles SET video_url = ?, updated_at = UTC_TIMESTAMP() WHERE user_id = ?')
+        ->execute([$stored, $user['uid']]);
+    if ($old !== '' && $old !== $stored) {
+        @unlink($old);
+    }
+    touchLastActive($user['uid']);
+    json(['ok' => true, 'video' => '/api/profiles/' . $user['uid'] . '/video'], 201);
+}
+
+function videoDelete(): void
+{
+    $user = requireAuthUser();
+    $stmt = db()->prepare('SELECT video_url FROM profiles WHERE user_id = ? LIMIT 1');
+    $stmt->execute([$user['uid']]);
+    $old = (string)($stmt->fetch()['video_url'] ?? '');
+
+    db()->prepare('UPDATE profiles SET video_url = NULL, updated_at = UTC_TIMESTAMP() WHERE user_id = ?')
+        ->execute([$user['uid']]);
+    if ($old !== '') {
+        @unlink($old);
+    }
+    touchLastActive($user['uid']);
+    json(['ok' => true]);
+}
+
+// Serve a profile video through the same photo-tier gate as photoServe:
+// public → anyone; members → any signed-in member; legacy request/match →
+// mutual interest only; private → never; owner always. Blocks and
+// private-profile visibility are re-checked on every request.
+function videoServe(string $id): void
+{
+    $viewer = optionalAuthUser();
+    $stmt = db()->prepare('SELECT user_id, video_url, visibility, photos_visibility FROM profiles WHERE user_id = ? LIMIT 1');
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+    if ($row === false || (string)($row['video_url'] ?? '') === '') {
+        je('Not found.', 404);
+    }
+    if ((string)($row['visibility'] ?? 'members') === 'private' && ($viewer === null || (string)$viewer['uid'] !== (string)$row['user_id'])) {
+        je('Not found.', 404);
+    }
+    $tier = (string)($row['photos_visibility'] ?? 'members');
+    if ($tier === 'public') {
+        // Anyone may watch.
+    } elseif ($tier === 'private') {
+        je('Not found.', 404);
+    } elseif ($viewer === null) {
+        je('Not found.', 404);
+    } elseif ((string)$viewer['uid'] !== (string)$row['user_id']) {
+        if ($tier === 'members') {
+            // Any signed-in member may watch.
+        } else { // legacy 'request' / 'match'
+            if (!mutualInterest((string)$row['user_id'], (string)$viewer['uid'])) {
+                je('Not found.', 404);
+            }
+        }
+        if ($viewer !== null && pairBlocked((string)$row['user_id'], (string)$viewer['uid'])) {
+            je('Not found.', 404);
+        }
+    }
+
+    $base = realpath(photoBaseDir()) ?: photoBaseDir();
+    $real = realpath((string)$row['video_url']) ?: '';
+    if ($real === '' || strncmp($real, $base, strlen($base)) !== 0) {
+        je('Video unavailable.', 404);
+    }
+    $mime = class_exists('finfo')
+        ? ((new finfo(FILEINFO_MIME_TYPE))->file($real) ?: 'application/octet-stream')
+        : (sniffVideoMime((string)@file_get_contents($real)) ?: 'application/octet-stream');
+    $size = filesize($real);
+
+    header('Content-Type: ' . $mime);
+    header('Content-Length: ' . $size);
+    header('Cache-Control: private, no-store, max-age=0');
+    header('X-Content-Type-Options: nosniff');
+    header('Content-Disposition: inline');
+    // A video is streamed, not downloaded — no Accept-Ranges here yet; the
+    // <video> element fetches it whole, which is fine at 25 MB and under.
+    readfile($real);
+    exit;
 }
 
 // Rejects trailing-byte payloads by checking the file ends where a complete
@@ -443,7 +682,7 @@ function profilesFilterOptions(): void
     // belong in the options.
     try {
         $rows = db()->query(
-            "SELECT p.citizenships, p.income_range, p.height_cm FROM profiles p
+            "SELECT p.citizenships, p.income_range, p.height_cm, p.residency_status, p.marital_status, p.convert_status, p.hobbies, p.languages FROM profiles p
                LEFT JOIN users u ON u.id = p.user_id
               WHERE (p.is_blocked = 0 OR (p.blocked_until IS NOT NULL AND p.blocked_until <= NOW()))
                 AND (p.is_matchmaker = 1 OR (u.id IS NOT NULL AND u.is_admin = 0 AND u.is_test = 0 AND u.email NOT LIKE 'seeded-%@shiarishta.com'))
@@ -451,10 +690,15 @@ function profilesFilterOptions(): void
                 AND NOT (TRIM(COALESCE(p.city, '')) = '' AND TRIM(COALESCE(p.country, '')) = '' AND TRIM(COALESCE(p.bio, '')) = '' AND TRIM(COALESCE(p.about_family, '')) = '')"
         )->fetchAll();
     } catch (Throwable $e) {
-        json(['citizenships' => [], 'incomeRanges' => [], 'heightRange' => ['min' => null, 'max' => null]]);
+        json(['citizenships' => [], 'incomeRanges' => [], 'heightRange' => ['min' => null, 'max' => null], 'residencyStatuses' => [], 'maritalStatuses' => [], 'convertStatuses' => [], 'hobbies' => [], 'languages' => []]);
     }
     $cit = [];
     $inc = [];
+    $res = [];
+    $mar = [];
+    $con = [];
+    $hob = [];
+    $lang = [];
     $minH = null;
     $maxH = null;
     foreach ($rows as $r) {
@@ -464,6 +708,20 @@ function profilesFilterOptions(): void
         }
         $ir = trim((string)($r['income_range'] ?? ''));
         if ($ir !== '' && $ir !== 'Prefer not to say') $inc[$ir] = ($inc[$ir] ?? 0) + 1;
+        $rs = trim((string)($r['residency_status'] ?? ''));
+        if ($rs !== '' && $rs !== 'Prefer not to say') $res[$rs] = ($res[$rs] ?? 0) + 1;
+        $ms = trim((string)($r['marital_status'] ?? ''));
+        if ($ms !== '') $mar[$ms] = ($mar[$ms] ?? 0) + 1;
+        $cs = trim((string)($r['convert_status'] ?? ''));
+        if ($cs !== '' && $cs !== 'Prefer not to say') $con[$cs] = ($con[$cs] ?? 0) + 1;
+        foreach (explode(',', (string)($r['hobbies'] ?? '')) as $tok) {
+            $tok = trim($tok);
+            if ($tok !== '') $hob[$tok] = ($hob[$tok] ?? 0) + 1;
+        }
+        foreach (explode(',', (string)($r['languages'] ?? '')) as $tok) {
+            $tok = trim($tok);
+            if ($tok !== '') $lang[$tok] = ($lang[$tok] ?? 0) + 1;
+        }
         $h = $r['height_cm'] !== null ? (int)$r['height_cm'] : null;
         if ($h !== null && $h > 0) {
             $minH = $minH === null ? $h : min($minH, $h);
@@ -472,10 +730,20 @@ function profilesFilterOptions(): void
     }
     arsort($cit);
     arsort($inc);
+    arsort($res);
+    arsort($mar);
+    arsort($con);
+    arsort($hob);
+    arsort($lang);
     json([
         'citizenships' => array_keys($cit),
         'incomeRanges' => array_keys($inc),
         'heightRange' => ['min' => $minH, 'max' => $maxH],
+        'residencyStatuses' => array_keys($res),
+        'maritalStatuses' => array_keys($mar),
+        'convertStatuses' => array_keys($con),
+        'hobbies' => array_keys($hob),
+        'languages' => array_keys($lang),
     ]);
 }
 
@@ -577,6 +845,31 @@ function profilesList(): void
         }
     }
     if ($incomeRange !== null && trim((string)$incomeRange) !== '' && $incomeRange !== 'Any') { $where[] = 'p.income_range = ?'; $params[] = $incomeRange; }
+    // Profile-depth filters (2026-11-10): hobbies and language are
+    // comma-joined multi-values (same FIND_IN_SET shape as citizenships);
+    // residency, marital and convert status are exact matches on fixed
+    // lists. Partner preferences are NOT browse filters — they are the
+    // viewer's own criteria, and the match sort covers them.
+    $hobbies = $_GET['hobbies'] ?? null;
+    $residencyStatus = $_GET['residencyStatus'] ?? null;
+    $maritalStatus = $_GET['maritalStatus'] ?? null;
+    $convertStatus = $_GET['convertStatus'] ?? null;
+    $language = $_GET['language'] ?? null;
+    $csvFilter = static function (string $column, $value) use (&$where, &$params): void {
+        $tokens = array_values(array_filter(array_map('trim', explode(',', (string)$value)), static fn($s) => $s !== ''));
+        if ($tokens === []) return;
+        $ors = [];
+        foreach ($tokens as $tok) {
+            $ors[] = "FIND_IN_SET(?, REPLACE($column, ' ', '')) > 0";
+            $params[] = str_replace(' ', '', $tok);
+        }
+        $where[] = '(' . implode(' OR ', $ors) . ')';
+    };
+    if ($hobbies !== null && trim((string)$hobbies) !== '' && $hobbies !== 'Any') { $csvFilter('p.hobbies', $hobbies); }
+    if ($language !== null && trim((string)$language) !== '' && $language !== 'Any') { $csvFilter('p.languages', $language); }
+    if ($searchable($residencyStatus, 'residency')) { $where[] = 'p.residency_status = ?'; $params[] = $residencyStatus; }
+    if ($searchable($maritalStatus, 'marital')) { $where[] = 'p.marital_status = ?'; $params[] = $maritalStatus; }
+    if ($searchable($convertStatus, 'convert')) { $where[] = 'p.convert_status = ?'; $params[] = $convertStatus; }
     $verifiedOnly = ($_GET['verifiedOnly'] ?? 'false') === 'true';
     if ($verifiedOnly) { $where[] = 'p.is_verified = 1'; }
     if ($search !== null && trim((string)$search) !== '') {
@@ -646,10 +939,20 @@ function profilesList(): void
     $pageLimit = isset($_GET['limit']) ? max(1, min(100, (int)$_GET['limit'])) : 100;
     $pageOffset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
 
+    // Match-score ranking (2026-11-10, Batch 4): ?sort=match orders the
+    // roster by the server-side compatibility score for a signed-in viewer
+    // with a sect, reusing CompatibilityService::score() — the same weights
+    // as the client-side computeCompatibility(), so the order agrees with
+    // the % on the card. The sort runs BEFORE the paged slice, and the
+    // unpaged path drops its SQL LIMIT 100 so the whole roster is ranked
+    // (then re-capped to 100 after sorting). Anonymous viewers and viewers
+    // without a sect get the default order.
+    $sortMatch = ($_GET['sort'] ?? '') === 'match' && $viewer !== null;
+
     // Real profiles first, seeded profiles after — then newest-first within
     // each group. Seeded profiles fill out the directory but never outrank
     // a real member.
-    $sql = 'SELECT p.* FROM profiles p WHERE ' . implode(' AND ', $where) . ' ORDER BY p.is_seeded ASC, p.created_at DESC' . ($paged ? '' : ' LIMIT ' . (isset($limit) ? (int)$limit : 100));
+    $sql = 'SELECT p.*, u.last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE ' . implode(' AND ', $where) . ' ORDER BY p.is_seeded ASC, p.created_at DESC' . (($paged || $sortMatch) ? '' : ' LIMIT ' . (isset($limit) ? (int)$limit : 100));
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
@@ -676,6 +979,40 @@ function profilesList(): void
     // Paged mode slices AFTER the shell filter, so `total` counts only rows
     // the viewer can actually see and `hasMore` is authoritative — a short
     // page caused by filtered shells no longer looks like the end.
+    $scores = [];
+    if ($sortMatch) {
+        try {
+            $vStmt = db()->prepare('SELECT * FROM profiles WHERE user_id = ? LIMIT 1');
+            $vStmt->execute([$viewer['uid']]);
+            $viewerRow = $vStmt->fetch();
+            if ($viewerRow !== false && !empty($viewerRow['sect'])) {
+                require_once __DIR__ . '/../lib/compatibility.php';
+                foreach ($rows as $r) {
+                    $scores[(string)$r['user_id']] = CompatibilityService::score($viewerRow, $r)['overall'];
+                }
+                // Stable sort: score desc, original (newest-first) order on ties.
+                $idx = 0;
+                foreach ($rows as &$r) { $r['_sort_idx'] = $idx++; }
+                unset($r);
+                usort($rows, static function (array $a, array $b) use ($scores): int {
+                    $sa = $scores[(string)$a['user_id']] ?? 0;
+                    $sb = $scores[(string)$b['user_id']] ?? 0;
+                    if ($sa !== $sb) return $sb <=> $sa;
+                    return $a['_sort_idx'] <=> $b['_sort_idx'];
+                });
+                foreach ($rows as &$r) { unset($r['_sort_idx']); }
+                unset($r);
+                if (!$paged) {
+                    // The unpaged contract is still a 100-row array — the
+                    // ranking decides WHICH 100, not how many.
+                    $rows = array_slice($rows, 0, 100);
+                }
+            }
+        } catch (Throwable $e) {
+            error_log('[api] match sort: ' . substr($e->getMessage(), 0, 120));
+            $scores = [];
+        }
+    }
     $pageTotal = null;
     if ($paged) {
         $pageTotal = count($rows);
@@ -711,6 +1048,13 @@ function profilesList(): void
     foreach ($rows as $row) {
         $view = visibleProfile($row, $viewer);
         if ($view === null) continue;
+        // The server-side score, attached whenever it was computed — the
+        // card badge is computed client-side and ignores this, but it makes
+        // the ranking verifiable (and lets the client use the server number
+        // for the same pair without re-implementing the formula).
+        if (isset($scores[(string)$row['user_id']])) {
+            $view['matchScore'] = $scores[(string)$row['user_id']];
+        }
         if ($viewer !== null) {
             $view['interestSent'] = isset($sentIds[(string)($view['id'] ?? '')]);
         } else {
@@ -729,7 +1073,7 @@ function profilesList(): void
 function profileMe(): void
 {
     $user = requireAuthUser();
-    $stmt = db()->prepare('SELECT * FROM profiles WHERE user_id = ? LIMIT 1');
+    $stmt = db()->prepare('SELECT p.*, u.last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE p.user_id = ? LIMIT 1');
     $stmt->execute([$user['uid']]);
     $row = $stmt->fetch();
 
@@ -754,9 +1098,10 @@ function favouritesList(): void
 
     try {
         $rows = db()->prepare(
-            'SELECT p.*, f.created_at AS fav_created_at
+            'SELECT p.*, u.last_active_at, f.created_at AS fav_created_at
                FROM favourites f
                JOIN profiles p ON p.user_id = f.profile_id
+               LEFT JOIN users u ON u.id = p.user_id
               WHERE f.user_id = ? AND (p.is_blocked = 0 OR (p.blocked_until IS NOT NULL AND p.blocked_until <= NOW()))
               ORDER BY f.created_at DESC
               LIMIT 200'
@@ -827,7 +1172,7 @@ function favouriteRemove(string $id): void
 
 function profileById(string $id): void
 {
-    $stmt = db()->prepare('SELECT * FROM profiles WHERE user_id = ? LIMIT 1');
+    $stmt = db()->prepare('SELECT p.*, u.last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE p.user_id = ? LIMIT 1');
     $stmt->execute([$id]);
     $row = $stmt->fetch();
 
@@ -921,6 +1266,58 @@ function profileUpdate(): void
         je('Bio must be under 2000 characters.', 400);
     }
 
+    // Profile depth (2026-11-10): the audit's Layer 2 fields. Fixed lists
+    // are validated against the same values the onboarding wizard offers —
+    // a direct API call cannot store a value the UI could never show.
+    // Hobbies accept an array (joined) or a comma string. Preference ranges
+    // are checked against the STORED side too, so updating only the max
+    // cannot invert a range the member already has.
+    $depthLists = [
+        'residencyStatus' => ['Citizen', 'Permanent resident', 'Work visa', 'Student visa', 'Other visa', 'Prefer not to say'],
+        'build'           => ['Slim', 'Athletic', 'Average build', 'Heavyset', 'Prefer not to say'],
+        'convertStatus'   => ['Born Muslim', 'Revert to Islam', 'Prefer not to say'],
+    ];
+    foreach ($depthLists as $field => $allowed) {
+        if (array_key_exists($field, $b) && $b[$field] !== null && $b[$field] !== '' && !in_array($b[$field], $allowed, true)) {
+            je("Invalid $field.", 400);
+        }
+    }
+    if (!empty($b['educationField']) && strlen((string)$b['educationField']) > 120) je('Field of study must be under 120 characters.', 400);
+    if (!empty($b['educationInstitution']) && strlen((string)$b['educationInstitution']) > 160) je('Institution must be under 160 characters.', 400);
+    if (!empty($b['employer']) && strlen((string)$b['employer']) > 160) je('Employer must be under 160 characters.', 400);
+    if (!empty($b['prefLocation']) && strlen((string)$b['prefLocation']) > 120) je('Location preference must be under 120 characters.', 400);
+    if (!empty($b['prefMustHaves']) && strlen((string)$b['prefMustHaves']) > 1000) je('Must-haves must be under 1000 characters.', 400);
+    if (array_key_exists('hobbies', $b)) {
+        if (is_array($b['hobbies'])) {
+            $b['hobbies'] = implode(', ', array_values(array_filter(array_map('trim', array_map('strval', $b['hobbies'])), static fn($s) => $s !== '')));
+        }
+        if (is_string($b['hobbies']) && strlen($b['hobbies']) > 500) je('Hobbies must be under 500 characters.', 400);
+    }
+    foreach (['prefAgeMin', 'prefAgeMax'] as $f) {
+        if (array_key_exists($f, $b) && $b[$f] !== null && $b[$f] !== '') {
+            $v = (int)$b[$f];
+            if ($v < 18 || $v > 100) je('Preferred age must be between 18 and 100.', 400);
+            $b[$f] = $v;
+        }
+    }
+    $effAgeMin = array_key_exists('prefAgeMin', $b) ? $b['prefAgeMin'] : ($prevRow['pref_age_min'] ?? null);
+    $effAgeMax = array_key_exists('prefAgeMax', $b) ? $b['prefAgeMax'] : ($prevRow['pref_age_max'] ?? null);
+    if ($effAgeMin !== null && $effAgeMax !== null && $effAgeMin !== '' && $effAgeMax !== '' && (int)$effAgeMin > (int)$effAgeMax) {
+        je('Preferred age range is reversed.', 400);
+    }
+    foreach (['prefHeightMinCm', 'prefHeightMaxCm'] as $f) {
+        if (array_key_exists($f, $b) && $b[$f] !== null && $b[$f] !== '') {
+            $v = (int)$b[$f];
+            if ($v < 120 || $v > 250) je('Preferred height must be between 120 and 250 cm.', 400);
+            $b[$f] = $v;
+        }
+    }
+    $effHMin = array_key_exists('prefHeightMinCm', $b) ? $b['prefHeightMinCm'] : ($prevRow['pref_height_min_cm'] ?? null);
+    $effHMax = array_key_exists('prefHeightMaxCm', $b) ? $b['prefHeightMaxCm'] : ($prevRow['pref_height_max_cm'] ?? null);
+    if ($effHMin !== null && $effHMax !== null && $effHMin !== '' && $effHMax !== '' && (int)$effHMin > (int)$effHMax) {
+        je('Preferred height range is reversed.', 400);
+    }
+
     // Guardian fields (2026-11-09): a guardian-managed profile needs a
     // guardian name and a reachable email — enforced here, not only in the
     // wizard, so a direct API call cannot create one with nobody to invite.
@@ -998,7 +1395,18 @@ function profileUpdate(): void
             'maritalStatus', 'sect', 'religiosity', 'prayer', 'modesty', 'diet', 'syedStatus',
             'ethnicity', 'subEthnicity', 'languages', 'citizenships', 'educationLevel',
             'profession', 'incomeRange', 'timeline', 'relocation', 'familyInvolvement',
-            'children', 'childrenPlans', 'bio', 'expectations', 'aboutFamily'];
+            'children', 'childrenPlans', 'bio', 'expectations', 'aboutFamily',
+            // Profile depth (2026-11-10): every new display field is
+            // hideable. 'video' and 'lastActive' are server-allowlist-only —
+            // the video is governed by its photo tier, not a toggle, and
+            // last-active has no Settings toggle (it is a fact, not a
+            // detail); accepting the keys keeps a client that sends them
+            // from silently losing the rest of the list.
+            'educationField', 'educationInstitution', 'employer', 'residencyStatus',
+            'build', 'hobbies', 'convertStatus',
+            'prefAgeMin', 'prefAgeMax', 'prefHeightMinCm', 'prefHeightMaxCm',
+            'prefEducation', 'prefLocation', 'prefMustHaves',
+            'video', 'lastActive'];
         $hiddenClean = array_values(array_unique(array_intersect(
             array_map('strval', $hiddenRaw), $hiddenAllowed)));
         $b['hidden_fields'] = $hiddenClean === [] ? null : json_encode($hiddenClean);
@@ -1042,6 +1450,14 @@ function profileUpdate(): void
         'languages', 'citizenships', 'ethnicity', 'sub_ethnicity', 'subEthnicity', 'incomeRange', 'maritalStatus', 'children',
         'childrenPlans', 'relocation', 'familyInvolvement', 'heightCm', 'timeline',
         'photoUrl', 'syedStatus', 'username',
+        // Profile depth (2026-11-10): education detail, employer, residency,
+        // build, hobbies, convert status, structured partner preferences.
+        // 'video' is NOT here — the video URL is set only by the validated
+        // upload endpoint, never by a direct profile save.
+        'educationField', 'educationInstitution', 'employer', 'residencyStatus',
+        'build', 'hobbies', 'convertStatus',
+        'prefAgeMin', 'prefAgeMax', 'prefHeightMinCm', 'prefHeightMaxCm',
+        'prefEducation', 'prefLocation', 'prefMustHaves',
         // Guardian management (2026-11-09). managementMode is the only one
         // of the three ever exposed publicly (via visibleProfile); the
         // guardian's name/email stay server-side.
@@ -1072,6 +1488,18 @@ function profileUpdate(): void
         'height_cm'          => 'heightCm',
         'photo_url'          => 'photoUrl',
         'phone'              => 'contactPhone',
+        // Profile depth (2026-11-10): snake_case spellings of the new keys.
+        'education_field'       => 'educationField',
+        'education_institution' => 'educationInstitution',
+        'residency_status'      => 'residencyStatus',
+        'convert_status'        => 'convertStatus',
+        'pref_age_min'          => 'prefAgeMin',
+        'pref_age_max'          => 'prefAgeMax',
+        'pref_height_min_cm'    => 'prefHeightMinCm',
+        'pref_height_max_cm'    => 'prefHeightMaxCm',
+        'pref_education'        => 'prefEducation',
+        'pref_location'         => 'prefLocation',
+        'pref_must_haves'       => 'prefMustHaves',
     ];
     // Privacy toggles arrive as JSON booleans; the columns are TINYINT.
     // Normalize here so a string "false" can never store as truthy.
@@ -1110,6 +1538,18 @@ function profileUpdate(): void
             'contactPhone' => 'contact_phone',
             'blockUnverified' => 'block_unverified',
             'allowFamilyView' => 'allow_family_view',
+            // Profile depth (2026-11-10).
+            'educationField' => 'education_field',
+            'educationInstitution' => 'education_institution',
+            'residencyStatus' => 'residency_status',
+            'convertStatus' => 'convert_status',
+            'prefAgeMin' => 'pref_age_min',
+            'prefAgeMax' => 'pref_age_max',
+            'prefHeightMinCm' => 'pref_height_min_cm',
+            'prefHeightMaxCm' => 'pref_height_max_cm',
+            'prefEducation' => 'pref_education',
+            'prefLocation' => 'pref_location',
+            'prefMustHaves' => 'pref_must_haves',
             default => $key,
         };
         $v = in_array($key, ['age', 'heightCm'], true) && $b[$key] !== null && $b[$key] !== ''
@@ -1194,8 +1634,9 @@ function profileUpdate(): void
         implode(', ', array_fill(0, count($insertVals), '?')) .
         ') ON DUPLICATE KEY UPDATE ' . implode(', ', $updateSets) . ', updated_at = UTC_TIMESTAMP()';
     db()->prepare($sql)->execute($insertVals);
+    touchLastActive($user['uid']);
 
-    $fetch = db()->prepare('SELECT * FROM profiles WHERE user_id = ? LIMIT 1');
+    $fetch = db()->prepare('SELECT p.*, u.last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE p.user_id = ? LIMIT 1');
     $fetch->execute([$user['uid']]);
     $row = $fetch->fetch();
     if (!$row) {
@@ -1311,6 +1752,7 @@ function profileInterest(string $id): void
     // Idempotent: PK conflict on (from,to) is a no-op, like ON CONFLICT DO NOTHING.
     $insert = db()->prepare('INSERT IGNORE INTO interests (from_user_id, to_user_id) VALUES (?, ?)');
     $insert->execute([$user['uid'], $id]);
+    touchLastActive((string)$user['uid']);
 
     $mutual = db()->prepare('SELECT 1 FROM interests WHERE from_user_id = ? AND to_user_id = ? LIMIT 1');
     $mutual->execute([$id, $user['uid']]);

@@ -135,12 +135,13 @@ export default function Dashboard() {
   // used to be wiped on logout, which is how 100% silently became 75%.
   const savedProfile = typeof getMyProfile === 'function' ? getMyProfile() : null;
   // Completeness: ONE number on this page — the server's activation
-  // percent (email 25 / location 30 / bio 30 / photo 15), the same value
-  // the banner shows. The old client field-count (filled/26 fields)
-  // measured profile richness, a different thing, and the two disagreed
-  // on one page (banner 40% vs card 12% for the same profile). The
-  // client count survives only as the fallback when the server value
-  // is unavailable, and null stays an honest "—".
+  // percent (email 20 / location 20 / bio 20 / photo 10 / depth 15 /
+  // preferences 15, 2026-11-10), the same value the banner shows. The old
+  // client field-count (filled/26 fields) measured profile richness, a
+  // different thing, and the two disagreed on one page (banner 40% vs card
+  // 12% for the same profile). The client count survives only as the
+  // fallback when the server value is unavailable, and null stays an
+  // honest "—".
   const serverPercent = typeof recoveryStatus?.percent === 'number' ? recoveryStatus.percent : null;
   const completeness = serverPercent ?? (() => {
     if (serverProfile) {
@@ -268,6 +269,8 @@ export default function Dashboard() {
                   {recoveryStatus.nextStep === 'location' && 'Add your city and country — members search by location first.'}
                   {recoveryStatus.nextStep === 'bio' && 'Write a short bio — profiles with a bio get seen far more.'}
                   {recoveryStatus.nextStep === 'photo' && 'Add a photo — profiles with photos get the most interest.'}
+                  {recoveryStatus.nextStep === 'depth' && 'Add more about yourself — education, work and interests help families know you.'}
+                  {recoveryStatus.nextStep === 'preferences' && 'Say what you are looking for — your preferences power better matches.'}
                   {' '}Finish in 2 minutes and start being seen.
                 </p>
                 <div className="mt-3 h-2 rounded-full overflow-hidden" style={{ background: 'var(--color-border)' }}>

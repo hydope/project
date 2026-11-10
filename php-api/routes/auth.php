@@ -91,6 +91,8 @@ function authRegister(): void
     $userRow = ['id' => $userId, 'email' => $email, 'display_name' => $displayName, 'is_admin' => $isAdmin, 'email_verified' => false];
     $token = signSession($userRow);
     setAuthCookie($token);
+    // Last active (2026-11-10): a brand-new account is active now.
+    touchLastActive($userId);
     json([
         'user' => makeMemberSession($userRow),
         'token' => $token,
@@ -115,6 +117,8 @@ function authLogin(): void
     $token = signSession($user);
     // Track this login so the Security tab can list active sessions.
     recordSession((string)$user['id'], $token);
+    // Last active (2026-11-10): login is the cheapest honest signal.
+    touchLastActive((string)$user['id']);
     // HttpOnly cookie: XSS-proof token storage for browsers.
     setAuthCookie($token);
 

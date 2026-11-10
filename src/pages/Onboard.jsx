@@ -6,12 +6,13 @@ import {
   Heart, Shield, ClipboardCheck, Globe, Lock, UserRound,
   Sparkles, AlertCircle, Save, HeartHandshake, Camera, Loader2
 } from 'lucide-react';
+import { useAuthedImage } from '../lib/api/useAuthedImage';
 import Layout from '../layouts/MainLayout';
 import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
 import { apiUrl, http } from '../lib/api/transport';
 import { saveMyProfile } from '../lib/storage';
-import { parseHeightToCm } from '../lib/height';
+import { parseHeightToCm, cmToFeetInches } from '../lib/height';
 import {
   SECTS, MARJA_OPTIONS, RELIGIOSITY_LEVELS, PRAYER_OPTIONS,
   MODESTY_OPTIONS_FEMALE, MODESTY_OPTIONS_MALE, DIET_OPTIONS, SYED_OPTIONS,
@@ -19,6 +20,8 @@ import {
   FAMILY_INVOLVEMENT_OPTIONS, CHILDREN_OPTIONS, CHILDREN_PLANS_OPTIONS,
   PHOTO_ACCESS_OPTIONS, PROFILE_VISIBILITY_OPTIONS, MANAGEMENT_MODES,
   EDUCATION_OPTIONS, LANGUAGES, ETHNICITIES, SUB_ETHNICITIES, COUNTRIES,
+  BUILD_OPTIONS, RESIDENCY_OPTIONS, CONVERT_OPTIONS, HOBBIES,
+  PREF_EDUCATION_OPTIONS,
   computeProfileCompleteness, ONBOARDING_STEPS
 } from '../lib/onboardingData';
 
@@ -37,15 +40,16 @@ const scopedDraftKey = () => `${DRAFT_KEY}::${sessionUid()}`;
 
 const EMPTY_FORM = {
   // Step 1 — About you
-  displayName: '', gender: '', seekingGender: '', age: '', city: '', country: '', height: '', maritalStatus: '',
+  displayName: '', gender: '', seekingGender: '', age: '', city: '', country: '', height: '', maritalStatus: '', build: '',
   // Step 2 — Faith & practice
-  sect: '', religiosity: '', prayer: '', marja: '', modesty: '', diet: '',
+  sect: '', religiosity: '', prayer: '', marja: '', modesty: '', diet: '', convertStatus: '',
   // Step 3 — Background & lineage
-  syedStatus: '', ethnicity: '', subEthnicity: '', languages: [], citizenships: [],
+  syedStatus: '', ethnicity: '', subEthnicity: '', languages: [], citizenships: [], residencyStatus: '', hobbies: [], hobbiesOther: '',
   // Step 4 — Education & career
-  educationLevel: '', profession: '', incomeRange: '',
+  educationLevel: '', educationField: '', educationInstitution: '', profession: '', employer: '', incomeRange: '',
   // Step 5 — Marriage intentions
   timeline: '', relocation: '', familyInvolvement: '', childrenStatus: '', childrenPlans: '',
+  prefAgeMin: '', prefAgeMax: '', prefHeightMin: '', prefHeightMax: '', prefEducation: '', prefLocation: '', prefMustHaves: '',
   // Step 6 — Privacy & photos
   photoAccess: 'members', profileVisibility: 'public', managementMode: '', guardianName: '', guardianEmail: '',
   // Step 7 — Story
@@ -82,6 +86,16 @@ function validateStep(step, d) {
   if (step === 5) {
     if (!d.timeline) e.timeline = 'Please select your nikah timeline.';
     if (!d.familyInvolvement) e.familyInvolvement = 'Please select your family involvement preference.';
+    // Partner preferences are optional, but a typed range must be sane —
+    // the server enforces the same bounds, so the wizard should say so
+    // before the save 400s.
+    const amin = parseInt(d.prefAgeMin, 10);
+    const amax = parseInt(d.prefAgeMax, 10);
+    if (d.prefAgeMin !== '' && (Number.isNaN(amin) || amin < 18 || amin > 100)) e.prefAgeMin = 'Preferred age must be between 18 and 100.';
+    if (d.prefAgeMax !== '' && (Number.isNaN(amax) || amax < 18 || amax > 100)) e.prefAgeMax = 'Preferred age must be between 18 and 100.';
+    if (!e.prefAgeMin && !e.prefAgeMax && d.prefAgeMin !== '' && d.prefAgeMax !== '' && amin > amax) e.prefAgeMax = 'The age range is reversed.';
+    if (d.prefHeightMin && parseHeightToCm(d.prefHeightMin) === null) e.prefHeightMin = 'Enter height like 5\'7" or 170 cm.';
+    if (d.prefHeightMax && parseHeightToCm(d.prefHeightMax) === null) e.prefHeightMax = 'Enter height like 5\'7" or 170 cm.';
   }
   if (step === 6) {
     if (!d.managementMode) e.managementMode = 'Please choose who manages this profile.';
@@ -281,12 +295,29 @@ export default function Onboard() {
           educationLevel: p.educationLevel, profession: p.profession,
           incomeRange: p.incomeRange, timeline: p.timeline, relocation: p.relocation,
           familyInvolvement: p.familyInvolvement, bio: p.bio, lookingFor: p.expectations,
+          // Profile depth (2026-11-10).
+          build: p.build, convertStatus: p.convertStatus, residencyStatus: p.residencyStatus,
+          educationField: p.educationField, educationInstitution: p.educationInstitution,
+          employer: p.employer,
+          prefAgeMin: p.prefAgeMin != null ? String(p.prefAgeMin) : '',
+          prefAgeMax: p.prefAgeMax != null ? String(p.prefAgeMax) : '',
+          prefHeightMin: p.prefHeightMinCm != null ? cmToFeetInches(p.prefHeightMinCm) : '',
+          prefHeightMax: p.prefHeightMaxCm != null ? cmToFeetInches(p.prefHeightMaxCm) : '',
+          prefEducation: p.prefEducation, prefLocation: p.prefLocation, prefMustHaves: p.prefMustHaves,
         };
         for (const [k, v] of Object.entries(map)) {
           if ((filled[k] === '' || filled[k] == null) && v) filled[k] = v;
         }
         if (typeof p.languages === 'string' && p.languages && filled.languages.length === 0) {
           filled.languages = p.languages.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        // Hobbies come back as a comma string: known list items go to the
+        // chips, anything else goes to the free-text "other" box.
+        if (typeof p.hobbies === 'string' && p.hobbies && filled.hobbies.length === 0) {
+          const all = p.hobbies.split(',').map(s => s.trim()).filter(Boolean);
+          filled.hobbies = all.filter(h => HOBBIES.includes(h));
+          const other = all.filter(h => !HOBBIES.includes(h));
+          if (other.length > 0 && !filled.hobbiesOther) filled.hobbiesOther = other.join(', ');
         }
         return filled;
       });
@@ -346,8 +377,27 @@ export default function Onboard() {
       languages: Array.isArray(d.languages) ? d.languages.join(', ') : d.languages,
       citizenships: Array.isArray(d.citizenships) ? d.citizenships.join(', ') : d.citizenships,
       educationLevel: d.educationLevel,
+      educationField: d.educationField,
+      educationInstitution: d.educationInstitution,
       profession: d.profession,
+      employer: d.employer,
       incomeRange: d.incomeRange,
+      build: d.build,
+      convertStatus: d.convertStatus,
+      residencyStatus: d.residencyStatus,
+      // Hobbies: the fixed-list chips plus the free-text "other" box,
+      // merged into the comma string the server stores.
+      hobbies: [...(Array.isArray(d.hobbies) ? d.hobbies : []),
+        ...(d.hobbiesOther ? d.hobbiesOther.split(',').map(s => s.trim()).filter(Boolean) : [])].join(', '),
+      // Partner preferences (2026-11-10): ranges as numbers/cm, 'Any'
+      // education means no preference (sent as null, dropped by clean).
+      prefAgeMin: d.prefAgeMin === '' ? null : parseInt(d.prefAgeMin, 10),
+      prefAgeMax: d.prefAgeMax === '' ? null : parseInt(d.prefAgeMax, 10),
+      prefHeightMinCm: parseHeightToCm(d.prefHeightMin),
+      prefHeightMaxCm: parseHeightToCm(d.prefHeightMax),
+      prefEducation: d.prefEducation === 'Any' ? null : d.prefEducation,
+      prefLocation: d.prefLocation,
+      prefMustHaves: d.prefMustHaves,
       timeline: d.timeline,
       relocation: d.relocation,
       familyInvolvement: d.familyInvolvement,
@@ -696,6 +746,9 @@ function StepAbout({ data, update, errors }) {
       <Field label="Marital status">
         <SelectInput value={data.maritalStatus} onChange={e => update('maritalStatus', e.target.value)} options={MARITAL_STATUS_OPTIONS} placeholder="Select" ariaLabel="Marital status" />
       </Field>
+      <Field label="Build / body type" hint="Optional — shown on your profile so families get a fuller picture">
+        <SelectInput value={data.build} onChange={e => update('build', e.target.value)} options={BUILD_OPTIONS} placeholder="Select" ariaLabel="Build" />
+      </Field>
     </div>
   );
 }
@@ -727,6 +780,9 @@ function StepFaith({ data, update, errors }) {
         </Field>
         <Field label="Dietary practice">
           <SelectInput value={data.diet} onChange={e => update('diet', e.target.value)} options={DIET_OPTIONS} placeholder="Optional" ariaLabel="Dietary practice" />
+        </Field>
+        <Field label="Muslim background" hint="Optional — shown only if you choose to share it">
+          <SelectInput value={data.convertStatus} onChange={e => update('convertStatus', e.target.value)} options={CONVERT_OPTIONS} placeholder="Optional" ariaLabel="Muslim background" />
         </Field>
       </div>
     </div>
@@ -762,6 +818,15 @@ function StepLineage({ data, update, errors, toggleIn }) {
       )}
       <Field label="Languages you speak" required error={errors.languages}>
         <ChipGroup values={data.languages} onToggle={v => toggleIn('languages', v)} options={LANGUAGES} ariaLabel="Languages" />
+      </Field>
+      <Field label="Residency / visa status" hint="Optional — citizenships are above; this is where you live now, legally">
+        <SelectInput value={data.residencyStatus} onChange={e => update('residencyStatus', e.target.value)} options={RESIDENCY_OPTIONS} placeholder="Select" ariaLabel="Residency status" />
+      </Field>
+      <Field label="Hobbies & interests" hint="Pick a few — they show on your profile and families can filter by them">
+        <ChipGroup values={data.hobbies} onToggle={v => toggleIn('hobbies', v)} options={HOBBIES} ariaLabel="Hobbies" />
+      </Field>
+      <Field label="Other hobbies" hint="Anything not listed — comma-separated, e.g. 'Calligraphy, Astronomy'">
+        <TextInput value={data.hobbiesOther} onChange={e => update('hobbiesOther', e.target.value)} placeholder="e.g. Calligraphy, Astronomy" ariaLabel="Other hobbies" maxLength={200} />
       </Field>
     </div>
   );
@@ -803,8 +868,19 @@ function StepCareer({ data, update, errors }) {
       <Field label="Education" required error={errors.educationLevel}>
         <SelectInput value={data.educationLevel} onChange={e => update('educationLevel', e.target.value)} options={EDUCATION_OPTIONS} error={errors.educationLevel} ariaLabel="Education" />
       </Field>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Field of study" hint="Optional — e.g. Medicine, Engineering, Islamic Studies">
+          <TextInput value={data.educationField} onChange={e => update('educationField', e.target.value)} placeholder="e.g. Medicine" ariaLabel="Field of study" maxLength={120} />
+        </Field>
+        <Field label="Institution" hint="Optional — school or university">
+          <TextInput value={data.educationInstitution} onChange={e => update('educationInstitution', e.target.value)} placeholder="e.g. University of Maryland" ariaLabel="Institution" maxLength={160} />
+        </Field>
+      </div>
       <Field label="Profession" required error={errors.profession} hint="What you do — 'Student', 'Software Engineer', 'Homemaker' all welcome">
           <TextInput value={data.profession} onChange={e => update('profession', e.target.value)} placeholder="Your profession or field of study" ariaLabel="Profession" error={errors.profession} maxLength={60} />
+      </Field>
+      <Field label="Employer / company" hint="Optional — where you work now">
+        <TextInput value={data.employer} onChange={e => update('employer', e.target.value)} placeholder="e.g. Johns Hopkins Hospital" ariaLabel="Employer" maxLength={160} />
       </Field>
       <Field label="Income range" hint="Optional — some families ask, others prefer it stays private. You control visibility.">
           <SelectInput value={data.incomeRange} onChange={e => update('incomeRange', e.target.value)}
@@ -838,6 +914,36 @@ function StepIntentions({ data, update, errors }) {
         </Field>
         <Field label="Views on children">
           <SelectInput value={data.childrenPlans} onChange={e => update('childrenPlans', e.target.value)} options={CHILDREN_PLANS_OPTIONS} placeholder="Select" ariaLabel="Views on children" />
+        </Field>
+      </div>
+      {/* Partner preferences (2026-11-10): the member's own criteria — they
+          power the match sort, they are never browse filters on other
+          people, and every one of them is optional. */}
+      <div className="pt-2 border-t border-line/15">
+        <h3 className="text-base font-bold text-ink mt-4 mb-1">What you are looking for</h3>
+        <p className="text-sm text-muted mb-4">Optional — your preferences help us rank better matches for you. They are shown on your profile so families know what matters to you.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Preferred age — from" error={errors.prefAgeMin}>
+            <TextInput type="number" min="18" max="100" value={data.prefAgeMin} onChange={e => update('prefAgeMin', e.target.value)} placeholder="e.g. 22" ariaLabel="Preferred minimum age" error={errors.prefAgeMin} />
+          </Field>
+          <Field label="Preferred age — to" error={errors.prefAgeMax}>
+            <TextInput type="number" min="18" max="100" value={data.prefAgeMax} onChange={e => update('prefAgeMax', e.target.value)} placeholder="e.g. 30" ariaLabel="Preferred maximum age" error={errors.prefAgeMax} />
+          </Field>
+          <Field label="Preferred height — from" error={errors.prefHeightMin} hint="e.g. 5'2&quot;">
+            <TextInput value={data.prefHeightMin} onChange={e => update('prefHeightMin', e.target.value)} placeholder="e.g. 5'2&quot;" ariaLabel="Preferred minimum height" error={errors.prefHeightMin} />
+          </Field>
+          <Field label="Preferred height — to" error={errors.prefHeightMax} hint="e.g. 5'10&quot;">
+            <TextInput value={data.prefHeightMax} onChange={e => update('prefHeightMax', e.target.value)} placeholder="e.g. 5'10&quot;" ariaLabel="Preferred maximum height" error={errors.prefHeightMax} />
+          </Field>
+          <Field label="Preferred education">
+            <SelectInput value={data.prefEducation} onChange={e => update('prefEducation', e.target.value)} options={PREF_EDUCATION_OPTIONS} placeholder="Any" ariaLabel="Preferred education" />
+          </Field>
+          <Field label="Preferred location" hint="e.g. USA, or a city / state">
+            <TextInput value={data.prefLocation} onChange={e => update('prefLocation', e.target.value)} placeholder="e.g. USA" ariaLabel="Preferred location" maxLength={120} />
+          </Field>
+        </div>
+        <Field label="Must-haves" hint="The few things that matter most to you — comma-separated or a short sentence">
+          <TextInput value={data.prefMustHaves} onChange={e => update('prefMustHaves', e.target.value)} placeholder="e.g. Prays daily, family-oriented, non-smoker" ariaLabel="Must-haves" maxLength={1000} />
         </Field>
       </div>
     </div>
@@ -927,6 +1033,103 @@ function StepPhotoUpload() {
   );
 }
 
+// ── Step 6 video upload (2026-11-10) ───────────────────────────────────────
+// Same discipline as the photo: one short video (30s, 25 MB), MP4/WebM,
+// server-generated name, served through the same photo-tier gate. No
+// transcoding — the file is stored as-is. The client checks duration before
+// uploading (a <video> element reads loadedmetadata) so a too-long clip is
+// refused instantly instead of after a 25 MB upload.
+function StepVideoUpload() {
+  const [video, setVideo] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const fileRef = useRef(null);
+  const { url: videoUrl } = useAuthedImage(video);
+
+  useEffect(() => {
+    api.getProfile('me').then(me => {
+      if (me?.video) setVideo(me.video);
+    }).catch(() => {});
+  }, []);
+
+  const onFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    if (file.size > 25_000_000) {
+      setError('Video must be under 25 MB.');
+      return;
+    }
+    if (!/^video\/(mp4|webm)$/.test(file.type || '')) {
+      setError('Video must be an MP4 or WebM file.');
+      return;
+    }
+    // Duration check before the upload: a too-long clip is refused here,
+    // not after 25 MB has crossed the wire.
+    const tooLong = await new Promise(resolve => {
+      const el = document.createElement('video');
+      el.preload = 'metadata';
+      el.onloadedmetadata = () => resolve(el.duration > 30);
+      el.onerror = () => resolve(false); // unparseable here — the server decides
+      el.src = URL.createObjectURL(file);
+    });
+    if (tooLong) {
+      setError('Video must be 30 seconds or shorter.');
+      return;
+    }
+    setUploading(true);
+    try {
+      const res = await api.uploadVideo(file);
+      const saved = res?.video || (await api.getProfile('me').catch(() => null))?.video || null;
+      if (saved) {
+        setVideo(saved);
+      } else {
+        setError('The upload reached the server but the video did not save. Please try again.');
+      }
+    } catch (err) {
+      setError(err?.message || 'Could not upload that video.');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const remove = async () => {
+    setError('');
+    try {
+      await api.deleteVideo();
+      setVideo(null);
+    } catch (err) {
+      setError(err?.message || 'Could not remove the video.');
+    }
+  };
+
+  return (
+    <Field label="A short video (optional)" hint="Up to 30 seconds — a hello, a few words about yourself. Same privacy as your photo: it follows the visibility rules you pick below. One video per profile; uploading a new one replaces it.">
+      <input ref={fileRef} type="file" accept="video/mp4,video/webm" className="hidden" onChange={onFile} aria-label="Upload a profile video" />
+      {video ? (
+        <div className="flex items-start gap-4">
+          <video src={videoUrl || undefined} controls playsInline preload="metadata"
+            className="w-36 aspect-[9/16] rounded-xl object-cover bg-black"
+            style={{ border: '1px solid var(--color-border)' }} />
+          <div className="flex gap-2 flex-wrap pt-1">
+            <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="btn btn-secondary btn-sm">Replace</button>
+            <button type="button" onClick={remove} disabled={uploading} className="btn btn-ghost btn-sm">Remove</button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
+          className="w-full flex items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed transition-all disabled:opacity-60"
+          style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface)' }}>
+          {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
+          <span className="text-sm font-medium">{uploading ? 'Uploading…' : 'Upload a short video (30s max)'}</span>
+        </button>
+      )}
+      {error && <p className="mt-2 text-xs" style={{ color: 'var(--color-danger)' }}>{error}</p>}
+    </Field>
+  );
+}
+
 // ── Step 6: Privacy & photos — the platform's signature control ─────────────
 const PHOTO_ICONS = { globe: Globe, user: UserRound, lock: Lock };
 
@@ -939,6 +1142,8 @@ function StepPrivacy({ data, update, errors }) {
       </div>
 
       <StepPhotoUpload />
+
+      <StepVideoUpload />
 
       <Field label="Photo visibility" hint="Your photos, your rules — you decide who can open them, and you can change this any time.">
         <div className="grid gap-2.5">
@@ -1022,11 +1227,11 @@ function StepPrivacy({ data, update, errors }) {
 
 // ── Step 7: Review & publish ────────────────────────────────────────────────
 const REVIEW_SECTIONS = [
-  { step: 1, title: 'About you', fields: [['displayName', 'Name'], ['gender', 'I am a'], ['seekingGender', 'Seeking'], ['age', 'Age'], ['city', 'City'], ['country', 'Country'], ['maritalStatus', 'Marital status']] },
-  { step: 2, title: 'Faith & practice', fields: [['sect', 'Sect'], ['religiosity', 'Religiosity'], ['prayer', 'Prayers'], ['marja', "Marja'"], ['modesty', 'Modesty'], ['diet', 'Diet']] },
-  { step: 3, title: 'Background & lineage', fields: [['syedStatus', 'Syed status'], ['ethnicity', 'Ethnicity'], ['citizenships', 'Citizenships'], ['languages', 'Languages']] },
-  { step: 4, title: 'Education & career', fields: [['educationLevel', 'Education'], ['profession', 'Profession'], ['incomeRange', 'Income']] },
-  { step: 5, title: 'Marriage intentions', fields: [['timeline', 'Timeline'], ['relocation', 'Relocation'], ['familyInvolvement', 'Family involvement'], ['childrenStatus', 'Children'], ['childrenPlans', 'Views on children']] },
+  { step: 1, title: 'About you', fields: [['displayName', 'Name'], ['gender', 'I am a'], ['seekingGender', 'Seeking'], ['age', 'Age'], ['city', 'City'], ['country', 'Country'], ['maritalStatus', 'Marital status'], ['build', 'Build']] },
+  { step: 2, title: 'Faith & practice', fields: [['sect', 'Sect'], ['religiosity', 'Religiosity'], ['prayer', 'Prayers'], ['marja', "Marja'"], ['modesty', 'Modesty'], ['diet', 'Diet'], ['convertStatus', 'Muslim background']] },
+  { step: 3, title: 'Background & lineage', fields: [['syedStatus', 'Syed status'], ['ethnicity', 'Ethnicity'], ['citizenships', 'Citizenships'], ['languages', 'Languages'], ['residencyStatus', 'Residency'], ['hobbies', 'Hobbies'], ['hobbiesOther', 'Other hobbies']] },
+  { step: 4, title: 'Education & career', fields: [['educationLevel', 'Education'], ['educationField', 'Field of study'], ['educationInstitution', 'Institution'], ['profession', 'Profession'], ['employer', 'Employer'], ['incomeRange', 'Income']] },
+  { step: 5, title: 'Marriage intentions', fields: [['timeline', 'Timeline'], ['relocation', 'Relocation'], ['familyInvolvement', 'Family involvement'], ['childrenStatus', 'Children'], ['childrenPlans', 'Views on children'], ['prefAgeMin', 'Preferred age from'], ['prefAgeMax', 'Preferred age to'], ['prefHeightMin', 'Preferred height from'], ['prefHeightMax', 'Preferred height to'], ['prefEducation', 'Preferred education'], ['prefLocation', 'Preferred location'], ['prefMustHaves', 'Must-haves']] },
   { step: 6, title: 'Privacy & management', fields: [['photoAccess', 'Photo visibility'], ['profileVisibility', 'Profile visibility'], ['managementMode', 'Managed by']] }
 ];
 

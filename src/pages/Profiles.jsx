@@ -34,7 +34,11 @@ const DEFAULT_FILTERS = {
   syedStatus: 'Any', modesty: 'Any', photo: 'any', verifiedOnly: false, sort: 'match',
   // Height is entered as free text (5'7" or 170 cm) and parsed to cm for the
   // server; citizenship is a multi-select of values actually present.
-  minHeight: '', maxHeight: '', citizenship: [], incomeRange: 'Any'
+  // Profile depth (2026-11-10): hobbies + language are multi-selects of
+  // values actually present; residency, marital and convert status are
+  // single selects from the fixed onboarding lists.
+  minHeight: '', maxHeight: '', citizenship: [], incomeRange: 'Any',
+  hobbies: [], language: [], residencyStatus: 'Any', maritalStatus: 'Any', convertStatus: 'Any'
 };
 
 // Placeholder sentinels must be stripped before hitting the API, otherwise the
@@ -273,6 +277,18 @@ export function BrowseProfiles() {
     maxHeightCm: maxHeightParsed ?? undefined,
     citizenship: filters.citizenship?.length ? filters.citizenship.join(',') : undefined,
     incomeRange: clean(filters.incomeRange),
+    // Profile depth (2026-11-10): hobbies + language multi-selects,
+    // residency / marital / convert single selects.
+    hobbies: filters.hobbies?.length ? filters.hobbies.join(',') : undefined,
+    language: filters.language?.length ? filters.language.join(',') : undefined,
+    residencyStatus: clean(filters.residencyStatus),
+    maritalStatus: clean(filters.maritalStatus),
+    convertStatus: clean(filters.convertStatus),
+    // Match-score ranking (2026-11-10): 'match' asks the server to rank
+    // the roster by compatibility for the signed-in viewer, so the best
+    // matches are the ones that come back — not just the newest 100.
+    // Any other sort is local-only and the server keeps its default order.
+    sort: filters.sort === 'match' ? 'match' : undefined,
   }), [filters, minHeightParsed, maxHeightParsed]);
 
   useEffect(() => {
@@ -349,7 +365,7 @@ export function BrowseProfiles() {
   // The badge count alone never said WHICH filters were on — name them for
   // the tooltip and screen readers.
   const activeFilterNames = activeFilterEntries.map(([k, v]) => {
-    const labels = { gender: 'Looking for', minAge: 'Min age', maxAge: 'Max age', country: 'Country', sect: 'Sect', religiosity: 'Religiosity', education: 'Education', syedStatus: 'Syed status', modesty: 'Modesty', photo: 'Photo', verifiedOnly: 'Verified only', sort: 'Sort', search: 'Search', minHeight: 'Min height', maxHeight: 'Max height', citizenship: 'Citizenship', incomeRange: 'Income' };
+    const labels = { gender: 'Looking for', minAge: 'Min age', maxAge: 'Max age', country: 'Country', sect: 'Sect', religiosity: 'Religiosity', education: 'Education', syedStatus: 'Syed status', modesty: 'Modesty', photo: 'Photo', verifiedOnly: 'Verified only', sort: 'Sort', search: 'Search', minHeight: 'Min height', maxHeight: 'Max height', citizenship: 'Citizenship', incomeRange: 'Income', hobbies: 'Hobbies', language: 'Language', residencyStatus: 'Residency', maritalStatus: 'Marital status', convertStatus: 'Muslim background' };
     return `${labels[k] || k}: ${v === true ? 'on' : Array.isArray(v) ? v.join(', ') : v}`;
   }).join(', ');
 
@@ -531,6 +547,61 @@ export function BrowseProfiles() {
                     <select value={filters.incomeRange} onChange={e => setFilter('incomeRange', e.target.value)} className="input" style={{ background: 'var(--color-surface)' }}>
                       <option value="Any">Any</option>
                       {(filterOptions?.incomeRanges || []).map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Hobbies</label>
+                    {filterOptions?.hobbies?.length ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {filterOptions.hobbies.map(h => {
+                          const on = filters.hobbies.includes(h);
+                          return (
+                            <button key={h} type="button" onClick={() => setFilter('hobbies', on ? filters.hobbies.filter(x => x !== h) : [...filters.hobbies, h])} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${on ? 'btn btn-primary' : 'btn btn-ghost'}`} aria-pressed={on}>
+                              {h}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>No hobbies listed yet.</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Language</label>
+                    {filterOptions?.languages?.length ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {filterOptions.languages.map(l => {
+                          const on = filters.language.includes(l);
+                          return (
+                            <button key={l} type="button" onClick={() => setFilter('language', on ? filters.language.filter(x => x !== l) : [...filters.language, l])} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${on ? 'btn btn-primary' : 'btn btn-ghost'}`} aria-pressed={on}>
+                              {l}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>No languages listed yet.</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Residency status</label>
+                    <select value={filters.residencyStatus} onChange={e => setFilter('residencyStatus', e.target.value)} className="input" style={{ background: 'var(--color-surface)' }}>
+                      <option value="Any">Any</option>
+                      {(filterOptions?.residencyStatuses || []).map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Marital status</label>
+                    <select value={filters.maritalStatus} onChange={e => setFilter('maritalStatus', e.target.value)} className="input" style={{ background: 'var(--color-surface)' }}>
+                      <option value="Any">Any</option>
+                      {(filterOptions?.maritalStatuses || []).map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Muslim background</label>
+                    <select value={filters.convertStatus} onChange={e => setFilter('convertStatus', e.target.value)} className="input" style={{ background: 'var(--color-surface)' }}>
+                      <option value="Any">Any</option>
+                      {(filterOptions?.convertStatuses || []).map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
                   <div>

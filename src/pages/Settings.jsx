@@ -6,6 +6,9 @@ import Layout from '../layouts/MainLayout';
 import { useAuth } from '../lib/auth/AuthContext';
 import GetVerified from '../components/GetVerified';
 import PhotoUpload from '../components/PhotoUpload';
+import VideoUpload from '../components/VideoUpload';
+import { parseHeightToCm, cmToFeetInches } from '../lib/height';
+import { PREF_EDUCATION_OPTIONS } from '../lib/onboardingData';
 import WaliLinks from '../components/WaliLinks';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { DELETION_REASONS } from '../lib/api/safety';
@@ -21,8 +24,7 @@ import {
 // stored value is still used for matching and filters. Not hideable:
 // display name, verification badges, the guardian badge, the photo (it has
 // its own visibility tiers). Marja is never displayed at all, so it has no
-// toggle. Citizenship has no display surface yet (it is collected but never
-// stored) — its toggle is listed and harmless until that field is stored.
+// toggle.
 const HIDEABLE_FIELDS = [
   { section: 'Basics', fields: [
     { key: 'age', label: 'Age' },
@@ -46,10 +48,19 @@ const HIDEABLE_FIELDS = [
     { key: 'subEthnicity', label: 'Sub-ethnicity' },
     { key: 'languages', label: 'Languages' },
     { key: 'citizenships', label: 'Citizenship' },
+    // Profile depth (2026-11-10).
+    { key: 'residencyStatus', label: 'Residency status' },
+    { key: 'build', label: 'Build' },
+    { key: 'hobbies', label: 'Hobbies' },
+    { key: 'convertStatus', label: 'Muslim background' },
   ] },
   { section: 'Career', fields: [
     { key: 'educationLevel', label: 'Education' },
+    // Profile depth (2026-11-10).
+    { key: 'educationField', label: 'Field of study' },
+    { key: 'educationInstitution', label: 'Institution' },
     { key: 'profession', label: 'Profession' },
+    { key: 'employer', label: 'Employer' },
     { key: 'incomeRange', label: 'Income range' },
   ] },
   { section: 'Intentions', fields: [
@@ -58,6 +69,17 @@ const HIDEABLE_FIELDS = [
     { key: 'familyInvolvement', label: 'Family involvement' },
     { key: 'children', label: 'Children' },
     { key: 'childrenPlans', label: 'Plans for children' },
+  ] },
+  // Partner preferences (2026-11-10): the viewer's own criteria, shown on
+  // their profile — hideable like any other detail.
+  { section: 'Partner preferences', fields: [
+    { key: 'prefAgeMin', label: 'Preferred age — from' },
+    { key: 'prefAgeMax', label: 'Preferred age — to' },
+    { key: 'prefHeightMinCm', label: 'Preferred height — from' },
+    { key: 'prefHeightMaxCm', label: 'Preferred height — to' },
+    { key: 'prefEducation', label: 'Preferred education' },
+    { key: 'prefLocation', label: 'Preferred location' },
+    { key: 'prefMustHaves', label: 'Must-haves' },
   ] },
   { section: 'Story', fields: [
     { key: 'bio', label: 'About me (bio)' },
@@ -123,6 +145,15 @@ export default function Settings() {
           city: typeof me.city === 'string' ? me.city : pp.city,
           country: typeof me.country === 'string' ? me.country : pp.country,
           phone: typeof me.contactPhone === 'string' ? me.contactPhone : pp.phone,
+          // Partner preferences (2026-11-10): heights come back as cm and
+          // are shown the way the member typed them (feet/inches).
+          prefAgeMin: me.prefAgeMin != null ? String(me.prefAgeMin) : pp.prefAgeMin,
+          prefAgeMax: me.prefAgeMax != null ? String(me.prefAgeMax) : pp.prefAgeMax,
+          prefHeightMin: me.prefHeightMinCm != null ? cmToFeetInches(me.prefHeightMinCm) : pp.prefHeightMin,
+          prefHeightMax: me.prefHeightMaxCm != null ? cmToFeetInches(me.prefHeightMaxCm) : pp.prefHeightMax,
+          prefEducation: typeof me.prefEducation === 'string' ? me.prefEducation : pp.prefEducation,
+          prefLocation: typeof me.prefLocation === 'string' ? me.prefLocation : pp.prefLocation,
+          prefMustHaves: typeof me.prefMustHaves === 'string' ? me.prefMustHaves : pp.prefMustHaves,
         }));
         setPrivacy((p) => ({
           ...p,
@@ -294,7 +325,13 @@ export default function Settings() {
   const [profile, setProfile] = useState({
     displayName: user?.displayName || '',
     email: user?.email || '',
-    phone: '', city: '', country: '', bio: ''
+    phone: '', city: '', country: '', bio: '',
+    // Partner preferences (2026-11-10): editable here, saved by the same
+    // "Save account changes" button. The other new detail fields follow the
+    // existing pattern — collected in onboarding, editable by re-running it
+    // (which pre-fills from the server profile).
+    prefAgeMin: '', prefAgeMax: '', prefHeightMin: '', prefHeightMax: '',
+    prefEducation: '', prefLocation: '', prefMustHaves: '',
   });
   // True once the owner profile has loaded from the server. The Save button
   // stays disabled until then: the fields start blank, and sending blanks
@@ -398,6 +435,16 @@ export default function Settings() {
         city: profile.city,
         country: profile.country,
         contactPhone: profile.phone,
+        // Partner preferences (2026-11-10): ranges as numbers/cm, 'Any'
+        // education means no preference. An empty field sends null, which
+        // clears the stored value — same as an emptied bio.
+        prefAgeMin: profile.prefAgeMin === '' ? null : parseInt(profile.prefAgeMin, 10),
+        prefAgeMax: profile.prefAgeMax === '' ? null : parseInt(profile.prefAgeMax, 10),
+        prefHeightMinCm: parseHeightToCm(profile.prefHeightMin),
+        prefHeightMaxCm: parseHeightToCm(profile.prefHeightMax),
+        prefEducation: profile.prefEducation === 'Any' ? null : profile.prefEducation,
+        prefLocation: profile.prefLocation,
+        prefMustHaves: profile.prefMustHaves,
       });
       setSaved(true);
     } catch (e) {
@@ -537,6 +584,39 @@ export default function Settings() {
                     </div>
                   ))}
                 </div>
+                {/* Partner preferences (2026-11-10): your own criteria — they
+                    power the match sort and are shown on your profile. Saved
+                    by the same "Save account changes" button below. The other
+                    new detail fields are edited by re-running onboarding. */}
+                <div className="pt-4 border-t border-line/10">
+                  <h3 className="text-base font-semibold text-ink mb-1">What you are looking for</h3>
+                  <p className="text-sm text-muted mb-3">Optional — your preferences help us rank better matches for you.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div><label htmlFor="settings-prefAgeMin" className="text-sm font-medium text-muted mb-1.5 block">Preferred age — from</label>
+                      <input id="settings-prefAgeMin" type="number" min="18" max="100" value={profile.prefAgeMin} onChange={e => setProfile(pp => ({ ...pp, prefAgeMin: e.target.value }))} className="input w-full" aria-label="Preferred minimum age" placeholder="e.g. 22" />
+                    </div>
+                    <div><label htmlFor="settings-prefAgeMax" className="text-sm font-medium text-muted mb-1.5 block">Preferred age — to</label>
+                      <input id="settings-prefAgeMax" type="number" min="18" max="100" value={profile.prefAgeMax} onChange={e => setProfile(pp => ({ ...pp, prefAgeMax: e.target.value }))} className="input w-full" aria-label="Preferred maximum age" placeholder="e.g. 30" />
+                    </div>
+                    <div><label htmlFor="settings-prefHeightMin" className="text-sm font-medium text-muted mb-1.5 block">Preferred height — from</label>
+                      <input id="settings-prefHeightMin" type="text" value={profile.prefHeightMin} onChange={e => setProfile(pp => ({ ...pp, prefHeightMin: e.target.value }))} className="input w-full" aria-label="Preferred minimum height" placeholder="e.g. 5'2&quot;" />
+                    </div>
+                    <div><label htmlFor="settings-prefHeightMax" className="text-sm font-medium text-muted mb-1.5 block">Preferred height — to</label>
+                      <input id="settings-prefHeightMax" type="text" value={profile.prefHeightMax} onChange={e => setProfile(pp => ({ ...pp, prefHeightMax: e.target.value }))} className="input w-full" aria-label="Preferred maximum height" placeholder="e.g. 5'10&quot;" />
+                    </div>
+                    <div><label htmlFor="settings-prefEducation" className="text-sm font-medium text-muted mb-1.5 block">Preferred education</label>
+                      <select id="settings-prefEducation" value={profile.prefEducation} onChange={e => setProfile(pp => ({ ...pp, prefEducation: e.target.value }))} className="input w-full" aria-label="Preferred education">
+                        {PREF_EDUCATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                    <div><label htmlFor="settings-prefLocation" className="text-sm font-medium text-muted mb-1.5 block">Preferred location</label>
+                      <input id="settings-prefLocation" type="text" value={profile.prefLocation} onChange={e => setProfile(pp => ({ ...pp, prefLocation: e.target.value }))} className="input w-full" aria-label="Preferred location" placeholder="e.g. USA" maxLength={120} />
+                    </div>
+                  </div>
+                  <div className="mt-4"><label htmlFor="settings-prefMustHaves" className="text-sm font-medium text-muted mb-1.5 block">Must-haves</label>
+                    <input id="settings-prefMustHaves" type="text" value={profile.prefMustHaves} onChange={e => setProfile(pp => ({ ...pp, prefMustHaves: e.target.value }))} className="input w-full" aria-label="Must-haves" placeholder="e.g. Prays daily, family-oriented, non-smoker" maxLength={1000} />
+                  </div>
+                </div>
               </div>
             )}
 
@@ -653,6 +733,19 @@ export default function Settings() {
                     </select>
                   </label>
                   <p className="text-xs text-muted mt-1.5">Applies when you press “Save privacy settings” above.</p>
+                </div>
+
+                {/* Profile video (2026-11-10): one short introduction, up to
+                    30 seconds, MP4/WebM, 25 MB. Same tier as the photo — it
+                    follows the photo visibility above. */}
+                <div className="pt-4 border-t border-line/10">
+                  <h3 className="text-base font-semibold text-ink mb-1">Your video</h3>
+                  <p className="text-sm text-muted mb-3">
+                    Up to 30 seconds, MP4 or WebM, up to 25&nbsp;MB. A short hello
+                    helps families know you — optional, and it follows the same
+                    visibility as your photo.
+                  </p>
+                  <VideoUpload />
                 </div>
 
                 <div className="pt-2 border-t border-line/10 mt-6">

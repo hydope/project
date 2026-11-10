@@ -13,6 +13,10 @@ function routeMessages(string $method, array $segments): void
     if ($method === 'GET' && $id !== null && ($segments[1] ?? null) === null) { messageThread($id); return; }
     if ($method === 'POST' && $id === null) { startConversation(); return; }
     if ($method === 'POST' && $id !== null && ($segments[1] ?? null) === null) { sendMessage($id); return; }
+    // POST /api/messages/:id/image — send an image (multipart field 'photo').
+    if ($method === 'POST' && $id !== null && ($segments[1] ?? null) === 'image') { sendMessageImage($id); return; }
+    // GET /api/messages/:id/image/:msgId — serve one image, participants only.
+    if ($method === 'GET' && $id !== null && ($segments[1] ?? null) === 'image' && isset($segments[2])) { messageImageServe($id, (string)$segments[2]); return; }
     // POST /api/messages/:id/disappearing { seconds: 0|86400|604800 }
     if ($method === 'POST' && $id !== null && ($segments[1] ?? null) === 'disappearing') { setDisappearing($id); return; }
 
@@ -34,9 +38,13 @@ function messagesList(): void
     // other member's name comes from their profile (NULLS LAST is Postgres-only:
     // MySQL sorts NULLs first ASC / last DESC already, so IS NULL swap not needed
     // for DESC — but explicit ordering keeps parity: non-null last_at first).
-    $stmt = db()->prepare(
+    // The attachment subquery is wrapped in a fallback: on a database that has
+    // not run the 2026-11-10 migration yet the column does not exist, and the
+    // whole list must not 500 for it — the preview simply falls back to text.
+    $sqlWithAttachment =
         'SELECT c.id, c.user_a, c.user_b, c.created_at,
                 (SELECT m.body FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
+                (SELECT m.attachment_type FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_attachment_type,
                 (SELECT m.created_at FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_at,
                 CASE WHEN c.user_a = ? THEN c.user_b ELSE c.user_a END AS other_id,
                 (SELECT p.display_name FROM profiles p WHERE p.user_id = CASE WHEN c.user_a = ? THEN c.user_b ELSE c.user_a END) AS other_name,
@@ -50,10 +58,24 @@ function messagesList(): void
                WHERE (b.blocker_id = c.user_a AND b.blocked_id = c.user_b)
                   OR (b.blocker_id = c.user_b AND b.blocked_id = c.user_a)
             )
-          ORDER BY c.created_at DESC'
-    );
-    $stmt->execute([$user['uid'], $user['uid'], $user['uid'], $user['uid'], $user['uid'], $user['uid'], $user['uid']]);
-    $rows = $stmt->fetchAll();
+          ORDER BY c.created_at DESC';
+    try {
+        $stmt = db()->prepare($sqlWithAttachment);
+        $stmt->execute([$user['uid'], $user['uid'], $user['uid'], $user['uid'], $user['uid'], $user['uid'], $user['uid']]);
+        $rows = $stmt->fetchAll();
+    } catch (Throwable $e) {
+        // Double-quoted search: \n must be a real newline to match the SQL.
+        // The search starts at the newline (not the comma) so the comma
+        // after last_message survives — removing it would leave two SELECT
+        // items with no separator and the fallback would 500 too.
+        $stmt = db()->prepare(str_replace(
+            "\n                (SELECT m.attachment_type FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_attachment_type,",
+            '',
+            $sqlWithAttachment
+        ));
+        $stmt->execute([$user['uid'], $user['uid'], $user['uid'], $user['uid'], $user['uid'], $user['uid'], $user['uid']]);
+        $rows = $stmt->fetchAll();
+    }
 
     // Re-sort in PHP for exact NULLS LAST semantics on the last message time.
     usort($rows, function ($x, $y) {
@@ -73,7 +95,9 @@ function messagesList(): void
             'id' => $row['id'],
             'participantId' => $row['other_id'],
             'participantName' => $row['other_name'] ?: 'Member',
-            'lastMessage' => decAtRest($row['last_message']),
+            // An image message has no readable text — the list shows a
+            // neutral label, never the (empty) decrypted body.
+            'lastMessage' => ($row['last_attachment_type'] ?? null) === 'image' ? 'Sent a photo' : decAtRest($row['last_message']),
             'timestamp' => $row['last_at'] ?: $row['created_at'],
             'unread' => $unreadCount > 0,
             // Both casings: the Messages list reads unreadCount, the
@@ -117,23 +141,45 @@ function messageThread(string $id): void
     } catch (Throwable) { /* columns may not exist yet */ }
 
     // Lazy purge: disappearing messages are deleted when the thread loads.
-    // (No cron on shared hosting, so expiry is enforced on read.)
+    // (No cron on shared hosting, so expiry is enforced on read.) Expired
+    // image attachments are unlinked too, or their files would outlive the
+    // message they belonged to.
     try {
+        $expStmt = db()->prepare('SELECT attachment_path FROM messages WHERE conversation_id = ? AND expires_at IS NOT NULL AND expires_at <= NOW() AND attachment_path IS NOT NULL');
+        $expStmt->execute([$id]);
+        $expiredPaths = array_column($expStmt->fetchAll(), 'attachment_path');
         db()->prepare('DELETE FROM messages WHERE conversation_id = ? AND expires_at IS NOT NULL AND expires_at <= NOW()')
             ->execute([$id]);
-    } catch (Throwable) { /* column may not exist yet */ }
+        foreach ($expiredPaths as $p) {
+            if (is_string($p) && $p !== '') @unlink($p);
+        }
+    } catch (Throwable) { /* columns may not exist yet */ }
 
-    $msgStmt = db()->prepare('SELECT id, sender_id, body, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT 500');
-    $msgStmt->execute([$id]);
-    $rows = $msgStmt->fetchAll();
+    // The attachment columns are wrapped in a fallback: on a database that
+    // has not run the 2026-11-10 migration yet the SELECT would throw and
+    // the whole thread would 500.
+    try {
+        $msgStmt = db()->prepare('SELECT id, sender_id, body, created_at, attachment_path, attachment_type FROM messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT 500');
+        $msgStmt->execute([$id]);
+        $rows = $msgStmt->fetchAll();
+    } catch (Throwable $e) {
+        $msgStmt = db()->prepare('SELECT id, sender_id, body, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT 500');
+        $msgStmt->execute([$id]);
+        $rows = $msgStmt->fetchAll();
+    }
 
     $out = [];
     foreach ($rows as $row) {
+        $isImage = ($row['attachment_type'] ?? null) === 'image';
         $out[] = [
             'id' => $row['id'],
             'senderId' => $row['sender_id'] === (string)$user['uid'] ? 'me' : 'them',
             'text' => decAtRest($row['body']),
             'timestamp' => $row['created_at'],
+            'type' => $isImage ? 'image' : 'text',
+            // A gated endpoint, not the file path — membership is re-checked
+            // on every request, so a blocked member's link stops working.
+            'image' => $isImage ? '/api/messages/' . $id . '/image/' . $row['id'] : null,
         ];
     }
 
@@ -250,6 +296,8 @@ function sendMessage(string $id): void
         notifyUser($other, 'message', 'New message from ' . $senderName, $preview, $id);
     } catch (Throwable $e) { /* notification is best-effort */ }
 
+    touchLastActive((string)$user['uid']);
+
     $fetch = db()->prepare('SELECT id, body, created_at FROM messages WHERE id = ? LIMIT 1');
     $fetch->execute([$msgId]);
     $saved = $fetch->fetch();
@@ -260,6 +308,156 @@ function sendMessage(string $id): void
         'text' => decAtRest($saved['body']),
         'timestamp' => $saved['created_at'],
     ], 201);
+}
+
+// POST /api/messages/:id/image — send an image in a chat (multipart field
+// 'photo'). The SAME gates as a text message (verified email + mutual
+// interest, server-side) and the SAME photo validation pipeline as the
+// profile photo: byte-sniff, 5 MB cap, decode + completeness check, EXIF
+// strip. The file lives under the shared photo root (never the web root)
+// and is served only through the membership-checked endpoint below.
+function sendMessageImage(string $id): void
+{
+    $user = requireAuthUser();
+    // P0: messaging requires a verified email.
+    requireVerifiedEmail((string)$user['uid']);
+
+    $conv = db()->prepare('SELECT * FROM conversations WHERE id = ? LIMIT 1');
+    $conv->execute([$id]);
+    $row = $conv->fetch();
+    if (!$row) {
+        je('Conversation not found.', 404);
+    }
+    if ($row['user_a'] !== (string)$user['uid'] && $row['user_b'] !== (string)$user['uid']) {
+        je('Not your conversation.', 403);
+    }
+
+    $other = $row['user_a'] === (string)$user['uid'] ? $row['user_b'] : $row['user_a'];
+
+    if (!mutualInterest((string)$user['uid'], $other)) {
+        je('You can only message someone you have both matched with.', 403);
+    }
+    if (pairBlocked((string)$user['uid'], $other)) {
+        je('Messaging is unavailable with this member.', 403);
+    }
+
+    // Same spam limit as text (20/min per user).
+    perUserRateCheck((string)$user['uid'], 'messages', 'sender_id', 60, 20, 'You are sending messages quickly — please slow down and try again in a minute.');
+
+    // The profile-photo pipeline, reused verbatim: oversize guard, sniff,
+    // decode, 40MP cap, completeness, EXIF strip.
+    $bytes = photoReadUpload();
+    $mime = sniffImageMime($bytes);
+    if ($mime === null) {
+        je('Photo must be a JPEG, PNG, or WebP image.', 400);
+    }
+    if (!imageIsComplete($bytes, $mime)) {
+        je('That photo file looks damaged. Try a different photo.', 400);
+    }
+    $dims = imageSizeFromBytes($bytes);
+    if ($dims === null || $dims[0] * $dims[1] > 40_000_000) {
+        je('Photo must be under 40 megapixels.', 400);
+    }
+    if ($mime === 'image/jpeg') {
+        $bytes = stripJpegExif($bytes);
+    }
+    $ext = $mime === 'image/jpeg' ? 'jpg' : ($mime === 'image/png' ? 'png' : 'webp');
+    $dir = rtrim(photoBaseDir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'messages'
+        . DIRECTORY_SEPARATOR . $id;
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+        je('Could not save the photo. Try again.', 500);
+    }
+    $stored = $dir . DIRECTORY_SEPARATOR . uuid() . '.' . $ext;
+    if (@file_put_contents($stored, $bytes) === false) {
+        je('Could not save the photo. Try again.', 500);
+    }
+
+    $msgId = uuid();
+    $disappearing = (int)($row['disappearing_after'] ?? 0);
+    $expiresAt = $disappearing > 0 ? date('Y-m-d H:i:s', time() + $disappearing) : null;
+    try {
+        $stmt = db()->prepare('INSERT INTO messages (id, conversation_id, sender_id, body, attachment_path, attachment_type, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$msgId, $id, $user['uid'], encAtRest(''), $stored, 'image', $expiresAt]);
+    } catch (Throwable $e) {
+        // The attachment columns do not exist yet — do not store an image
+        // message the thread could never render; fail cleanly instead.
+        @unlink($stored);
+        error_log('[api] image message insert failed: ' . substr($e->getMessage(), 0, 120));
+        je('Image messages are not available yet. Try again shortly.', 503);
+    }
+
+    try {
+        $nm = db()->prepare('SELECT display_name FROM profiles WHERE user_id = ? LIMIT 1');
+        $nm->execute([(string)$user['uid']]);
+        $senderName = $nm->fetch()['display_name'] ?? 'Someone';
+        notifyUser($other, 'message', 'New message from ' . $senderName, 'Sent a photo', $id);
+    } catch (Throwable $e) { /* notification is best-effort */ }
+
+    touchLastActive((string)$user['uid']);
+
+    $fetch = db()->prepare('SELECT id, created_at FROM messages WHERE id = ? LIMIT 1');
+    $fetch->execute([$msgId]);
+    $saved = $fetch->fetch();
+
+    json([
+        'id' => $saved['id'],
+        'senderId' => 'me',
+        'text' => '',
+        'type' => 'image',
+        'image' => '/api/messages/' . $id . '/image/' . $msgId,
+        'timestamp' => $saved['created_at'],
+    ], 201);
+}
+
+// GET /api/messages/:id/image/:msgId — serve one image, participants only.
+// Membership + block are re-checked on every request, and the path is
+// re-validated against the photo root, so a shared link dies the moment
+// the conversation is blocked or the message expires.
+function messageImageServe(string $id, string $msgId): void
+{
+    $user = requireAuthUser();
+    $conv = db()->prepare('SELECT * FROM conversations WHERE id = ? LIMIT 1');
+    $conv->execute([$id]);
+    $row = $conv->fetch();
+    if (!$row) {
+        je('Not found.', 404);
+    }
+    if ($row['user_a'] !== (string)$user['uid'] && $row['user_b'] !== (string)$user['uid']) {
+        je('Not found.', 404);
+    }
+    $other = $row['user_a'] === (string)$user['uid'] ? $row['user_b'] : $row['user_a'];
+    if (pairBlocked((string)$user['uid'], $other)) {
+        je('Not found.', 404);
+    }
+
+    try {
+        $mStmt = db()->prepare('SELECT attachment_path, attachment_type FROM messages WHERE id = ? AND conversation_id = ? LIMIT 1');
+        $mStmt->execute([$msgId, $id]);
+        $msg = $mStmt->fetch();
+    } catch (Throwable $e) {
+        je('Not found.', 404);
+    }
+    if (!$msg || ($msg['attachment_type'] ?? null) !== 'image' || (string)($msg['attachment_path'] ?? '') === '') {
+        je('Not found.', 404);
+    }
+
+    $base = realpath(photoBaseDir()) ?: photoBaseDir();
+    $real = realpath((string)$msg['attachment_path']) ?: '';
+    if ($real === '' || strncmp($real, $base, strlen($base)) !== 0) {
+        je('Image unavailable.', 404);
+    }
+    $mime = class_exists('finfo')
+        ? ((new finfo(FILEINFO_MIME_TYPE))->file($real) ?: 'application/octet-stream')
+        : (sniffImageMime((string)@file_get_contents($real)) ?: 'application/octet-stream');
+    $size = filesize($real);
+
+    header('Content-Type: ' . $mime);
+    header('Content-Length: ' . $size);
+    header('Cache-Control: private, no-store, max-age=0');
+    header('X-Content-Type-Options: nosniff');
+    header('Content-Disposition: inline');
+    readfile($real);
+    exit;
 }
 
 // POST /api/messages/:id/disappearing { seconds: 0|86400|604800 } — either

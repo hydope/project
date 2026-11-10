@@ -183,7 +183,7 @@ function userCompleteness(): void
     $u = $uRow->fetch();
     if (!$u) { json(['error' => 'User not found'], 404); }
 
-    $pRow = db()->prepare('SELECT city, country, bio, about_family, photo_url FROM profiles WHERE user_id = ? LIMIT 1');
+    $pRow = db()->prepare('SELECT city, country, bio, about_family, photo_url, education_field, education_institution, employer, residency_status, build, hobbies, convert_status, pref_age_min, pref_age_max, pref_height_min_cm, pref_height_max_cm, pref_education, pref_location, pref_must_haves FROM profiles WHERE user_id = ? LIMIT 1');
     $pRow->execute([$uid]);
     $p = $pRow->fetch() ?: [];
 
@@ -192,9 +192,31 @@ function userCompleteness(): void
     if (empty($p['city']) || empty($p['country'])) $missing[] = 'location';
     if (empty($p['bio']) && empty($p['about_family'])) $missing[] = 'bio';
     if (empty($p['photo_url'])) $missing[] = 'photo';
+    // Depth (2026-11-10): at least 3 of the 7 new detail fields filled.
+    $depthFilled = count(array_filter([
+        trim((string)($p['education_field'] ?? '')),
+        trim((string)($p['education_institution'] ?? '')),
+        trim((string)($p['employer'] ?? '')),
+        trim((string)($p['residency_status'] ?? '')),
+        trim((string)($p['build'] ?? '')),
+        trim((string)($p['hobbies'] ?? '')),
+        trim((string)($p['convert_status'] ?? '')),
+    ]));
+    if ($depthFilled < 3) $missing[] = 'depth';
+    // Preferences: any of the 7 partner-preference fields set.
+    $prefsSet = ($p['pref_age_min'] ?? null) !== null
+        || ($p['pref_age_max'] ?? null) !== null
+        || ($p['pref_height_min_cm'] ?? null) !== null
+        || ($p['pref_height_max_cm'] ?? null) !== null
+        || trim((string)($p['pref_education'] ?? '')) !== ''
+        || trim((string)($p['pref_location'] ?? '')) !== ''
+        || trim((string)($p['pref_must_haves'] ?? '')) !== '';
+    if (!$prefsSet) $missing[] = 'preferences';
 
-    // Weights: email 25, location 30, bio 30, photo 15.
-    $weights = ['email' => 25, 'location' => 30, 'bio' => 30, 'photo' => 15];
+    // Weights (2026-11-10): email 20, location 20, bio 20, photo 10, depth
+    // 15, preferences 15 = 100. The old weights were email 25 / location
+    // 30 / bio 30 / photo 15 — the Dashboard banner comment still said so.
+    $weights = ['email' => 20, 'location' => 20, 'bio' => 20, 'photo' => 10, 'depth' => 15, 'preferences' => 15];
     $pct = 100;
     foreach ($missing as $m) $pct -= $weights[$m];
 
@@ -203,6 +225,8 @@ function userCompleteness(): void
     elseif (in_array('location', $missing, true)) $next = 'location';
     elseif (in_array('bio', $missing, true)) $next = 'bio';
     elseif (in_array('photo', $missing, true)) $next = 'photo';
+    elseif (in_array('depth', $missing, true)) $next = 'depth';
+    elseif (in_array('preferences', $missing, true)) $next = 'preferences';
 
     json([
         'ok' => true,

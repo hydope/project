@@ -17,10 +17,43 @@ import { apiUrl, http } from '../lib/api/transport';
 import SampleProfileBadge from '../components/SampleProfileBadge';
 import { whatsappShareUrl, copyProfileLink } from '../lib/shareProfile';
 import { cmToFeetInches } from '../lib/height';
+import { useAuthedImage } from '../lib/api/useAuthedImage';
+
+// Last active (2026-11-10): honest buckets only — never an exact timestamp.
+// A profile last seen over a week ago reads differently (muted) so a dead
+// profile never looks as live as one active today.
+const LAST_ACTIVE_LABELS = {
+  today: 'Active today',
+  'this week': 'Active this week',
+  'over a week ago': 'Active over a week ago',
+};
 
 // No stock/placeholder photo is injected into the gallery. A member who hides
 // their photos gets an honest "photos are private" state, never someone else's
 // face standing in for theirs.
+
+// Profile video (2026-11-10): the <video> element cannot send the bearer
+// token, so the bytes are fetched through useAuthedImage (same as photos)
+// and handed to the player as a blob URL. The server re-checks the photo
+// tier on every request, so a video that stops being visible also stops
+// playing.
+function ProfileVideo({ src, name }) {
+  const { url, loading } = useAuthedImage(src);
+  if (loading && !url) return null;
+  if (!url) return null;
+  return (
+    <div className="p-5 rounded-2xl" style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)' }}>
+      <h2 className="text-base font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--color-ink)' }}>
+        <Sparkles className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> Video introduction
+      </h2>
+      <video src={url} controls playsInline preload="metadata"
+        className="w-full max-w-sm rounded-xl bg-black"
+        style={{ border: '1px solid var(--color-border)' }}
+        aria-label={`Video introduction from ${name || 'this member'}`} />
+    </div>
+  );
+}
+
 export default function Profile() {
   const { id } = useParams();
   const [profile, setProfile] = useState(null);
@@ -423,14 +456,56 @@ export default function Profile() {
                   { label: 'Relocation', value: profile.relocation },
                   { label: 'Family involvement', value: profile.familyInvolvement },
                   { label: 'Children plans', value: profile.childrenPlans },
+                  // Profile depth (2026-11-10): education detail, employer,
+                  // residency, build, hobbies, convert status — only rows
+                  // with a value render. Last active is a fact, not a detail:
+                  // 'over a week ago' renders muted so a dead profile looks
+                  // different from a live one.
+                  { label: 'Field of study', value: profile.educationField },
+                  { label: 'Institution', value: profile.educationInstitution },
+                  { label: 'Employer', value: profile.employer },
+                  { label: 'Residency status', value: profile.residencyStatus },
+                  { label: 'Build', value: profile.build },
+                  { label: 'Hobbies', value: profile.hobbies },
+                  { label: 'Muslim background', value: profile.convertStatus },
+                  { label: 'Last active', value: LAST_ACTIVE_LABELS[profile.lastActive] || null, muted: profile.lastActive === 'over a week ago' },
                 ].filter(item => item.value).map(item => (
                   <div key={item.label} className="p-3 rounded-xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
                     <p className="text-[11px] uppercase tracking-wider font-bold mb-0.5" style={{ color: 'var(--color-ink-faint)' }}>{item.label}</p>
-                    <p className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>{item.value}</p>
+                    <p className="text-sm font-medium" style={{ color: item.muted ? 'var(--color-ink-faint)' : 'var(--color-ink)' }}>{item.value}</p>
                   </div>
                 ))}
               </div>
             </div>
+
+            {/* Partner preferences (2026-11-10): what this member is looking
+                for, in their own words — only when any of it is set. */}
+            {(profile.prefAgeMin != null || profile.prefAgeMax != null || profile.prefHeightMinCm != null || profile.prefHeightMaxCm != null || profile.prefEducation || profile.prefLocation || profile.prefMustHaves) && (
+              <div className="p-5 rounded-2xl" style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)' }}>
+                <h2 className="text-base font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--color-ink)' }}>
+                  <HeartHandshake className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> What they are looking for
+                </h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {[
+                    { label: 'Age range', value: (profile.prefAgeMin != null || profile.prefAgeMax != null) ? `${profile.prefAgeMin ?? '—'} – ${profile.prefAgeMax ?? '—'}` : null },
+                    { label: 'Height range', value: (profile.prefHeightMinCm != null || profile.prefHeightMaxCm != null) ? `${profile.prefHeightMinCm != null ? cmToFeetInches(profile.prefHeightMinCm) : '—'} – ${profile.prefHeightMaxCm != null ? cmToFeetInches(profile.prefHeightMaxCm) : '—'}` : null },
+                    { label: 'Education', value: profile.prefEducation },
+                    { label: 'Location', value: profile.prefLocation },
+                    { label: 'Must-haves', value: profile.prefMustHaves },
+                  ].filter(item => item.value).map(item => (
+                    <div key={item.label} className="p-3 rounded-xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                      <p className="text-[11px] uppercase tracking-wider font-bold mb-0.5" style={{ color: 'var(--color-ink-faint)' }}>{item.label}</p>
+                      <p className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Profile video (2026-11-10): a short introduction, served
+                through the same tier gate as the photo — profile.video is
+                null unless the viewer is entitled to watch it. */}
+            {profile.video && <ProfileVideo src={profile.video} name={profile.displayName} />}
 
             {profile.lookingFor && (
               <div className="p-5 rounded-2xl" style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)' }}>

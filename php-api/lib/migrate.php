@@ -76,6 +76,7 @@ function migrateSchema(): void
     migrateAddReportAppealColumns();
     migrateAddMessageSenderIndex();
     migrateRepairSeededPhotoPaths();
+    migrateAddProfileDepthColumns();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -513,6 +514,88 @@ function migrateAddContactColumns(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (contact columns) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Profile depth (2026-11-10, Builder 3): the audit's Layer 2 gaps — fields
+ * the product never collected, so profiles stayed thin and filters could not
+ * use them. Education detail (field + institution), employer, residency/visa
+ * status, build, hobbies, convert status, structured partner preferences,
+ * one profile video, last-active tracking on users, and image attachments
+ * on messages. All columns are also declared in db/schema.sql — the
+ * migration marker is keyed on its digest, so a function alone would never
+ * run on production.
+ */
+function migrateAddProfileDepthColumns(): void
+{
+    $profileAdditions = [
+        'education_field'       => 'VARCHAR(120) DEFAULT NULL',
+        'education_institution' => 'VARCHAR(160) DEFAULT NULL',
+        'employer'              => 'VARCHAR(160) DEFAULT NULL',
+        'residency_status'      => 'VARCHAR(60) DEFAULT NULL',
+        'build'                 => 'VARCHAR(40) DEFAULT NULL',
+        'hobbies'               => 'VARCHAR(500) DEFAULT NULL',
+        'convert_status'        => 'VARCHAR(40) DEFAULT NULL',
+        'pref_age_min'          => 'INT DEFAULT NULL',
+        'pref_age_max'          => 'INT DEFAULT NULL',
+        'pref_height_min_cm'    => 'INT DEFAULT NULL',
+        'pref_height_max_cm'    => 'INT DEFAULT NULL',
+        'pref_education'        => 'VARCHAR(80) DEFAULT NULL',
+        'pref_location'         => 'VARCHAR(120) DEFAULT NULL',
+        'pref_must_haves'       => 'TEXT DEFAULT NULL',
+        'video_url'             => 'VARCHAR(500) DEFAULT NULL',
+    ];
+    try {
+        $existing = [];
+        foreach (db()->query('SHOW COLUMNS FROM profiles')->fetchAll() as $c) {
+            $existing[strtolower((string)$c['Field'])] = true;
+        }
+        foreach ($profileAdditions as $col => $def) {
+            if (isset($existing[$col])) continue;
+            try {
+                db()->exec("ALTER TABLE profiles ADD COLUMN `$col` $def");
+                error_log("[api] migration: added profiles.$col");
+            } catch (Throwable $e) {
+                error_log("[api] migration: could not add profiles.$col — " . substr($e->getMessage(), 0, 120));
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (profile depth columns) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+
+    // Last-active tracking: updated on login + profile/chat writes (never a
+    // per-request write — see touchLastActive in lib/db.php). NULL = never
+    // recorded; the UI shows nothing rather than claiming inactivity.
+    try {
+        $cols = db()->query("SHOW COLUMNS FROM users LIKE 'last_active_at'")->fetchAll();
+        if (!$cols) {
+            db()->exec('ALTER TABLE users ADD COLUMN last_active_at DATETIME DEFAULT NULL');
+            error_log('[api] migration: added users.last_active_at');
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (last_active_at) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+
+    // Chat image attachments: the file path lives here, the bytes under the
+    // shared photo root (photoBaseDir()/messages/). body stays the encrypted
+    // text (empty for image-only messages).
+    try {
+        $existing = [];
+        foreach (db()->query('SHOW COLUMNS FROM messages')->fetchAll() as $c) {
+            $existing[strtolower((string)$c['Field'])] = true;
+        }
+        foreach (['attachment_path' => 'VARCHAR(500) DEFAULT NULL', 'attachment_type' => 'VARCHAR(20) DEFAULT NULL'] as $col => $def) {
+            if (isset($existing[$col])) continue;
+            try {
+                db()->exec("ALTER TABLE messages ADD COLUMN `$col` $def");
+                error_log("[api] migration: added messages.$col");
+            } catch (Throwable $e) {
+                error_log("[api] migration: could not add messages.$col — " . substr($e->getMessage(), 0, 120));
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (message attachment columns) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }
 

@@ -231,6 +231,14 @@ jobs:
         run: |
           echo "--- API health ---"
           sleep 8
+          # Warm-up (2026-11-10): the FIRST API hit after a deploy runs every
+          # new migration, which can take longer than the health check's 40s
+          # cap — run 42760923699 went red for exactly that reason, with all
+          # upload steps green and the code live. This hit absorbs the
+          # migration cost with a generous cap; its failure is swallowed
+          # because the health check below is the real gate, and a cold
+          # failure here must not mask a warm failure there.
+          curl -sk --max-time 180 -o /dev/null https://shiarishta.com/api/health || echo "warm-up hit did not complete cleanly; the health check below is the real gate"
           curl -sk --max-time 40 https://shiarishta.com/api/health; echo
           echo "--- Frontend ---"
           curl -sk --max-time 40 -o /dev/null -w "frontend HTTP %{http_code}\n" https://shiarishta.com/

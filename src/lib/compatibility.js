@@ -29,19 +29,39 @@ const TIMELINE_BUCKETS = [
 function timelineBucket(text) {
   if (!text) return null;
   const t = text.toLowerCase();
+  // Stored timeline codes (2026-11-10): the wizard saves 'now'/'6m'/'1y'/
+  // '2y'/'exploring', not the labels the word buckets below were written
+  // for. 'now' and 'exploring' match words already; '6m', '1y' and '2y'
+  // never did, so every coded timeline scored a flat 60. The PHP side
+  // carries the same map — the two must stay identical or the card badge
+  // and the server ranking disagree.
+  const CODES = { now: 0, '6m': 1, '1y': 2, '2y': 2, exploring: 3 };
+  if (CODES[t] !== undefined) return CODES[t];
   for (const { words, bucket } of TIMELINE_BUCKETS) {
     if (words.some(w => t.includes(w))) return bucket;
   }
   return null;
 }
 
+// Normalize a language value to a list: the onboarding draft keeps an
+// array, the API payload carries a comma-joined string. The old
+// languageOverlap() returned a flat 0.5 for any string input, so shared
+// languages never moved the score for real profiles — the reasons section
+// below already normalizes properly, this just does the same up front.
+function toLangList(v) {
+  return (Array.isArray(v)
+    ? v.filter((x) => typeof x === 'string' && x.trim())
+    : String(v || '').split(',').map((s) => s.trim()).filter(Boolean));
+}
+
 // Language overlap ratio (0–1)
 function languageOverlap(mine, theirs) {
-  if (!Array.isArray(mine) || !Array.isArray(theirs)) return 0.5;
-  const set = new Set(mine.map(l => l.toLowerCase()));
+  const myList = toLangList(mine);
+  const theirList = toLangList(theirs);
+  const set = new Set(myList.map(l => l.toLowerCase()));
   if (set.size === 0) return 0.5;
-  const shared = theirs.filter(l => set.has(l.toLowerCase())).length;
-  return shared / Math.min(set.size, theirs.length || 1);
+  const shared = theirList.filter(l => set.has(l.toLowerCase())).length;
+  return shared / Math.min(set.size, theirList.length || 1);
 }
 
 /**
@@ -86,7 +106,10 @@ export function computeCompatibility(profile, me = getMyProfile()) {
     const gap = Math.abs(myR - theirR); // 0–4
     faith = Math.round(faith * 0.6 + (1 - gap / 4) * 100 * 0.4);
   }
-  if (me?.marja && profile.marja && me.marja === profile.marja) faith = Math.min(100, faith + 4);
+  // Marja' is deliberately NOT scored (2026-11-10): it is owner-only in
+  // every payload, so a candidate's marja is never visible here. The PHP
+  // side skips it too — awarding it on either side would make the card
+  // badge disagree with the server ranking.
 
   // ── Shared values (languages, family involvement, children views) ────
   const langRatio = languageOverlap(me?.languages, profile.languages);
@@ -106,14 +129,18 @@ export function computeCompatibility(profile, me = getMyProfile()) {
   lifestyle = Math.max(25, Math.min(100, lifestyle));
 
   // ── Timeline compatibility ───────────────────────────────────────────
+  // The candidate's timeline lives in `timeline`; `intentions` is a
+  // mock-data field real profiles never carry. Read the fallback so the
+  // score uses the real answer — the PHP side reads the same fallback.
+  const theirIntentions = profile.intentions || profile.timeline;
   const myT = timelineBucket(me?.timeline);
-  const theirT = timelineBucket(profile.intentions);
+  const theirT = timelineBucket(theirIntentions);
   let timeline = 60;
   if (myT !== null && theirT !== null) {
     const gap = Math.abs(myT - theirT); // 0–3
     timeline = Math.round(96 - gap * 22);
   }
-  if (/immediate|now|ready/i.test(profile.intentions || '')) timeline += 2;
+  if (/immediate|now|ready/i.test(theirIntentions || '')) timeline += 2;
   timeline = Math.max(25, Math.min(100, timeline));
 
   const overall = Math.round(faith * 0.34 + values * 0.24 + lifestyle * 0.22 + timeline * 0.20
@@ -127,10 +154,8 @@ export function computeCompatibility(profile, me = getMyProfile()) {
   // VARCHAR(255) — "Urdu, English, Arabic"), but the onboarding draft keeps it
   // as an array. `(profile.languages || [])` therefore handed a string to
   // .filter() and threw "languages.filter is not a function", crashing the whole
-  // profile page. Normalise both sides through one helper.
-  const toLangList = (v) => (Array.isArray(v)
-    ? v.filter((x) => typeof x === 'string' && x.trim())
-    : String(v || '').split(',').map((s) => s.trim()).filter(Boolean));
+  // profile page. Normalise both sides through one helper (module-level
+  // toLangList — the same one languageOverlap uses).
   const myLangs = toLangList(me?.languages).map((x) => x.toLowerCase());
   const sharedLangs = toLangList(profile.languages).filter((l) => myLangs.includes(l.toLowerCase()));
   if (sharedLangs.length) reasons.push(`Shares ${sharedLangs.join(' & ')}`);

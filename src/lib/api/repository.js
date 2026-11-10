@@ -93,6 +93,18 @@ export const profilesRepo = {
     if (!useRemote) throw new Error('Photo upload needs the live platform.');
     return http.del('/api/profiles/me/photo');
   },
+  // Profile video (2026-11-10): same rules as the photo — server only, no
+  // local-storage fallback, for the same reason.
+  async uploadVideo(file) {
+    if (!useRemote) throw new Error('Video upload needs the live platform.');
+    const fd = new FormData();
+    fd.append('video', file, file.name || 'video.mp4');
+    return http.upload('/api/profiles/me/video', fd);
+  },
+  async deleteVideo() {
+    if (!useRemote) throw new Error('Video upload needs the live platform.');
+    return http.del('/api/profiles/me/video');
+  },
 };
 
 export const messagesRepo = {
@@ -129,6 +141,15 @@ export const messagesRepo = {
     const msg = { id: uid(), senderId: 'me', text, timestamp: new Date().toISOString() };
     write('msg', { ...all, [cid]: [...(all[cid] ?? []), msg] });
     return msg;
+  },
+  // Chat image (2026-11-10): same photo validation pipeline server-side,
+  // same gates as a text message. Server only — an image in demo mode
+  // would be a data URL pretending to be a member's real photo.
+  async sendImage(cid, file) {
+    if (!useRemote) throw new Error('Image messages need the live platform.');
+    const fd = new FormData();
+    fd.append('photo', file, file.name || 'photo.jpg');
+    return http.upload(`/api/messages/${encodeURIComponent(cid)}/image`, fd);
   },
 };
 

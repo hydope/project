@@ -284,6 +284,35 @@ function viewerIsEmailVerified(?array $viewer): bool
     return $cache[$uid];
 }
 
+// Last-active tracking (2026-11-10): updated on login + profile/chat
+// writes only — never a per-request write, or every browse would be a write
+// storm on shared hosting. Best-effort: a failure here must never fail the
+// request it rides on (the column may not exist on an unmigrated database).
+function touchLastActive(string $uid): void
+{
+    if ($uid === '') return;
+    try {
+        db()->prepare('UPDATE users SET last_active_at = UTC_TIMESTAMP() WHERE id = ?')->execute([$uid]);
+    } catch (Throwable) {
+        // Observability only.
+    }
+}
+
+// Honest activity bucket — never an exact timestamp, never fake precision.
+// NULL (never recorded) returns null so the UI shows nothing rather than
+// claiming a member is inactive.
+function lastActiveLabel($ts): ?string
+{
+    if ($ts === null || $ts === '') return null;
+    $t = strtotime((string)$ts);
+    if ($t === false) return null;
+    $age = time() - $t;
+    if ($age < 0) $age = 0; // clock skew — never claim the future
+    if ($age < 86400) return 'today';
+    if ($age < 7 * 86400) return 'this week';
+    return 'over a week ago';
+}
+
 // Hide-any-field (2026-11-09): profiles.hidden_fields holds a JSON array of
 // payload keys the member wants hidden from other viewers. DISPLAY-ONLY —
 // the stored values stay in the row, so server-side matching and browse
@@ -436,11 +465,39 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'familyInvolvement' => $row['family_involvement'] ?? null,
             'heightCm' => isset($row['height_cm']) && $row['height_cm'] !== null ? (int)$row['height_cm'] : null,
             'timeline' => $row['timeline'] ?? null,
+            // Profile depth (2026-11-10): education detail, employer,
+            // residency, build, hobbies, convert status, partner
+            // preferences. Display-only hiding via hidden_fields applies
+            // in applyHiddenFields() below — the stored values stay usable
+            // for matching and filters.
+            'educationField' => $row['education_field'] ?? null,
+            'educationInstitution' => $row['education_institution'] ?? null,
+            'employer' => $row['employer'] ?? null,
+            'residencyStatus' => $row['residency_status'] ?? null,
+            'build' => $row['build'] ?? null,
+            'hobbies' => $row['hobbies'] ?? null,
+            'convertStatus' => $row['convert_status'] ?? null,
+            'prefAgeMin' => isset($row['pref_age_min']) && $row['pref_age_min'] !== null ? (int)$row['pref_age_min'] : null,
+            'prefAgeMax' => isset($row['pref_age_max']) && $row['pref_age_max'] !== null ? (int)$row['pref_age_max'] : null,
+            'prefHeightMinCm' => isset($row['pref_height_min_cm']) && $row['pref_height_min_cm'] !== null ? (int)$row['pref_height_min_cm'] : null,
+            'prefHeightMaxCm' => isset($row['pref_height_max_cm']) && $row['pref_height_max_cm'] !== null ? (int)$row['pref_height_max_cm'] : null,
+            'prefEducation' => $row['pref_education'] ?? null,
+            'prefLocation' => $row['pref_location'] ?? null,
+            'prefMustHaves' => $row['pref_must_haves'] ?? null,
+            // Last active (2026-11-10): 'today' / 'this week' / 'over a week
+            // ago' / null (never recorded — shown as nothing).
+            'lastActive' => lastActiveLabel($row['last_active_at'] ?? null),
             'photosVisibility' => $tier,
             'photosLocked' => $photosLocked,
             'photo' => ($photosLocked || (string)($row['photo_url'] ?? '') === '')
                 ? null
                 : '/api/profiles/' . $ownerId . '/photo',
+            // Profile video (2026-11-10): same tier gating as the photo —
+            // the same $photosLocked decides it, so a video URL is never
+            // handed out to a viewer who would 404 on it.
+            'video' => ($photosLocked || (string)($row['video_url'] ?? '') === '')
+                ? null
+                : '/api/profiles/' . $ownerId . '/video',
         ], $row, $isOwner);
     }
 
@@ -517,6 +574,23 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'familyInvolvement' => $row['family_involvement'] ?? null,
             'heightCm' => isset($row['height_cm']) && $row['height_cm'] !== null ? (int)$row['height_cm'] : null,
             'timeline' => $row['timeline'] ?? null,
+            // Profile depth (2026-11-10): see the anonymous branch — the
+            // same keys, so the two payloads never drift apart.
+            'educationField' => $row['education_field'] ?? null,
+            'educationInstitution' => $row['education_institution'] ?? null,
+            'employer' => $row['employer'] ?? null,
+            'residencyStatus' => $row['residency_status'] ?? null,
+            'build' => $row['build'] ?? null,
+            'hobbies' => $row['hobbies'] ?? null,
+            'convertStatus' => $row['convert_status'] ?? null,
+            'prefAgeMin' => isset($row['pref_age_min']) && $row['pref_age_min'] !== null ? (int)$row['pref_age_min'] : null,
+            'prefAgeMax' => isset($row['pref_age_max']) && $row['pref_age_max'] !== null ? (int)$row['pref_age_max'] : null,
+            'prefHeightMinCm' => isset($row['pref_height_min_cm']) && $row['pref_height_min_cm'] !== null ? (int)$row['pref_height_min_cm'] : null,
+            'prefHeightMaxCm' => isset($row['pref_height_max_cm']) && $row['pref_height_max_cm'] !== null ? (int)$row['pref_height_max_cm'] : null,
+            'prefEducation' => $row['pref_education'] ?? null,
+            'prefLocation' => $row['pref_location'] ?? null,
+            'prefMustHaves' => $row['pref_must_haves'] ?? null,
+            'lastActive' => lastActiveLabel($row['last_active_at'] ?? null),
             // MUST be sent: the client renders its "photos are private" state
             // from this. Omitting it left the lock overlay permanently hidden,
             // so a member who hid their photos still looked fully visible.
@@ -528,6 +602,10 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'photo' => ($photosLocked || (string)($row['photo_url'] ?? '') === '')
                 ? null
                 : '/api/profiles/' . $ownerId . '/photo',
+            // Profile video (2026-11-10): same tier gating as the photo.
+            'video' => ($photosLocked || (string)($row['video_url'] ?? '') === '')
+                ? null
+                : '/api/profiles/' . $ownerId . '/video',
             // Owner-only settings (2026-11-09): the member's own privacy
             // toggles and contact phone, so Settings can load and save them.
             // Never sent to another viewer.

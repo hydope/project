@@ -145,6 +145,27 @@ export const EDUCATION_OPTIONS = [
   'Vocational / Trade'
 ];
 
+export const BUILD_OPTIONS = ['Slim', 'Athletic', 'Average build', 'Heavyset', 'Prefer not to say'];
+
+export const RESIDENCY_OPTIONS = [
+  'Citizen', 'Permanent resident', 'Work visa', 'Student visa', 'Other visa', 'Prefer not to say',
+];
+
+// Convert status (2026-11-10): respectful wording, never a label that
+// singles anyone out — 'Revert to Islam' is the term reverts themselves use.
+export const CONVERT_OPTIONS = ['Born Muslim', 'Revert to Islam', 'Prefer not to say'];
+
+export const HOBBIES = [
+  'Reading', 'Cooking', 'Travel', 'Hiking', 'Cricket', 'Football',
+  'Gym & fitness', 'Gardening', 'Photography', 'Calligraphy',
+  'Volunteering', 'Quran study', 'Islamic lectures', 'Gaming', 'Fishing', 'Art & design',
+];
+
+// Partner preferences (2026-11-10): structured, stored on the profile and
+// editable in Settings. These are the viewer's own criteria — they power
+// the match sort, they are never browse filters on other people.
+export const PREF_EDUCATION_OPTIONS = ['Any', ...EDUCATION_OPTIONS];
+
 export const LANGUAGES = [
   'English', 'Arabic', 'Urdu', 'Hindi', 'Farsi / Persian', 'Turkish',
   'Bengali', 'Punjabi', 'Gujarati', 'Swahili', 'French', 'German',
@@ -196,7 +217,13 @@ const SCORED_FIELDS = [
   'educationLevel', 'profession',
   'timeline', 'relocation', 'familyInvolvement',
   'photoAccess', 'profileVisibility', 'managementMode',
-  'bio', 'lookingFor'
+  'bio', 'lookingFor',
+  // Profile depth (2026-11-10): the new detail fields and partner
+  // preferences count toward completeness alongside the old ones.
+  'educationField', 'educationInstitution', 'employer', 'residencyStatus',
+  'build', 'hobbies', 'convertStatus',
+  'prefAgeMin', 'prefAgeMax', 'prefHeightMinCm', 'prefHeightMaxCm',
+  'prefEducation', 'prefLocation', 'prefMustHaves',
 ];
 
 export function computeProfileCompleteness(data = {}) {

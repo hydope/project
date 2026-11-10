@@ -32,6 +32,14 @@ class CompatibilityService
     {
         if (!$text) return null;
         $t = strtolower((string)$text);
+        // Stored timeline codes (2026-11-10): the wizard saves 'now'/'6m'/
+        // '1y'/'2y'/'exploring', not the labels the word buckets below were
+        // written for. 'now' and 'exploring' match words already; '6m',
+        // '1y' and '2y' never did, so every coded timeline scored a flat 60.
+        // The JS side carries the same map — the two must stay identical or
+        // the card badge and the server ranking disagree.
+        $codes = ['now' => 0, '6m' => 1, '1y' => 2, '2y' => 2, 'exploring' => 3];
+        if (isset($codes[$t])) return $codes[$t];
         $buckets = [
             [['immediate', 'now'], 0],
             [['6 month', '6-12', '6–12', 'near term'], 1],
@@ -55,7 +63,11 @@ class CompatibilityService
         $theirLangs = array_map('strtolower', $toList($theirs));
         if (!$myLangs) return 0.5;
         $shared = count(array_intersect($myLangs, $theirLangs));
-        return $shared / max(count($myLangs), 1);
+        // Denominator is the SMALLER side (2026-11-10 parity fix): the JS
+        // divides by min(mine, theirs) — a member who speaks 2 languages
+        // and shares both with a 5-language member is a full overlap, not
+        // 2/5. The old PHP divided by mine alone and disagreed with the card.
+        return $shared / max(min(count($myLangs), count($theirLangs)), 1);
     }
 
     /**
@@ -81,9 +93,12 @@ class CompatibilityService
             $gap = abs($myR - $theirR);
             $faith = (int)round($faith * 0.6 + (1 - $gap / 4) * 100 * 0.4);
         }
-        if (!empty($me['marja']) && !empty($profile['marja']) && $me['marja'] === $profile['marja']) {
-            $faith = min(100, $faith + 4);
-        }
+        // Marja' is deliberately NOT scored here (2026-11-10): it is
+        // owner-only in every payload, so the client-side scorer never sees
+        // a candidate's marja and never awards the +4. Awarding it here
+        // would make the server ranking disagree with the % on the card by
+        // up to ~1.4 points — the exact trade-off Syed accepted when he
+        // chose to keep marja fully hidden.
 
         // ── Values ──
         $langRatio = self::languageOverlap($me['languages'] ?? null, $profile['languages'] ?? null);
@@ -91,6 +106,11 @@ class CompatibilityService
         if (($me['familyInvolvement'] ?? $me['family_involvement'] ?? null) === 'wali-required'
             || preg_match('/wali|family guided|family-first/i', (string)($profile['halalLifestyle'] ?? ''))) {
             $values += 8;
+        }
+        if (!empty($me['childrenPlans'] ?? $me['children_plans'] ?? null)
+            && !empty($profile['children'])
+            && preg_match('/no children/i', (string)$profile['children'])) {
+            $values += 4;
         }
         $values = max(20, min(100, $values));
 
@@ -104,12 +124,18 @@ class CompatibilityService
         $lifestyle = max(25, min(100, $lifestyle));
 
         // ── Timeline ──
+        // The candidate's timeline lives in the `timeline` column; the
+        // client reads `intentions` (a mock-data field real profiles never
+        // carry) and falls back to `timeline`. Both sides read the same
+        // fallback so the numbers agree.
+        $theirIntentions = $profile['intentions'] ?? $profile['timeline'] ?? null;
         $myT = self::timelineBucket($me['timeline'] ?? null);
-        $theirT = self::timelineBucket($profile['intentions'] ?? null);
+        $theirT = self::timelineBucket($theirIntentions);
         $timeline = 60;
         if ($myT !== null && $theirT !== null) {
             $timeline = (int)round(96 - abs($myT - $theirT) * 22);
         }
+        if (preg_match('/immediate|now|ready/i', (string)$theirIntentions)) $timeline += 2;
         $timeline = max(25, min(100, $timeline));
 
         $overall = (int)round($faith * 0.34 + $values * 0.24 + $lifestyle * 0.22 + $timeline * 0.20

@@ -35,6 +35,9 @@ CREATE TABLE IF NOT EXISTS users (
   -- Date of birth (2026-11-10): the Terms require members to be 18+; the
   -- server validates age >= 18 at registration and stores the DOB here.
   date_of_birth           DATE         DEFAULT NULL,
+  -- Last active (2026-11-10): updated on login + profile/chat writes, never
+  -- per-request. NULL = never recorded; the UI shows nothing, never a claim.
+  last_active_at          DATETIME     DEFAULT NULL,
   created_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_email (email),
   KEY idx_users_role (role),
@@ -125,6 +128,25 @@ CREATE TABLE IF NOT EXISTS profiles (
   height_cm          INT          DEFAULT NULL,
   timeline           VARCHAR(80)  DEFAULT NULL,
   photo_url          VARCHAR(500) DEFAULT NULL,
+  -- Profile depth (2026-11-10): education detail, employer, residency/visa
+  -- status, build, hobbies (comma-joined like languages), convert status,
+  -- structured partner preferences, one profile video. All nullable —
+  -- nothing here is required to publish.
+  education_field       VARCHAR(120) DEFAULT NULL,
+  education_institution VARCHAR(160) DEFAULT NULL,
+  employer              VARCHAR(160) DEFAULT NULL,
+  residency_status      VARCHAR(60)  DEFAULT NULL,
+  build                 VARCHAR(40)  DEFAULT NULL,
+  hobbies               VARCHAR(500) DEFAULT NULL,
+  convert_status        VARCHAR(40)  DEFAULT NULL,
+  pref_age_min          INT          DEFAULT NULL,
+  pref_age_max          INT          DEFAULT NULL,
+  pref_height_min_cm    INT          DEFAULT NULL,
+  pref_height_max_cm    INT          DEFAULT NULL,
+  pref_education        VARCHAR(80)  DEFAULT NULL,
+  pref_location         VARCHAR(120) DEFAULT NULL,
+  pref_must_haves       TEXT         DEFAULT NULL,
+  video_url             VARCHAR(500) DEFAULT NULL,
   syed_status        VARCHAR(40)  DEFAULT NULL,
   -- Illustrative sample content, NOT a real member. Set only by the seeder in
   -- scripts/. The API passes it through as `isDemo` so the UI can label the
@@ -184,6 +206,11 @@ CREATE TABLE IF NOT EXISTS messages (
   body            TEXT     NOT NULL,
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at      DATETIME DEFAULT NULL,
+  -- Chat image attachment (2026-11-10): server-generated file path under
+  -- the shared photo root; body stays the encrypted text (empty for
+  -- image-only messages). NULL = text-only message.
+  attachment_path VARCHAR(500) DEFAULT NULL,
+  attachment_type VARCHAR(20) DEFAULT NULL,
   KEY idx_messages_conv (conversation_id, created_at),
   KEY idx_messages_expires (expires_at),
   KEY idx_messages_sender (sender_id, created_at)

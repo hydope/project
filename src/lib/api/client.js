@@ -38,11 +38,14 @@ export const api = {
   updateProfile: (id, data) => unwrap(profilesRepo.save({ ...data, id }), 'Could not save this profile.'),
   uploadPhoto: (file) => unwrap(profilesRepo.uploadPhoto(file), 'Could not upload that photo.'),
   deletePhoto: () => unwrap(profilesRepo.deletePhoto(), 'Could not remove your photo.'),
+  uploadVideo: (file) => unwrap(profilesRepo.uploadVideo(file), 'Could not upload that video.'),
+  deleteVideo: () => unwrap(profilesRepo.deleteVideo(), 'Could not remove your video.'),
 
   // ── Messages ──
   getConversations: () => unwrap(messagesRepo.conversations(), 'Could not load conversations.'),
   getMessages: (cid) => unwrap(messagesRepo.thread(cid), 'Could not load messages.'),
   sendMessage: (cid, text) => unwrap(messagesRepo.send(cid, text), 'Could not send your message.'),
+  sendImage: (cid, file) => unwrap(messagesRepo.sendImage(cid, file), 'Could not send that photo.'),
 
   // ── Matches ──
   getSuggestions: () => unwrap(matchesRepo.suggestions(), 'Could not load suggestions.'),

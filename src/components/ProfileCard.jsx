@@ -265,6 +265,15 @@ export default function ProfileCard({ profile, className = '' }) {
                 cmToFeetInches(profile.heightCm)].filter(Boolean).join(' · ')}
             </p>
           )}
+          {/* Last active (2026-11-10): honest buckets only. A profile last
+              seen over a week ago reads muted so a dead profile never looks
+              as live as one active today. Nothing renders when the server
+              never recorded activity — never claim inactivity without data. */}
+          {profile.lastActive && (
+            <p className="text-xs truncate" style={{ color: profile.lastActive === 'over a week ago' ? 'var(--color-ink-faint)' : 'var(--color-ink-secondary)' }}>
+              {profile.lastActive === 'today' ? 'Active today' : profile.lastActive === 'this week' ? 'Active this week' : 'Active over a week ago'}
+            </p>
+          )}
           {/* Labelled before anything else the card says. A sample profile is
               fully written and could otherwise read as a real person. */}
           {profile.isDemo === true && (

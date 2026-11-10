@@ -7,8 +7,9 @@ import { analytics } from '../lib/analytics';
 import { computeCompatibility } from '../lib/compatibility';
 import {
   Send, Search, ArrowLeft, MoreVertical, ShieldCheck, Sparkles, Check, X,
-  MessageCircle, UserPlus, Info, Heart, Timer
+  MessageCircle, UserPlus, Info, Heart, Timer, ImagePlus
 } from 'lucide-react';
+import { useAuthedImage } from '../lib/api/useAuthedImage';
 
 // ── Curated icebreakers — meaningful, marriage-focused conversation starters ─
 const ICEBREAKERS = [
@@ -138,6 +139,10 @@ export default function Messages() {
         sender: m.senderId === 'me' ? 'me' : 'them',
         text: m.text,
         time: timeAgo(m.timestamp),
+        // Image messages (2026-11-10): the server carries `type` + the
+        // gated `image` URL; the bubble renders it through useAuthedImage.
+        type: m.type === 'image' ? 'image' : 'text',
+        image: m.image || null,
       }));
       setMessagesByConvo((prev) => {
         const existing = prev[cid] || [];
@@ -199,6 +204,36 @@ export default function Messages() {
       // instead of blaming the connection — a wrong error message sends the
       // member debugging their wifi for a problem they cannot fix that way.
       setSendError(e?.payload?.error || e?.cause?.payload?.error || 'Could not send. Check your connection and try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Send a photo in the chat (2026-11-10): same gates as text (verified
+  // email + mutual interest, enforced server-side) and the same photo
+  // validation pipeline (byte-sniff, 5 MB, EXIF strip). Fast client checks
+  // only — the server re-validates the real bytes.
+  const sendImage = async (file) => {
+    if (!file || !activeId || sending) return;
+    if (file.size > 5_000_000) {
+      setSendError('Photo must be under 5 MB.');
+      return;
+    }
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type || '')) {
+      setSendError('Photo must be a JPEG, PNG or WebP image.');
+      return;
+    }
+    setSending(true);
+    setSendError('');
+    try {
+      const saved = await api.sendImage(activeId, file);
+      setMessagesByConvo((prev) => ({
+        ...prev,
+        [activeId]: [...(prev[activeId] || []), { id: saved.id || `m${Date.now()}`, sender: 'me', text: '', time: 'Just now', type: 'image', image: saved.image || null }],
+      }));
+      setConvos((prev) => prev.map((c) => (c.id === activeId ? { ...c, lastMessage: 'Sent a photo' } : c)));
+    } catch (e) {
+      setSendError(e?.payload?.error || e?.cause?.payload?.error || 'Could not send that photo.');
     } finally {
       setSending(false);
     }
@@ -333,7 +368,7 @@ export default function Messages() {
         <div className={`flex-1 min-w-0 flex-col ${activeId ? 'flex' : 'hidden md:flex'}`}>
           {activeConvo ? (
             <ChatPane convo={activeConvo} messages={messages} onBack={() => selectConvo(null)}
-              onSend={sendMessage} onBlock={handleBlock} messagesEndRef={messagesEndRef}
+              onSend={sendMessage} onSendImage={sendImage} onBlock={handleBlock} messagesEndRef={messagesEndRef}
               loading={threadLoading} error={threadError} sendError={sendError} sending={sending}
               disappearingAfter={disappearingByConvo[activeId] || 0}
               onSetDisappearing={async (cid, seconds) => {
@@ -534,12 +569,13 @@ function EmptyState({ hasRequests, onOpenRequests }) {
 }
 
 // ── Chat pane: header, icebreakers, composer ────────────────────────────────
-function ChatPane({ convo, messages, onBack, onSend, onBlock, messagesEndRef, loading, error, sendError, sending, disappearingAfter, onSetDisappearing }) {
+function ChatPane({ convo, messages, onBack, onSend, onSendImage, onBlock, messagesEndRef, loading, error, sendError, sending, disappearingAfter, onSetDisappearing }) {
   const [draft, setDraft] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [compat, setCompat] = useState(null);
   const [timerBusy, setTimerBusy] = useState(false);
+  const imageRef = useRef(null);
   const name = convo.participantName || 'Member';
   const firstName = name.split(' ')[0];
   const profileId = convo.participantId;
@@ -708,6 +744,12 @@ function ChatPane({ convo, messages, onBack, onSend, onBlock, messagesEndRef, lo
       {/* Composer */}
       <form onSubmit={e => { e.preventDefault(); if (draft.trim() && !sending) { onSend(draft); setDraft(''); } }}
         className="flex items-end gap-2 p-3 flex-shrink-0" style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
+        <input ref={imageRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" aria-label="Attach a photo"
+          onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onSendImage?.(f); }} />
+        <button type="button" onClick={() => imageRef.current?.click()} disabled={sending} aria-label="Send a photo"
+          className="btn btn-ghost flex-shrink-0" title="Send a photo">
+          <ImagePlus className="w-4 h-4" />
+        </button>
         <input type="text" name="composer" value={draft} onChange={e => setDraft(e.target.value)}
           placeholder={`Write a respectful message to ${name.split(' ')[0]}…`} aria-label="Message"
           maxLength={2000} autoComplete="off"
@@ -723,8 +765,34 @@ function ChatPane({ convo, messages, onBack, onSend, onBlock, messagesEndRef, lo
   );
 }
 
+// Image bubble (2026-11-10): the image is fetched with the bearer token
+// through useAuthedImage — a plain <img src> cannot send Authorization and
+// would 401, and the serve endpoint re-checks membership on every request.
+function ImageBubble({ msg }) {
+  const mine = msg.sender === 'me';
+  const { url, loading } = useAuthedImage(msg.image);
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+      <div className="max-w-[85%] sm:max-w-[75%] md:max-w-[65%]">
+        <div className={`px-1.5 py-1.5 rounded-2xl ${mine ? 'rounded-br-md bg-primary text-white' : 'rounded-bl-md'}`}
+          style={mine ? undefined : { background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-ink)' }}>
+          {url ? (
+            <img src={url} alt="Photo sent in chat" className="max-w-full max-h-72 rounded-xl object-cover" />
+          ) : (
+            <span className="text-xs px-2 py-1 inline-block">{loading ? 'Loading photo…' : 'Photo unavailable'}</span>
+          )}
+        </div>
+        <span className={`text-[10px] mt-0.5 block ${mine ? 'text-right' : ''}`} style={{ color: 'var(--color-ink-tertiary)' }}>{msg.time}</span>
+      </div>
+    </motion.div>
+  );
+}
+
 // Message bubble — distinguishes me / them / guardian / system
 function Bubble({ msg }) {
+  if (msg.type === 'image') {
+    return <ImageBubble msg={msg} />;
+  }
   if (msg.sender === 'system') {
     return (
       <motion.p initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
