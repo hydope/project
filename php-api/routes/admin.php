@@ -725,6 +725,14 @@ function adminAnalytics(): void
 // under 1.5x, or a group too small to trust, means qualitative copy only.
 function adminPhotoLift(): void
 {
+    // Roster is REAL members only: the JOIN to users is load-bearing, not a
+    // shortcut. A NOT IN (test/admin) filter is NOT enough — the interests
+    // table holds ~36 rows whose to_user_id belongs to no current user
+    // (deleted/hidden profiles whose rows predate the account-delete
+    // cascade), and a NOT IN roster silently includes those orphaned
+    // profiles and counts their phantom interests. Verified 2026-11-10 by a
+    // full sweep of all 48 real members: 0 interests sent or received by
+    // any of them, while the pre-fix endpoint reported 20 + 16.
     try {
         $rows = db()->query(
             "SELECT p.user_id,
@@ -732,7 +740,9 @@ function adminPhotoLift(): void
                     GREATEST(DATEDIFF(NOW(), p.created_at), 1) AS age_days,
                     (SELECT COUNT(*) FROM interests i WHERE i.to_user_id = p.user_id) AS interests
                FROM profiles p
-              WHERE p.user_id NOT IN (SELECT id FROM users WHERE is_test = 1 OR is_admin = 1)
+               JOIN users u ON u.id = p.user_id
+              WHERE u.is_admin = 0 AND u.is_test = 0
+                AND u.email NOT LIKE 'seeded-%@shiarishta.com'
                 AND p.is_seeded = 0
                 AND NOT (TRIM(COALESCE(p.city, '')) = '' AND TRIM(COALESCE(p.country, '')) = '' AND TRIM(COALESCE(p.bio, '')) = '' AND TRIM(COALESCE(p.about_family, '')) = '')"
         )->fetchAll();

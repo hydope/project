@@ -501,11 +501,17 @@ function stripJpegExif(string $jpeg): string
 // are most-common first; the client renders them in this order.
 function profilesFilterOptions(): void
 {
+    // Real members only: JOIN users (see adminPhotoLift — a NOT IN filter
+    // lets orphaned profiles of deleted accounts leak in). Approved
+    // matchmaker profiles have no users row, so they are admitted by their
+    // is_matchmaker marker instead — they are browsable and their values
+    // belong in the options.
     try {
         $rows = db()->query(
             "SELECT p.citizenships, p.income_range, p.height_cm FROM profiles p
+               LEFT JOIN users u ON u.id = p.user_id
               WHERE (p.is_blocked = 0 OR (p.blocked_until IS NOT NULL AND p.blocked_until <= NOW()))
-                AND p.user_id NOT IN (SELECT id FROM users WHERE is_test = 1)
+                AND (p.is_matchmaker = 1 OR (u.id IS NOT NULL AND u.is_admin = 0 AND u.is_test = 0 AND u.email NOT LIKE 'seeded-%@shiarishta.com'))
                 AND p.is_seeded = 0
                 AND NOT (TRIM(COALESCE(p.city, '')) = '' AND TRIM(COALESCE(p.country, '')) = '' AND TRIM(COALESCE(p.bio, '')) = '' AND TRIM(COALESCE(p.about_family, '')) = '')"
         )->fetchAll();
