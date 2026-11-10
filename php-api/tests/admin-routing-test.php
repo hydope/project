@@ -220,11 +220,13 @@ foreach ($GLOBALS['sql_seen'] as $s) {
 check('POST /verifications/bulk rejects an unknown verb', $rejected && !$wrote);
 
 // Single-item review must NOT be swallowed by the bulk branch.
+// The probe also fetches storage_path: on review the file is deleted
+// (retention rule — the row + decision stay, the document does not).
 route(
     'POST /verifications/:id/approve probes the single verification',
     'POST',
     ['verifications', 'abc', 'approve'],
-    'SELECT user_id, kind FROM verifications WHERE id = ? AND status = \'pending\''
+    'SELECT user_id, kind, storage_path FROM verifications WHERE id = ? AND status = \'pending\' LIMIT 1'
 );
 
 // Read routes used by the new UI.
