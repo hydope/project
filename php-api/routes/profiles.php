@@ -435,18 +435,23 @@ function videoServe(string $id): void
     if ((string)($row['visibility'] ?? 'members') === 'private' && ($viewer === null || (string)$viewer['uid'] !== (string)$row['user_id'])) {
         je('Not found.', 404);
     }
-    $tier = (string)($row['photos_visibility'] ?? 'members');
-    if ($tier === 'public') {
-        // Anyone may watch.
-    } elseif ($tier === 'private') {
-        je('Not found.', 404);
-    } elseif ($viewer === null) {
-        je('Not found.', 404);
-    } elseif ((string)$viewer['uid'] !== (string)$row['user_id']) {
+    // Owner always — the tier gate is for other viewers only. (2026-11-10:
+    // the first version checked the 'private' tier before the owner, so an
+    // owner got a 404 on their own video the moment they set the tier to
+    // private. photoServe computes $isOwner first; this does the same.)
+    $isOwner = $viewer !== null && (string)$viewer['uid'] === (string)$row['user_id'];
+    if (!$isOwner) {
+        $tier = (string)($row['photos_visibility'] ?? 'members');
+        if ($tier === 'private') {
+            je('Not found.', 404);
+        }
         if ($tier === 'members') {
+            if ($viewer === null) {
+                je('Not found.', 404);
+            }
             // Any signed-in member may watch.
-        } else { // legacy 'request' / 'match'
-            if (!mutualInterest((string)$row['user_id'], (string)$viewer['uid'])) {
+        } elseif ($tier !== 'public') { // legacy 'request' / 'match'
+            if ($viewer === null || !mutualInterest((string)$row['user_id'], (string)$viewer['uid'])) {
                 je('Not found.', 404);
             }
         }
