@@ -351,12 +351,19 @@ function sendMessageImage(string $id): void
     if ($mime === null) {
         je('Photo must be a JPEG, PNG, or WebP image.', 400);
     }
+    // Confirm it really decodes, and get the real dimensions — a polyglot
+    // (valid image header + embedded payload) passes a sniff but fails here.
+    // getimagesizefromstring is the decoder photoUpload uses; there is no
+    // imageSizeFromBytes helper anywhere in the codebase.
+    $info = @getimagesizefromstring($bytes);
+    if ($info === false || (int)$info[0] < 1 || (int)$info[1] < 1) {
+        je('That file is not a readable image.', 400);
+    }
+    if ((int)$info[0] * (int)$info[1] > 40_000_000) {
+        je('Photo resolution is too large.', 400);
+    }
     if (!imageIsComplete($bytes, $mime)) {
         je('That photo file looks damaged. Try a different photo.', 400);
-    }
-    $dims = imageSizeFromBytes($bytes);
-    if ($dims === null || $dims[0] * $dims[1] > 40_000_000) {
-        je('Photo must be under 40 megapixels.', 400);
     }
     if ($mime === 'image/jpeg') {
         $bytes = stripJpegExif($bytes);

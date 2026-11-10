@@ -338,7 +338,10 @@ function videoReadUpload(): string
         }
         return $bytes;
     }
-    $payload = readJsonBody();
+    // The JSON branch: requestJson() is the body accessor every POST handler
+    // uses (lib/db.php). There is no readJsonBody helper anywhere in the
+    // codebase — an earlier draft called one and the deploy gate caught it.
+    $payload = requestJson();
     $b64 = $payload['video'] ?? $payload['data'] ?? null;
     if (!is_string($b64) || $b64 === '') {
         je('Attach a video to upload.', 400);
@@ -419,7 +422,10 @@ function videoDelete(): void
 // private-profile visibility are re-checked on every request.
 function videoServe(string $id): void
 {
-    $viewer = optionalAuthUser();
+    // currentUser() is the nullable viewer — null for an anonymous request.
+    // (An earlier draft called optionalAuthUser(), which does not exist
+    // anywhere in the codebase; the deploy gate caught it.)
+    $viewer = currentUser();
     $stmt = db()->prepare('SELECT user_id, video_url, visibility, photos_visibility FROM profiles WHERE user_id = ? LIMIT 1');
     $stmt->execute([$id]);
     $row = $stmt->fetch();
@@ -988,7 +994,12 @@ function profilesList(): void
             if ($viewerRow !== false && !empty($viewerRow['sect'])) {
                 require_once __DIR__ . '/../lib/compatibility.php';
                 foreach ($rows as $r) {
-                    $scores[(string)$r['user_id']] = CompatibilityService::score($viewerRow, $r)['overall'];
+                    // score(candidate, viewer) — the candidate row first,
+                    // the viewer's own row second (the endpoint calls it the
+                    // same way). Swapping them scores the wrong direction:
+                    // the gender check, the diet/children/timeline reads and
+                    // the language denominator all belong to specific sides.
+                    $scores[(string)$r['user_id']] = CompatibilityService::score($r, $viewerRow)['overall'];
                 }
                 // Stable sort: score desc, original (newest-first) order on ties.
                 $idx = 0;
