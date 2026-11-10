@@ -26,7 +26,7 @@ function CommandPalette({ open, onClose, toggleTheme, isAdmin }) {
 
   const commands = useMemo(() => [
     { label: 'Go to Home', icon: Home, path: '/', section: 'Navigate' },
-    { label: 'Go to Profiles', icon: Users, path: '/profiles', section: 'Navigate' },
+    { label: 'Go to Profiles', icon: Users, path: '/profiles/', section: 'Navigate' },
     { label: 'Go to Dashboard', icon: LayoutDashboard, path: '/dashboard', section: 'Navigate' },
     { label: 'Go to Messages', icon: MessageCircle, path: '/messages', section: 'Navigate' },
     { label: 'Go to Saved Profiles', icon: Bookmark, path: '/favorites', section: 'Navigate' },
@@ -205,7 +205,7 @@ function BrandMark() {
 // ── Navigation ───────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, section: 'Overview' },
-  { path: '/profiles', label: 'Browse Profiles', icon: Users, section: 'Overview' },
+  { path: '/profiles/', label: 'Browse Profiles', icon: Users, section: 'Overview' },
   { path: '/biodata-maker', label: 'Biodata Maker', icon: FileText, section: 'Overview' },
   { path: '/favorites', label: 'Saved Profiles', icon: Bookmark, section: 'Overview' },
   { path: '/messages', label: 'Messages', icon: MessageCircle, section: 'Connect' },

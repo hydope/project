@@ -648,6 +648,12 @@ function ChatPane({ convo, messages, onBack, onSend, onBlock, messagesEndRef, lo
         </div>
       </header>
 
+      {/* Safety banner — short, always visible, never dismissible. Scams in
+          the diaspora almost always start in a private thread like this one. */}
+      <div className="px-4 py-2 flex-shrink-0 text-xs text-center" style={{ background: 'var(--color-primary-subtle)', borderBottom: '1px solid var(--color-border)', color: 'var(--color-ink-secondary)' }}>
+        Never send money to someone you have only met here. Meet in public, with family present. Report anything suspicious. <Link to="/safety" className="font-semibold hover:underline" style={{ color: 'var(--color-primary)' }}>Stay safe →</Link>
+      </div>
+
       {showReport && (
         <div className="px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
           <ReportFlag

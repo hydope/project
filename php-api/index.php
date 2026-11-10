@@ -18,6 +18,7 @@ require __DIR__ . '/lib/util.php';
 require __DIR__ . '/lib/mail.php';
 require __DIR__ . '/lib/ratelimit.php';
 require __DIR__ . '/lib/migrate.php';
+require __DIR__ . '/lib/photos.php';
 require __DIR__ . '/lib/sessions.php';
 require __DIR__ . '/routes/auth.php';
 require __DIR__ . '/routes/profiles.php';

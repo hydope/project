@@ -37,6 +37,20 @@ export default function SocialLogin({ mode = 'signin' }) {
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // 18+ enforcement (2026-11-10): social signup needs a date of birth
+  // too — the server rejects a new social account without one. Collected
+  // before the provider popup opens, so the OAuth flow never completes
+  // for an under-18 or missing DOB.
+  const [dob, setDob] = useState('');
+
+  const requireDob = () => {
+    if (mode !== 'signup') return true;
+    if (!dob) {
+      setError('Please enter your date of birth first — you must be 18 or older to join.');
+      return false;
+    }
+    return true;
+  };
 
   const googleReady = !!GOOGLE_CLIENT_ID;
   const fbReady = !!FACEBOOK_APP_ID;
@@ -59,7 +73,9 @@ export default function SocialLogin({ mode = 'signin' }) {
     setBusy(true);
     setError('');
     try {
-      const res = await api.post('/auth/social', { provider, token });
+      const body = { provider, token };
+      if (mode === 'signup' && dob) body.dateOfBirth = dob;
+      const res = await api.post('/auth/social', body);
       // Store the session exactly like a normal login does.
       const { http } = await import('../lib/api/transport');
       if (res.token) http.setToken(res.token);
@@ -73,6 +89,7 @@ export default function SocialLogin({ mode = 'signin' }) {
   };
 
   const signInWithGoogle = () => {
+    if (!requireDob()) return;
     if (!window.google?.accounts?.id) {
       setError('Google sign-in is still loading. Please wait a moment and try again.');
       return;
@@ -88,6 +105,7 @@ export default function SocialLogin({ mode = 'signin' }) {
   };
 
   const signInWithFacebook = () => {
+    if (!requireDob()) return;
     if (!window.FB) {
       setError('Facebook sign-in is still loading. Please wait a moment and try again.');
       return;
@@ -112,6 +130,16 @@ export default function SocialLogin({ mode = 'signin' }) {
         <span className="text-xs" style={{ color: 'var(--color-ink-faint)' }}>or</span>
         <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
       </div>
+
+      {mode === 'signup' && (
+        <div>
+          <label htmlFor="social-dob" className="block mb-1.5 text-sm font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Date of Birth</label>
+          <input type="date" id="social-dob" value={dob} onChange={e => setDob(e.target.value)} max={new Date().toISOString().slice(0, 10)} className="input w-full" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
+          <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-faint)' }}>
+            You must be 18 or older to join. Required before signing up with Google or Facebook.
+          </p>
+        </div>
+      )}
 
       {googleReady && (
         <button

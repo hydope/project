@@ -121,6 +121,13 @@ export default function Guardians() {
             <main className="px-4 sm:px-6 py-6 sm:py-10">
         <h1>Guardians & Family Connections</h1>
         <p>Manage your wali (guardian) relationships and family involvement in your matchmaking journey.</p>
+        <p className="text-sm mt-2" style={{ color: 'var(--color-ink-secondary)' }}>
+          Who can revoke what: only you can revoke a guardian’s access — a guardian cannot revoke
+          your link or grant themselves access. Guardian view links live in Settings → Guardian
+          Links: revoke one there and the person holding it loses access immediately, and you can
+          restore it within 24 hours. After 24 hours the link is gone for good and you generate
+          a new one instead.
+        </p>
 
         <div className="auth-suite">
           <div className="auth-copy">

@@ -23,6 +23,10 @@ function AuthedThumb({ path }) {
 
 const FIELDS = [
   { key: 'display_name', label: 'Full name', required: true },
+  // Subject consent (2026-11-10): the person this profile is for must
+  // confirm by email before it can go live. The server emails them a
+  // confirm link on submit; the submission waits in 'pending-consent'.
+  { key: 'subject_email', label: 'Their email address', type: 'email', required: true },
   { key: 'age', label: 'Age', type: 'number' },
   { key: 'gender', label: 'Gender', type: 'select', options: ['', 'male', 'female'] },
   { key: 'city', label: 'City' },
@@ -177,6 +181,7 @@ export default function Matchmaker() {
           Know someone looking for a rishta? Add their profile here. Every submission is
           reviewed by our team — approved profiles go live on the site, and anything
           not reviewed within 7 days is removed automatically.
+          <span className="block mt-2">The person the profile is for must confirm by email before it can go live — we email them a confirm link when you submit.</span>
           <span className="block mt-2 font-semibold">Matchmaker accounts may only list female profiles.</span>
         </p>
 
@@ -222,6 +227,11 @@ export default function Matchmaker() {
                 ) : (
                   <input id={`mm-${f.key}`} type={f.type || 'text'} value={form[f.key] || ''} onChange={e => f.key === 'photo_url' ? onPhotoUrlChange(e.target.value) : set(f.key, e.target.value)}
                     className="input w-full" required={f.required} />
+                )}
+                {f.key === 'subject_email' && (
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-ink-tertiary)' }}>
+                    We email them a confirm link — the profile stays pending until they confirm. Nothing goes live without their say-so.
+                  </p>
                 )}
                 {f.key === 'photo_url' && (
                   <>
@@ -277,7 +287,8 @@ export default function Matchmaker() {
                   style={{ borderBottom: '1px solid var(--color-border)' }}>
                   <span className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>{s.display_name}</span>
                   <span className="text-xs flex items-center gap-1" style={{ color: 'var(--color-ink-secondary)' }}>
-                    {s.status === 'pending' ? <><Clock className="w-3 h-3" /> Under review</>
+                    {s.status === 'pending-consent' ? <><Clock className="w-3 h-3" /> Awaiting their confirmation{s.consent_email ? ` (${s.consent_email})` : ''}</>
+                      : s.status === 'pending' ? <><Clock className="w-3 h-3" /> Under review</>
                       : s.status === 'approved' ? <><CheckCircle className="w-3 h-3" style={{ color: 'var(--color-success)' }} /> Live</>
                       : <><XCircle className="w-3 h-3" /> {s.status}</>}
                   </span>

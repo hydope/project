@@ -223,6 +223,10 @@ function sendMessage(string $id): void
         je('Messaging is unavailable with this member.', 403);
     }
 
+    // Spam limit (2026-11-10, external-audit fixes): per-user, 20/min.
+    // cip() is the shared proxy IP, so the IP bucket would limit everyone.
+    perUserRateCheck((string)$user['uid'], 'messages', 'sender_id', 60, 20, 'You are sending messages quickly — please slow down and try again in a minute.');
+
     $msgId = uuid();
     // Encrypted at rest (AES-256-GCM). Decrypted only for the two participants.
     // Disappearing timer: stamp expiry from the conversation's setting.

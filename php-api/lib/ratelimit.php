@@ -57,3 +57,25 @@ function writeRateCheck(): void {
     if (getenv('E2E_TEST_MODE') === '1' && isLocalIp(cip())) return;
     rateCheck('write', cip(), 30, 60, 'Slow down a little — the community will still be here in a minute.');
 }
+
+// Per-user rate limit (2026-11-10, external-audit fixes): cip() returns the
+// shared Cloudflare proxy IP in production, so the IP-based writeRateCheck
+// above is effectively ONE global bucket — one spammer's burst 429s every
+// member. These limits count the authenticated user's own rows instead, so
+// a burst limits only the spammer. $table/$userCol are hardcoded at the
+// call sites, never user input.
+function perUserRateCheck(string $uid, string $table, string $userCol, int $windowSec, int $max, string $message): void
+{
+    try {
+        $stmt = db()->prepare("SELECT COUNT(*) AS n FROM {$table} WHERE {$userCol} = ? AND created_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? SECOND)");
+        $stmt->execute([$uid, $windowSec]);
+        $n = (int)($stmt->fetch()['n'] ?? 0);
+        if ($n >= $max) {
+            je($message, 429);
+        }
+    } catch (Throwable $e) {
+        // A missing table/column must not brick the action — the global
+        // IP-based write limiter still applies.
+        error_log('[api] per-user rate check failed: ' . substr($e->getMessage(), 0, 120));
+    }
+}

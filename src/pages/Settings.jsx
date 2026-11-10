@@ -140,9 +140,11 @@ export default function Settings() {
         }
       } catch { /* leave blank — a missing handle is not an error */ }
       try {
-        const { listBlocks } = await import('../lib/api/safety');
+        const { listBlocks, listMyReports } = await import('../lib/api/safety');
         const list = await listBlocks().catch(() => []);
         if (!cancelled && Array.isArray(list)) setBlocks(list);
+        const reports = await listMyReports().catch(() => []);
+        if (!cancelled && Array.isArray(reports)) setMyReports(reports);
       } catch { /* blocked list is best-effort on load */ }
     })();
     return () => { cancelled = true; };
@@ -321,6 +323,9 @@ export default function Settings() {
   const [blockError, setBlockError] = useState('');
   const [blockSuccess, setBlockSuccess] = useState('');
   const [confirmBlockId, setConfirmBlockId] = useState(null);
+  const [myReports, setMyReports] = useState([]);
+  const [appealBusy, setAppealBusy] = useState(null);
+  const [appealNote, setAppealNote] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -344,7 +349,7 @@ export default function Settings() {
   const saveNotificationPrefs = async (next) => {
     const prev = notifications;
     setNotifications(next);
-    try { localStorage.setItem(settingsKey(), JSON.stringify({ privacy, notifications: next, profile, twoFactor })); } catch { /* storage full */ }
+    try { localStorage.setItem(settingsKey(), JSON.stringify({ privacy, notifications: next, profile })); } catch { /* storage full */ }
     try {
       const { api } = await import('../lib/api/client');
       await api.updateProfile('me', { notificationPrefs: next });
@@ -355,8 +360,9 @@ export default function Settings() {
     }
   };
 
-  const [twoFactor, setTwoFactor] = useState(false);
-
+  // Restore locally saved settings on load (server values merge over these
+  // in the profile-load effect above). No two-factor setting exists — there
+  // is no 2FA on the platform — so nothing 2FA-shaped is read or written.
   useEffect(() => {
     const savedSettings = localStorage.getItem(settingsKey());
     if (savedSettings) {
@@ -365,13 +371,12 @@ export default function Settings() {
         if (parsed.privacy) setPrivacy(prev => ({ ...prev, ...parsed.privacy }));
         if (parsed.notifications) setNotifications(prev => ({ ...prev, ...parsed.notifications }));
         if (parsed.profile) setProfile(prev => ({ ...prev, ...parsed.profile, email: user?.email || '', displayName: prev.displayName || user?.displayName || '' }));
-        if (parsed.twoFactor) setTwoFactor(parsed.twoFactor);
       } catch { /* corrupted — ignore */ }
     }
   }, [user?.email]);
 
   const handleSave = async () => {
-    localStorage.setItem(settingsKey(), JSON.stringify({ privacy, notifications, profile, twoFactor }));
+    localStorage.setItem(settingsKey(), JSON.stringify({ privacy, notifications, profile }));
     // Appearance is global to this browser, not per member: every layout reads
     // the same versioned key through lib/theme.
     writeIsDark(theme === 'dark');
@@ -425,7 +430,7 @@ export default function Settings() {
     { id: 'privacy', label: 'Privacy & Safety', icon: Shield, desc: 'Control who sees what' },
     { id: 'notifications', label: 'Notifications', icon: Bell, desc: 'How you stay informed' },
     { id: 'appearance', label: 'Appearance', icon: Moon, desc: 'Theme and display' },
-    { id: 'security', label: 'Security', icon: Lock, desc: 'Password and 2FA' },
+    { id: 'security', label: 'Security', icon: Lock, desc: 'Password and sessions' },
     { id: 'account', label: 'Account', icon: AlertTriangle, desc: 'Data and deletion' }
   ];
 
@@ -729,6 +734,62 @@ export default function Settings() {
                             >
                               Unblock
                             </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="pt-2">
+                  <h3 className="font-semibold text-ink mb-2">My reports</h3>
+                  <p className="text-sm text-muted mb-3">Reports you have filed, with their status. Our team reviews every report within 48 hours. A closed report can be appealed — appealing reopens it for review.</p>
+                  {appealNote && (
+                    <div className="text-sm p-2 rounded-lg mb-3" role="status" style={{ background: 'var(--color-success-subtle)', color: 'var(--color-success)' }}>
+                      {appealNote}
+                    </div>
+                  )}
+                  {myReports.length === 0 ? (
+                    <p className="text-sm text-muted">You have not filed any reports.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {myReports.map(r => {
+                        const closed = r.status === 'actioned' || r.status === 'dismissed';
+                        const statusLabel = r.status === 'open' ? 'Under review' : r.status === 'actioned' ? 'Action taken' : r.status === 'dismissed' ? 'No action taken' : r.status;
+                        return (
+                          <li key={r.id} className="text-sm p-3 rounded-lg" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                            <div className="flex items-center justify-between gap-2">
+                              <span style={{ color: 'var(--color-ink-secondary)' }}>{r.reason || `${r.targetType} report`}</span>
+                              <span className="text-xs font-semibold" style={{ color: r.status === 'open' ? 'var(--color-primary)' : 'var(--color-ink-faint)' }}>{statusLabel}</span>
+                            </div>
+                            <p className="text-xs mt-1" style={{ color: 'var(--color-ink-faint)' }}>
+                              Filed {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : 'recently'}
+                              {r.actionedAt ? ` · Decided ${new Date(r.actionedAt).toLocaleDateString()}` : ''}
+                              {r.appealAt ? ` · Appealed ${new Date(r.appealAt).toLocaleDateString()}` : ''}
+                            </p>
+                            {closed && (
+                              <button
+                                disabled={appealBusy === r.id}
+                                onClick={async () => {
+                                  setAppealBusy(r.id);
+                                  setAppealNote('');
+                                  try {
+                                    const { appealReport, listMyReports } = await import('../lib/api/safety');
+                                    await appealReport(r.id, 'Appealed from Settings — please review again.');
+                                    setMyReports(await listMyReports().catch(() => []));
+                                    setAppealNote('Appeal sent — your report is under review again.');
+                                  } catch (e) {
+                                    setAppealNote((e && e.message) || 'Could not appeal this report. Please try again.');
+                                  } finally {
+                                    setAppealBusy(null);
+                                  }
+                                }}
+                                className="text-xs font-semibold hover:underline mt-2"
+                                style={{ color: 'var(--color-primary)', opacity: appealBusy === r.id ? 0.6 : 1 }}
+                              >
+                                {appealBusy === r.id ? 'Sending…' : 'Appeal this decision'}
+                              </button>
+                            )}
                           </li>
                         );
                       })}

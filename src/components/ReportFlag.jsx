@@ -36,7 +36,7 @@ export function ReportFlag({ targetType, targetId, onDone }) {
   };
 
   if (state.ok) {
-    return <p className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>Thanks — our team will review this.</p>;
+    return <p className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>Thanks — our team will review this within 48 hours. You can follow its status in Settings → My reports, and appeal it if it is closed.</p>;
   }
 
   return (

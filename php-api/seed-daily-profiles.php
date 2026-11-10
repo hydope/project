@@ -17,7 +17,12 @@
  */
 
 // ── Configuration ──────────────────────────────────────────────
+// bootstrap first: loads .env + defines je(), which photoBaseDir() needs
+// on its failure path. photos.php shares the API's photo directory so the
+// seeder can never again write somewhere photoServe() does not read.
+require_once __DIR__ . '/lib/bootstrap.php';
 require_once __DIR__ . '/lib/db.php';
+require_once __DIR__ . '/lib/photos.php';
 
 $FEMALE_NAMES = [
   'Zahra', 'Fatima', 'Zainab', 'Sakina', 'Ruqaya', 'Kulsum', 'Masooma', 'Tahira',
@@ -213,10 +218,12 @@ try {
     $srcPhoto = __DIR__ . '/uploads/seeded/' . $photoFile;
     $photoUrl = null;
 
-    // Copy to a per-user location under the uploads dir so photo_url
-    // resolves within the allowed photo base directory
+    // Copy to a per-user location under photoBaseDir() — the SAME directory
+    // photoServe() reads from. (2026-11-10: the old __DIR__.'/uploads/photos'
+    // destination sat inside the web root, so every seeded photo 404d at
+    // serve time and was directly fetchable over HTTP with no tier check.)
     if (file_exists($srcPhoto)) {
-      $destDir = __DIR__ . '/uploads/photos/' . $userId;
+      $destDir = photoBaseDir() . '/' . $userId;
       if (!is_dir($destDir)) {
         @mkdir($destDir, 0755, true);
       }

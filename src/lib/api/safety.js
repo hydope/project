@@ -33,6 +33,27 @@ export async function listBlocks() {
   return read('blocks', []);
 }
 
+export async function listMyReports() {
+  if (useRemote) {
+    const res = await http.get('/api/reports/mine');
+    return Array.isArray(res) ? res : (res?.reports ?? []);
+  }
+  return read('reports', []);
+}
+
+export async function appealReport(reportId, reason) {
+  if (useRemote) return http.post(`/api/reports/${encodeURIComponent(reportId)}/appeal`, { reason });
+  const list = read('reports', []);
+  const report = list.find((r) => String(r.id) === String(reportId));
+  if (!report) throw new Error('Report not found.');
+  if (report.status !== 'actioned' && report.status !== 'dismissed') throw new Error('Only a closed report can be appealed.');
+  report.status = 'open';
+  report.appealReason = reason;
+  report.appealAt = new Date().toISOString();
+  write('reports', list);
+  return { ok: true };
+}
+
 const isNotFound = (err) => /\(404\)|not found/i.test(err?.message || '');
 
 // Why members leave — the exit-survey options shown in the delete-account

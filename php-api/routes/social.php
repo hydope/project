@@ -63,14 +63,20 @@ function socialLogin(): void
         // the member can correct it during onboarding. Social signups skip
         // the password (password_hash stays NULL-safe via a placeholder the
         // login form can never match).
+        //
+        // 18+ enforcement (2026-11-10, external-audit fixes): same age gate
+        // as email registration — a new social account needs a date of
+        // birth, and under-18 is rejected. The client collects the DOB
+        // before launching the provider flow and retries with it.
+        $dobRaw = validateDateOfBirth((string)($body['dateOfBirth'] ?? ''));
         $userId = uuid();
         $adminEmails = adminEmails();
         $isAdmin = in_array($email, $adminEmails, true);
         $pdo->beginTransaction();
         try {
             $pdo->prepare(
-                'INSERT INTO users (id, email, password_hash, display_name, is_admin, email_verified) VALUES (?, ?, ?, ?, ?, 1)'
-            )->execute([$userId, $email, 'social:' . $provider, $name, $isAdmin ? 1 : 0]);
+                'INSERT INTO users (id, email, password_hash, display_name, is_admin, email_verified, date_of_birth) VALUES (?, ?, ?, ?, ?, 1, ?)'
+            )->execute([$userId, $email, 'social:' . $provider, $name, $isAdmin ? 1 : 0, $dobRaw]);
             $pdo->prepare(
                 'INSERT INTO profiles (user_id, display_name, sect) VALUES (?, ?, ?)'
             )->execute([$userId, $name, 'Ithna Ashari (Twelver)']);

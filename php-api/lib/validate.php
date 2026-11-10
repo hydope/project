@@ -58,9 +58,31 @@ class ValidationResult
 }
 
 /**
- * @param array<string,mixed> $input
- * @param array<string,string> $rules field => "required|email|max:320"
+ * Date-of-birth validation for the 18+ rule (2026-11-10, external-audit
+ * fixes): the Terms require members to be 18 or older. Returns the
+ * normalized 'Y-m-d' string; rejects with a clear 400 message otherwise.
+ * Shared by email registration (auth.php) and social signup (social.php)
+ * so the age gate has no hole in either path.
  */
+function validateDateOfBirth(string $raw): string
+{
+    $dobRaw = trim($raw);
+    if ($dobRaw === '') {
+        je('Please enter your date of birth — you must be 18 or older to join.', 400);
+    }
+    $dob = DateTimeImmutable::createFromFormat('Y-m-d', $dobRaw);
+    if ($dob === false || $dob->format('Y-m-d') !== $dobRaw) {
+        je('Enter your date of birth as YYYY-MM-DD.', 400);
+    }
+    $today = new DateTimeImmutable('today', new DateTimeZone('UTC'));
+    if ($dob > $today) {
+        je('Your date of birth cannot be in the future.', 400);
+    }
+    if ($today->diff($dob)->y < 18) {
+        je('You must be 18 or older to create an account on Shia Rishta.', 400);
+    }
+    return $dobRaw;
+}
 function validate(array $input, array $rules): ValidationResult
 {
     $result = new ValidationResult();

@@ -13,13 +13,13 @@ const sections = [
     id: 'eligibility',
     title: '2. Eligibility',
     icon: Users,
-    content: 'You must be at least 18 years old to use Shia Rishta. By registering, you confirm you are 18+, seeking a serious marriage prospect (not casual dating), and have the legal capacity to enter into these terms. Parents/guardians may create and manage profiles on behalf of minors aged 18+ with appropriate consent.'
+    content: 'You must be at least 18 years old to use Shia Rishta. We collect your date of birth at registration and reject accounts under 18. By registering, you confirm you are 18+, seeking a serious marriage prospect (not casual dating), and have the legal capacity to enter into these terms. Parents/guardians may create and manage profiles on behalf of adults aged 18+ with appropriate consent.'
   },
   {
     id: 'accounts',
     title: '3. Account Responsibilities',
     icon: Shield,
-    content: 'You are responsible for maintaining the confidentiality of your account credentials. You must provide accurate, current information and promptly update your profile. One person may not maintain multiple accounts. Guardian-managed profiles require verified guardian consent. You are liable for all activity under your account.'
+    content: 'You are responsible for maintaining the confidentiality of your account credentials. You must provide accurate, current information and promptly update your profile. One person may not maintain multiple accounts. Guardian-managed profiles require the guardian\u2019s email and a secure link we send them. You are liable for all activity under your account.'
   },
   {
     id: 'acceptable-use',
@@ -40,32 +40,38 @@ const sections = [
     content: 'Your privacy is governed by our Privacy Policy (incorporated herein). Message contents and identity-verification uploads are encrypted at rest (AES-256-GCM) and all traffic is encrypted in transit (TLS). Passwords are one-way hashed and cannot be recovered. You control profile and photo visibility. We never sell personal data. Refer to our Privacy Policy for full details on data collection, use, and your rights.'
   },
   {
+    id: 'photos-licence',
+    title: '7. Photos & Content Licence',
+    icon: FileText,
+    content: 'By uploading a photo or profile content, you grant Shia Rishta a non-exclusive, royalty-free licence to display it on the platform to the audience you choose (everyone, signed-in members only, or only you), and in biodata documents you choose to generate and share. The licence ends when you delete the photo or your account. You keep full ownership of your photos and content. We will never sell or license your photos to anyone, and we will never use them in advertising without your separate written consent. You confirm you own the photos you upload, or have the right to share them.'
+  },
+  {
     id: 'payments',
-    title: '7. Payments & Subscriptions',
+    title: '8. Payments & Subscriptions',
     icon: FileText,
     content: 'Shia Rishta is free and always will be: there are no payments, subscriptions, billing, or paid membership tiers in any part of this platform, and you will never be asked for payment details. We will not introduce a paid tier without telling members first and updating these terms.'
   },
   {
     id: 'termination',
-    title: '8. Termination',
+    title: '9. Termination',
     icon: AlertTriangle,
-    content: 'Either party may terminate this agreement at any time. You may delete your account from Settings → Account. We may suspend or terminate accounts that violate these terms. Upon termination, your right to use the platform ceases immediately. Data deletion follows our Privacy Policy schedule.'
+    content: 'Either party may terminate this agreement at any time. You may delete your account from Settings → Account. We may suspend or terminate accounts that violate these terms. Upon termination, your right to use the platform ceases immediately. Data deletion follows our Privacy Policy schedule: your profile, messages, interests, and reports are removed immediately on deletion; backups are purged within 30 days.'
   },
   {
     id: 'liability',
-    title: '9. Limitation of Liability',
+    title: '10. Limitation of Liability',
     icon: Scale,
     content: 'Shia Rishta provides the platform "as is." We do not guarantee specific match outcomes, continuous availability, or compatibility accuracy. We are not liable for user conduct, third-party actions, or indirect damages. Our total liability is limited to the amount you paid in the preceding 12 months.'
   },
   {
     id: 'changes',
-    title: '10. Changes to Terms',
+    title: '11. Changes to Terms',
     icon: Clock,
     content: 'We may update these terms periodically. Material changes are communicated via email and platform notification at least 14 days before taking effect. Continued use after changes constitutes acceptance. The latest version is always available at shiarishta.com/terms.'
   },
   {
     id: 'governing',
-    title: '11. Governing Law',
+    title: '12. Governing Law',
     icon: Scale,
     content: 'These terms are governed by the laws of the State of Michigan, USA. Any disputes shall be resolved in the courts of Washtenaw County, Michigan. You agree to submit to the exclusive jurisdiction of these courts.'
   },
@@ -78,7 +84,7 @@ export default function Terms() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
           <span className="text-xs font-bold uppercase tracking-widest text-primary">Legal</span>
           <h1 className="text-3xl sm:text-4xl font-bold text-ink mt-2">Terms of Service</h1>
-          <p className="text-muted mt-2">Last updated: August 2026</p>
+          <p className="text-muted mt-2">Last updated: November 2026</p>
           <p className="text-sm text-muted mt-4 max-w-2xl mx-auto">
             Please read these terms carefully. They govern your use of Shia Rishta and outline our shared commitments.
           </p>

@@ -7,6 +7,9 @@ declare(strict_types=1);
 function routeWali(string $method, array $segments): void
 {
     if ($method === 'GET' && ($segments[0] ?? null) === 'link') { listWaliLinks(); return; }
+    // Restore must be checked BEFORE create: POST /link/:token/restore
+    // also matches the bare "POST link" shape below.
+    if ($method === 'POST' && ($segments[0] ?? null) === 'link' && ($segments[2] ?? null) === 'restore' && ($segments[1] ?? null) !== null) { restoreWaliLink((string)$segments[1]); return; }
     if ($method === 'POST' && ($segments[0] ?? null) === 'link') { createWaliLink(); return; }
     if ($method === 'DELETE' && ($segments[0] ?? null) === 'link' && ($segments[1] ?? null) !== null) { revokeWaliLink((string)$segments[1]); return; }
     if ($method === 'GET' && ($segments[0] ?? null) !== null && ($segments[1] ?? null) === null && $segments[0] !== 'link') {
@@ -39,17 +42,25 @@ function createWaliLink(): void
 function listWaliLinks(): void
 {
     $user = requireAuthUser();
-    $stmt = db()->prepare('SELECT token, created_at, revoked FROM wali_links WHERE user_id = ? ORDER BY created_at DESC LIMIT 20');
+    $stmt = db()->prepare('SELECT token, created_at, revoked, revoked_at FROM wali_links WHERE user_id = ? ORDER BY created_at DESC LIMIT 20');
     $stmt->execute([$user['uid']]);
     $rows = $stmt->fetchAll();
 
     $links = [];
     foreach ($rows as $row) {
+        $revoked = !empty($row['revoked']);
+        // A revoked link can be restored within 24h of revocation (2026-11-10,
+        // external-audit fixes); after that it is gone for good.
+        $revokedAt = $row['revoked_at'] ?? null;
+        $restorable = $revoked && $revokedAt !== null
+            && strtotime((string)$revokedAt) > time() - 24 * 3600;
         $links[] = [
             'token' => $row['token'],
             'url' => publicBase() . '/wali/' . $row['token'],
             'createdAt' => $row['created_at'],
-            'revoked' => !empty($row['revoked']),
+            'revoked' => $revoked,
+            'revokedAt' => $revokedAt,
+            'restorable' => $restorable,
         ];
     }
     json(['links' => $links]);
@@ -94,6 +105,31 @@ function publicWaliView(string $token): void
 function revokeWaliLink(string $token): void
 {
     $user = requireAuthUser();
-    db()->prepare('UPDATE wali_links SET revoked = 1 WHERE token = ? AND user_id = ?')->execute([$token, $user['uid']]);
+    // revoked_at stamps the start of the 24h restore window (2026-11-10).
+    db()->prepare('UPDATE wali_links SET revoked = 1, revoked_at = UTC_TIMESTAMP() WHERE token = ? AND user_id = ?')->execute([$token, $user['uid']]);
+    json(['ok' => true]);
+}
+
+// POST /api/wali/link/:token/restore — member-only. A revoked link can be
+// restored within 24 hours of revocation; after that it is gone for good
+// and the member creates a fresh link instead. Only the member can revoke
+// or restore — the person holding the link cannot.
+function restoreWaliLink(string $token): void
+{
+    $user = requireAuthUser();
+    $stmt = db()->prepare('SELECT revoked, revoked_at FROM wali_links WHERE token = ? AND user_id = ? LIMIT 1');
+    $stmt->execute([$token, $user['uid']]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        je('Link not found.', 404);
+    }
+    if (empty($row['revoked'])) {
+        je('This link is not revoked.', 400);
+    }
+    $revokedAt = $row['revoked_at'] ?? null;
+    if ($revokedAt === null || strtotime((string)$revokedAt) <= time() - 24 * 3600) {
+        je('This link was revoked more than 24 hours ago and cannot be restored. Create a new link instead.', 410);
+    }
+    db()->prepare('UPDATE wali_links SET revoked = 0, revoked_at = NULL WHERE token = ? AND user_id = ?')->execute([$token, $user['uid']]);
     json(['ok' => true]);
 }

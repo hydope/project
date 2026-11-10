@@ -44,6 +44,12 @@ function authRegister(): void
     $displayName = $v->get('displayName') ?: explode('@', $email)[0];
     $sect = (string)$v->get('sect');
 
+    // 18+ enforcement (2026-11-10, external-audit fixes): the Terms require
+    // members to be 18 or older. Date of birth is required at registration
+    // and checked server-side — the onboarding age field is self-declared
+    // and is not an enforcement point.
+    $dobRaw = validateDateOfBirth((string)($payload['dateOfBirth'] ?? ''));
+
     // Account type selected at signup: member (default), guardian, or matchmaker.
     $role = $v->get('role') ?: 'member';
 
@@ -56,8 +62,8 @@ function authRegister(): void
     $pdo = db();
     try {
         $pdo->beginTransaction();
-        $stmt = $pdo->prepare('INSERT INTO users (id, email, password_hash, display_name, is_admin, role) VALUES (?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$userId, $email, $hash, $displayName, $isAdmin ? 1 : 0, $role]);
+        $stmt = $pdo->prepare('INSERT INTO users (id, email, password_hash, display_name, is_admin, role, date_of_birth) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$userId, $email, $hash, $displayName, $isAdmin ? 1 : 0, $role, $dobRaw]);
         $profileStmt = $pdo->prepare('INSERT INTO profiles (user_id, display_name, sect) VALUES (?, ?, ?)');
         $profileStmt->execute([$userId, $displayName, $sect]);
         $pdo->commit();

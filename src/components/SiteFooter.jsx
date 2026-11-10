@@ -32,16 +32,16 @@ function BrandIcon({ name, className }) {
 // badges + status pill, Platform / Resources link columns, newsletter capture,
 // and a hairline bottom bar. Fully theme-aware (warm light + warm dusk).
 const TRUST_BADGES = [
-  { icon: ShieldCheck, label: 'Verified members' },
+  { icon: ShieldCheck, label: 'ID-verified badges' },
   { icon: Lock, label: 'Privacy-first' },
   { icon: Users, label: 'Wali-supported' },
 ];
 
 const PLATFORM_LINKS = [
-  { to: '/profiles', label: 'Browse Profiles' },
+  { to: '/profiles/', label: 'Browse Profiles' },
   { to: '/matchmaker', label: 'Matchmaker' },
   { to: '/biodata-maker', label: 'Biodata Maker' },
-  { to: '/success-stories', label: 'Success Stories' },
+  { to: '/how-it-works', label: 'How it works' },
   { to: '/auth/register', label: 'Create Profile' },
   { to: '/about', label: 'About Us' },
 ];

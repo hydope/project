@@ -9,7 +9,7 @@ import SocialLogin from '../../components/SocialLogin';
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({ displayName: '', email: '', password: '', confirmPassword: '', sect: '' });
+  const [formData, setFormData] = useState({ displayName: '', email: '', password: '', confirmPassword: '', sect: '', dateOfBirth: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
@@ -35,6 +35,22 @@ export default function Register() {
     if (formData.password.length < 8) errs.password = 'Password must be at least 8 characters.';
     if (formData.confirmPassword !== formData.password) errs.confirmPassword = 'Passwords do not match.';
     if (!formData.sect) errs.sect = 'Please select your sect.';
+    // 18+ enforcement (2026-11-10, external-audit fixes): the Terms require
+    // members to be 18 or older. The server re-checks this — the client
+    // check is the friendly message, not the enforcement.
+    if (!formData.dateOfBirth) errs.dateOfBirth = 'Please enter your date of birth.';
+    else {
+      const dob = new Date(formData.dateOfBirth + 'T00:00:00');
+      const today = new Date();
+      if (Number.isNaN(dob.getTime())) errs.dateOfBirth = 'Enter a valid date of birth.';
+      else if (dob > today) errs.dateOfBirth = 'Your date of birth cannot be in the future.';
+      else {
+        let age = today.getFullYear() - dob.getFullYear();
+        const m = today.getMonth() - dob.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age -= 1;
+        if (age < 18) errs.dateOfBirth = 'You must be 18 or older to create an account on Shia Rishta.';
+      }
+    }
     if (!tosAccepted) errs.tos = 'Please accept the Terms and Privacy Policy to create an account.';
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
@@ -49,7 +65,7 @@ export default function Register() {
     setLoading(true);
     setError('');
     try {
-      await register({ email: formData.email, password: formData.password, displayName: formData.displayName, sect: formData.sect });
+      await register({ email: formData.email, password: formData.password, displayName: formData.displayName, sect: formData.sect, dateOfBirth: formData.dateOfBirth });
       analytics.track('account_created', { browser_local: true });
       // 2026-11-01 stuck-signup fix: show the verify step FIRST. Before this
       // we went straight to /onboard and 69% of real members never verified,
@@ -169,6 +185,15 @@ export default function Register() {
               )}
               {fieldErrors.confirmPassword && <p role="alert" className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{fieldErrors.confirmPassword}</p>}
               </div>
+            </div>
+
+            <div>
+              <label htmlFor="dateOfBirth" className="block mb-1.5 text-sm font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Date of Birth</label>
+              <input type="date" id="dateOfBirth" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} required max={new Date().toISOString().slice(0, 10)} className="input w-full" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-faint)' }}>
+                You must be 18 or older to join. We store your date of birth only to enforce this.
+              </p>
+              {fieldErrors.dateOfBirth && <p role="alert" className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{fieldErrors.dateOfBirth}</p>}
             </div>
 
             <div>

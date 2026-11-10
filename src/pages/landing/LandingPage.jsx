@@ -4,6 +4,7 @@ import { ArrowRight, ChevronRight } from 'lucide-react';
 import Layout from '../../layouts/LandingLayout';
 import FaqSection from '../../components/FaqSection.jsx';
 import NotFound from '../NotFound';
+import { useStats } from '../../lib/api/client';
 
 // landingPages.js holds all eight hand-written landing pages — dynamically
 // imported so it ships as its own async chunk instead of bloating the
@@ -28,6 +29,14 @@ export default function LandingPage() {
     return () => { on = false; };
   }, []);
   const page = pages?.[slug];
+
+  // Live counts, straight from the database — only rendered on pages that
+  // opt in (showLiveCounts), and only once the endpoint resolves. A wrong
+  // figure on a comparison page is worse than an absent one.
+  const { data: stats } = useStats();
+  const liveMembers = Number(stats?.browsable ?? stats?.members ?? 0);
+  const liveCities = Number(stats?.cities ?? 0);
+  const liveVerified = Number(stats?.verified ?? 0);
 
   // Template for programmatic SEO landing pages (/shia-matrimony-usa, city
   // pages, /shia-brides, /syed-rishta …). Each page's copy is hand-written in
@@ -95,9 +104,18 @@ export default function LandingPage() {
           </div>
         )}
 
+        {page.showLiveCounts && stats && (
+          <div className="my-8 p-6 rounded-2xl text-center" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <p className="font-bold text-lg mb-1" style={{ color: 'var(--color-ink)' }}>Shia Rishta today — live from the database</p>
+            <p className="text-sm" style={{ color: 'var(--color-ink-secondary)' }}>
+              {liveMembers} browsable members · {liveCities} cities · {liveVerified} ID-verified · Android and iOS apps
+            </p>
+          </div>
+        )}
+
         <div className="my-8 p-6 rounded-2xl text-center" style={{ background: 'var(--color-primary-subtle)', border: '1px solid var(--color-border)' }}>
           <p className="font-bold text-lg mb-1" style={{ color: 'var(--color-ink)' }}>Begin your search — free</p>
-          <p className="text-sm mb-4" style={{ color: 'var(--color-ink-secondary)' }}>Verified profiles. Wali workflows. Privacy you control.</p>
+          <p className="text-sm mb-4" style={{ color: 'var(--color-ink-secondary)' }}>Email-verified members. Wali workflows. Privacy you control.</p>
           <Link to="/auth/register" className="button primary px-6 py-2.5 font-semibold inline-flex items-center gap-2">
             Create free profile <ArrowRight className="w-4 h-4" />
           </Link>

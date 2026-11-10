@@ -18,7 +18,7 @@ const TOOLS = [
     color: 'from-rose-400 to-pink-500',
     description: 'A 0–100% score weighting shared faith practice, values, lifestyle, language and timeline. It is a transparent formula, not a black box — the breakdown shows exactly what raised or lowered it.',
     capabilities: ['Weighted across faith, values and timeline', 'Shows the full breakdown, not just a number', 'Never shared with other members'],
-    href: '/profiles',
+    href: '/profiles/',
     cta: 'Browse profiles',
   },
   {
@@ -42,7 +42,7 @@ const TOOLS = [
     color: 'from-amber-400 to-orange-500',
     description: 'Filter by Ithna Ashari, Ismaili, Zaydi or Bohra, then narrow by Marja\' affiliation, practice level, location and language — before you ever start a conversation.',
     capabilities: ['Sect and sub-sect filtering', 'Marja\' affiliation', 'Verified-only filter'],
-    href: '/profiles',
+    href: '/profiles/',
     cta: 'Use the filters',
   },
   {

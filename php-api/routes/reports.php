@@ -15,6 +15,13 @@ function routeReports(string $method, array $segments): void
     // so the page silently fell back to an empty list and unblocking from
     // Settings was impossible.
     if ($method === 'GET' && $action === 'blocks') { listBlocks(); return; }
+    // GET /api/reports/mine — my own reports with their status, for the
+    // Settings "My reports" list (2026-11-10, external-audit fixes: a
+    // reporter used to hear nothing after filing).
+    if ($method === 'GET' && $action === 'mine') { listMyReports(); return; }
+    // POST /api/reports/:id/appeal — appeal a closed report; reopens it
+    // for review with the reporter's reason attached.
+    if ($method === 'POST' && $action !== null && ($segments[1] ?? null) === 'appeal') { appealReport((string)$action); return; }
 
     json(['error' => 'Report endpoint not found'], 404);
 }
@@ -96,4 +103,60 @@ function listBlocks(): void
         ];
     }
     json(['blocks' => $out]);
+}
+
+// GET /api/reports/mine — the reporter's own reports, newest first, with
+// status and appeal state. The target's identity is NOT resolved here:
+// the reporter already knows what they reported, and resolving it would
+// leak a profile that may since have been hidden or deleted.
+function listMyReports(): void
+{
+    $user = requireAuthUser();
+    $stmt = db()->prepare(
+        'SELECT id, target_type, target_id, reason, status, created_at, actioned_at, appeal_reason, appeal_at
+           FROM reports WHERE reporter_id = ? ORDER BY created_at DESC LIMIT 100'
+    );
+    $stmt->execute([$user['uid']]);
+    $out = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $out[] = [
+            'id' => $row['id'],
+            'targetType' => $row['target_type'],
+            'targetId' => $row['target_id'],
+            'reason' => $row['reason'],
+            'status' => $row['status'],
+            'createdAt' => $row['created_at'],
+            'actionedAt' => $row['actioned_at'] ?? null,
+            'appealReason' => $row['appeal_reason'] ?? null,
+            'appealAt' => $row['appeal_at'] ?? null,
+        ];
+    }
+    json(['reports' => $out]);
+}
+
+// POST /api/reports/:id/appeal — reporter-only. A closed report
+// ('actioned' or 'dismissed') goes back to 'open' with the appeal reason
+// attached, so the admin reviews it again. An open report, or someone
+// else's report, cannot be appealed.
+function appealReport(string $id): void
+{
+    $user = requireAuthUser();
+    $payload = requestJson();
+    $reason = mb_substr(trim((string)($payload['reason'] ?? $payload['appealReason'] ?? '')), 0, 1000);
+    if ($reason === '') {
+        je('Please say briefly why you are appealing.', 400);
+    }
+    $stmt = db()->prepare('SELECT status FROM reports WHERE id = ? AND reporter_id = ? LIMIT 1');
+    $stmt->execute([$id, $user['uid']]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        je('Report not found.', 404);
+    }
+    if (!in_array((string)$row['status'], ['actioned', 'dismissed'], true)) {
+        je('Only a closed report can be appealed.', 400);
+    }
+    db()->prepare("UPDATE reports SET status = 'open', appeal_reason = ?, appeal_at = NOW() WHERE id = ?")
+        ->execute([$reason, $id]);
+    auditLog('report.appealed', 'report', $id, ['by' => (string)$user['uid']]);
+    json(['ok' => true, 'status' => 'open']);
 }

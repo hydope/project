@@ -343,7 +343,7 @@ export default function Dashboard() {
             <h2 className="text-heading mb-4" style={{ color: 'var(--color-ink)' }}>Quick actions</h2>
             <div className="space-y-3">
               {[
-                { to: '/profiles', icon: Users, label: 'Browse profiles', desc: 'Discover your ideal match', color: 'var(--color-primary)', bg: 'var(--color-primary-subtle)' },
+                { to: '/profiles/', icon: Users, label: 'Browse profiles', desc: 'Discover your ideal match', color: 'var(--color-primary)', bg: 'var(--color-primary-subtle)' },
                 { to: '/messages', icon: MessageCircle, label: 'Messages', desc: 'Check your conversations', color: 'var(--color-success)', bg: 'var(--color-success-subtle)' },
                 { to: '/onboard', icon: Sparkles, label: 'Update profile', desc: 'Improve your match quality', color: 'var(--color-warning)', bg: 'var(--color-warning-subtle)' },
                 // C1 fix: members had no way to see their own published
@@ -375,7 +375,7 @@ export default function Dashboard() {
           <div className="lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-heading" style={{ color: 'var(--color-ink)' }}>Top matches for you</h2>
-              <Link to="/profiles" className="link-primary text-sm font-semibold">View all</Link>
+              <Link to="/profiles/" className="link-primary text-sm font-semibold">View all</Link>
             </div>
             {loading ? (
               <div className="grid grid-cols-2 gap-4">
@@ -393,7 +393,7 @@ export default function Dashboard() {
                 <p className="text-xs mb-4" style={{ color: 'var(--color-ink-secondary)' }}>
                   Complete your profile for better matches, or browse everyone.
                 </p>
-                <Link to="/profiles" className="link-primary text-sm font-semibold">Browse profiles</Link>
+                <Link to="/profiles/" className="link-primary text-sm font-semibold">Browse profiles</Link>
               </div>
             )}
           </div>

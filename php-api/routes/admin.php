@@ -446,6 +446,27 @@ function adminVerificationsList(): void
     json(['rows' => $rows, 'counts' => $counts]);
 }
 
+// Delete a reviewed verification document and clear its path (2026-11-10,
+// external-audit fixes). The privacy policy promises ID documents are not
+// retained once a review is complete — the row + decision + note stay as
+// the audit record, but the file itself is gone. 'account-review' rows
+// never had a file; they are a no-op.
+function deleteVerificationFile(string $path, string $verificationId): void
+{
+    if ($path === '' || $path === 'account-review') return;
+    try {
+        $base = trim((string)(getenv('UPLOAD_DIR') ?: (__DIR__ . '/../uploads')));
+        $realBase = realpath($base) ?: $base;
+        $realFile = realpath($path) ?: '';
+        if ($realFile !== '' && $realBase !== '' && strncmp($realFile, $realBase, strlen($realBase)) === 0) {
+            @unlink($realFile);
+        }
+        db()->prepare("UPDATE verifications SET storage_path = '' WHERE id = ?")->execute([$verificationId]);
+    } catch (Throwable $e) {
+        error_log('[api] verification file delete failed: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
 function adminApproveVerification(string $verificationId): void
 {
     $admin = requireAuthUser();
@@ -453,7 +474,7 @@ function adminApproveVerification(string $verificationId): void
     $note = sanitizeText((string)($payload['note'] ?? ''), 500) ?: null;
 
     // Guard first (only pending rows are reviewable), then update, then flip badge.
-    $probe = db()->prepare("SELECT user_id, kind FROM verifications WHERE id = ? AND status = 'pending' LIMIT 1");
+    $probe = db()->prepare("SELECT user_id, kind, storage_path FROM verifications WHERE id = ? AND status = 'pending' LIMIT 1");
     $probe->execute([$verificationId]);
     $row = $probe->fetch();
     if (!$row) {
@@ -470,6 +491,10 @@ function adminApproveVerification(string $verificationId): void
 
     db()->prepare("UPDATE verifications SET status = 'approved', reviewed_by = ?, reviewed_at = UTC_TIMESTAMP(), review_note = ? WHERE id = ?")
         ->execute([$admin['uid'], $note, $verificationId]);
+    // Retention (2026-11-10): the privacy policy promises ID documents are
+    // not retained once reviewed. Delete the encrypted file and clear the
+    // path — the row + decision + note stay as the audit record.
+    deleteVerificationFile((string)($row['storage_path'] ?? ''), $verificationId);
     // Badge follows the table (syncVerificationBadge): the CASE rule that
     // kept an existing ID badge when a later selfie was approved now lives
     // there, so every decide path derives the badge the same way.
@@ -491,7 +516,7 @@ function adminRejectVerification(string $verificationId): void
     $note = sanitizeText((string)($payload['note'] ?? ''), 500)
         ?: 'Photo was not clear enough — please resubmit.';
 
-    $probe = db()->prepare("SELECT id, user_id FROM verifications WHERE id = ? AND status = 'pending' LIMIT 1");
+    $probe = db()->prepare("SELECT id, user_id, storage_path FROM verifications WHERE id = ? AND status = 'pending' LIMIT 1");
     $probe->execute([$verificationId]);
     $verif = $probe->fetch();
     if (!$verif) {
@@ -501,6 +526,10 @@ function adminRejectVerification(string $verificationId): void
     db()->prepare("UPDATE verifications SET status = 'rejected', reviewed_by = ?, reviewed_at = UTC_TIMESTAMP(), review_note = ? WHERE id = ?")
         ->execute([$admin['uid'], $note, $verificationId]);
 
+    // Retention (2026-11-10): same as approve — the file is deleted on
+    // review and the member resubmits a fresh document if they try again.
+    deleteVerificationFile((string)($verif['storage_path'] ?? ''), $verificationId);
+
     // Revocation: the badge follows whatever approved record remains, or
     // clears when none does. The derivation lives in syncVerificationBadge
     // — previously the badge, once flipped, survived every rejection
@@ -508,7 +537,7 @@ function adminRejectVerification(string $verificationId): void
     // both exist, and an account-only approval never earns a document tier.
     syncVerificationBadge((string)$verif['user_id']);
 
-    auditLog('verification.rejected', 'verification', $verificationId, ['note' => $note, 'userId' => $userId]);
+    auditLog('verification.rejected', 'verification', $verificationId, ['note' => $note, 'userId' => (string)$verif['user_id']]);
 
     json(['ok' => true]);
 }
@@ -525,6 +554,12 @@ function adminVerificationFile(string $verificationId): void
     // Defense in depth: never serve anything outside UPLOAD_DIR even if a path
     // in the DB were tampered with (parity with routes/admin.js).
     $path = (string)$row['storage_path'];
+    // Reviewed rows have their file deleted (retention: not retained once
+    // reviewed) and storage_path cleared to '' — that is a missing file,
+    // not a forbidden one.
+    if ($path === '' || $path === 'account-review') {
+        je('File missing on disk.', 404);
+    }
     $base = trim((string)(getenv('UPLOAD_DIR') ?: (__DIR__ . '/../uploads')));
     $realBase = realpath($base) ?: $base;
     $realFile = realpath($path) ?: $path;
@@ -1010,7 +1045,12 @@ function adminReportAction(string $reportId): void
 // POST /api/admin/reports/:id/dismiss
 function adminReportDismiss(string $reportId): void
 {
-    db()->prepare("UPDATE reports SET status = 'dismissed' WHERE id = ?")->execute([$reportId]);
+    // Record who/when like AdminService::dismissReport() does — the inline
+    // UPDATE used to leave actioned_by/at NULL, so a dismissed report
+    // looked unactioned in the queue and the reporter status view.
+    $admin = currentUser();
+    db()->prepare("UPDATE reports SET status = 'dismissed', actioned_by = ?, actioned_at = UTC_TIMESTAMP() WHERE id = ?")
+        ->execute([(string)($admin['uid'] ?? ''), $reportId]);
     auditLog('report.dismissed', 'report', $reportId);
     json(['ok' => true]);
 }

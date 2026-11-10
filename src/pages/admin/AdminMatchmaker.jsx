@@ -89,11 +89,17 @@ export default function AdminMatchmaker() {
                   <p className="text-xs mt-1 flex items-center gap-1" style={{ color: '#d29922' }}>
                     <Clock className="w-3 h-3" /> {q.expires_in_days} day{q.expires_in_days === 1 ? '' : 's'} left before auto-delete
                   </p>
+                  {q.status === 'pending-consent' && (
+                    <p className="text-xs mt-1 font-semibold" style={{ color: '#d29922' }}>
+                      Awaiting confirmation — the person this profile is for ({q.consent_email || 'no email on file'}) has not confirmed yet. Approve is blocked until they do.
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
-                  <button disabled={busy} onClick={() => act(q.id, 'approve')}
+                  <button disabled={busy || q.status === 'pending-consent'} onClick={() => act(q.id, 'approve')}
+                    title={q.status === 'pending-consent' ? 'Blocked until the subject confirms by email' : 'Approve this submission'}
                     className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1"
-                    style={{ background: '#238636', color: '#fff' }}>
+                    style={{ background: '#238636', color: '#fff', opacity: q.status === 'pending-consent' ? 0.45 : 1 }}>
                     <Check className="w-3 h-3" /> Approve
                   </button>
                   <button disabled={busy} onClick={() => { if (confirm('Reject and delete this submission?')) act(q.id, 'reject'); }}

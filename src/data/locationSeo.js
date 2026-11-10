@@ -270,7 +270,7 @@ export function locationRouteSeo(withMembers) {
   for (const k of withMembers.countries) {
     out[`/country/${k.slug}`] = {
       title: `Shia Matrimony in ${k.name} | Free Shia Rishta Platform`,
-      desc: `Find verified Shia brides and grooms in ${k.name}. Privacy-first profiles, wali and guardian workflows, mutual-interest messaging. Free.`,
+      desc: `Find Shia brides and grooms in ${k.name}. Privacy-first profiles, wali and guardian workflows, mutual-interest messaging. Free.`,
       h1: `Shia matrimony in ${k.name}`,
       lede: `Shia matrimonial profiles across ${k.name}, filterable by city, sect, marja and practice. Free to browse, and no account is needed to view public profiles.`,
       sections: [{ h2: `Shia families in ${k.name}`, p: k.note }],

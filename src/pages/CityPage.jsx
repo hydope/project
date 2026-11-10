@@ -56,6 +56,25 @@ export default function CityPage() {
       .finally(() => setLoading(false));
   }, [slug, displayName, kind]);
 
+  // Empty place → noindex (2026-11-10, external-audit fixes): a city/country
+  // page with zero members is a thin page that wastes crawl budget. Seo
+  // takes no props and its effect does not re-run on the same pathname, so
+  // this effect — which runs after the fetch resolves — is the only place
+  // that can flip the robots meta. Applies to curated places with 0 members
+  // too, not just dynamic slugs. Restores index,follow when the page has
+  // members, so SPA navigation from an empty page cannot poison the next.
+  useEffect(() => {
+    if (loading) return;
+    const meta = document.querySelector('meta[name="robots"]');
+    if (!meta) return;
+    if (profiles.length === 0) {
+      meta.setAttribute('content', 'noindex, nofollow');
+      document.title = 'Page Not Found | Shia Rishta';
+    } else {
+      meta.setAttribute('content', 'index, follow');
+    }
+  }, [loading, profiles.length]);
+
   const name = locationName || displayName;
   const count = profiles.length;
 
@@ -87,17 +106,11 @@ export default function CityPage() {
   // Alternate country names, e.g. "Shia Rishta in United States"
   const altKw = aliases.map(a => `Shia Rishta in ${a}`);
 
-  const titleTag = altName
-    ? `${kw.rishta} | Shia Rishta in ${altName} | ${kw.rishtay}`
-    : `${kw.rishta} | ${kw.rishtay} | ${kw.nikah}`;
-
   return (
     <Layout>
-      <Seo
-        title={titleTag}
-        description={`${kw.find}. Verified ${kw.nikah.toLowerCase()}, ${kw.marriage.toLowerCase()} and ${kw.matrimony.toLowerCase()} profiles — ${kw.brides} and ${kw.grooms} seeking a serious match. Free to browse.`}
-        canonical={`https://shiarishta.com/${isCountry ? 'country' : 'city'}/${slug}`}
-      />
+      {/* Seo takes no props — meta comes from resolveMeta() by route. The
+          title/description/canonical props that used to sit here were dead. */}
+      <Seo />
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Breadcrumb */}
         <nav className="text-xs mb-6" style={{ color: 'var(--color-ink-tertiary)' }} aria-label="Breadcrumb">
@@ -120,8 +133,8 @@ export default function CityPage() {
               {kw.rishta}
             </h1>
             <p className="text-sm max-w-2xl leading-relaxed mb-4" style={{ color: 'var(--color-ink-secondary)' }}>
-              {kw.find}. Browse verified {name} Shia brides and grooms seeking a serious nikah match.
-              Every profile is manually reviewed. Your {name} Shia shaadi starts here — explore {kw.rishtay.toLowerCase()} today.
+              {kw.find}. Browse {name} Shia brides and grooms seeking a serious nikah match.
+              Every profile is created with marriage intent. Your {name} Shia shaadi starts here — explore {kw.rishtay.toLowerCase()} today.
             </p>
             <div className="flex flex-wrap gap-3">
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
@@ -130,7 +143,7 @@ export default function CityPage() {
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
                 style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-ink-secondary)' }}>
-                <ShieldCheck className="w-3.5 h-3.5" /> Verified members
+                <ShieldCheck className="w-3.5 h-3.5" /> ID-verified badges available
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
                 style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-ink-secondary)' }}>
@@ -175,7 +188,7 @@ export default function CityPage() {
               <h2 className="text-xl font-bold" style={{ color: 'var(--color-ink)' }}>
                 {kw.matrimony}
               </h2>
-              <Link to="/profiles" className="text-sm font-semibold hover:underline" style={{ color: 'var(--color-primary)' }}>
+              <Link to="/profiles/" className="text-sm font-semibold hover:underline" style={{ color: 'var(--color-primary)' }}>
                 View all profiles →
               </Link>
             </div>
@@ -192,8 +205,8 @@ export default function CityPage() {
               {kw.marriage}
             </h2>
             <p className="text-sm leading-relaxed" style={{ color: 'var(--color-ink-secondary)' }}>
-              Looking for a Shia marriage in {name}? ShiaRishta connects verified Shia Muslims
-              in {name} seeking nikah. Every {name} Shia matrimonial profile is manually reviewed,
+              Looking for a Shia marriage in {name}? ShiaRishta connects Shia Muslims
+              in {name} seeking nikah. Every {name} Shia matrimonial profile is created with nikah as its stated purpose,
               photos stay private until you choose to share, and conversations are respectful
               from the first salaam.
               {altKw.length > 0 && ` Whether you search for ${altKw.join(', ')}, you'll find the same trusted ${name} community here.`}

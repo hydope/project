@@ -13,6 +13,7 @@ export default function WaliLinks() {
   const [error, setError] = useState('');
   const [revoking, setRevoking] = useState(null); // token awaiting confirmation
   const [revokeBusy, setRevokeBusy] = useState(false);
+  const [restoring, setRestoring] = useState(null); // token being restored
 
   const load = async () => {
     setLoading(true);
@@ -57,6 +58,22 @@ export default function WaliLinks() {
     }
   };
 
+  // Restore a revoked link within 24h of revocation (2026-11-10,
+  // external-audit fixes). After 24h the link is gone for good and the
+  // member generates a fresh one instead.
+  const restore = async (token) => {
+    setRestoring(token);
+    setError('');
+    try {
+      await http.post(`/api/wali/link/${encodeURIComponent(token)}/restore`, {});
+      await load();
+    } catch (e) {
+      setError(e.message || 'Could not restore link.');
+    } finally {
+      setRestoring(null);
+    }
+  };
+
   const copy = async (url) => {
     try {
       await navigator.clipboard.writeText(url);
@@ -75,7 +92,8 @@ export default function WaliLinks() {
       <p className="text-sm text-muted mb-4">
         Share a read-only view of your profile with a family member or wali.
         They see your profile — never your messages or contact details.
-        Revoke any link at any time.
+        Only you can revoke a link — the person holding it cannot. A revoked
+        link can be restored within 24 hours; after that it is gone for good.
       </p>
 
       {error && <p className="text-sm text-danger mb-3">{error}</p>}
@@ -96,10 +114,25 @@ export default function WaliLinks() {
                 <p className="text-xs font-mono truncate text-muted">{l.url}</p>
                 <p className="text-[11px] text-muted">
                   Created {new Date(l.createdAt).toLocaleDateString()}
-                  {l.revoked && ' — revoked'}
+                  {l.revoked && (
+                    l.restorable
+                      ? ` — revoked. Restore available until ${new Date(new Date(l.revokedAt).getTime() + 24 * 3600 * 1000).toLocaleString()}`
+                      : ' — revoked. Restore window has passed; generate a new link instead.'
+                  )}
                 </p>
               </div>
-              {!l.revoked && (
+              {l.revoked ? (
+                l.restorable && (
+                  <button
+                    onClick={() => restore(l.token)}
+                    disabled={restoring === l.token}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+                    style={{ background: 'var(--color-primary)', color: '#fff' }}
+                  >
+                    {restoring === l.token ? 'Restoring…' : 'Restore access'}
+                  </button>
+                )
+              ) : (
                 <>
                   <button
                     onClick={() => copy(l.url)}
@@ -135,7 +168,7 @@ export default function WaliLinks() {
       {revoking && (
         <ConfirmDialog
           title="Revoke guardian link?"
-          message="The person with this link will lose access to your profile immediately. This cannot be undone."
+          message="The person with this link will lose access to your profile immediately. You can restore access within 24 hours; after that the link is gone for good and you will need to generate a new one."
           confirmLabel="Revoke link"
           danger
           busy={revokeBusy}

@@ -521,7 +521,10 @@ function renderBody(meta, route) {
       '<a href="/biodata-maker/">Free biodata maker</a> &middot; ' +
       '<a href="/shiamatch-alternative/">ShiaMatch alternative</a>' +
       '</p><p><a href="https://fazier.com" rel="noopener">' +
-      '<img src="https://fazier.com/api/v1//public/badges/launch_badges.svg?badge_type=launched&amp;theme=light" ' +
+      // Self-hosted badge (2026-11-10): the SVG lives in public/fazier-badge.svg
+      // so prerendered pages make no third-party request. The link to fazier.com
+      // stays — a link is not a loaded resource.
+      '<img src="/fazier-badge.svg" ' +
       'alt="Featured on Fazier" width="120" height="36" loading="lazy"></a>' +
       '</p></footer>',
   );

@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS users (
   verification_note       TEXT         DEFAULT NULL,
   google_id               VARCHAR(64)  DEFAULT NULL,
   facebook_id             VARCHAR(64)  DEFAULT NULL,
+  -- Date of birth (2026-11-10): the Terms require members to be 18+; the
+  -- server validates age >= 18 at registration and stores the DOB here.
+  date_of_birth           DATE         DEFAULT NULL,
   created_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_email (email),
   KEY idx_users_role (role),
@@ -182,7 +185,8 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at      DATETIME DEFAULT NULL,
   KEY idx_messages_conv (conversation_id, created_at),
-  KEY idx_messages_expires (expires_at)
+  KEY idx_messages_expires (expires_at),
+  KEY idx_messages_sender (sender_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS matchmaker_profiles (
@@ -190,6 +194,12 @@ CREATE TABLE IF NOT EXISTS matchmaker_profiles (
   submitted_by CHAR(36)   NOT NULL,
   payload      MEDIUMTEXT NOT NULL,
   status       VARCHAR(20) NOT NULL DEFAULT 'pending',
+  -- Subject consent (2026-11-10): a submission stays 'pending-consent'
+  -- until the subject confirms by email (consent_token link). Admin
+  -- approve is blocked until consent_confirmed_at is set.
+  consent_token       VARCHAR(64)  DEFAULT NULL,
+  consent_email       VARCHAR(320) DEFAULT NULL,
+  consent_confirmed_at DATETIME   DEFAULT NULL,
   created_at   DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP,
   reviewed_at  DATETIME   DEFAULT NULL,
   reviewed_by  CHAR(36)   DEFAULT NULL,
@@ -241,6 +251,10 @@ CREATE TABLE IF NOT EXISTS reports (
   status      VARCHAR(16)   NOT NULL DEFAULT 'open',
   actioned_by CHAR(36)      DEFAULT NULL,
   actioned_at DATETIME      DEFAULT NULL,
+  -- Appeal (2026-11-10): the reporter can appeal a closed report, which
+  -- reopens it for review with their reason attached.
+  appeal_reason TEXT        DEFAULT NULL,
+  appeal_at   DATETIME      DEFAULT NULL,
   created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_reports_status (status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -300,6 +314,9 @@ CREATE TABLE IF NOT EXISTS wali_links (
   token      VARCHAR(64) NOT NULL PRIMARY KEY,
   user_id    CHAR(36)    NOT NULL,
   revoked    TINYINT(1)  NOT NULL DEFAULT 0,
+  -- Revocation timestamp (2026-11-10): a revoked link can be restored by
+  -- the member within 24h of revocation; after that it is gone for good.
+  revoked_at DATETIME    DEFAULT NULL,
   created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

@@ -83,8 +83,17 @@ RewriteRule ^api/(.*)$ https://shiarishta.com/api/$1 [R=301,L]
 #    NOTE: ^profile/ requires the trailing slash, so the SPA's /profile page
 #    is untouched; same for ^members/ vs /profiles.
 RewriteRule ^blog-post/ /blog [R=301,L]
-RewriteRule ^user-story/ /success-stories [R=301,L]
-RewriteRule ^testimonials/ /success-stories [R=301,L]
+RewriteRule ^user-story/ /how-it-works/ [R=301,L]
+RewriteRule ^testimonials/ /how-it-works/ [R=301,L]
+# /success-stories was renamed /how-it-works (2026-11-10): the page IS
+# "How Shia Rishta works" (H1 + title), and it explicitly says it invents
+# no testimonials — so the old name was the lie, not the label.
+RewriteRule ^success-stories/?$ /how-it-works/ [R=301,L]
+# Nanjing tag pages are gone (2026-11-10): no member is from Nanjing, so
+# the 12 tag slugs were thin pages with no members behind them. The
+# prerendered directories stay on disk (the deploy mirror never deletes),
+# so they are 410d here instead of serving stale HTML.
+RewriteRule ^(shia-rishta-nanjing|shia-rishtay-nanjing|shia-nikah-nanjing|shia-marriage-nanjing|shia-matrimony-nanjing|nanjing-shia-brides|nanjing-shia-grooms|shia-shaadi-nanjing|find-shia-rishta-nanjing|nanjing-shia-matrimonial|shia-nikah-match-nanjing|shia-match-nanjing)/?$ - [G,L]
 # Individual legacy WP post slugs found 404ing in Search Console (no backlink
 # equity behind them, but a 301 to /blog beats a dead end for any visitor).
 RewriteRule ^how-to-make-a-marriage-successful/?$ /blog [R=301,L]

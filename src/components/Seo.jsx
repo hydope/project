@@ -143,7 +143,7 @@ function resolveMeta(pathname) {
   if (path.startsWith('/profiles/')) {
     return {
       title: 'Shia Profile for Nikah | Shia Rishta',
-      desc: 'View this verified Shia profile on Shia Rishta — the nikah-first Shia matrimony platform.',
+      desc: 'View this Shia profile on Shia Rishta — the nikah-first Shia matrimony platform.',
       index: true,
     };
   }
@@ -183,14 +183,14 @@ function resolveMeta(pathname) {
     if (country) {
       return {
         title: `Shia Matrimony in ${country.name} | Free Shia Rishta Platform`,
-        desc: `Find verified Shia brides and grooms in ${country.name}. Privacy-first profiles, wali and guardian workflows, mutual-interest messaging. Free.`,
+        desc: `Find Shia brides and grooms in ${country.name}. Privacy-first profiles, wali and guardian workflows, mutual-interest messaging. Free.`,
         index: true,
       };
     }
     const name = displayNameFromSlug(path.slice('/country/'.length));
     return {
       title: `Shia Matrimony in ${name} | Free Shia Rishta Platform`,
-      desc: `Find verified Shia brides and grooms in ${name}. Privacy-first profiles, wali and guardian workflows, mutual-interest messaging. Free.`,
+      desc: `Find Shia brides and grooms in ${name}. Privacy-first profiles, wali and guardian workflows, mutual-interest messaging. Free.`,
       index: true,
     };
   }

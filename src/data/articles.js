@@ -40,7 +40,7 @@ export const articles = [
       { t: 'p', x: 'Introduce families at the right stage — not on day one, and not six months in. A good rule: once you and the other person have established mutual serious intent, bring the families together. Too early creates pressure; too late creates betrayal when parents feel bypassed.' },
       { t: 'h2', x: 'When families disagree' },
       { t: 'p', x: 'Disagreement between families is normal. What matters is how it is handled. Never triangulate — don\u2019t carry complaints between households. Instead, the couple should present a united, respectful front: \u201cWe hear your concern, here is how we plan to address it.\u201d Parents soften when they see maturity, not defiance.' },
-      { t: 'p', x: 'And remember the wali\u2019s role. In Shia fiqh, a virgin woman\u2019s nikah requires her father\u2019s or grandfather\u2019s consent — this is not cultural decoration, it is religious structure. Build your process around it from the start rather than treating it as a hurdle at the end.' },
+      { t: 'p', x: 'And remember the wali\u2019s role. Per Ayatollah Sistani\u2019s Code of Practice for Muslims in the West, in marrying a virgin woman it is necessary to get the consent of her father or paternal grandfather if she is not independent, and it is precautionarily obligatory to seek their consent even if she is independent. Positions vary by marja — follow your own marja. This is not cultural decoration, it is religious structure. Build your process around it from the start rather than treating it as a hurdle at the end.' },
     ],
   },
   {
@@ -92,10 +92,10 @@ const more = [
     date: 'Jul 28, 2026',
     image: '/blog/article-5.webp',
     body: [
-      { t: 'p', x: 'The wali — usually the father — is not a relic of a bygone era. In Shia fiqh, his consent is a condition of a virgin woman\u2019s nikah. The question is not whether the wali matters, but how his role works when the introduction happens on a phone instead of through family networks.' },
+      { t: 'p', x: 'The wali — usually the father — is not a relic of a bygone era. Per Ayatollah Sistani\u2019s Code of Practice for Muslims in the West, in marrying a virgin woman it is necessary to get the consent of her father or paternal grandfather if she is not independent, and it is precautionarily obligatory to seek their consent even if she is independent. Positions vary by marja — follow your own marja. The question is not whether the wali matters, but how his role works when the introduction happens on a phone instead of through family networks.' },
       { t: 'h2', x: 'What the wali actually does' },
       { t: 'p', x: 'The wali\u2019s role is protection and vetting, not control. He asks the questions a young person might not think to ask: the suitor\u2019s family standing, financial honesty, religious consistency over time. A good wali investigates with the seriousness the decision deserves — because nikah is the most consequential contract most people ever sign.' },
-      { t: 'p', x: 'Modern distance complicates this. When families live on different continents, the wali cannot simply \u201cask around.\u201d This is where structured tools help: verified profiles, documented family introductions, and video meetings that include the wali from the start rather than as an afterthought.' },
+      { t: 'p', x: 'Modern distance complicates this. When families live on different continents, the wali cannot simply \u201cask around.\u201d This is where structured tools help: profiles with ID-verified badges available, documented family introductions, and video meetings that include the wali from the start rather than as an afterthought.' },
       { t: 'h2', x: 'Bring him in early' },
       { t: 'p', x: 'The most common mistake is treating the wali as the final stamp. Instead, make him a partner from the first serious conversation. Share the profile, discuss your impressions, let him raise concerns while they are still easy to check. A wali who has watched the process unfold rarely blocks its conclusion — trust is built in the open, not demanded at the end.' },
     ],

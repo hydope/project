@@ -2,14 +2,15 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import Layout from '../layouts/LandingLayout';
 import { Heart, Shield, Users, Sparkles, Globe, Eye, ArrowRight } from 'lucide-react';
+import { useStats } from '../lib/api/client';
 
 const VALUES = [
-  { icon: Shield, title: 'Privacy by Default', desc: 'Your photos, your profile, your rules. Hidden-until-match by default, encrypted message storage, and discreet browsing come standard — not as premium add-ons.' },
-  { icon: Heart, title: 'Intention First', desc: 'We built Shia Rishta for one purpose: serious nikah-seeking. No swiping culture, no casual browsing — just verified, intentional members.' },
+  { icon: Shield, title: 'Privacy by Default', desc: 'Your photos, your profile, your rules. Members-only photos by default, encrypted message storage, and discreet browsing come standard — not as premium add-ons.' },
+  { icon: Heart, title: 'Intention First', desc: 'We built Shia Rishta for one purpose: serious nikah-seeking. No swiping culture, no casual browsing — just intentional members, serious about nikah.' },
   { icon: Users, title: 'Family-Centered', desc: 'Wali workflows and family-managed introductions aren\'t afterthoughts. They\'re built into the platform from day one.' },
   { icon: Globe, title: 'Community-Driven', desc: 'From Ithna Ashari to Ismaili, Bohra to Zaydi — we serve the full diversity of Shia Islam with granular sect and Marja\' filters.' },
   { icon: Sparkles, title: 'Values-Matched', desc: 'Our compatibility score weighs faith practice, values, lifestyle and timeline alignment — surfacing matches that genuinely matter.' },
-  { icon: Eye, title: 'Transparent', desc: 'No hidden paywalls behind basic navigation. The platform is entirely free, matching is honest, and a team of people responds within hours.' },
+  { icon: Eye, title: 'Transparent', desc: 'No hidden paywalls behind basic navigation. The platform is entirely free, matching is honest, and a team of people responds within 24 hours.' },
 ];
 
 const TEAM = [
@@ -18,6 +19,13 @@ const TEAM = [
 ];
 
 export default function About() {
+  // Live counts, straight from the database — shown only once the endpoint
+  // resolves, never a placeholder number.
+  const { data: stats } = useStats();
+  const memberCount = Number(stats?.browsable ?? stats?.members ?? 0);
+  const cityCount = Number(stats?.cities ?? 0);
+  const verifiedCount = Number(stats?.verified ?? 0);
+
   return (
     <Layout>
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
@@ -28,7 +36,21 @@ export default function About() {
           <p className="text-muted mt-3 max-w-2xl mx-auto text-lg">
             Shia Rishta exists to help Shia singles and families find life partners with dignity, privacy, and faith at the center.
           </p>
+          <img src="/og-cover.jpg" alt="Shia Rishta — nikah-first Shia matrimony" className="rounded-2xl border border-line/20 mx-auto mt-8 w-full max-w-2xl" loading="lazy" />
         </motion.div>
+
+        {/* Live counts — real numbers from the database, not claims */}
+        {stats && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+            className="text-center mb-14">
+            <p className="text-sm text-muted">
+              <span className="font-bold text-ink text-lg">{memberCount}</span> browsable members ·{' '}
+              <span className="font-bold text-ink text-lg">{cityCount}</span> cities ·{' '}
+              <span className="font-bold text-ink text-lg">{verifiedCount}</span> ID-verified
+            </p>
+            <p className="text-xs text-muted mt-1">Counted live from the member database — the same figures shown on the homepage.</p>
+          </motion.div>
+        )}
 
         {/* Story */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
@@ -42,6 +64,7 @@ export default function About() {
             <div className="space-y-4 text-sm text-muted leading-relaxed">
               <p>Shia Rishta was born from a simple observation: existing matrimonial platforms didn't serve the Shia community well. They lacked granular sect filters, ignored the importance of wali involvement, treated privacy as a premium feature, and felt more like social media than a sacred search.</p>
               <p>We set out to build something different. A platform where privacy is a right. Where family involvement is a feature, not an afterthought. Where AI serves serious intentions — not engagement metrics. Where every design decision is guided by Islamic values and cultural respect.</p>
+              <p>Free while we grow. There are no paid tiers today and no payment system; the site is sustained by its founder. Core access is intended to stay free — if a paid tier ever arrives, it would only add convenience features, and members would be told first.</p>
               <p>Shia Rishta is in early access, welcoming founding members who are helping shape a thoughtful, faith-centered way to meet.</p>
             </div>
           </div>
@@ -82,12 +105,12 @@ export default function About() {
           className="text-center bg-gradient-to-br from-primary/10 via-accent/5 to-primary/10 rounded-2xl border border-primary/15 p-8 sm:p-12">
           <Sparkles className="w-8 h-8 text-primary mx-auto mb-3" />
           <h2 className="text-2xl sm:text-3xl font-bold text-ink mb-3">Begin your journey</h2>
-          <p className="text-muted max-w-lg mx-auto mb-6">Join a community of verified Shia singles and families finding marriage with intention, privacy, and faith.</p>
+          <p className="text-muted max-w-lg mx-auto mb-6">Join a community of Shia singles and families finding marriage with intention, privacy, and faith.</p>
           <div className="flex flex-wrap justify-center gap-3">
             <Link to="/auth/register" className="button primary px-7 py-3 font-semibold inline-flex items-center gap-2">
               Create Your Profile <ArrowRight className="w-4 h-4" />
             </Link>
-            <Link to="/success-stories" className="button secondary px-7 py-3 font-semibold">Read Success Stories</Link>
+            <Link to="/how-it-works" className="button secondary px-7 py-3 font-semibold">How it works</Link>
           </div>
         </motion.div>
       </main>

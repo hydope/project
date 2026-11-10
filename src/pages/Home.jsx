@@ -14,40 +14,38 @@ import { useProfiles, useStats } from '../lib/api/client';
 // Homepage FAQs — genuine questions, keyword-aware, visible on the page so
 // the FAQPage JSON-LD in FaqSection is eligible for rich results.
 const HOME_FAQS = [
-  { q: 'What is Shia Rishta?', a: 'Shia Rishta is a nikah-first matchmaking platform built specifically for Shia Muslims and their families. Unlike generic dating apps, every profile is created with marriage intent, identity verification is built in, and wali/family workflows are part of the journey from the start.' },
+  { q: 'What is Shia Rishta?', a: 'Shia Rishta is a nikah-first matchmaking platform built specifically for Shia Muslims and their families. Unlike generic dating apps, every profile is created with marriage intent, identity verification is available as an optional badge, and wali/family workflows are part of the journey from the start.' },
   { q: 'Is Shia Rishta free?', a: 'Yes. Creating a profile, browsing, expressing interest, and using guardian tools are all free during early access. There is no payment system today, and core access is intended to stay free — paid tiers, if they ever arrive, would only add convenience features.' },
-  { q: 'How does Shia Rishta protect my privacy?', a: 'You control exactly who sees your photos: everyone, only after mutual interest, or only after matching. Your contact details are never shown publicly, conversations require mutual interest, and you can block anyone instantly.' },
-  { q: 'Can my family or wali be involved?', a: 'Yes — that is the point. Shia Rishta has built-in wali and guardian workflows: approvals, family-to-family introductions, and chaperoned communication. In Shia fiqh a virgin woman\u2019s nikah requires her wali\u2019s consent, so the platform is designed around that from day one.' },
-  { q: 'Who can join Shia Rishta?', a: 'Shia Muslims who are seriously seeking nikah, along with their parents, guardians, and trusted matchmakers acting on their behalf. Profiles are reviewed for genuine marriage intent.' },
+  { q: 'How does Shia Rishta protect my privacy?', a: 'You control exactly who sees your photos: everyone, signed-in members only, or only you. Your contact details are never shown publicly, conversations require mutual interest, and you can block anyone instantly.' },
+  { q: 'Can my family or wali be involved?', a: 'Yes — that is the point. Shia Rishta has built-in wali and guardian workflows: approvals, family-to-family introductions, and chaperoned communication. Per Ayatollah Sistani\u2019s Code of Practice for Muslims in the West, in marrying a virgin woman it is necessary to get the consent of her father or paternal grandfather if she is not independent, and it is precautionarily obligatory to seek their consent even if she is independent. Positions vary by marja — follow your own marja — so the platform is designed around family involvement from day one.' },
+  { q: 'Who can join Shia Rishta?', a: 'Shia Muslims who are seriously seeking nikah, along with their parents, guardians, and trusted matchmakers acting on their behalf. Profiles are created with marriage intent.' },
   { q: 'How is this different from other matrimonial sites?', a: 'Three things: it is Shia-specific (marja, sect, and practice filters that generic sites don\u2019t have), privacy-first (photo tiers instead of public galleries), and nikah-first (no swiping culture — conversations are limited and purposeful).' },
 ];
 
 // ── Reference-parity copy (shiarishta12.netlify.app) ────────────────────────
 const HERO_CHIPS = [
-  { icon: BadgeCheck, label: 'Verified women', className: 'c1' },
+  { icon: BadgeCheck, label: 'ID-verified badges', className: 'c1' },
   { icon: Sparkles, label: 'Smart matching', className: 'c2' },
   { icon: Lock, label: 'Photo privacy', className: 'c3' },
   { icon: Users, label: 'Wali workflow', className: 'c4' },
 ];
 
 const QUIET_FEATURES = [
-  { icon: BadgeCheck, title: 'Verified intent', desc: 'Identity and marriage-intention checks before sensitive access opens.' },
-  { icon: EyeOff, title: 'Privacy-first photos', desc: 'Members can show photos publicly, after mutual interest, or only after matching.' },
+  { icon: BadgeCheck, title: 'Stated marriage intent', desc: 'Every profile is created with nikah as its stated purpose.' },
+  { icon: EyeOff, title: 'Privacy-first photos', desc: 'Members can show photos to everyone, signed-in members only, or no one but themselves.' },
   { icon: Users, title: 'Family supported', desc: 'Wali and family workflows are built into the journey from the start.' },
   { icon: Sparkles, title: 'Daily suggestions', desc: 'A limited number of higher-quality matches based on values, practice, and life stage.' },
 ];
 
 const TRUST_STEPS = [
   { title: 'Intent assessment', desc: 'Marriage goals, religious practice, family background, and timeline.' },
-  { title: 'Verified profile', desc: 'Identity, intention, and safety checks create a higher-trust member pool.' },
+  { title: 'ID-verified badge', desc: 'Members can earn an ID-verified badge (government ID) or a Photo-verified badge (selfie).' },
   { title: 'Private introduction', desc: 'Intro messages are limited, contact exchange requires agreement, and families can be included.' },
 ];
 
 const PREMIUM_TOOLS = [
-  'Verified profiles only access',
+  'Email-verified members only access',
   'Contact exchange after mutual agreement',
-  'Video introductions kept private',
-  'Profile insights for views and saves',
   'Family-to-family communication tools',
   'Nikah planning and guidance resources',
 ];
@@ -93,12 +91,12 @@ export default function Home() {
               <p className="hp-eyebrow"><span aria-hidden="true" /> Private Shia matchmaking</p>
               <h1>{isLoggedIn ? `Welcome back, ${user?.displayName || "friend"}` : "Shia Rishta"}</h1>
               <p className="hp-lede">
-                A refined nikah-first platform where serious families can discover verified,
+                A refined nikah-first platform where serious families can discover
                 privacy-protected profiles with clarity, dignity, and intention.
               </p>
               <div className="hp-cta-row">
-                {isLoggedIn ? (<Link to="/dashboard" className="hp-btn-primary">Go to your dashboard <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>) : (<Link to="/profiles" className="hp-btn-primary">Browse profiles <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>)}
-                {isLoggedIn ? (<Link to="/profiles" className="hp-btn-ghost">Continue browsing</Link>) : (<Link to="/auth/register" className="hp-btn-ghost">Create free account</Link>)}
+                {isLoggedIn ? (<Link to="/dashboard" className="hp-btn-primary">Go to your dashboard <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>) : (<Link to="/profiles/" className="hp-btn-primary">Browse profiles <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>)}
+                {isLoggedIn ? (<Link to="/profiles/" className="hp-btn-ghost">Continue browsing</Link>) : (<Link to="/auth/register" className="hp-btn-ghost">Create free account</Link>)}
               </div>
             </Reveal>
 
@@ -260,7 +258,7 @@ export default function Home() {
             ))}
           </div>
           <div className="hp-featured-cta">
-            {isLoggedIn ? (<Link to="/dashboard" className="hp-btn-primary">Go to your dashboard <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>) : (<Link to="/profiles" className="hp-btn-primary">Browse all profiles <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>)}
+            {isLoggedIn ? (<Link to="/dashboard" className="hp-btn-primary">Go to your dashboard <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>) : (<Link to="/profiles/" className="hp-btn-primary">Browse all profiles <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>)}
             <span>{profilesLoading ? 'Finding members…' : `${memberCount > 0 ? memberCount : (data || []).length} curated members`} · {isLoggedIn ? "welcome back" : "free to join"}</span>
           </div>
         </section>
@@ -269,7 +267,7 @@ export default function Home() {
         <section className="hp-section">
           <div className="hp-premium">
             <Reveal>
-              <p className="hp-eyebrow"><span aria-hidden="true" /> Premium experience</p>
+              <p className="hp-eyebrow"><span aria-hidden="true" /> Serious tools</p>
               <h2>Serious tools for serious nikah conversations</h2>
               <p className="hp-lede">
                 Everything is built to protect dignity while keeping momentum toward nikah.
@@ -299,7 +297,7 @@ export default function Home() {
             <div>
               <p className="hp-eyebrow hp-eyebrow-light"><span aria-hidden="true" /> Guidance and community</p>
               <h2>Trust beyond the profile</h2>
-              <p>Islamic guidance, events, and family testimonials build trust beyond the profile.</p>
+              <p>Islamic guidance, events, and family guidance build trust beyond the profile.</p>
             </div>
             <div className="hp-guidance-actions">
               <Link to="/blog" className="hp-btn-gold">

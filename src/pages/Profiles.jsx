@@ -135,7 +135,7 @@ export function Favourites() {
               Private to you. Only you can see this list.
             </p>
           </div>
-          <button className="btn btn-secondary" onClick={() => navigate('/profiles')}>Browse more profiles</button>
+          <button className="btn btn-secondary" onClick={() => navigate('/profiles/')}>Browse more profiles</button>
         </div>
 
         {error && (
@@ -150,7 +150,7 @@ export function Favourites() {
             <p className="mb-4" style={{ color: 'var(--color-ink-secondary)' }}>
               You have not saved any profiles yet.
             </p>
-            <button className="btn btn-primary" onClick={() => navigate('/profiles')}>Browse profiles</button>
+            <button className="btn btn-primary" onClick={() => navigate('/profiles/')}>Browse profiles</button>
           </div>
         )}
 
@@ -362,7 +362,7 @@ export function BrowseProfiles() {
             Browse <span className="text-gradient">profiles</span>
           </h1>
           <p className="text-body mt-2 max-w-2xl">
-            Intentional matchmaking for serious, verified members. Take your time — every profile represents a real person seeking a meaningful connection.
+            Intentional matchmaking for serious members. Take your time — every profile represents a real person seeking a meaningful connection.
           </p>
         </div>
 

@@ -74,7 +74,7 @@ export default function Locations() {
             <p className="text-sm leading-relaxed mb-6" style={{ color: 'var(--color-ink-secondary)' }}>
               Every city and country below is a real Shia community with its own page.
               Search for your city or country — each page links straight to live,
-              verified profiles there, or invites the first profile where none exist yet.
+              profiles there, or invites the first profile where none exist yet.
             </p>
 
             {/* Search */}
@@ -138,7 +138,7 @@ export default function Locations() {
                 Join free <ArrowRight className="w-4 h-4" aria-hidden="true" />
               </Link>
               <Link
-                to="/profiles"
+                to="/profiles/"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold"
                 style={{ border: '1px solid var(--color-border)', color: 'var(--color-ink)' }}
               >
@@ -296,10 +296,10 @@ export default function Locations() {
         <section className="text-center py-10 px-6 rounded-3xl" style={{ background: 'linear-gradient(135deg, var(--color-primary-subtle) 0%, var(--color-surface) 100%)', border: '1px solid var(--color-border)' }}>
           <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--color-ink)' }}>Not bound to one place?</h2>
           <p className="text-sm mb-5" style={{ color: 'var(--color-ink-secondary)' }}>
-            Browse every verified Shia profile on the platform, wherever they live.
+            Browse every Shia profile on the platform, wherever they live.
           </p>
           <Link
-            to="/profiles"
+            to="/profiles/"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold text-white"
             style={{ background: 'var(--color-primary)' }}
           >

@@ -27,7 +27,6 @@ export const TAG_PLACES = [
   { slug: 'washington-dc', name: 'Washington DC', type: 'city', country: 'the USA', region: 'North America' },
   { slug: 'silver-spring', name: 'Silver Spring', type: 'city', country: 'the USA', region: 'North America' },
   { slug: 'sydney', name: 'Sydney', type: 'city', country: 'Australia', region: 'Oceania' },
-  { slug: 'nanjing', name: 'Nanjing', type: 'city', country: 'China', region: 'East Asia' },
   // Countries
   { slug: 'pakistan', name: 'Pakistan', type: 'country', region: 'South Asia' },
   { slug: 'india', name: 'India', type: 'country', region: 'South Asia' },
@@ -46,8 +45,8 @@ const TAG_DEFS = [
     slug: p => `shia-rishta-${p.slug}`,
     phrase: p => `Shia Rishta in ${p.name}`,
     h1: p => `Shia Rishta in ${p.name}`,
-    title: p => `Shia Rishta in ${p.name} | Find Verified Shia Profiles – Shia Rishta`,
-    desc: p => `Find a Shia rishta in ${p.name}. Verified profiles, wali-involved introductions, and photo privacy — the nikah-first platform. Join free.`,
+    title: p => `Shia Rishta in ${p.name} | Find Shia Profiles – Shia Rishta`,
+    desc: p => `Find a Shia rishta in ${p.name}. Profiles, wali-involved introductions, and photo privacy — the nikah-first platform. Join free.`,
     angle: 'search',
   },
   {
@@ -56,7 +55,7 @@ const TAG_DEFS = [
     phrase: p => `Shia Rishtay in ${p.name}`,
     h1: p => `Shia Rishtay in ${p.name}`,
     title: p => `Shia Rishtay in ${p.name} | Shia Rishta Profiles – Shia Rishta`,
-    desc: p => `Shia rishtay in ${p.name} — browse verified Shia profiles seeking nikah, with family involvement from the start. Free to join.`,
+    desc: p => `Shia rishtay in ${p.name} — browse Shia profiles seeking nikah, with family involvement from the start. Free to join.`,
     angle: 'search-urdu',
   },
   {
@@ -65,7 +64,7 @@ const TAG_DEFS = [
     phrase: p => `Shia Nikah in ${p.name}`,
     h1: p => `Shia Nikah in ${p.name}`,
     title: p => `Shia Nikah in ${p.name} | Nikah-First Matchmaking – Shia Rishta`,
-    desc: p => `Seeking nikah in ${p.name}? Meet verified Shia singles on a nikah-first platform — no casual dating, just serious marriage intent. Join free.`,
+    desc: p => `Seeking nikah in ${p.name}? Meet Shia singles on a nikah-first platform — no casual dating, just serious marriage intent. Join free.`,
     angle: 'nikah',
   },
   {
@@ -74,7 +73,7 @@ const TAG_DEFS = [
     phrase: p => `Shia Marriage in ${p.name}`,
     h1: p => `Shia Marriage in ${p.name}`,
     title: p => `Shia Marriage in ${p.name} | Find Your Life Partner – Shia Rishta`,
-    desc: p => `Shia marriage in ${p.name} starts with the right introduction. Verified profiles, family involvement, and privacy-first matchmaking. Join free.`,
+    desc: p => `Shia marriage in ${p.name} starts with the right introduction. Profiles, family involvement, and privacy-first matchmaking. Join free.`,
     angle: 'marriage',
   },
   {
@@ -83,7 +82,7 @@ const TAG_DEFS = [
     phrase: p => `Shia Matrimony in ${p.name}`,
     h1: p => `Shia Matrimony in ${p.name}`,
     title: p => `Shia Matrimony in ${p.name} | Trusted Matchmaking – Shia Rishta`,
-    desc: p => `Shia matrimony in ${p.name} — a trusted platform with verified profiles, marja-aware filters, and wali workflows. Join free.`,
+    desc: p => `Shia matrimony in ${p.name} — a trusted platform with profiles, marja-aware filters, and wali workflows. Join free.`,
     angle: 'matrimony',
   },
   {
@@ -91,8 +90,8 @@ const TAG_DEFS = [
     slug: p => `${p.slug}-shia-brides`,
     phrase: p => `${p.name} Shia Brides`,
     h1: p => `${p.name} Shia Brides`,
-    title: p => `${p.name} Shia Brides | Verified Profiles Seeking Nikah – Shia Rishta`,
-    desc: p => `Meet ${p.name} Shia brides seeking nikah. Verified profiles, photo privacy she controls, and wali-involved introductions. Browse free.`,
+    title: p => `${p.name} Shia Brides | Profiles Seeking Nikah – Shia Rishta`,
+    desc: p => `Meet ${p.name} Shia brides seeking nikah. Profiles, photo privacy she controls, and wali-involved introductions. Browse free.`,
     angle: 'brides',
   },
   {
@@ -100,8 +99,8 @@ const TAG_DEFS = [
     slug: p => `${p.slug}-shia-grooms`,
     phrase: p => `${p.name} Shia Grooms`,
     h1: p => `${p.name} Shia Grooms`,
-    title: p => `${p.name} Shia Grooms | Verified Profiles Seeking Nikah – Shia Rishta`,
-    desc: p => `Meet ${p.name} Shia grooms seeking nikah. Verified profiles, clear intentions, and family-to-family introductions. Browse free.`,
+    title: p => `${p.name} Shia Grooms | Profiles Seeking Nikah – Shia Rishta`,
+    desc: p => `Meet ${p.name} Shia grooms seeking nikah. Profiles, clear intentions, and family-to-family introductions. Browse free.`,
     angle: 'grooms',
   },
   {
@@ -110,7 +109,7 @@ const TAG_DEFS = [
     phrase: p => `Shia Shaadi in ${p.name}`,
     h1: p => `Shia Shaadi in ${p.name}`,
     title: p => `Shia Shaadi in ${p.name} | Find Your Match – Shia Rishta`,
-    desc: p => `Shia shaadi in ${p.name} — find a compatible match with verified profiles and family involvement. The modern way to arrange a blessed shaadi. Join free.`,
+    desc: p => `Shia shaadi in ${p.name} — find a compatible match with profiles and family involvement. The modern way to arrange a blessed shaadi. Join free.`,
     angle: 'shaadi',
   },
   {
@@ -119,7 +118,7 @@ const TAG_DEFS = [
     phrase: p => `Find Shia Rishta ${p.name}`,
     h1: p => `Find Shia Rishta in ${p.name}`,
     title: p => `Find Shia Rishta in ${p.name} | Start Today – Shia Rishta`,
-    desc: p => `Find a Shia rishta in ${p.name} today. Create a free profile, browse verified matches, and involve your family from day one.`,
+    desc: p => `Find a Shia rishta in ${p.name} today. Create a free profile, browse matches, and involve your family from day one.`,
     angle: 'find',
   },
   {
@@ -128,7 +127,7 @@ const TAG_DEFS = [
     phrase: p => `${p.name} Shia Matrimonial`,
     h1: p => `${p.name} Shia Matrimonial`,
     title: p => `${p.name} Shia Matrimonial | Profiles & Matchmaking – Shia Rishta`,
-    desc: p => `${p.name} Shia matrimonial — profiles, matchmaking, and wali workflows built for Shia families. Verified and free to join.`,
+    desc: p => `${p.name} Shia matrimonial — profiles, matchmaking, and wali workflows built for Shia families. Free to join.`,
     angle: 'matrimonial',
   },
   {
@@ -146,7 +145,7 @@ const TAG_DEFS = [
     phrase: p => `Shia Match ${p.name}`,
     h1: p => `Shia Match in ${p.name}`,
     title: p => `Shia Match in ${p.name} | Find Your Shia Match – Shia Rishta`,
-    desc: p => `Find your Shia match in ${p.name}. Verified Shia singles seeking nikah, matched on deen and values. Join free and meet your match.`,
+    desc: p => `Find your Shia match in ${p.name}. Shia singles seeking nikah, matched on deen and values. Join free and meet your match.`,
     angle: 'shia-match',
   },
 ];
@@ -164,11 +163,11 @@ const ANGLES = {
   'search': {
     intro: p => [
       `Searching for a Shia rishta ${inPhrase(p)} means looking in the right place. Shia Rishta is the nikah-first platform where every profile is Shia — filter by marja, sect, practice, and family values to find genuinely compatible matches ${inPhrase(p)}.`,
-      `Whether your family is in ${placeContext(p)} or you're searching from elsewhere for someone there, the platform keeps the process dignified: verified profiles, photo privacy you control, and your wali involved from the first introduction.`,
+      `Whether your family is in ${placeContext(p)} or you're searching from elsewhere for someone there, the platform keeps the process dignified: profiles, photo privacy you control, and your wali involved from the first introduction.`,
     ],
     sections: p => [
       { h2: `Why search ${inPhrase(p)} on Shia Rishta`, body: [`Generic matrimonial sites treat "Muslim" as one checkbox. But a Shia family ${inPhrase(p)} needs marja compatibility, Muharram observance alignment, and family structures built around nikah — filters Shia Rishta was designed around from day one.`] },
-      { h2: 'How it works', body: [`Create a free profile with honest detail about your practice and expectations. Browse verified profiles ${inPhrase(p)}, express interest where there is genuine alignment, and bring your wali in early — the strongest matches are the ones where families were involved from the start.`] },
+      { h2: 'How it works', body: [`Create a free profile with honest detail about your practice and expectations. Browse profiles ${inPhrase(p)}, express interest where there is genuine alignment, and bring your wali in early — the strongest matches are the ones where families were involved from the start.`] },
     ],
     faqs: p => [
       { q: `Is Shia Rishta free ${inPhrase(p)}?`, a: 'Yes. Joining, creating a profile, browsing, messaging, and verification are all free — everywhere.' },
@@ -178,15 +177,15 @@ const ANGLES = {
   'search-urdu': {
     intro: p => [
       `Ap ${placeContext(p)} mein Shia rishtay talash kar rahe hain? Shia Rishta par har profile Shia hai — marja, maslak, aur deeni mizaaj ke hisaab se filter karein aur ${inPhrase(p)} apne liye munasib rishta payein.`,
-      `Searching for Shia rishtay ${inPhrase(p)} works best on a platform built for it: verified profiles, family involvement from the start, and complete photo privacy — join free and begin today.`,
+      `Searching for Shia rishtay ${inPhrase(p)} works best on a platform built for it: profiles, family involvement from the start, and complete photo privacy — join free and begin today.`,
     ],
     sections: p => [
       { h2: `Rishtay ${inPhrase(p)} — with dignity`, body: [`Rishta hunting through relatives and WhatsApp forwards ${inPhrase(p)} is exhausting and often fruitless. Shia Rishta brings the process online without losing what matters: wali involvement, family-to-family communication, and profiles created with nikah as the stated purpose.`] },
-      { h2: 'Shuruwat kaise karein', body: [`Muft profile banayein, apni deeni aur khandani tawakkoat saaf likhein, ${inPhrase(p)} verified profiles dekhein, aur jahan dil mile wahan izzat se rabta karein. Wali ko shuru se shamil rakhein — yahi tareeqa sab se kamyab hai.`] },
+      { h2: 'Shuruwat kaise karein', body: [`Muft profile banayein, apni deeni aur khandani tawakkoat saaf likhein, ${inPhrase(p)} profiles dekhein, aur jahan dil mile wahan izzat se rabta karein. Wali ko shuru se shamil rakhein — yahi tareeqa sab se kamyab hai.`] },
     ],
     faqs: p => [
       { q: `Kya Shia Rishta ${inPhrase(p)} muft hai?`, a: 'Jee haan. Profile, browsing, messaging aur verification — sab kuch muft hai.' },
-      { q: `Are profiles ${inPhrase(p)} verified?`, a: 'Yes — identity and marriage-intention checks run before sensitive access opens.' },
+      { q: `Are profiles ${inPhrase(p)} verified?`, a: 'Verification is optional. Members can earn an ID-verified badge (government ID) or a Photo-verified badge (selfie).' },
     ],
   },
   'nikah': {
@@ -206,7 +205,7 @@ const ANGLES = {
   'marriage': {
     intro: p => [
       `A Shia marriage ${inPhrase(p)} begins long before the nikah khutbah — it begins with finding the right person. Shia Rishta helps you find a spouse ${inPhrase(p)} whose deen, marja, and family values align with yours, so the marriage starts on solid ground.`,
-      `Browse verified profiles ${inPhrase(p)}, filter by what actually decides compatibility, and build the relationship with family involvement from the start — because the strongest marriages are family-supported marriages.`,
+      `Browse profiles ${inPhrase(p)}, filter by what actually decides compatibility, and build the relationship with family involvement from the start — because the strongest marriages are family-supported marriages.`,
     ],
     sections: p => [
       { h2: `What makes a strong Shia marriage ${inPhrase(p)}`, body: [`Shared marja, compatible practice, aligned family expectations, and honest communication. Shia Rishta filters on exactly these — so you meet people ${inPhrase(p)} with whom a lasting marriage is actually plausible, not just a pleasant conversation.`] },
@@ -223,7 +222,7 @@ const ANGLES = {
       `Members ${inPhrase(p)} create detailed matrimonial profiles covering deen, education, family background, and expectations — then connect through a process their families can trust.`,
     ],
     sections: p => [
-      { h2: `Matrimony ${inPhrase(p)}, done properly`, body: [`A proper Shia matrimonial process ${inPhrase(p)} means: verified identities, marja-aware matching, photo privacy the member controls, and wali involvement from the first introduction. Shia Rishta implements all four — free.`] },
+      { h2: `Matrimony ${inPhrase(p)}, done properly`, body: [`A proper Shia matrimonial process ${inPhrase(p)} means: ID-verified badges available, marja-aware matching, photo privacy the member controls, and wali involvement from the first introduction. Shia Rishta implements all four — free.`] },
       { h2: 'For parents and guardians', body: [`If you are a parent searching ${inPhrase(p)} for your son or daughter: create a guardian-linked profile, review introductions together, and communicate family-to-family. The platform respects the traditional process while making it vastly more efficient.`] },
     ],
     faqs: p => [
@@ -233,7 +232,7 @@ const ANGLES = {
   },
   'brides': {
     intro: p => [
-      `Searching for a Shia bride ${inPhrase(p)}? Meet verified Shia women seriously seeking nikah — with profiles that show deen, education, family values, and expectations honestly, so you can shortlist with confidence.`,
+      `Searching for a Shia bride ${inPhrase(p)}? Meet Shia women seriously seeking nikah — with profiles that show deen, education, family values, and expectations honestly, so you can shortlist with confidence.`,
       `Every bride ${inPhrase(p)} controls her photo privacy, her wali can be involved from the first introduction, and conversations begin only on mutual interest — dignity for her, clarity for you.`,
     ],
     sections: p => [
@@ -241,13 +240,13 @@ const ANGLES = {
       { h2: 'Approach with respect', body: [`Bring your own clarity: a complete profile from the groom\u2019s side, with family details and wali readiness, is what serious brides ${inPhrase(p)} and their families respond to first. Express interest, wait for mutuality, then let families talk.`] },
     ],
     faqs: p => [
-      { q: `Are brides ${inPhrase(p)} verified?`, a: 'Yes — identity and marriage-intention checks run before sensitive access opens.' },
+      { q: `Are brides ${inPhrase(p)} verified?`, a: 'Verification is optional. A bride can earn an ID-verified badge (government ID) or a Photo-verified badge (selfie).' },
       { q: 'Who sees her photos?', a: 'She decides: everyone, only after mutual interest, or only after matching — changeable at any time.' },
     ],
   },
   'grooms': {
     intro: p => [
-      `Searching for a Shia groom ${inPhrase(p)}? Meet verified Shia men seriously seeking nikah — with clear intentions, stated expectations, and family backgrounds you can evaluate properly.`,
+      `Searching for a Shia groom ${inPhrase(p)}? Meet Shia men seriously seeking nikah — with clear intentions, stated expectations, and family backgrounds you can evaluate properly.`,
       `Grooms ${inPhrase(p)} on Shia Rishta create detailed profiles: practice, profession, family, timeline. Filter by what matters to your family, then begin with a respectful, wali-involved introduction.`,
     ],
     sections: p => [
@@ -255,17 +254,17 @@ const ANGLES = {
       { h2: 'How introductions work', body: [`Express interest where there is genuine alignment. When it is mutual, begin talking — and bring your wali in early. Family-to-family communication ${inPhrase(p)} is built into the platform because that is how Shia marriages are properly arranged.`] },
     ],
     faqs: p => [
-      { q: `Are grooms ${inPhrase(p)} verified?`, a: 'Yes — identity and marriage-intention checks run before sensitive access opens.' },
+      { q: `Are grooms ${inPhrase(p)} verified?`, a: 'Verification is optional. A groom can earn an ID-verified badge (government ID) or a Photo-verified badge (selfie).' },
       { q: 'Can my wali review introductions?', a: 'Yes. Connect your wali or guardian to review introductions and approve next steps.' },
     ],
   },
   'shaadi': {
     intro: p => [
-      `Planning a Shia shaadi ${inPhrase(p)} starts with finding the right match. Shia Rishta helps families ${inPhrase(p)} find compatible Shia partners — verified, serious about nikah, and ready to involve both families.`,
+      `Planning a Shia shaadi ${inPhrase(p)} starts with finding the right match. Shia Rishta helps families ${inPhrase(p)} find compatible Shia partners — serious about nikah, and ready to involve both families.`,
       `From first introduction to the shaadi itself, the platform keeps the process organized: private messaging, guardian approvals, and family-to-family communication, all in one place.`,
     ],
     sections: p => [
-      { h2: `The road to shaadi ${inPhrase(p)}`, body: [`A blessed shaadi ${inPhrase(p)} begins with the right niyyah and the right introduction. Create your profile, search verified matches, talk with mutual respect, involve families early — and when both sides are certain, plan the nikah with everyone\u2019s duas.`] },
+      { h2: `The road to shaadi ${inPhrase(p)}`, body: [`A blessed shaadi ${inPhrase(p)} begins with the right niyyah and the right introduction. Create your profile, search matches, talk with mutual respect, involve families early — and when both sides are certain, plan the nikah with everyone\u2019s duas.`] },
       { h2: 'Why families choose Shia Rishta', body: [`Because it respects the process: no public exposure of your search, photo privacy you control, wali workflows that work across distances, and a community ${inPhrase(p)} that shares your values. Shaadi is a family event — the search for a partner should honor that.`] },
     ],
     faqs: p => [
@@ -275,25 +274,25 @@ const ANGLES = {
   },
   'find': {
     intro: p => [
-      `Ready to find a Shia rishta ${inPhrase(p)}? Start here: create a free profile in minutes, tell us what matters — marja, practice, family values, location — and browse verified Shia profiles ${inPhrase(p)} seeking nikah.`,
+      `Ready to find a Shia rishta ${inPhrase(p)}? Start here: create a free profile in minutes, tell us what matters — marja, practice, family values, location — and browse Shia profiles ${inPhrase(p)} seeking nikah.`,
       `No endless scrolling through incompatible profiles. No explaining your marja to people who have never heard of it. Just a focused search ${inPhrase(p)} among people who share your deen and your goal.`,
     ],
     sections: p => [
-      { h2: `Your search ${inPhrase(p)}, step by step`, body: [`1. Create your free profile with honest detail. 2. Set filters: location ${inPhrase(p)}, marja, practice, age, education. 3. Browse verified matches and express interest. 4. Talk, involve your wali, and let families meet. Most members ${inPhrase(p)} find serious conversations within weeks of a complete profile.`] },
+      { h2: `Your search ${inPhrase(p)}, step by step`, body: [`1. Create your free profile with honest detail. 2. Set filters: location ${inPhrase(p)}, marja, practice, age, education. 3. Browse matches and express interest. 4. Talk, involve your wali, and let families meet. Most members ${inPhrase(p)} find serious conversations within weeks of a complete profile.`] },
       { h2: 'Make your profile work', body: [`Complete profiles get 5× more serious interest: a clear photo (or photo-privacy setting), honest practice description, family background, and stated expectations. Write like you are introducing yourself to a respected elder — because you are.`] },
     ],
     faqs: p => [
       { q: `How fast can I find a rishta ${inPhrase(p)}?`, a: 'Members with complete profiles and early family involvement typically find serious matches within weeks to a few months.' },
-      { q: 'What does "verified" mean?', a: 'Identity and marriage-intention checks before sensitive access opens — so you talk to real people seeking nikah.' },
+      { q: 'What does "verified" mean?', a: 'An ID-verified badge means a member’s government ID was approved by a person; a Photo-verified badge means their selfie was approved. Verification is optional and checks identity, not character.' },
     ],
   },
   'matrimonial': {
     intro: p => [
-      `${placeContext(p)} Shia matrimonial — profiles, matchmaking, and marriage services for Shia families, all in one nikah-first platform. Verified members, marja-aware filters, and wali workflows designed for how Shia marriages actually happen.`,
+      `${placeContext(p)} Shia matrimonial — profiles, matchmaking, and marriage services for Shia families, all in one nikah-first platform. ID-verified badges available, marja-aware filters, and wali workflows designed for how Shia marriages actually happen.`,
       `Whether you are the one marrying or a parent searching for your child, the matrimonial process ${inPhrase(p)} is fully supported: detailed profiles, family involvement tools, and privacy controls throughout.`,
     ],
     sections: p => [
-      { h2: `Matrimonial services ${inPhrase(p)}`, body: [`Profile creation with Shia-specific fields (marja, sect, practice level). Verified member directory ${inPhrase(p)}. Interest and introduction system with mutual consent. Wali and guardian participation. Family-to-family messaging. Biodata maker for sharing profiles offline. All free.`] },
+      { h2: `Matrimonial services ${inPhrase(p)}`, body: [`Profile creation with Shia-specific fields (marja, sect, practice level). Member directory with ID-verified badges available ${inPhrase(p)}. Interest and introduction system with mutual consent. Wali and guardian participation. Family-to-family messaging. Biodata maker for sharing profiles offline. All free.`] },
       { h2: 'Built for Shia families', body: [`Unlike generic matrimonial sites, every filter, field, and workflow here understands Shia practice — because the platform serves only Shia families ${inPhrase(p)} and everywhere else.`] },
     ],
     faqs: p => [
@@ -312,20 +311,20 @@ const ANGLES = {
     ],
     faqs: p => [
       { q: `How are matches ${inPhrase(p)} ranked?`, a: 'By compatibility across marja, practice, family values, location, and stated expectations — not by photo popularity.' },
-      { q: 'What if I don\u2019t find a match immediately?', a: 'New verified profiles join daily. Keep your profile complete and check back — and consider widening location filters.' },
+      { q: 'What if I don\u2019t find a match immediately?', a: 'New profiles join daily. Keep your profile complete and check back — and consider widening location filters.' },
     ],
   },
   'shia-match': {
     intro: p => [
-      `Looking for your Shia match ${inPhrase(p)}? You are in the right place. Shia Rishta connects Shia singles ${inPhrase(p)} who are serious about nikah — verified profiles, honest intentions, and families involved from the start.`,
+      `Looking for your Shia match ${inPhrase(p)}? You are in the right place. Shia Rishta connects Shia singles ${inPhrase(p)} who are serious about nikah — profiles, honest intentions, and families involved from the start.`,
       `A true Shia match ${inPhrase(p)} shares more than a city: shared marja, compatible practice, aligned family values. That is what the platform matches on — so every introduction ${inPhrase(p)} has real potential.`,
     ],
     sections: p => [
-      { h2: `Find your Shia match ${inPhrase(p)}`, body: [`Start with a free profile that says who you are: your deen, your practice, your family, your hopes. Then browse verified Shia singles ${inPhrase(p)}, filter by marja and values, and reach out where there is genuine compatibility. Your match ${inPhrase(p)} is here — the platform just makes the introduction dignified.`] },
+      { h2: `Find your Shia match ${inPhrase(p)}`, body: [`Start with a free profile that says who you are: your deen, your practice, your family, your hopes. Then browse Shia singles ${inPhrase(p)}, filter by marja and values, and reach out where there is genuine compatibility. Your match ${inPhrase(p)} is here — the platform just makes the introduction dignified.`] },
       { h2: 'Why Shia Rishta for your match', body: [`Because a Shia match needs Shia filters: marja, sect, Muharram observance, wali workflows. Generic platforms cannot do this. Here, every member ${inPhrase(p)} is Shia and seeking nikah — so you never waste time explaining the basics to someone who does not share them.`] },
     ],
     faqs: p => [
-      { q: `How do I find my Shia match ${inPhrase(p)}?`, a: 'Create a free profile, set your filters for location, marja, and practice, then browse verified profiles and express interest where there is alignment.' },
+      { q: `How do I find my Shia match ${inPhrase(p)}?`, a: 'Create a free profile, set your filters for location, marja, and practice, then browse profiles and express interest where there is alignment.' },
       { q: 'Is finding a match free?', a: 'Yes — profiles, browsing, matching, messaging, and verification are all free.' },
     ],
   },

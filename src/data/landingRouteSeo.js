@@ -33,7 +33,7 @@ const LANDING_BODY = {
         h2: 'What is nikah?',
         p: [
           'Nikah is the contract that makes a marriage valid in Islam. For Shia Muslims it is not a formality or a blessing on a relationship — it is the act itself. When the formula is spoken with intention and consent, two people become husband and wife. Everything else — the feast, the celebration, the photographs — comes after.',
-          'This page explains what a Shia nikah is, what makes it valid, how it differs from Sunni practice, and how to find a verified Shia spouse for nikah.',
+          'This page explains what a Shia nikah is, what makes it valid, how it differs from Sunni practice, and how to find a Shia spouse for nikah.',
           'Marriage is among the most recommended acts in Islam. The Prophet (s.a.w.) is reported to have said, “Whosoever marries, he has protected half of his religion,” and “Whoever likes to follow my tradition, then [he should know that] marriage is of my tradition.” Imam al-Baqir (a.s.) is reported to have said that no institution has been created in Islam more favoured and dearer to Allah than wedlock.',
           'In Shia law, marriage is of two kinds: permanent and temporary. A permanent marriage has no fixed time limit. A temporary marriage (mut’ah) fixes a duration and a mahr in the contract. Both are real marriages under Shia fiqh, and both follow the same contract rules — formula, consent, and mahr — with the duration stated in the temporary case.',
           'The nikah is a contract, and like any contract it has conditions. Ayatollah Sistani’s Islamic Laws (Ruling 2389) sets out five conditions for the marriage contract to be valid. First, the formula must be said in Arabic, as a matter of obligatory precaution. If the man or woman cannot say it in Arabic, they may say it in another language, using words that convey the meaning of zawwajtu (I wed) and qabiltu (I accept). They do not need to appoint an agent in that case. Second, intention: the man and woman — or their agents — must intend to establish the marriage when they say the formula. Third, sanity and maturity: the person saying the formula must be sane, and if saying it for themselves, must be of the age of legal responsibility (baligh). Fourth, the parties must be specified: if agents or guardians say the formula, they must name or indicate the husband and wife. A formula that does not identify a particular person is invalid. Fifth, consent: both the man and the woman must consent to the marriage. If they appear to disapprove but it is known that in their hearts they consent, the contract is valid — and if a marriage is contracted without consent and both later consent, it becomes valid.',
@@ -89,7 +89,7 @@ const LANDING_BODY = {
       {
         h2: 'Finding a spouse for nikah',
         p: [
-          'A nikah needs a spouse, and finding one is the part most families find hardest — particularly in the diaspora, where the local community is small and children move away. ShiaRishta exists for that search: verified Shia profiles from the UK, USA, and Canada, filtered by marja and practice, with photo and ID verification badges, family-led introductions with the wali involved from the start, and a free biodata maker families can share on WhatsApp.',
+          'A nikah needs a spouse, and finding one is the part most families find hardest — particularly in the diaspora, where the local community is small and children move away. ShiaRishta exists for that search: Shia profiles from the UK, USA, and Canada, filtered by marja and practice, with ID-verified badges available, family-led introductions with the wali involved from the start, and a free biodata maker families can share on WhatsApp.',
           'Joining is free. Browse profiles or create a free account to start.',
         ],
       },
@@ -204,7 +204,7 @@ const LANDING_BODY = {
         h2: 'Finding a spouse for nikah',
         p: [
           'A guide can explain the nikah. It cannot find the person to share it with. That is the part most Shia families in the diaspora find hardest: the local community is small, children move away for work or study, and the traditional networks do not always produce a match.',
-          'ShiaRishta exists for that search. Verified Shia profiles from the UK, USA, and Canada, filtered by marja and practice, with photo and ID verification badges, family-led introductions with the wali involved from the start, and a free biodata maker families can share on WhatsApp. Joining is free. Browse profiles or create a free account to start.',
+          'ShiaRishta exists for that search. Shia profiles from the UK, USA, and Canada, filtered by marja and practice, with ID-verified badges available, family-led introductions with the wali involved from the start, and a free biodata maker families can share on WhatsApp. Joining is free. Browse profiles or create a free account to start.',
         ],
       },
     ],
@@ -251,7 +251,7 @@ const LANDING_BODY = {
         h2: 'Finding a Shia spouse',
         p: [
           'The search for a spouse is the hardest part of a Shia marriage for most families in the diaspora. The local community is small, children move away for work or study, and the traditional networks — relatives, the local centre — do not always produce a match.',
-          'That is what ShiaRishta is for. It gathers verified Shia profiles from the UK, USA, and Canada into one pool, filtered by the things families actually ask about: marja, practice, age, education, and location. Profiles carry photo and ID verification badges. The introduction process is family-led, with the wali involved from the start. And the biodata maker lets a family build a clean, shareable biodata and send it on WhatsApp — the format most Shia families already use.',
+          'That is what ShiaRishta is for. It gathers Shia profiles from the UK, USA, and Canada into one pool, filtered by the things families actually ask about: marja, practice, age, education, and location. Members can earn photo and ID verification badges. The introduction process is family-led, with the wali involved from the start. And the biodata maker lets a family build a clean, shareable biodata and send it on WhatsApp — the format most Shia families already use.',
           'Joining is free. Browse profiles or create a free account to start.',
         ],
       },
@@ -269,7 +269,7 @@ const LANDING_BODY = {
       { q: 'Do I need witnesses for a Shia nikah?', a: 'No. In Shia fiqh there is no condition for the presence of witnesses at the solemnisation of the marriage. Witnesses are required for divorce (talaq), not for marriage. This is the opposite of the Sunni position, and it is the point most general guides get wrong.' },
       { q: 'What is mahr, and how much should it be?', a: 'Mahr is the marriage gift from the husband to the wife, agreed before the nikah and named in the contract. It is the bride’s absolute right. There is no fixed amount: it can be symbolic or substantial, and many families choose amounts with religious meaning. The mahr of Sayyida Fatima (a.s.) was 500 silver dirhams.' },
       { q: 'Can a Shia marry a Sunni?', a: 'Rulings differ by marja. The famous verdict is that a Shia man marrying a Sunni woman is permissible, provided there is no fear of losing one’s faith; a Shia woman marrying a Sunni man is restricted by obligatory precaution in Ayatollah Sistani’s view, because of the risk to her beliefs. Families in this situation should ask their own marja.' },
-      { q: 'How do I find a Shia spouse if my local community is small?', a: 'Widen the search: a platform like ShiaRishta shows verified profiles from other cities and countries, and long-distance introductions are normal in the Shia diaspora. Matchmakers can also search on a family’s behalf.' },
+      { q: 'How do I find a Shia spouse if my local community is small?', a: 'Widen the search: a platform like ShiaRishta shows profiles from other cities and countries, and long-distance introductions are normal in the Shia diaspora. Matchmakers can also search on a family’s behalf.' },
     ],
   },
   'shia-brides': {
@@ -326,7 +326,7 @@ const LANDING_BODY = {
   },
   'shia-matrimony-dallas': {
     h1: 'Shia matrimony in Dallas–Fort Worth',
-    more: 'DFW is one of the fastest-growing Shia communities in America, but its sprawl works against rishta. One search across the entire metroplex — verified profiles, marja and practice filters, wali-involved introductions — built for a young, professional community where time is scarce.',
+    more: 'DFW is one of the fastest-growing Shia communities in America, but its sprawl works against rishta. One search across the entire metroplex — profiles, marja and practice filters, wali-involved introductions — built for a young, professional community where time is scarce.',
   },
   'shia-matrimony-los-angeles': {
     h1: 'Shia matrimony in Los Angeles',
@@ -334,7 +334,7 @@ const LANDING_BODY = {
   },
   'shia-matrimony-bay-area': {
     h1: 'Shia matrimony in the San Francisco Bay Area',
-    more: 'A small, accomplished, scattered community where discretion is a requirement, not a luxury. Verified profiles across the Bay Area with photo privacy enforced server-side — locked photos are never delivered to the browser — and efficient, guardian-visible search for demanding schedules.',
+    more: 'A small, accomplished, scattered community where discretion is a requirement, not a luxury. Profiles across the Bay Area with photo privacy enforced server-side — locked photos are never delivered to the browser — and efficient, guardian-visible search for demanding schedules.',
   },
   'shia-matrimony-atlanta': {
     h1: 'Shia matrimony in Atlanta',
@@ -346,23 +346,23 @@ const LANDING_BODY = {
   },
   'shia-rishta-chicago': {
     h1: 'Shia rishta in Chicago',
-    more: 'Chicago has one of America\u2019s largest Shia communities, but it is fragmented across suburbs, languages, and cultural backgrounds \u2014 and the rishta search still runs on majlis gossip and a khala who knows someone in Schaumburg. One verified, searchable pool for the whole metro \u2014 filtered by marja, practice, and family values \u2014 puts every serious Chicago Shia family in front of each other, with wali involvement from the first introduction.',
+    more: 'Chicago has one of America\u2019s largest Shia communities, but it is fragmented across suburbs, languages, and cultural backgrounds \u2014 and the rishta search still runs on majlis gossip and a khala who knows someone in Schaumburg. One searchable pool for the whole metro \u2014 filtered by marja, practice, and family values \u2014 puts every serious Chicago Shia family in front of each other, with wali involvement from the first introduction.',
   },
   'shia-rishta-houston': {
     h1: 'Shia rishta in Houston',
-    more: 'Houston\u2019s Shia community is growing fast, with new families arriving every year \u2014 but the rishta network has not kept up, and newcomers spend years just getting known. A verified platform profile skips that waiting period: visible to every serious Shia family searching in Texas from day one, searchable by marja, practice, and family expectations.',
+    more: 'Houston\u2019s Shia community is growing fast, with new families arriving every year \u2014 but the rishta network has not kept up, and newcomers spend years just getting known. A platform profile skips that waiting period: visible to every serious Shia family searching in Texas from day one, searchable by marja, practice, and family expectations.',
   },
   'shia-rishta-new-york': {
     h1: 'Shia rishta in New York',
-    more: 'New York\u2019s Shia community is spread across five boroughs and New Jersey, split by language and culture \u2014 and rishta introductions rarely cross those lines. One verified pool for the whole metro, filterable by marja, practice, education, and family values, collapses that distance so the right match is never missed over a borough line.',
+    more: 'New York\u2019s Shia community is spread across five boroughs and New Jersey, split by language and culture \u2014 and rishta introductions rarely cross those lines. One pool for the whole metro, filterable by marja, practice, education, and family values, collapses that distance so the right match is never missed over a borough line.',
   },
   'shia-rishta-london': {
     h1: 'Shia rishta in London',
-    more: 'London\u2019s Shia rishta scene runs on the auntie network \u2014 the same few names circulating for years, good profiles never surfacing because nobody knows the right aunty. A verified platform is the auntie network upgraded: every searching Shia family in London and across the UK in one place, with photo and ID verification badges instead of unverifiable vouches.',
+    more: 'London\u2019s Shia rishta scene runs on the auntie network \u2014 the same few names circulating for years, good profiles never surfacing because nobody knows the right aunty. A platform with ID-verified badges is the auntie network upgraded: every searching Shia family in London and across the UK in one place, with photo and ID verification badges instead of unverifiable vouches.',
   },
   'shia-rishta-toronto': {
     h1: 'Shia rishta in Toronto',
-    more: 'Toronto\u2019s Shia community is among the strongest in North America, yet families search in separate lanes \u2014 Khoja, Desi, Arab, Persian networks that rarely exchange introductions. One shared, verified directory for the GTA and across Canada breaks those lanes open, with cross-border wali workflows for the many matches that span into the US.',
+    more: 'Toronto\u2019s Shia community is among the strongest in North America, yet families search in separate lanes \u2014 Khoja, Desi, Arab, Persian networks that rarely exchange introductions. One shared directory for the GTA and across Canada breaks those lanes open, with cross-border wali workflows for the many matches that span into the US.',
   },
   'shia-rishta-dearborn': {
     h1: 'Shia rishta in Dearborn',
@@ -370,23 +370,23 @@ const LANDING_BODY = {
   },
   'shia-rishta-dallas': {
     h1: 'Shia rishta in Dallas\u2013Fort Worth',
-    more: 'DFW\u2019s Shia community is young, professional, and growing \u2014 full of engineers and doctors whose rishta networks are still in another city. A serious, efficient, Shia-only search that respects demanding schedules: verified profiles, real filters, mutual-interest gating, and wali involvement designed in from the start.',
+    more: 'DFW\u2019s Shia community is young, professional, and growing \u2014 full of engineers and doctors whose rishta networks are still in another city. A serious, efficient, Shia-only search that respects demanding schedules: profiles, real filters, mutual-interest gating, and wali involvement designed in from the start.',
   },
   'shia-rishta-los-angeles': {
     h1: 'Shia rishta in Los Angeles',
-    more: 'LA\u2019s Shia community stretches from the Valley to Orange County to the Inland Empire \u2014 and introductions cluster by neighborhood, so a compatible family forty minutes away stays invisible. One metro-wide verified pool erases the geography problem, with precise filters for a genuinely diverse Persian, Arab, Desi, and convert community.',
+    more: 'LA\u2019s Shia community stretches from the Valley to Orange County to the Inland Empire \u2014 and introductions cluster by neighborhood, so a compatible family forty minutes away stays invisible. One metro-wide pool erases the geography problem, with precise filters for a genuinely diverse Persian, Arab, Desi, and convert community.',
   },
   'shia-rishta-bay-area': {
     h1: 'Shia rishta in the Bay Area',
-    more: 'The Bay Area\u2019s Shia professionals were drawn by careers that left their family rishta networks thousands of miles behind. A verified platform rebuilds that network: serious Shia profiles, rigorous compatibility filters, and wali involvement that works over video call \u2014 visible both locally and to families back home searching worldwide.',
+    more: 'The Bay Area\u2019s Shia professionals were drawn by careers that left their family rishta networks thousands of miles behind. A platform rebuilds that network: serious Shia profiles, rigorous compatibility filters, and wali involvement that works over video call \u2014 visible both locally and to families back home searching worldwide.',
   },
   'shia-rishta-atlanta': {
     h1: 'Shia rishta in Atlanta',
-    more: 'Atlanta\u2019s growing Shia community still feels small for rishta purposes \u2014 the grapevine exhausts itself fast. The serious strategy is a national search done properly: verified profiles, private video introductions, family-to-family messaging, and cross-city wali approvals that turn long-distance rishtas from a gamble into a process.',
+    more: 'Atlanta\u2019s growing Shia community still feels small for rishta purposes \u2014 the grapevine exhausts itself fast. The serious strategy is a national search done properly: profiles, private video introductions, family-to-family messaging, and cross-city wali approvals that turn long-distance rishtas from a gamble into a process.',
   },
   'shia-rishta-seattle': {
     h1: 'Shia rishta in Seattle',
-    more: 'Seattle\u2019s small, scattered Shia community means the local rishta grapevine is nearly silent. The answer is a national search with structure: verified profiles across America, West Coast clusters within natural reach, and video introductions plus wali workflows that make distance irrelevant.',
+    more: 'Seattle\u2019s small, scattered Shia community means the local rishta grapevine is nearly silent. The answer is a national search with structure: profiles across America, West Coast clusters within natural reach, and video introductions plus wali workflows that make distance irrelevant.',
   },
   'shia-rishtay': {
     h1: 'Shia rishtay for nikah',
@@ -395,7 +395,7 @@ const LANDING_BODY = {
         h2: 'What is a Shia rishta?',
         p: [
           '“Rishta” is singular. “Rishtay” is what families actually search for — the proposals a family weighs together, comparing deen, practice, and family values before choosing. A rishta is not a date. It is a proposal carried by a family, examined by a family, and answered by a family. That is the whole difference between a Shia rishta and the way the rest of the internet talks about dating, and it is why the search for one works differently too.',
-          'This page explains what a Shia rishta is, how Shia matchmaking actually works, what families look for, and how to search for verified Shia rishtay in the UK, USA, and Canada — including Baltimore, Houston, Dearborn, London, and Toronto.',
+          'This page explains what a Shia rishta is, how Shia matchmaking actually works, what families look for, and how to search for Shia rishtay in the UK, USA, and Canada — including Baltimore, Houston, Dearborn, London, and Toronto.',
           'A rishta is a marriage proposal. In Shia families it usually begins when one family learns of a suitable person — through relatives, through the community, through a matchmaker, or through a platform like ShiaRishta — and approaches the other family. The two people at the centre of it are not shopping. Their families are doing the first round of checking together: is this person Shia, what marja do they follow, how do they practise, what does their family value, what do they want from a marriage?',
           'The word itself carries the weight. A rishta is not a match or a connection. It is a proposal with a family behind it, and the answer to a rishta is a family decision. That is why Shia parents stay involved from the first introduction rather than joining the process at the end. The wali — the bride’s guardian, usually her father — is part of the conversation from the start, not brought in to approve something already decided.',
         ],
@@ -411,7 +411,7 @@ const LANDING_BODY = {
       {
         h2: 'How Shia matchmaking works, step by step',
         p: [
-          'The search. Families look within their own networks first — relatives, friends, the local centre — and then widen the search. This is where a platform helps: it puts verified profiles from other cities and countries in front of a family that has already exhausted its local circle. A good search is filtered by marja, practice, age, education, and location, because a family that has to read a hundred irrelevant profiles will stop reading.',
+          'The search. Families look within their own networks first — relatives, friends, the local centre — and then widen the search. This is where a platform helps: it puts profiles from other cities and countries in front of a family that has already exhausted its local circle. A good search is filtered by marja, practice, age, education, and location, because a family that has to read a hundred irrelevant profiles will stop reading.',
           'The shortlist. Families compare a small number of serious proposals rather than collecting as many as possible. The questions at this stage are practical: deen and practice, family background, education and work, health, and what each side wants from the marriage. A biodata — a one-page summary of the person and their family — is how most families do this, and it is why a clear, honest biodata matters more than a long one.',
           'The introduction. When both families are interested, they arrange an introduction. The wali is present or informed. The couple meets with family around them, not alone, and the conversation is about compatibility — values, expectations, how each side sees married life. Nobody is asked to decide anything at this meeting.',
           'Istikhara and reflection. Many families do istikhara — seeking guidance through prayer — before proceeding. It is not a substitute for thinking. Families that do it well use it alongside the practical questions, not instead of them: the guidance confirms a decision that the facts already support.',
@@ -425,15 +425,15 @@ const LANDING_BODY = {
           'Practice that matches. Two people do not need identical practice, but they need compatible practice. A family that prays together and a person who does not pray will argue about the shape of every day. Better to find out early.',
           'Family values. How does the family treat its elders? What do they expect of a daughter-in-law or a son-in-law? How involved will the extended family be? These are not small questions. They decide the marriage as much as the couple does.',
           'Education and livelihood. Not wealth, but stability and seriousness: a person who is building something, who takes responsibility, who can support a household. Families care far more about direction than about a salary figure.',
-          'Character. Kindness, patience, honesty, and the ability to admit fault. These are hard to check on a profile, which is why families talk to people who know the person — and why verified profiles, where identity has actually been checked, matter.',
+          'Character. Kindness, patience, honesty, and the ability to admit fault. These are hard to check on a profile, which is why families talk to people who know the person — and why profiles, where identity has actually been checked, matter.',
         ],
       },
       {
         h2: 'Shia rishtay by city',
         p: [
-          'Baltimore, USA. Baltimore is home to a growing Shia community, and families here often search across the Washington DC–Baltimore corridor as one area. The practical question for a Baltimore rishta is distance: a match in Northern Virginia or Washington DC is close enough for families to meet easily, and many families treat the whole corridor as local. For families in Baltimore, a platform that shows verified profiles from across the corridor — not just one city — makes the difference between a search that stalls and one that moves.',
+          'Baltimore, USA. Baltimore is home to a growing Shia community, and families here often search across the Washington DC–Baltimore corridor as one area. The practical question for a Baltimore rishta is distance: a match in Northern Virginia or Washington DC is close enough for families to meet easily, and many families treat the whole corridor as local. For families in Baltimore, a platform that shows profiles from across the corridor — not just one city — makes the difference between a search that stalls and one that moves.',
           'Houston, USA. Houston has a large and active Shia community, with several centres and a strong network of families. The search here benefits from community size: there are more profiles, more events, and more family connections to check through. The challenge is the opposite of a small community — filtering. A Houston family needs search filters that actually work (marja, practice, education) so the size of the pool helps rather than overwhelms.',
-          'Dearborn, USA. Dearborn, Michigan, has a large, well-established Shia community, one of the longest-standing in the United States. Families here often have deep local networks, and a rishta may come through relatives or the local centre before it ever reaches a platform. Where a platform helps in Dearborn is for families whose children have moved away, or for those looking beyond the local circle — a verified profile from another state, checked the same way a local introduction would be.',
+          'Dearborn, USA. Dearborn, Michigan, has a large, well-established Shia community, one of the longest-standing in the United States. Families here often have deep local networks, and a rishta may come through relatives or the local centre before it ever reaches a platform. Where a platform helps in Dearborn is for families whose children have moved away, or for those looking beyond the local circle — a profile from another state, checked the same way a local introduction would be.',
           'London, UK. London’s Shia community is large and spread across the city, with established centres and a strong tradition of community events. A London rishta search often spans the whole city and beyond — Birmingham, Manchester, and other UK cities are all within reach for family meetings. For London families, the question is usually not whether there are profiles, but whether the profiles are real. Verification matters more than volume.',
           'Toronto, Canada. Toronto has a large Shia community and a steady flow of new families. The search here often crosses the border — families in Toronto look at profiles in the United States as well, particularly in nearby states. A Toronto rishta may involve questions about immigration and settlement that a local match does not, and families do well to discuss those early rather than after the nikah.',
         ],
@@ -441,7 +441,7 @@ const LANDING_BODY = {
       {
         h2: 'How ShiaRishta works',
         p: [
-          'Verified profiles. Profiles carry photo and ID verification badges, so a family knows the person behind the profile has been checked. Verification does not guarantee character — nothing can — but it removes the most common fraud from the search entirely.',
+          'Profiles. Members can earn photo and ID verification badges, so a family knows the person behind the profile has been checked. Verification does not guarantee character — nothing can — but it removes the most common fraud from the search entirely.',
           'Filters that match the questions families ask. Search by marja, practice, age, education, and location, instead of scrolling through profiles that were never relevant.',
           'Photo privacy the member controls. A member decides who sees their photos, which matters for families who want privacy while they search.',
           'Wali involvement from the first introduction. The process is built around family-led introductions, not private messaging between strangers.',
@@ -454,7 +454,7 @@ const LANDING_BODY = {
     ],
     faq: [
       { q: 'Is ShiaRishta free?', a: 'Yes. Joining, browsing, and creating a profile are free, and there are no charges based on where you live.' },
-      { q: 'How does verification work?', a: 'Members can verify their photo and their government ID. Verified profiles carry badges, and approving an ID gives a gold “ID Verified” badge while approving a selfie gives a blue “Photo Verified” badge. Verification checks identity, not character — families should still do their own checking.' },
+      { q: 'How does verification work?', a: 'Members can verify their photo and their government ID. A verified profile carries a badge — approving an ID gives a gold “ID Verified” badge while approving a selfie gives a blue “Photo Verified” badge. Verification checks identity, not character — families should still do their own checking.' },
       { q: 'Can I search by marja?', a: 'Yes. Profiles can be filtered by marja and by practice, because those are the questions families ask first.' },
       { q: 'What is the wali’s role on ShiaRishta?', a: 'The wali — usually the bride’s father — is part of the introduction process from the start. Introductions are family-led, and the wali’s involvement is built into how introductions work rather than added at the end.' },
       { q: 'Can my family search with me?', a: 'Yes. Parents and guardians can be involved in the search and in introductions, and matchmakers can submit profiles on behalf of families they serve.' },
@@ -469,7 +469,7 @@ const LANDING_BODY = {
       {
         h2: 'What is ShiaMatch?',
         p: [
-          'Looking for a ShiaMatch alternative? ShiaMatch has served the Shia community for a long time, and many families found their match there. But it was built in a different era of the internet, and it shows — in what it charges, in how it works, and in what it does not offer. ShiaRishta is the free alternative: no charges for men in the USA, UK, or Canada, verified profiles, a free biodata maker, matchmaker accounts, and modern iOS and Android apps.',
+          'Looking for a ShiaMatch alternative? ShiaMatch has served the Shia community for a long time, and many families found their match there. But it was built in a different era of the internet, and it shows — in what it charges, in how it works, and in what it does not offer. ShiaRishta is the free alternative: no charges for men in the USA, UK, or Canada, profiles, a free biodata maker, matchmaker accounts, and modern iOS and Android apps.',
           'This page compares the two honestly, so your family can choose the one that fits.',
           'ShiaMatch is an online tool to help Shia Muslims find a suitable match. Its domain has been registered since November 1999, making it one of the oldest Shia matrimony sites on the internet. Its own homepage says it features thousands of Shia Muslim matrimonial profiles from around the world, and its purpose, in its own words, is to expand your network of prospective matches, complementing your search through traditional means.',
           'That longevity matters. A site that has run for more than two decades has a large pool of profiles and a long record of success stories — its homepage features accounts from members who married after meeting on the site, some going back to the mid-2000s. For a family that values a track record, that history is a real argument in ShiaMatch’s favour.',
@@ -495,7 +495,7 @@ const LANDING_BODY = {
         h2: 'What ShiaRishta does differently',
         p: [
           'Free for everyone, everywhere. No charges based on country or gender. A man in the USA, UK, or Canada uses ShiaRishta free, where the same man pays on ShiaMatch.',
-          'Verified profiles. ShiaRishta profiles carry photo and ID verification badges. Approving a government ID gives a gold “ID Verified” badge; approving a selfie gives a blue “Photo Verified” badge. ShiaMatch has no verification system — a profile there is taken on trust. Verification does not guarantee character, and families should still do their own checking, but it removes the most common fraud from the search before it starts.',
+          'ID-verified badges available. Members can earn photo and ID verification badges. Approving a government ID gives a gold “ID Verified” badge; approving a selfie gives a blue “Photo Verified” badge. ShiaMatch has no verification system — a profile there is taken on trust. Verification does not guarantee character, and families should still do their own checking, but it removes the most common fraud from the search before it starts.',
           'A free biodata maker. Most Shia families share a proposal as a biodata — a one-page summary of the person and their family. ShiaRishta includes a free biodata maker, and the biodata can be shared on WhatsApp, the format families already use. ShiaMatch has no equivalent tool.',
           'Matchmaker accounts. Matchmakers can submit profiles on behalf of the families they serve, with admin review. ShiaMatch is built around individuals creating their own profiles.',
           'Modern apps. ShiaRishta runs on the web and on iOS and Android. ShiaMatch is a website only, and its homepage does not advertise a mobile app.',
@@ -522,14 +522,14 @@ const LANDING_BODY = {
         h2: 'Who should use which?',
         p: [
           'ShiaMatch suits a family that values a long track record above all, is comfortable with email-based contact after a mutual request, and either does not fall under the charge (women anywhere, men outside the USA, UK, and Canada) or is happy to pay it.',
-          'ShiaRishta suits a family that wants the search to be free regardless of where the man lives, wants profiles that have actually been verified, wants to share a proper biodata on WhatsApp, wants a matchmaker to be able to submit a profile, or wants to search from a phone app rather than a desktop website.',
+          'ShiaRishta suits a family that wants the search to be free regardless of where the man lives, wants members who can earn ID-verified badges, wants to share a proper biodata on WhatsApp, wants a matchmaker to be able to submit a profile, or wants to search from a phone app rather than a desktop website.',
           'Nothing stops a family using both. Many families do — they keep a profile on the older site for its pool of members and a profile on the newer one for its verification and tools. The honest advice is to try the free one first and see whether the profiles there are real and relevant to your family, because that costs nothing to find out.',
         ],
       },
       {
         h2: 'How to try ShiaRishta',
         p: [
-          'Joining is free and takes a few minutes: create a free account, add your details, and start browsing verified profiles. If you already have a biodata, the biodata maker can turn it into a shareable format. If you are a matchmaker, you can create a matchmaker account and submit profiles for the families you serve.',
+          'Joining is free and takes a few minutes: create a free account, add your details, and start browsing profiles. If you already have a biodata, the biodata maker can turn it into a shareable format. If you are a matchmaker, you can create a matchmaker account and submit profiles for the families you serve.',
         ],
       },
     ],

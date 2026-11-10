@@ -16,7 +16,7 @@ const FeedbackWidget = lazy(() => import('../components/FeedbackWidget'));
 import { applyIsDark, readIsDark, writeIsDark } from '../lib/theme';
 
 const landingLinks = [
-  { href: '/profiles', label: 'Profiles' },
+  { href: '/profiles/', label: 'Profiles' },
   { href: '/matchmaker', label: 'Matchmaker' },
   { href: '/biodata-maker', label: 'Biodata Maker' },
   { href: '/blog', label: 'Blog' },

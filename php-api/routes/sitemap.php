@@ -10,6 +10,24 @@ function sitemapXml(): void
     $base = 'https://shiarishta.com';
     $urls = [];
 
+    // File cache (2026-11-10, speed fix): generating this XML costs 6+ DB
+    // queries and ~0.3-0.5s on shared hosting, and it was regenerated on
+    // EVERY request. Cache the rendered XML for 1 hour; Google reads the
+    // sitemap about once a day, so a 1h staleness window is invisible to
+    // crawlers while every hit after the first is a static file read.
+    $cacheFile = __DIR__ . '/../storage/sitemap-cache.xml';
+    $cacheTtl = 3600;
+    if (is_file($cacheFile) && filemtime($cacheFile) > time() - $cacheTtl) {
+        $cached = @file_get_contents($cacheFile);
+        if ($cached !== false && $cached !== '') {
+            header('Content-Type: application/xml; charset=UTF-8');
+            header('Cache-Control: public, max-age=3600');
+            header('X-Sitemap-Cache: HIT');
+            echo $cached;
+            exit;
+        }
+    }
+
     // Honest lastmod for template-driven pages (2026-10-24 indexing fix).
     // Static, tag, city and country pages used to stamp date('Y-m-d') — every
     // page claiming "changed today" on every single day. Google learns to
@@ -38,7 +56,7 @@ function sitemapXml(): void
         '/shia-rishta-dallas', '/shia-rishta-los-angeles', '/shia-rishta-bay-area',
         '/shia-rishta-atlanta', '/shia-rishta-seattle',
         '/shiamatch-alternative',
-        '/terms', '/privacy', '/contact', '/success-stories',
+        '/terms', '/privacy', '/contact', '/how-it-works',
     ];
     // NOTE: '/faq' intentionally omitted — no /faq route exists (would 404).
     // Every static page here is a prerendered directory on disk, so the
@@ -51,10 +69,12 @@ function sitemapXml(): void
 
     // Programmatic tag landing pages: 11 tag phrases × every profile
     // city/country. Mirrors src/data/tagLandingPages.js — keep in sync.
+    // 'nanjing' was removed 2026-11-10: no member is from Nanjing, so its
+    // 12 tag pages were thin pages with no members behind them.
     $tagPlaces = [
         'karachi', 'lahore', 'sargodha', 'mumbai', 'chennai', 'bangalore',
         'dubai', 'abu-dhabi', 'toronto', 'london', 'chicago', 'houston',
-        'washington-dc', 'silver-spring', 'sydney', 'nanjing',
+        'washington-dc', 'silver-spring', 'sydney',
         'pakistan', 'india', 'uae', 'canada', 'usa', 'united-kingdom', 'australia',
     ];
     $tagPatterns = [
@@ -154,10 +174,10 @@ function sitemapXml(): void
     } catch (Throwable $e) { /* skip */ }
 
     // City + country pages — the CURATED list from src/data/locationSeo.js.
-    // Keep in sync with CITIES/COUNTRIES there. The old DB-driven version
-    // (DISTINCT city/country from profiles) is deliberately gone: member
-    // free-text could manufacture sitemap entries for pages that 404
-    // (CityPage validates slugs against the curated list).
+    // Keep in sync with CITIES/COUNTRIES there. Curated pages are emitted
+    // ONLY when at least one qualifying profile is from that place (the
+    // live sets below); a curated city/country with zero members is a thin
+    // page that wastes crawl budget (2026-11-10, external-audit fixes).
     $curatedCities = [
         'karachi', 'lahore', 'sargodha', 'islamabad', 'rawalpindi', 'dubai', 'london', 'toronto',
         'chicago', 'houston', 'new-york', 'silver-spring', 'detroit', 'tehran', 'qom', 'mashhad',
@@ -178,10 +198,40 @@ function sitemapXml(): void
         'amsterdam', 'the-hague', 'vienna', 'zurich', 'oslo', 'copenhagen', 'madrid', 'rome',
         'dar-es-salaam', 'nairobi', 'johannesburg', 'auckland', 'singapore', 'kuala-lumpur', 'jakarta',
     ];
+    // Live places, computed FIRST: distinct cities/countries with at least
+    // one qualifying profile — the same browse-list conditions as the
+    // profile URLs above (non-blocked, non-test, non-private, finished).
+    // Slugs use the shared slugifyLocation() (lib/db.php), the frontend's
+    // slugify exactly, so the slug here, the card link, and the page's own
+    // API query all agree. lastmod is the newest qualifying profile in
+    // that place, so Google sees real change.
+    $liveCitySlugs = [];
+    $liveCountrySlugs = [];
+    try {
+        $stmt = $pdo->query("SELECT city, MAX(updated_at) AS lm FROM profiles WHERE is_blocked = 0 AND {$noTest} AND visibility <> 'private' AND NOT {$unfinished} AND TRIM(COALESCE(city, '')) <> '' GROUP BY city");
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $slug = slugifyLocation(trim((string)$row['city']));
+            if ($slug === '') continue;
+            $liveCitySlugs[$slug] = substr((string)($row['lm'] ?? $templateLastmod), 0, 10);
+        }
+    } catch (Throwable $e) { /* skip */ }
+    try {
+        $stmt = $pdo->query("SELECT country, MAX(updated_at) AS lm FROM profiles WHERE is_blocked = 0 AND {$noTest} AND visibility <> 'private' AND NOT {$unfinished} AND TRIM(COALESCE(country, '')) <> '' GROUP BY country");
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $slug = slugifyLocation(trim((string)$row['country']));
+            if ($slug === '') continue;
+            $liveCountrySlugs[$slug] = substr((string)($row['lm'] ?? $templateLastmod), 0, 10);
+        }
+    } catch (Throwable $e) { /* skip */ }
+
+    // Curated pages are emitted ONLY when they have members. Dynamic slugs
+    // (Bhawalpur, D.i.khan) come from the live sets; curated slugs are
+    // already emitted above, deduped by slug.
     foreach ($curatedCities as $slug) {
+        if (!isset($liveCitySlugs[$slug])) continue;
         $urls[] = [
             'loc' => $base . '/city/' . rawurlencode($slug) . '/',
-            'lastmod' => $templateLastmod,
+            'lastmod' => $liveCitySlugs[$slug],
             'priority' => '0.7',
         ];
     }
@@ -193,56 +243,33 @@ function sitemapXml(): void
         'south-africa', 'new-zealand', 'singapore', 'malaysia', 'indonesia',
     ];
     foreach ($curatedCountries as $slug) {
+        if (!isset($liveCountrySlugs[$slug])) continue;
         $urls[] = [
             'loc' => $base . '/country/' . rawurlencode($slug) . '/',
-            'lastmod' => $templateLastmod,
+            'lastmod' => $liveCountrySlugs[$slug],
             'priority' => '0.7',
         ];
     }
-
-    // Dynamic city + country pages (2026-11-09, Syed's call): every distinct
-    // city/country with at least one qualifying profile gets a page — the
-    // same browse-list conditions as the profile URLs above (non-blocked,
-    // non-test, non-private, finished). Slugs use the shared slugifyLocation()
-    // (lib/db.php), the frontend's slugify exactly, so the slug here, the
-    // card link, and the page's own API query all agree. No round-trip
-    // check is needed any more: the API matches ?city= / ?country= on the
-    // slug (resolveLocationFilterValues), so every emitted slug's page finds
-    // its profiles — including "D.i.khan" (slug d-i-khan, page queries
-    // "D I Khan") and "St. Louis"-style values, which the old derived-name
-    // round-trip used to skip. Curated slugs are already emitted above;
-    // dedupe by slug. lastmod is the newest qualifying profile in that
-    // place, so Google sees real change.
     $seenCitySlugs = array_flip($curatedCities);
     $seenCountrySlugs = array_flip($curatedCountries);
-    try {
-        $stmt = $pdo->query("SELECT city, MAX(updated_at) AS lm FROM profiles WHERE is_blocked = 0 AND {$noTest} AND visibility <> 'private' AND NOT {$unfinished} AND TRIM(COALESCE(city, '')) <> '' GROUP BY city");
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $city = trim((string)$row['city']);
-            $slug = slugifyLocation($city);
-            if ($slug === '' || isset($seenCitySlugs[$slug])) continue;
-            $seenCitySlugs[$slug] = 1;
-            $urls[] = [
-                'loc' => $base . '/city/' . rawurlencode($slug) . '/',
-                'lastmod' => substr((string)($row['lm'] ?? $templateLastmod), 0, 10),
-                'priority' => '0.7',
-            ];
-        }
-    } catch (Throwable $e) { /* skip */ }
-    try {
-        $stmt = $pdo->query("SELECT country, MAX(updated_at) AS lm FROM profiles WHERE is_blocked = 0 AND {$noTest} AND visibility <> 'private' AND NOT {$unfinished} AND TRIM(COALESCE(country, '')) <> '' GROUP BY country");
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $country = trim((string)$row['country']);
-            $slug = slugifyLocation($country);
-            if ($slug === '' || isset($seenCountrySlugs[$slug])) continue;
-            $seenCountrySlugs[$slug] = 1;
-            $urls[] = [
-                'loc' => $base . '/country/' . rawurlencode($slug) . '/',
-                'lastmod' => substr((string)($row['lm'] ?? $templateLastmod), 0, 10),
-                'priority' => '0.7',
-            ];
-        }
-    } catch (Throwable $e) { /* skip */ }
+    foreach ($liveCitySlugs as $slug => $lm) {
+        if (isset($seenCitySlugs[$slug])) continue;
+        $seenCitySlugs[$slug] = 1;
+        $urls[] = [
+            'loc' => $base . '/city/' . rawurlencode($slug) . '/',
+            'lastmod' => $lm,
+            'priority' => '0.7',
+        ];
+    }
+    foreach ($liveCountrySlugs as $slug => $lm) {
+        if (isset($seenCountrySlugs[$slug])) continue;
+        $seenCountrySlugs[$slug] = 1;
+        $urls[] = [
+            'loc' => $base . '/country/' . rawurlencode($slug) . '/',
+            'lastmod' => $lm,
+            'priority' => '0.7',
+        ];
+    }
 
     $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
     $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'
@@ -258,8 +285,20 @@ function sitemapXml(): void
     }
     $xml .= '</urlset>';
 
+    // Store the rendered XML for the next hour (see the cache read at the
+    // top of this function). Atomic-ish: write to a temp file, then rename.
+    $cacheDir = dirname($cacheFile);
+    if (!is_dir($cacheDir)) {
+        @mkdir($cacheDir, 0775, true);
+    }
+    $tmp = $cacheFile . '.' . getmypid() . '.tmp';
+    if (@file_put_contents($tmp, $xml) !== false) {
+        @rename($tmp, $cacheFile);
+    }
+
     header('Content-Type: application/xml; charset=UTF-8');
     header('Cache-Control: public, max-age=3600');
+    header('X-Sitemap-Cache: MISS');
     echo $xml;
     exit;
 }

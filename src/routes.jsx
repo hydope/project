@@ -62,6 +62,7 @@ const AdminGuardians = lazy(() => import('./pages/admin/AdminGuardians'));
 const AdminAnalytics = lazy(() => import('./pages/admin/AdminAnalytics'));
 const AdminMatchmaker = lazy(() => import('./pages/admin/AdminMatchmaker'));
 const Matchmaker = lazy(() => import('./pages/Matchmaker'));
+const MatchmakerConfirm = lazy(() => import('./pages/MatchmakerConfirm'));
 const BiodataMaker = lazy(() => import('./pages/BiodataMaker'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
@@ -205,6 +206,7 @@ const router = createBrowserRouter([
   { path: '/locations', element: <LazyRoute component={Locations} /> },
     { path: '/community', element: <LazyRoute component={Community} /> },
     { path: '/matchmaker', element: <LazyRoute component={Matchmaker} /> },
+    { path: '/matchmaker/confirm/:token', element: <LazyRoute component={MatchmakerConfirm} /> },
     { path: '/biodata-maker', element: <LazyRoute component={BiodataMaker} /> },
   { path: '/community/:slug', element: <LazyRoute component={Community} /> },
   { path: '/community/:slug/post/:postId', element: <LazyRoute component={CommunityPost} /> },
@@ -212,7 +214,12 @@ const router = createBrowserRouter([
   { path: '/agents', element: <LazyRoute component={Agents} /> },
   { path: '/privacy', element: <LazyRoute component={Privacy} /> },
   { path: '/terms', element: <LazyRoute component={Terms} /> },
-  { path: '/success-stories', element: <LazyRoute component={SuccessStories} /> },
+  // Renamed 2026-11-10 (external-audit fixes): the page IS "How Shia Rishta
+  // works" (H1 + title) and explicitly says it invents no testimonials,
+  // so /success-stories was the lie, not the label. /success-stories 301s
+  // to /how-it-works in .htaccess; the SPA redirect below covers dev builds.
+  { path: '/how-it-works', element: <LazyRoute component={SuccessStories} /> },
+  { path: '/success-stories', element: <Navigate to="/how-it-works" replace /> },
   { path: '/about', element: <LazyRoute component={About} /> },
   { path: '/profile-guide', element: <LazyRoute component={ProfileGuide} /> },
   { path: '/safety', element: <LazyRoute component={Safety} /> },

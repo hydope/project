@@ -16,7 +16,7 @@ export default function NotFound() {
 
   const quickLinks = [
     { to: '/', icon: Home, label: 'Homepage', desc: 'Return to the main page' },
-    { to: '/profiles', icon: Users, label: 'Browse profiles', desc: 'Find your match' },
+    { to: '/profiles/', icon: Users, label: 'Browse profiles', desc: 'Find your match' },
     ...(isLoggedIn ? [{ to: '/messages', icon: MessageCircle, label: 'Messages', desc: 'Check conversations' }] : []),
     { to: '/onboard', icon: Sparkles, label: 'Create profile', desc: 'Get started today' }
   ];

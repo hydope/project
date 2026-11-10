@@ -22,6 +22,10 @@ function routeMatchmaker(string $method, array $segments): void
         matchmakerPhotoServe((string)($segments[1] ?? ''), (string)($segments[2] ?? ''));
         return;
     }
+    if ($method === 'POST' && ($segments[0] ?? null) === 'confirm' && ($segments[1] ?? null) !== null) {
+        matchmakerConfirm((string)$segments[1]);
+        return;
+    }
     if ($method === 'POST' && ($segments[0] ?? null) === null) {
         matchmakerSubmit();
         return;
@@ -238,12 +242,14 @@ function matchmakerPhotoServe(string $uid, string $file): void
 }
 
 // Delete pending submissions older than 7 days. Runs lazily on every
-// matchmaker read — there is no cron on shared hosting.
+// matchmaker read — there is no cron on shared hosting. Covers 'pending'
+// AND 'pending-consent': an unconfirmed submission is not a live profile,
+// and a stale one must not linger with its photo either.
 function matchmakerPurgeExpired(): void
 {
     try {
         $rows = db()->query(
-            "SELECT payload FROM matchmaker_profiles WHERE status = 'pending' AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)"
+            "SELECT payload FROM matchmaker_profiles WHERE status IN ('pending', 'pending-consent') AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)"
         )->fetchAll();
         foreach ($rows as $r) {
             $p = json_decode((string)($r['payload'] ?? ''), true) ?: [];
@@ -252,7 +258,7 @@ function matchmakerPurgeExpired(): void
                 @unlink($local);
             }
         }
-        db()->prepare("DELETE FROM matchmaker_profiles WHERE status = 'pending' AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)")
+        db()->prepare("DELETE FROM matchmaker_profiles WHERE status IN ('pending', 'pending-consent') AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)")
             ->execute();
     } catch (Throwable) { /* table may not exist yet */ }
 }
@@ -275,6 +281,15 @@ function matchmakerSubmit(): void
     // forcing and get a 200.
     if ($gender !== 'female') {
         je('Matchmaker submissions are for female profiles only.', 403);
+    }
+    // Subject consent (2026-11-10, external-audit fixes): a profile must
+    // NOT go live until the person it describes confirms by email. The
+    // submission collects their email, stores a consent token, and sits in
+    // 'pending-consent' until they tap the confirm link. Admin approve is
+    // blocked until then.
+    $subjectEmail = strtolower(trim((string)($body['subject_email'] ?? '')));
+    if ($subjectEmail === '' || !filter_var($subjectEmail, FILTER_VALIDATE_EMAIL) || strlen($subjectEmail) > 320) {
+        je('Enter the email address of the person this profile is for — they must confirm before it can go live.', 400);
     }
     // The form sends the photo as the serve URL the upload endpoint
     // returned (/api/matchmaker/photo/<uid>/<file>). Resolve it back to the
@@ -307,11 +322,46 @@ function matchmakerSubmit(): void
     ];
 
     $id = uuid();
-    db()->prepare('INSERT INTO matchmaker_profiles (id, submitted_by, payload, status) VALUES (?, ?, ?, ?)')
-        ->execute([$id, (string)$user['uid'], json_encode($payload, JSON_UNESCAPED_UNICODE), 'pending']);
+    $consentToken = bin2hex(random_bytes(32));
+    db()->prepare('INSERT INTO matchmaker_profiles (id, submitted_by, payload, status, consent_token, consent_email) VALUES (?, ?, ?, ?, ?, ?)')
+        ->execute([$id, (string)$user['uid'], json_encode($payload, JSON_UNESCAPED_UNICODE), 'pending-consent', $consentToken, $subjectEmail]);
+
+    // Email the subject a confirm link. No SMS route exists in the codebase,
+    // so email is the only confirmation channel (reported as open).
+    $submitterName = 'A matchmaker on Shia Rishta';
+    try {
+        $sn = db()->prepare('SELECT display_name FROM users WHERE id = ? LIMIT 1');
+        $sn->execute([(string)$user['uid']]);
+        $snRow = $sn->fetch();
+        if (!empty($snRow['display_name'])) $submitterName = (string)$snRow['display_name'];
+    } catch (Throwable) { /* name is cosmetic — the link still works */ }
+    mailSend([
+        'to' => $subjectEmail,
+        'subject' => 'Someone submitted a Shia Rishta profile for you — please confirm',
+        'text' => "Assalamu Alaikum {$name},\n\n{$submitterName} submitted a marriage profile for you on Shia Rishta (a nikah-first Shia matrimonial platform).\n\nNothing goes live until you confirm. Confirming means an admin will review the profile, and if approved it will appear as a browsable profile on the site. If you did not ask for this, ignore this email — the submission will be deleted automatically after 7 days.\n\nConfirm here:\nhttps://shiarishta.com/matchmaker/confirm/{$consentToken}\n\nYou can ask the admin to remove the profile at any time after it is published.",
+    ]);
 
     auditLog('matchmaker.submitted', 'matchmaker_profile', $id, ['name' => $name]);
-    json(['ok' => true, 'id' => $id, 'message' => 'Submitted. An admin will review it within 7 days.']);
+    json(['ok' => true, 'id' => $id, 'message' => "Submitted. We emailed {$name} to confirm — the profile goes to admin review once they confirm."]);
+}
+
+// POST /api/matchmaker/confirm/:token — public. The subject taps the link
+// in the consent email; the submission moves from 'pending-consent' to
+// 'pending' (admin review). A token is single-use: confirming twice, or
+// confirming after the 7-day purge deleted the row, is a 404.
+function matchmakerConfirm(string $token): void
+{
+    $stmt = db()->prepare("SELECT id, payload FROM matchmaker_profiles WHERE consent_token = ? AND status = 'pending-consent' LIMIT 1");
+    $stmt->execute([$token]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        je('This confirmation link is invalid or already used.', 404);
+    }
+    db()->prepare("UPDATE matchmaker_profiles SET status = 'pending', consent_confirmed_at = NOW() WHERE id = ?")
+        ->execute([(string)$row['id']]);
+    $p = json_decode((string)$row['payload'], true) ?: [];
+    auditLog('matchmaker.consent_confirmed', 'matchmaker_profile', (string)$row['id'], []);
+    json(['ok' => true, 'display_name' => (string)($p['display_name'] ?? 'Member')]);
 }
 
 // GET /api/matchmaker/mine — my submissions and their status.
@@ -320,7 +370,7 @@ function matchmakerMine(): void
     $user = requireAuthUser();
     matchmakerPurgeExpired();
     try {
-        $rows = db()->prepare("SELECT id, payload, status, created_at, reviewed_at FROM matchmaker_profiles WHERE submitted_by = ? ORDER BY created_at DESC LIMIT 50");
+        $rows = db()->prepare("SELECT id, payload, status, consent_email, consent_confirmed_at, created_at, reviewed_at FROM matchmaker_profiles WHERE submitted_by = ? ORDER BY created_at DESC LIMIT 50");
         $rows->execute([(string)$user['uid']]);
         $out = [];
         foreach ($rows->fetchAll() as $r) {
@@ -329,6 +379,10 @@ function matchmakerMine(): void
                 'id' => $r['id'],
                 'display_name' => $p['display_name'] ?? '',
                 'status' => $r['status'],
+                // Consent state (2026-11-10): 'pending-consent' means we are
+                // still waiting for the subject to confirm by email.
+                'consent_email' => $r['consent_email'] ?? null,
+                'consent_confirmed_at' => $r['consent_confirmed_at'] ?? null,
                 'created_at' => $r['created_at'],
             ];
         }
@@ -359,14 +413,16 @@ function routeAdminMatchmaker(string $method, array $segments): void
 }
 
 // GET /api/admin/matchmaker — pending queue (expired auto-purged first).
+// Includes 'pending-consent' rows so the admin can see what is waiting on
+// the subject — approve is blocked for those until consent lands.
 function adminMatchmakerQueue(): void
 {
     matchmakerPurgeExpired();
     try {
         $rows = db()->query(
-            "SELECT m.id, m.submitted_by, m.payload, m.status, m.created_at, u.email AS submitter_email
+            "SELECT m.id, m.submitted_by, m.payload, m.status, m.consent_email, m.consent_confirmed_at, m.created_at, u.email AS submitter_email
              FROM matchmaker_profiles m LEFT JOIN users u ON u.id = m.submitted_by
-             WHERE m.status = 'pending' ORDER BY m.created_at ASC LIMIT 100"
+             WHERE m.status IN ('pending', 'pending-consent') ORDER BY m.created_at ASC LIMIT 100"
         )->fetchAll();
     } catch (Throwable) {
         json(['ok' => true, 'queue' => []]);
@@ -379,6 +435,9 @@ function adminMatchmakerQueue(): void
             'id' => $r['id'],
             'payload' => $payload,
             'submitter_email' => $r['submitter_email'] ?? '',
+            'status' => $r['status'],
+            'consent_email' => $r['consent_email'] ?? null,
+            'consent_confirmed_at' => $r['consent_confirmed_at'] ?? null,
             'created_at' => $r['created_at'],
             // Renderable photo for review: pasted links as-is, uploaded files
             // via the authed serve endpoint (null when there is no photo).
@@ -394,11 +453,16 @@ function adminMatchmakerQueue(): void
 function adminMatchmakerApprove(string $id): void
 {
     $admin = requireAdminUser();
-    $stmt = db()->prepare("SELECT * FROM matchmaker_profiles WHERE id = ? AND status = 'pending' LIMIT 1");
+    $stmt = db()->prepare("SELECT * FROM matchmaker_profiles WHERE id = ? AND status IN ('pending', 'pending-consent') LIMIT 1");
     $stmt->execute([$id]);
     $row = $stmt->fetch();
     if (!$row) {
         je('Submission not found or already reviewed.', 404);
+    }
+    // Subject consent gate (2026-11-10): a submission the subject has not
+    // confirmed cannot be approved, whatever the admin clicks.
+    if ((string)$row['status'] === 'pending-consent') {
+        je('This submission is awaiting the subject\'s confirmation — it cannot be approved yet.', 409);
     }
     $p = json_decode((string)$row['payload'], true) ?: [];
 
@@ -439,7 +503,7 @@ function adminMatchmakerReject(string $id): void
     $admin = requireAdminUser();
     $body = requestJson();
     $reason = trim((string)($body['reason'] ?? ''));
-    $stmt = db()->prepare("SELECT payload FROM matchmaker_profiles WHERE id = ? AND status = 'pending' LIMIT 1");
+    $stmt = db()->prepare("SELECT payload FROM matchmaker_profiles WHERE id = ? AND status IN ('pending', 'pending-consent') LIMIT 1");
     $stmt->execute([$id]);
     $row = $stmt->fetch();
     if (!$row) {

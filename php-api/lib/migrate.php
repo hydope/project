@@ -70,6 +70,12 @@ function migrateSchema(): void
     migrateAddDeletionFeedbackTable();
     migrateAddConversationReadColumns();
     migrateSeedDefaultCommunities();
+    migrateAddDateOfBirthColumn();
+    migrateAddWaliRevokedAtColumn();
+    migrateAddMatchmakerConsentColumns();
+    migrateAddReportAppealColumns();
+    migrateAddMessageSenderIndex();
+    migrateRepairSeededPhotoPaths();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -1361,5 +1367,209 @@ function migrateSeedDefaultCommunities(): void
         db()->exec("DELETE FROM communities WHERE id = 'qatestcommunity07'");
     } catch (Throwable $e) {
         error_log('[api] migration: seed default communities — ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Date of birth on users (2026-11-10, external-audit fixes): the Terms
+ * require members to be 18+, but registration never collected a DOB and no
+ * date_of_birth existed anywhere — the age rule was self-declared in
+ * onboarding only. authRegister() now validates age >= 18 server-side and
+ * stores it here. Also declared in db/schema.sql (marker digest).
+ */
+function migrateAddDateOfBirthColumn(): void
+{
+    try {
+        $existing = [];
+        foreach (db()->query('SHOW COLUMNS FROM users')->fetchAll() as $c) {
+            $existing[strtolower((string)$c['Field'])] = true;
+        }
+        if (isset($existing['date_of_birth'])) return;
+        try {
+            db()->exec('ALTER TABLE users ADD COLUMN `date_of_birth` DATE DEFAULT NULL');
+            error_log('[api] migration: added users.date_of_birth');
+        } catch (Throwable $e) {
+            error_log('[api] migration: could not add users.date_of_birth — ' . substr($e->getMessage(), 0, 120));
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (date of birth) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Wali link revocation timestamp (2026-11-10, external-audit fixes): a
+ * revoked link can be restored by the member within 24h of revocation.
+ * Without revoked_at there was no way to know when the 24h window ends.
+ * Also declared in db/schema.sql (marker digest).
+ */
+function migrateAddWaliRevokedAtColumn(): void
+{
+    try {
+        $existing = [];
+        foreach (db()->query('SHOW COLUMNS FROM wali_links')->fetchAll() as $c) {
+            $existing[strtolower((string)$c['Field'])] = true;
+        }
+        if (isset($existing['revoked_at'])) return;
+        try {
+            db()->exec('ALTER TABLE wali_links ADD COLUMN `revoked_at` DATETIME DEFAULT NULL');
+            error_log('[api] migration: added wali_links.revoked_at');
+        } catch (Throwable $e) {
+            error_log('[api] migration: could not add wali_links.revoked_at — ' . substr($e->getMessage(), 0, 120));
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (wali revoked_at) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Matchmaker subject consent (2026-11-10, external-audit fixes): a
+ * matchmaker-submitted profile must NOT go live until the subject confirms
+ * by email. Submission stores the subject's email + a consent token and
+ * sits in status 'pending-consent' until the confirm endpoint flips it to
+ * 'pending'. Admin approve is blocked while consent is outstanding.
+ * Also declared in db/schema.sql (marker digest).
+ */
+function migrateAddMatchmakerConsentColumns(): void
+{
+    $additions = [
+        'consent_token'       => 'VARCHAR(64) DEFAULT NULL',
+        'consent_email'       => 'VARCHAR(320) DEFAULT NULL',
+        'consent_confirmed_at' => 'DATETIME DEFAULT NULL',
+    ];
+
+    try {
+        $existing = [];
+        foreach (db()->query('SHOW COLUMNS FROM matchmaker_profiles')->fetchAll() as $c) {
+            $existing[strtolower((string)$c['Field'])] = true;
+        }
+        foreach ($additions as $col => $def) {
+            if (isset($existing[$col])) continue;
+            try {
+                db()->exec("ALTER TABLE matchmaker_profiles ADD COLUMN `$col` $def");
+                error_log("[api] migration: added matchmaker_profiles.$col");
+            } catch (Throwable $e) {
+                error_log("[api] migration: could not add matchmaker_profiles.$col — " . substr($e->getMessage(), 0, 120));
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (matchmaker consent columns) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Report appeals (2026-11-10, external-audit fixes): a reporter can appeal
+ * a closed report, which reopens it for review. appeal_reason is the
+ * reporter's free text; appeal_at is when it was filed. Also declared in
+ * db/schema.sql (marker digest).
+ */
+function migrateAddReportAppealColumns(): void
+{
+    $additions = [
+        'appeal_reason' => 'TEXT DEFAULT NULL',
+        'appeal_at'     => 'DATETIME DEFAULT NULL',
+    ];
+
+    try {
+        $existing = [];
+        foreach (db()->query('SHOW COLUMNS FROM reports')->fetchAll() as $c) {
+            $existing[strtolower((string)$c['Field'])] = true;
+        }
+        foreach ($additions as $col => $def) {
+            if (isset($existing[$col])) continue;
+            try {
+                db()->exec("ALTER TABLE reports ADD COLUMN `$col` $def");
+                error_log("[api] migration: added reports.$col");
+            } catch (Throwable $e) {
+                error_log("[api] migration: could not add reports.$col — " . substr($e->getMessage(), 0, 120));
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (report appeal columns) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Per-user message rate limiting (2026-11-10, external-audit fixes):
+ * sendMessage() counts recent messages by sender_id, so the count needs an
+ * index on (sender_id, created_at) or every message send scans the table.
+ * Also declared in db/schema.sql (marker digest).
+ */
+function migrateAddMessageSenderIndex(): void
+{
+    try {
+        foreach (db()->query("SHOW INDEX FROM messages WHERE Key_name = 'idx_messages_sender'")->fetchAll() as $_) {
+            return;
+        }
+        try {
+            db()->exec('CREATE INDEX idx_messages_sender ON messages (sender_id, created_at)');
+            error_log('[api] migration: added messages idx_messages_sender');
+        } catch (Throwable $e) {
+            error_log('[api] migration: messages sender index — ' . substr($e->getMessage(), 0, 120));
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (message sender index) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Repair seeded profile photos (2026-11-10, fix-everything leftover #16).
+ *
+ * ROOT CAUSE: the seeder wrote photos to php-api/uploads/photos/<uid>/
+ * (deployed under public_html/api/uploads/ — INSIDE the web root), but
+ * photoServe() only serves files under photoBaseDir(), which resolves to
+ * $HOME/uploads/photos (outside the web root). Every seeded public photo
+ * therefore 404d at serve time, and the files were also directly fetchable
+ * over HTTP, bypassing the photo tiers entirely.
+ *
+ * Repair, for seeded profiles only (real members' photos were always
+ * written by photoUpload() into photoBaseDir()):
+ *   - photo already under the current base → leave it.
+ *   - file exists at the stored (legacy) path → copy it into
+ *     photoBaseDir()/<uid>/, point photo_url at the copy, and unlink the
+ *     legacy file (closes the direct-HTTP hole).
+ *   - file missing entirely → photo_url NULL so the UI falls back cleanly
+ *     to the initials monogram (never a broken-image icon).
+ * Idempotent: after the first run every seeded row is either under the
+ * base or NULL, so later runs find nothing to do.
+ */
+function migrateRepairSeededPhotoPaths(): void
+{
+    try {
+        if (!function_exists('photoBaseDir')) return;
+        $base = realpath(photoBaseDir()) ?: photoBaseDir();
+        $rows = db()->query(
+            "SELECT user_id, photo_url FROM profiles WHERE is_seeded = 1 AND photo_url IS NOT NULL AND photo_url <> ''"
+        )->fetchAll();
+        $copied = 0;
+        $cleared = 0;
+        foreach ($rows as $row) {
+            $stored = (string)$row['photo_url'];
+            $real = realpath($stored) ?: '';
+            if ($real !== '' && strncmp($real, $base, strlen($base)) === 0) continue;
+            if ($real !== '' && is_file($real)) {
+                $destDir = $base . '/' . (string)$row['user_id'];
+                if (!is_dir($destDir)) {
+                    @mkdir($destDir, 0755, true);
+                }
+                $dest = $destDir . '/' . basename($stored);
+                if (@copy($real, $dest)) {
+                    db()->prepare('UPDATE profiles SET photo_url = ? WHERE user_id = ?')
+                        ->execute([$dest, (string)$row['user_id']]);
+                    // The legacy copy lived inside the web root and was
+                    // fetchable over plain HTTP with no tier check.
+                    @unlink($real);
+                    $copied++;
+                }
+            } else {
+                db()->prepare('UPDATE profiles SET photo_url = NULL WHERE user_id = ?')
+                    ->execute([(string)$row['user_id']]);
+                $cleared++;
+            }
+        }
+        if ($copied > 0 || $cleared > 0) {
+            error_log("[api] migration: repaired seeded photos — copied {$copied}, cleared {$cleared}");
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (seeded photo repair) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }

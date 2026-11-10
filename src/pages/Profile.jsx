@@ -211,11 +211,11 @@ export default function Profile() {
         Something went wrong on our side — this isn't a missing profile. Please
         try again, and if it keeps happening let us know.
       </p>
-      <Link to="/profiles" className="button primary mt-4 inline-flex">Back to profiles</Link>
+      <Link to="/profiles/" className="button primary mt-4 inline-flex">Back to profiles</Link>
     </div></main></Layout>
   );
 
-  if (error || !profile) return (<Layout><main className="max-w-4xl mx-auto px-6 py-10"><div className="empty-state"><div className="empty-state-icon"><Users className="w-16 h-16" /></div><h1 className="empty-state-title">Not found</h1><p className="empty-state-text">The profile you're looking for doesn't exist or may be private.</p><Link to="/profiles" className="button primary mt-4 inline-flex">Browse Profiles</Link></div></main></Layout>);
+  if (error || !profile) return (<Layout><main className="max-w-4xl mx-auto px-6 py-10"><div className="empty-state"><div className="empty-state-icon"><Users className="w-16 h-16" /></div><h1 className="empty-state-title">Not found</h1><p className="empty-state-text">The profile you're looking for doesn't exist or may be private.</p><Link to="/profiles/" className="button primary mt-4 inline-flex">Browse Profiles</Link></div></main></Layout>);
 
   const isGuardianManaged = profile.managementMode === 'guardian' || profile.guardian;
 
@@ -225,7 +225,7 @@ export default function Profile() {
         <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm mb-5" style={{ color: 'var(--color-ink-faint)' }}>
           <Link to="/" className="hover:underline">Home</Link>
           <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
-          <Link to="/profiles" className="hover:underline">Profiles</Link>
+          <Link to="/profiles/" className="hover:underline">Profiles</Link>
           <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
           <span aria-current="page" style={{ color: 'var(--color-ink-secondary)' }}>{profile.displayName}</span>
         </nav>
