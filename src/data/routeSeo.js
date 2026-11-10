@@ -262,7 +262,7 @@ export const ROUTE_SEO = {
 
   '/matchmaker': {
     title: 'Matchmaker — Add a Rishta Profile | Shia Rishta',
-    desc: 'Know someone looking for a Shia rishta? Submit their profile as a matchmaker. The person the profile is for must confirm by email before it can go live. Every confirmed submission is reviewed within 7 days.',
+    desc: 'Know someone looking for a Shia rishta? Submit their profile as a matchmaker. The person it is for must confirm by email first.',
     h1: 'Matchmaker',
     lede: 'Add a profile for someone you know — family, friends, clients. The person the profile is for must confirm by email first; our team then reviews every confirmed submission before it goes live.',
     sections: [

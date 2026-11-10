@@ -51,9 +51,9 @@ all guardian tools are free. There is no payment system and no paid tier.
 
   - **Is Shia Rishta really free?** Yes. Creating a profile, browsing, expressing interest and using guardian tools are all free, and core access is intended to stay free.
 
-  - **Who can see my photos?** Only the people you choose: everyone, people you have mutual interest with, or only your matches. The default is the most private of those.
+  - **Who can see my photos?** Only the people you choose: everyone, signed-in members only, or only you. The default is members-only.
 
-  - **Can my family or wali be involved?** Yes. Wali and guardian workflows are first-class: approvals, family introductions and chaperoned communication. A member can revoke a guardian link permanently at any time.
+  - **Can my family or wali be involved?** Yes. Wali and guardian workflows are first-class: approvals, family introductions and chaperoned communication. A member can revoke a guardian link at any time — and restore it within 24 hours. After 24 hours it is gone for good.
 
   - **Who can join Shia Rishta?** Serious Shia Muslims seeking nikah, along with parents, guardians and trusted matchmakers acting on their behalf.
 
@@ -61,7 +61,7 @@ all guardian tools are free. There is no payment system and no paid tier.
 
   - **What is the difference from a generic dating app?** It is Shia-specific (sect, marja and practice fields that generic sites do not carry), privacy-first (photo tiers instead of a public gallery) and nikah-first (no swiping culture).
 
-- [Browse Shia brides and grooms seeking nikah](https://shiarishta.com/profiles) — Search verified Shia profiles for nikah — filter by sect, marja, education and location. Serious Shia matrimony with privacy-first profiles. Join free.
+- [Browse Shia brides and grooms seeking nikah](https://shiarishta.com/profiles) — Search Shia profiles for nikah — filter by sect, marja, education and location. Serious Shia matrimony with privacy-first profiles. Join free.
 
 - [About Shia Rishta](https://shiarishta.com/about) — Why Shia Rishta exists: a dignified, nikah-first alternative to swiping for Shia Muslims and their families, built on privacy-first photos and wali involvement.
 
@@ -73,11 +73,11 @@ all guardian tools are free. There is no payment system and no paid tier.
 
 - [Contact Shia Rishta](https://shiarishta.com/contact) — Reach the Shia Rishta team with questions, privacy or takedown requests, safety reports and partnership enquiries. Members can also raise a request here.
 
-- [How Shia Rishta works](https://shiarishta.com/success-stories) — How Shia Rishta actually works: verified profiles, mutual-interest messaging, privacy controls and family-supported introductions. No invented stories.
+- [How Shia Rishta works](https://shiarishta.com/how-it-works) — How Shia Rishta actually works: email-verified members, mutual-interest messaging, privacy controls and family-supported introductions. No invented stories.
 
 - [Family introductions and matchmakers](https://shiarishta.com/agents) — Family members and matchmakers can create private, photo-free introductions on Shia Rishta — with the person concerned in control throughout.
 
-- [Guardians & Family Connections](https://shiarishta.com/guardians) — How wali and guardian involvement works in Shia nikah: approvals, family-to-family introductions and chaperoned communication, built into Shia Rishta from the start.
+- [Guardians & Family Connections](https://shiarishta.com/guardians) — How wali and guardian involvement works in Shia nikah: approvals, family-to-family introductions and chaperoned communication on Shia Rishta.
 
 ### Also on the site
 
@@ -89,11 +89,11 @@ all guardian tools are free. There is no payment system and no paid tier.
 
 - [Create your free account](https://shiarishta.com/auth/register) — Create a free Shia Rishta profile for nikah — privacy-first photos, wali and guardian workflows, and no payment required.
 
-- [Matchmaker](https://shiarishta.com/matchmaker) — Know someone looking for a Shia rishta? Submit their profile as a matchmaker. Every submission is reviewed within 7 days.
+- [Matchmaker](https://shiarishta.com/matchmaker) — Know someone looking for a Shia rishta? Submit their profile as a matchmaker. The person it is for must confirm by email first.
 
 - [Marriage biodata maker](https://shiarishta.com/biodata-maker) — Create a beautiful Shia marriage biodata online — no account needed. Add photo and details, pick a design, download with watermark.
 
-- [Shia matrimony by location](https://shiarishta.com/locations) — Find Shia matrimonial profiles by city or country. Browse verified Shia rishta in Karachi, London, Toronto, Dubai and more. Free to browse.
+- [Shia matrimony by location](https://shiarishta.com/locations) — Find Shia matrimonial profiles by city or country. Browse Shia rishta in Karachi, London, Toronto, Dubai and more. Free to browse.
 
 ### Shia marriage, nikah and location pages
 
@@ -131,7 +131,7 @@ Every city and country with member profiles has dedicated pages for each of thes
 
 Covered places: Karachi, Lahore, Sargodha, Mumbai, Chennai, Bangalore, Dubai, Abu Dhabi, Toronto, London, Chicago, Houston, Washington DC, Silver Spring, Sydney, Nanjing, Pakistan, India, UAE, Canada, USA, United Kingdom, Australia.
 
-URL patterns: /shia-rishta-{place}, /shia-rishtay-{place}, /shia-nikah-{place}, /shia-marriage-{place}, /shia-matrimony-{place}, /{place}-shia-brides, /{place}-shia-grooms, /shia-shaadi-{place}, /find-shia-rishta-{place}, /{place}-shia-matrimonial, /shia-nikah-match-{place}, /shia-match-{place} — e.g. https://shiarishta.com/shia-match-karachi
+URL patterns: /shia-rishta-{place}, /shia-rishtay-{place}, /shia-nikah-{place}, /shia-marriage-{place}, /shia-matrimony-{place}, /{place}-shia-brides, /{place}-shia-grooms, /shia-shaadi-{place}, /find-shia-rishta-{place}, /{place}-shia-matrimonial, /shia-nikah-match-{place}, /shia-match-{place} — e.g. https://shiarishta.com/shia-match-karachi/
 
 ### Articles
 
@@ -155,9 +155,9 @@ URL patterns: /shia-rishta-{place}, /shia-rishtay-{place}, /shia-nikah-{place}, 
 
 - General enquiries, privacy requests, takedown requests and safety reports:
   https://shiarishta.com/contact
-- Privacy policy: https://shiarishta.com/privacy
-- Terms of use: https://shiarishta.com/terms
-- Safety and verification standards: https://shiarishta.com/safety
+- Privacy policy: https://shiarishta.com/privacy/
+- Terms of use: https://shiarishta.com/terms/
+- Safety and verification standards: https://shiarishta.com/safety/
 
 Signed-in members can also raise a support request from their dashboard, where the
 team can see the account state and answer faster.

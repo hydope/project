@@ -94,7 +94,7 @@ p('**Cost:** creating a profile, browsing, expressing interest, messaging a matc
 p('## Key pages');
 
 // Primary routes — the pages a citation is most likely to point at.
-const primary = ['/', '/profiles', '/about', '/safety', '/privacy', '/terms', '/contact', '/success-stories', '/agents', '/guardians'];
+const primary = ['/', '/profiles', '/about', '/safety', '/privacy', '/terms', '/contact', '/how-it-works', '/agents', '/guardians'];
 p('### Primary');
 for (const route of primary) {
   const meta = ROUTE_SEO[route];
