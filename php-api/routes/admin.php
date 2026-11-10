@@ -1354,7 +1354,11 @@ function adminUserDetail(string $userId): void
         'user' => $user,
         'reports' => $section('SELECT id, target_type, target_id, reason, status, created_at FROM reports WHERE target_id = ? ORDER BY created_at DESC LIMIT 20', [$userId]),
         'verifications' => $section('SELECT id, kind, status, review_note, created_at, reviewed_at FROM verifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20', [$userId]),
-        'interests' => $section('SELECT id, from_user_id, to_user_id, created_at FROM interests WHERE from_user_id = ? OR to_user_id = ? ORDER BY created_at DESC LIMIT 20', [$userId, $userId]),
+        // NOTE (2026-11-10): the interests table has NO id column — its PK is
+        // (from_user_id, to_user_id). Selecting id here threw on every call
+        // and the $section catch silently returned [], so the drawer showed
+        // no interests for any member while the table held real rows.
+        'interests' => $section('SELECT from_user_id, to_user_id, created_at FROM interests WHERE from_user_id = ? OR to_user_id = ? ORDER BY created_at DESC LIMIT 20', [$userId, $userId]),
         'audit' => $section('SELECT id, actor_email, action, created_at, meta FROM admin_audit WHERE target_id = ? ORDER BY created_at DESC LIMIT 20', [$userId]),
         'messageCount' => $messageCount($userId),
     ]);
