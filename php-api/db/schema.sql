@@ -100,6 +100,12 @@ CREATE TABLE IF NOT EXISTS profiles (
   -- Display-only: the values stay stored and are still used for matching
   -- and filters; visibleProfile() omits them for non-owners.
   hidden_fields      TEXT         DEFAULT NULL,
+  -- Notification preferences (2026-11-09): JSON object of the Settings
+  -- toggles (emailMessages, emailMatches, emailInterests, emailWeeklyDigest,
+  -- pushMessages, pushMatches, pushProfileViews). Stored server-side so the
+  -- mailer can respect them — localStorage-only prefs were invisible to it,
+  -- so the toggles promised emails that were never sent. NULL = defaults.
+  notification_prefs TEXT         DEFAULT NULL,
   -- Privacy toggles (2026-11-09, P0 batch): block_unverified hides the
   -- profile from members whose email is not verified (and blocks their
   -- interest); allow_family_view gates the wali view links. Both are

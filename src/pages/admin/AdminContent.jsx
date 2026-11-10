@@ -437,11 +437,16 @@ export default function AdminContent() {
             </div>
 
             <div className="max-h-72 overflow-y-auto rounded-lg border border-line/20 bg-elevated p-4 mb-4 space-y-3">
-              {draft.body.map((b, i) => (
-                b.t === 'h2'
-                  ? <h3 key={i} className="text-sm font-bold text-ink">{b.x}</h3>
-                  : <p key={i} className="text-sm text-muted leading-relaxed">{b.x}</p>
-              ))}
+              {draft.body.map((b, i) => {
+                if (b.t === 'h2') return <h3 key={i} className="text-sm font-bold text-ink">{b.x}</h3>;
+                if (b.t === 'ul' || b.t === 'ol') {
+                  const items = String(b.x || '').split('\n').map(s => s.trim()).filter(Boolean);
+                  const Tag = b.t === 'ol' ? 'ol' : 'ul';
+                  return <Tag key={i} className="text-sm text-muted leading-relaxed list-inside ml-3" style={{ listStyleType: b.t === 'ol' ? 'decimal' : 'disc' }}>{items.map((it, j) => <li key={j}>{it}</li>)}</Tag>;
+                }
+                if (b.t === 'quote') return <blockquote key={i} className="text-sm text-ink leading-relaxed italic border-l-2 border-gold pl-3">{b.x}</blockquote>;
+                return <p key={i} className="text-sm text-muted leading-relaxed">{b.x}</p>;
+              })}
             </div>
 
             <div className="flex flex-wrap items-center gap-3">

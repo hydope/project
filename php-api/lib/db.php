@@ -188,7 +188,7 @@ function profilesStats(): void
         $v = db()->query(
             'SELECT COUNT(*) AS n FROM verifications v
                JOIN profiles p ON p.user_id = v.user_id
-              WHERE v.status = \'approved\' AND (p.is_blocked = 0 OR (p.blocked_until IS NOT NULL AND p.blocked_until <= NOW()))'
+              WHERE v.status = \'approved\' AND v.kind IN (\'selfie\', \'id_document\') AND (p.is_blocked = 0 OR (p.blocked_until IS NOT NULL AND p.blocked_until <= NOW()))'
         )->fetch();
         $verified = (int)($v['n'] ?? 0);
     } catch (Throwable $e) {
@@ -308,6 +308,43 @@ function applyHiddenFields(array $payload, array $row, bool $isOwner): array
     return $payload;
 }
 
+// Notification-preference defaults (2026-11-09) — the Settings toggles as
+// the member sees them before ever touching one. Kept here (not in the
+// NotificationService class) so any entry point that loads lib/db.php can
+// read them; NotificationService::defaultPrefs() returns this same array.
+function notificationPrefsDefaults(): array
+{
+    return [
+        'emailMessages' => true,
+        'emailMatches' => true,
+        'emailInterests' => true,
+        'emailWeeklyDigest' => true,
+        'pushMessages' => true,
+        'pushMatches' => false,
+        'pushProfileViews' => false,
+    ];
+}
+
+// Stored prefs merged over the defaults, for the owner's own payload only.
+// Anyone else never sees them — visibleProfile() adds this to the owner
+// branch alone.
+function notificationPrefsPayload(array $row): array
+{
+    $prefs = notificationPrefsDefaults();
+    $stored = (string)($row['notification_prefs'] ?? '');
+    if ($stored !== '') {
+        $decoded = json_decode($stored, true);
+        if (is_array($decoded)) {
+            foreach (array_keys($prefs) as $k) {
+                if (array_key_exists($k, $decoded)) {
+                    $prefs[$k] = !empty($decoded[$k]);
+                }
+            }
+        }
+    }
+    return $prefs;
+}
+
 // Node's visibleProfile(): privacy tiers + blocks enforced here, not in the UI.
 // $viewer is the decoded JWT (or null). Returns null when the row must be hidden.
 function visibleProfile(array $row, ?array $viewer): ?array
@@ -409,19 +446,13 @@ function visibleProfile(array $row, ?array $viewer): ?array
 
     if (($row['visibility'] ?? 'members') === 'public' || isset($viewer['uid']) || $isOwner) {
         $photosVisibility = (string)($row['photos_visibility'] ?? 'members');
-        // Per-tier entitlement (2026-11-09; the brief's rule + the repo's
-        // own visibility test, admin-routing-test.php:768): a non-owner
-        // sees the photo for a public tier (anyone), for the 'members'
-        // tier when signed in, and for a legacy restricted tier
+        // Per-tier entitlement (2026-11-09; Syed's decision — option A — and
+        // the repo's own visibility test, admin-routing-test.php:768): a
+        // non-owner sees the photo for a public tier (anyone), for the
+        // 'members' tier when signed in, and for a legacy restricted tier
         // ('request'/'match') only with a mutual interest; 'private'
-        // never. The first version of this fix mirrored photoServe()
-        // exactly (mutual interest for every non-public tier) and broke
-        // the deploy gate — the test codifies 'members' = any signed-in
-        // member. photoServe() is NOT changed (brief: keep it as-is), so
-        // a residual mismatch remains: a non-mutual signed-in viewer gets
-        // a payload URL the serve endpoint still 404s. That needs a
-        // product call (relax photoServe for 'members', or change the
-        // tier copy) — it is NOT silently fixed here.
+        // never. photoServe() enforces the same rule, so a payload URL
+        // never 404s for a viewer the payload says may see it.
         if ($isOwner || $photosVisibility === 'public') {
             $photosLocked = false;
         } elseif ($photosVisibility === 'members') {
@@ -505,6 +536,7 @@ function visibleProfile(array $row, ?array $viewer): ?array
                 'contactVisibility' => $row['contact_visibility'] ?? 'members',
                 'blockUnverified' => !empty($row['block_unverified']),
                 'allowFamilyView' => !empty($row['allow_family_view'] ?? 1),
+                'notificationPrefs' => notificationPrefsPayload($row),
             ] : []),
         ], $row, $isOwner);
     }

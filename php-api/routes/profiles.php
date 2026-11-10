@@ -27,6 +27,8 @@ function routeProfiles(string $method, array $segments): void
     // as "profile not found" — the same ordering bug that made
     // /api/profiles/me/favourites unreachable.
     if ($method === 'GET' && $id === 'stats') { profilesStats(); return; }
+    // Filter options MUST be matched before the `/:id` branch, same as stats.
+    if ($method === 'GET' && $id === 'filter-options') { profilesFilterOptions(); return; }
     // Saved profiles.
     //
     // MUST be matched BEFORE the `/me` branch below. The `/me` test only looks at
@@ -270,10 +272,20 @@ function photoServe(string $id): void
         if ($tier === 'private') {
             je('Not found.', 404);
         }
-        // "Share after interest" is the members/match tier. A signed-in viewer
-        // needs a mutual interest to open it; an anonymous one is told to sign
-        // in rather than being 404'd, so the link is not mistaken for a bug.
-        if ($tier !== 'public') {
+        // Photo tiers (2026-11-09, Syed's decision — option A): public → anyone;
+        // 'members' → any signed-in member; legacy 'request'/'match' → mutual
+        // interest only; 'private' → never (handled above). Owner always.
+        // This matches visibleProfile(), which already advertised members-tier
+        // photo URLs to any signed-in member — the serve endpoint was the odd
+        // one out, 404ing a URL the payload had just handed out. An anonymous
+        // viewer is told to sign in rather than 404'd, so the link is not
+        // mistaken for a bug.
+        if ($tier === 'members') {
+            if ($viewer === null) {
+                je('Sign in to view this photo.', 401);
+            }
+            // Any signed-in member — no mutual-interest check.
+        } elseif ($tier !== 'public') {
             if ($viewer === null) {
                 je('Sign in to view this photo.', 401);
             }
@@ -482,6 +494,50 @@ function stripJpegExif(string $jpeg): string
     return $out;
 }
 
+// GET /api/profiles/filter-options — distinct values actually present in
+// browsable profiles, so the Filters panel never offers a choice that
+// matches nobody. Same base roster as browse: real, finished, unblocked
+// members only (no test shells, no seeded profiles in the options). Counts
+// are most-common first; the client renders them in this order.
+function profilesFilterOptions(): void
+{
+    try {
+        $rows = db()->query(
+            "SELECT p.citizenships, p.income_range, p.height_cm FROM profiles p
+              WHERE (p.is_blocked = 0 OR (p.blocked_until IS NOT NULL AND p.blocked_until <= NOW()))
+                AND p.user_id NOT IN (SELECT id FROM users WHERE is_test = 1)
+                AND p.is_seeded = 0
+                AND NOT (TRIM(COALESCE(p.city, '')) = '' AND TRIM(COALESCE(p.country, '')) = '' AND TRIM(COALESCE(p.bio, '')) = '' AND TRIM(COALESCE(p.about_family, '')) = '')"
+        )->fetchAll();
+    } catch (Throwable $e) {
+        json(['citizenships' => [], 'incomeRanges' => [], 'heightRange' => ['min' => null, 'max' => null]]);
+    }
+    $cit = [];
+    $inc = [];
+    $minH = null;
+    $maxH = null;
+    foreach ($rows as $r) {
+        foreach (explode(',', (string)($r['citizenships'] ?? '')) as $tok) {
+            $tok = trim($tok);
+            if ($tok !== '') $cit[$tok] = ($cit[$tok] ?? 0) + 1;
+        }
+        $ir = trim((string)($r['income_range'] ?? ''));
+        if ($ir !== '' && $ir !== 'Prefer not to say') $inc[$ir] = ($inc[$ir] ?? 0) + 1;
+        $h = $r['height_cm'] !== null ? (int)$r['height_cm'] : null;
+        if ($h !== null && $h > 0) {
+            $minH = $minH === null ? $h : min($minH, $h);
+            $maxH = $maxH === null ? $h : max($maxH, $h);
+        }
+    }
+    arsort($cit);
+    arsort($inc);
+    json([
+        'citizenships' => array_keys($cit),
+        'incomeRanges' => array_keys($inc),
+        'heightRange' => ['min' => $minH, 'max' => $maxH],
+    ]);
+}
+
 function profilesList(): void
 {
     $viewer = currentUser();
@@ -507,6 +563,14 @@ function profilesList(): void
     $modesty     = $_GET['modesty'] ?? null;
     $country     = $_GET['country'] ?? null;
     $photoAccess = $_GET['photoAccess'] ?? null;   // public | members | private
+    // Browse filters (2026-11-09): height range in cm (the UI enters
+    // feet-inches and converts), citizenship (comma-joined tokens matched
+    // against the comma-joined `citizenships` column), income range (exact
+    // match on the stored `income_range` value).
+    $minHeightCm = $_GET['minHeightCm'] ?? null;
+    $maxHeightCm = $_GET['maxHeightCm'] ?? null;
+    $citizenship = $_GET['citizenship'] ?? null;
+    $incomeRange = $_GET['incomeRange'] ?? null;
     $searchable  = static fn($v, $label) => ($v !== null && $v !== '' && $v !== "Any $label" && $v !== "Any $label.");
     if (array_key_exists('minAge', $_GET) && $_GET['minAge'] !== '' && $searchable($minAge, 'age')) { $where[] = 'p.age >= ?'; $params[] = (int)$minAge; }
     if (array_key_exists('maxAge', $_GET) && $_GET['maxAge'] !== '' && $searchable($maxAge, 'age')) { $where[] = 'p.age <= ?'; $params[] = (int)$maxAge; }
@@ -555,6 +619,23 @@ function profilesList(): void
         }
     }
     if ($searchable($photoAccess, 'photo')) { $where[] = 'p.photos_visibility = ?'; $params[] = $photoAccess; }
+    if ($minHeightCm !== null && $minHeightCm !== '' && is_numeric($minHeightCm)) { $where[] = 'p.height_cm >= ?'; $params[] = (int)$minHeightCm; }
+    if ($maxHeightCm !== null && $maxHeightCm !== '' && is_numeric($maxHeightCm)) { $where[] = 'p.height_cm <= ?'; $params[] = (int)$maxHeightCm; }
+    if ($citizenship !== null && trim((string)$citizenship) !== '' && $citizenship !== 'Any') {
+        // Citizenships are stored comma-joined with spaces ("Pakistani, Indian").
+        // FIND_IN_SET needs the spaces gone on both sides; the token is
+        // space-stripped the same way ("United States" → "UnitedStates").
+        $tokens = array_values(array_filter(array_map('trim', explode(',', (string)$citizenship)), static fn($s) => $s !== ''));
+        if ($tokens !== []) {
+            $ors = [];
+            foreach ($tokens as $tok) {
+                $ors[] = "FIND_IN_SET(?, REPLACE(p.citizenships, ' ', '')) > 0";
+                $params[] = str_replace(' ', '', $tok);
+            }
+            $where[] = '(' . implode(' OR ', $ors) . ')';
+        }
+    }
+    if ($incomeRange !== null && trim((string)$incomeRange) !== '' && $incomeRange !== 'Any') { $where[] = 'p.income_range = ?'; $params[] = $incomeRange; }
     $verifiedOnly = ($_GET['verifiedOnly'] ?? 'false') === 'true';
     if ($verifiedOnly) { $where[] = 'p.is_verified = 1'; }
     if ($search !== null && trim((string)$search) !== '') {
@@ -983,6 +1064,32 @@ function profileUpdate(): void
         unset($b['hiddenFields']);
     }
 
+    // Notification preferences (2026-11-09): the Settings toggles, stored
+    // server-side so the mailer can respect them. Accepts `notificationPrefs`
+    // (camelCase, what Settings sends) or `notification_prefs`. Only the
+    // seven known keys are kept; anything else is dropped, and values are
+    // coerced to booleans so a string "false" can never store as truthy.
+    $prefsRaw = $b['notificationPrefs'] ?? $b['notification_prefs'] ?? null;
+    if ($prefsRaw !== null) {
+        if (is_string($prefsRaw)) {
+            $decoded = json_decode($prefsRaw, true);
+            $prefsRaw = is_array($decoded) ? $decoded : null;
+        }
+        if (!is_array($prefsRaw)) {
+            je('notificationPrefs must be an object of toggle names.', 400);
+        }
+        $prefsAllowed = ['emailMessages', 'emailMatches', 'emailInterests', 'emailWeeklyDigest',
+            'pushMessages', 'pushMatches', 'pushProfileViews'];
+        $prefsClean = [];
+        foreach ($prefsAllowed as $k) {
+            if (array_key_exists($k, $prefsRaw)) {
+                $prefsClean[$k] = !empty($prefsRaw[$k]) && $prefsRaw[$k] !== 'false' && $prefsRaw[$k] !== '0' ? 1 : 0;
+            }
+        }
+        $b['notification_prefs'] = $prefsClean === [] ? null : json_encode($prefsClean);
+        unset($b['notificationPrefs']);
+    }
+
     $cols = ['display_name', 'displayName', 'age', 'gender', 'seekingGender', 'city', 'country',
         'sect', 'profession', 'bio', 'expectations', 'aboutFamily',
         'visibility', 'photos_visibility', 'photosVisibility',
@@ -1001,6 +1108,9 @@ function profileUpdate(): void
         // Hide-any-field (2026-11-09). Normalized to a JSON string (or null)
         // above, so the $sets loop stores it as plain text.
         'hidden_fields',
+        // Notification preferences (2026-11-09). Normalized to a JSON string
+        // (or null) above, so the $sets loop stores it as plain text.
+        'notification_prefs',
         // Privacy toggles + contact phone (2026-11-09, P0 batch). These were
         // collected in Settings but never sent to the server — the save wrote
         // localStorage and only the bio reached the API.
@@ -1182,7 +1292,13 @@ function profileUpdate(): void
         }
     }
 
-    json(['ok' => true, 'profile' => $row]);
+    // Return the whitelisted owner payload, never the raw row (2026-11-09):
+    // the raw row leaked guardian_email and the photo_url filesystem path
+    // to the owner — both are server-side only. visibleProfile() for the
+    // owner returns exactly what Settings and onboarding need (their own
+    // marja, contact phone, privacy toggles and notification prefs).
+    $saved = visibleProfile($row, $user);
+    json(['ok' => true, 'profile' => $saved ?? []]);
 }
 
 function profileInterest(string $id): void
@@ -1350,6 +1466,14 @@ function notifyUser(string $userId, string $type, string $title, ?string $body =
         $stmt->execute([$id, $userId, $type, $title, $body, $refId]);
     } catch (Throwable $e) {
         error_log('[api] notify failed: ' . substr($e->getMessage(), 0, 120));
+    }
+    // Email mirror (2026-11-09): the Settings toggles used to promise emails
+    // that were never sent — notifications only ever inserted in-app rows.
+    // The in-app row above is the record; the email is best-effort and
+    // respects the recipient's stored pref (NotificationService::maybeEmail).
+    $event = ['interest' => 'interest', 'match' => 'match', 'message' => 'message'][$type] ?? null;
+    if ($event !== null) {
+        NotificationService::maybeEmail($userId, $event, $title, $body ?? '');
     }
 }
 

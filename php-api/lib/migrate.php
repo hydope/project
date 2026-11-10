@@ -50,6 +50,7 @@ function migrateSchema(): void
     migrateAddPrivacyColumns();
     migrateAddContactColumns();
     migrateAddCitizenshipsColumn();
+    migrateAddNotificationPrefsColumn();
     migrateAddBlogPostsTable();
     migrateAddBlogImageColumn();
     migrateAddContactSpamColumn();
@@ -534,6 +535,19 @@ function migrateAddCitizenshipsColumn(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (citizenships column) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+function migrateAddNotificationPrefsColumn(): void
+{
+    try {
+        $cols = db()->query("SHOW COLUMNS FROM profiles LIKE 'notification_prefs'")->fetchAll();
+        if (!$cols) {
+            db()->exec('ALTER TABLE profiles ADD COLUMN notification_prefs TEXT DEFAULT NULL');
+            error_log('[api] migration: added profiles.notification_prefs');
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (notification_prefs) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }
 

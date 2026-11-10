@@ -8,6 +8,7 @@ import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { cmToFeetInches, parseHeightToCm } from '../lib/height';
 import {
   Search, SlidersHorizontal, LayoutGrid, Heart, AlertCircle, Shield, Bookmark, Users
 } from 'lucide-react';
@@ -15,10 +16,11 @@ import {
 const SECT_FILTERS = ['Any sect', 'Ithna Ashari (Twelver)', 'Ismaili', 'Bohra', 'Zaydi'];
 const RELIGIOSITY_FILTERS = ['Any level', 'Very practicing', 'Practicing', 'Moderately practicing', 'Reconnecting'];
 const EDUCATION_FILTERS = ['Any education', "Bachelor's degree", "Master's degree", 'Doctorate', 'Some college'];
-// Modesty options MUST match MODESTY_OPTIONS_FEMALE/MALE in onboardingData.js exactly.
-// Shown as Hijab options when browsing brides, Beard options for grooms.
-const MODESTY_FILTERS_FEMALE = ['Any', 'Hijab — always observed', 'Hijab — working towards it', 'Modest dress, no hijab yet', 'Prefer not to say'];
-const MODESTY_FILTERS_MALE = ['Any', 'Beard — always kept', 'Beard — sometimes kept', 'Clean shaven', 'Prefer not to say'];
+// Modesty options are gender-neutral (2026-11-09): one union list — hijab
+// and beard choices together — instead of swapping the list by the gender
+// filter, which hid options and mislabeled the filter itself. Values must
+// match the modesty options in onboardingData.js exactly.
+const MODESTY_FILTERS = ['Any', 'Hijab — always observed', 'Hijab — working towards it', 'Modest dress, no hijab yet', 'Beard — always kept', 'Beard — sometimes kept', 'Clean shaven', 'Prefer not to say'];
 const SORTS = [
   { value: 'match', label: 'Best match' },
   { value: 'newest', label: 'Newest members' },
@@ -29,7 +31,10 @@ const SORTS = [
 const DEFAULT_FILTERS = {
   search: '', gender: '', minAge: '', maxAge: '', country: '',
   sect: 'Any sect', religiosity: 'Any level', education: 'Any education',
-  syedStatus: 'Any', modesty: 'Any', photo: 'any', verifiedOnly: false, sort: 'match'
+  syedStatus: 'Any', modesty: 'Any', photo: 'any', verifiedOnly: false, sort: 'match',
+  // Height is entered as free text (5'7" or 170 cm) and parsed to cm for the
+  // server; citizenship is a multi-select of values actually present.
+  minHeight: '', maxHeight: '', citizenship: [], incomeRange: 'Any'
 };
 
 // Placeholder sentinels must be stripped before hitting the API, otherwise the
@@ -189,6 +194,20 @@ export function BrowseProfiles() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Filter options (2026-11-09): the citizenships/incomes actually present
+  // in the live roster, from /api/profiles/filter-options. Loaded once;
+  // a failed load leaves the selects empty rather than inventing options.
+  const [filterOptions, setFilterOptions] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.getFilterOptions()
+      .then(o => { if (!cancelled && o) setFilterOptions(o); })
+      .catch(() => { /* filters work without the option lists */ });
+    return () => { cancelled = true; };
+  }, []);
+  const minHeightParsed = parseHeightToCm(filters.minHeight);
+  const maxHeightParsed = parseHeightToCm(filters.maxHeight);
+  const heightHintBad = (filters.minHeight && minHeightParsed === null) || (filters.maxHeight && maxHeightParsed === null);
   const [visibleCount, setVisibleCount] = useState(9);
   // True when the gender filter was set automatically from the member's own
   // seekingGender (not chosen by them). Shown as a transparent notice — never
@@ -248,7 +267,13 @@ export function BrowseProfiles() {
     photoAccess: clean(filters.photo),
     verifiedOnly: filters.verifiedOnly,
     search: clean(filters.search),
-  }), [filters]);
+    // Height is stored in cm; the inputs take feet/inches or cm and parse
+    // here. An unparseable entry is ignored (never sent as 0 or garbage).
+    minHeightCm: minHeightParsed ?? undefined,
+    maxHeightCm: maxHeightParsed ?? undefined,
+    citizenship: filters.citizenship?.length ? filters.citizenship.join(',') : undefined,
+    incomeRange: clean(filters.incomeRange),
+  }), [filters, minHeightParsed, maxHeightParsed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -313,6 +338,8 @@ export function BrowseProfiles() {
   const activeFilterEntries = Object.entries(filters).filter(([k, v]) => {
     if (k === 'sort') return v !== 'match';
     if (k === 'verifiedOnly') return v === true;
+    // A multi-select counts when anything is chosen.
+    if (Array.isArray(v)) return v.length > 0;
     // 'Any' is a default, not a selection — the bare value is what the
     // syedStatus/modesty selects send (the others send 'Any sect' etc).
     if (typeof v === 'string') return v && !['Any', 'Any sect', 'Any level', 'Any education', 'any'].includes(v);
@@ -322,8 +349,8 @@ export function BrowseProfiles() {
   // The badge count alone never said WHICH filters were on — name them for
   // the tooltip and screen readers.
   const activeFilterNames = activeFilterEntries.map(([k, v]) => {
-    const labels = { gender: 'Looking for', minAge: 'Min age', maxAge: 'Max age', country: 'Country', sect: 'Sect', religiosity: 'Religiosity', education: 'Education', syedStatus: 'Syed status', modesty: 'Modesty', photo: 'Photo', verifiedOnly: 'Verified only', sort: 'Sort', search: 'Search' };
-    return `${labels[k] || k}: ${v === true ? 'on' : v}`;
+    const labels = { gender: 'Looking for', minAge: 'Min age', maxAge: 'Max age', country: 'Country', sect: 'Sect', religiosity: 'Religiosity', education: 'Education', syedStatus: 'Syed status', modesty: 'Modesty', photo: 'Photo', verifiedOnly: 'Verified only', sort: 'Sort', search: 'Search', minHeight: 'Min height', maxHeight: 'Max height', citizenship: 'Citizenship', incomeRange: 'Income' };
+    return `${labels[k] || k}: ${v === true ? 'on' : Array.isArray(v) ? v.join(', ') : v}`;
   }).join(', ');
 
   return (
@@ -463,9 +490,47 @@ export function BrowseProfiles() {
                     </select>
                   </div>
                   <div>
-                    <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Hijab / Modesty</label>
+                    <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Modesty</label>
                     <select value={filters.modesty} onChange={e => setFilter('modesty', e.target.value)} className="input" style={{ background: 'var(--color-surface)' }}>
-                      {(filters.gender === 'male' ? MODESTY_FILTERS_MALE : MODESTY_FILTERS_FEMALE).map(s => <option key={s} value={s}>{s}</option>)}
+                      {MODESTY_FILTERS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Height range</label>
+                    <div className="flex gap-2">
+                      <input type="text" placeholder={"Min (e.g. 5'7\")"} value={filters.minHeight} onChange={e => setFilter('minHeight', e.target.value)} className="input" style={{ background: 'var(--color-surface)' }} aria-label="Minimum height" />
+                      <input type="text" placeholder={"Max (e.g. 6'0\")"} value={filters.maxHeight} onChange={e => setFilter('maxHeight', e.target.value)} className="input" style={{ background: 'var(--color-surface)' }} aria-label="Maximum height" />
+                    </div>
+                    {(filters.minHeight || filters.maxHeight) && (
+                      <p className="text-xs mt-1" style={{ color: heightHintBad ? '#b91c1c' : 'var(--color-ink-secondary)' }}>
+                        {filters.minHeight ? (minHeightParsed ? `Min ${minHeightParsed} cm (${cmToFeetInches(minHeightParsed)})` : 'Min: not a height — try 5\'7" or 170 cm.') : ''}
+                        {filters.minHeight && filters.maxHeight ? ' · ' : ''}
+                        {filters.maxHeight ? (maxHeightParsed ? `Max ${maxHeightParsed} cm (${cmToFeetInches(maxHeightParsed)})` : 'Max: not a height — try 5\'7" or 170 cm.') : ''}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Citizenship</label>
+                    {filterOptions?.citizenships?.length ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {filterOptions.citizenships.map(c => {
+                          const on = filters.citizenship.includes(c.value);
+                          return (
+                            <button key={c.value} type="button" onClick={() => setFilter('citizenship', on ? filters.citizenship.filter(x => x !== c.value) : [...filters.citizenship, c.value])} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${on ? 'btn btn-primary' : 'btn btn-ghost'}`} aria-pressed={on}>
+                              {c.value} ({c.count})
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>No citizenships listed yet.</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Income range</label>
+                    <select value={filters.incomeRange} onChange={e => setFilter('incomeRange', e.target.value)} className="input" style={{ background: 'var(--color-surface)' }}>
+                      <option value="Any">Any</option>
+                      {(filterOptions?.incomeRanges || []).map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
                   <div>

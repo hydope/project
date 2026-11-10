@@ -286,9 +286,12 @@ function aiGeneratePost(): void
         . "not lecture or quote scripture as authority.\n\n"
         . "Return STRICT JSON with keys: title, excerpt, category, readTime, body.\n"
         . "'excerpt' is one sentence under 160 characters. 'category' is one of: Guidance, Safety, Community, "
-        . "Profiles. 'readTime' is like '5 min'. 'body' is an ARRAY of objects, each {\"t\": \"p\"|\"h2\", "
-        . "\"x\": \"...\"} — never markdown fences.\n\n"
+        . "Profiles. 'readTime' is like '5 min'. 'body' is an ARRAY of objects, each {\"t\": \"p\"|\"h2\"|\"ul\"|\"ol\"|\"quote\", "
+        . "\"x\": \"...\"} — never markdown fences. A list block carries its items newline-separated in \"x\"; "
+        . "a quote block carries the quoted words.\n\n"
         . "Write a focused piece of roughly 500 words, 5-8 paragraphs with an h2 heading or two. "
+        . "Where a checklist or steps help, use one short bullet or numbered list; where a saying or a member's "
+        . "words would land, use one quote block. Never more than two lists and one quote per article. "
         . "Do not invent statistics, user counts or claims about the site's features beyond what is stated.\n\n"
         . ($existing ? "Recently published (do not repeat these angles): " . implode(' | ', $existing) . "\n\n" : '')
         . "TOPIC: " . $topic . ($angle !== '' ? "\nANGLE: " . $angle : '')
@@ -325,6 +328,40 @@ function aiGeneratePost(): void
 }
 
 /**
+ * Normalize one body block from a model response or an admin save.
+ *
+ * Block vocabulary (2026-11-09): p | h2 | ul | ol | quote. Lists carry
+ * their items newline-separated in "x" (or as a JSON array, which the
+ * model sometimes emits despite the prompt); a leading marker on an item
+ * ("-", "•", "1.") is stripped so the renderer never double-bullets.
+ * Unknown types degrade to 'p'; an empty block is dropped (null). Every
+ * parse/save path uses this — the old per-site allowlist coerced lists
+ * and quotes to paragraphs, so they never survived create → save → render.
+ */
+function aiNormalizeBlock(array $b): ?array
+{
+    $t = (string)($b['t'] ?? 'p');
+    if (!in_array($t, ['p', 'h2', 'ul', 'ol', 'quote'], true)) $t = 'p';
+    $raw = $b['x'] ?? '';
+    if (is_array($raw)) $raw = implode("\n", array_map('strval', $raw));
+    $x = sanitizeText((string)$raw, 4000);
+    if ($x === '') return null;
+    if ($t === 'ul' || $t === 'ol') {
+        $items = [];
+        foreach (preg_split('/\r\n|\r|\n/', $x) ?: [] as $line) {
+            $line = trim((string)$line);
+            if ($line === '') continue;
+            $line = (string)preg_replace('/^(?:[-•*]|\d+[.)])\s+/u', '', $line);
+            $line = trim($line);
+            if ($line !== '') $items[] = $line;
+        }
+        if (!$items) return null;
+        $x = implode("\n", $items);
+    }
+    return ['t' => $t, 'x' => $x];
+}
+
+/**
  * Pull a JSON object out of a model response and validate its shape.
  *
  * Returns null rather than half a post: a truncated body would publish an
@@ -353,9 +390,8 @@ function parseGeneratedPost(string $raw): ?array
     $body = [];
     foreach ((array)($decoded['body'] ?? []) as $block) {
         if (!is_array($block)) continue;
-        $t = in_array(($block['t'] ?? ''), ['p', 'h2'], true) ? $block['t'] : 'p';
-        $x = sanitizeText($block['x'] ?? '', 4000);
-        if ($x !== '') $body[] = ['t' => $t, 'x' => $x];
+        $norm = aiNormalizeBlock($block);
+        if ($norm !== null) $body[] = $norm;
     }
     if (count($body) < 3) return null;
 
@@ -393,7 +429,7 @@ function salvageTruncatedPost(string $raw): ?array
     $body = [];
     // Only complete blocks: the lookahead requires a closing brace after "x".
     preg_match_all(
-        '/\{\s*"t"\s*:\s*"(p|h2)"\s*,\s*"x"\s*:\s*"((?:[^"\\\\]|\\\\.)*)"\s*\}/',
+        '/\{\s*"t"\s*:\s*"(p|h2|ul|ol|quote)"\s*,\s*"x"\s*:\s*"((?:[^"\\\\]|\\\\.)*)"\s*\}/',
         $raw,
         $bm,
         PREG_SET_ORDER
@@ -401,7 +437,8 @@ function salvageTruncatedPost(string $raw): ?array
     foreach ($bm as $m) {
         $x = json_decode('"' . $m[2] . '"');
         if (is_string($x) && trim($x) !== '') {
-            $body[] = ['t' => $m[1], 'x' => sanitizeText($x, 4000)];
+            $norm = aiNormalizeBlock(['t' => $m[1], 'x' => $x]);
+            if ($norm !== null) $body[] = $norm;
         }
     }
     // parseGeneratedPost() already requires 3 blocks; bail early if we have fewer.
@@ -550,9 +587,8 @@ function aiCreatePost(): void
     $blocks = [];
     foreach ((array)($draft['body'] ?? []) as $b) {
         if (!is_array($b)) continue;
-        $t = in_array($b['t'] ?? '', ['p', 'h2'], true) ? $b['t'] : 'p';
-        $x = sanitizeText($b['x'] ?? '', 4000);
-        if ($x !== '') $blocks[] = ['t' => $t, 'x' => $x];
+        $norm = aiNormalizeBlock($b);
+        if ($norm !== null) $blocks[] = $norm;
     }
     if (!$blocks) {
         je('The post has no body.', 400);
@@ -631,9 +667,8 @@ function aiUpdatePost(string $id): void
         $blocks = [];
         foreach ((array)$body['body'] as $b) {
             if (!is_array($b)) continue;
-            $t = in_array($b['t'] ?? '', ['p', 'h2'], true) ? $b['t'] : 'p';
-            $x = sanitizeText($b['x'] ?? '', 4000);
-            if ($x !== '') $blocks[] = ['t' => $t, 'x' => $x];
+            $norm = aiNormalizeBlock($b);
+            if ($norm !== null) $blocks[] = $norm;
         }
         if (!$blocks) {
             je('The post has no body.', 400);
@@ -814,9 +849,12 @@ function aiQueueRun(): void
         . "phrasing.\n\n"
         . "Return STRICT JSON with keys: title, excerpt, category, readTime, body.\n"
         . "'excerpt' is one sentence under 160 characters. 'category' must be exactly \"" . $category . "\". "
-        . "'readTime' is exactly like '5 min read' (number, space, 'min', space, 'read'). 'body' is an ARRAY of objects, each {\"t\": \"p\"|\"h2\", "
-        . "\"x\": \"...\"} — never markdown fences.\n\n"
+        . "'readTime' is exactly like '5 min read' (number, space, 'min', space, 'read'). 'body' is an ARRAY of objects, each {\"t\": \"p\"|\"h2\"|\"ul\"|\"ol\"|\"quote\", "
+        . "\"x\": \"...\"} — never markdown fences. A list block carries its items newline-separated in \"x\"; "
+        . "a quote block carries the quoted words.\n\n"
         . "Write a focused piece of roughly 500 words, 5-8 paragraphs with an h2 heading or two. "
+        . "Where a checklist or steps help, use one short bullet or numbered list; where a saying or a member's "
+        . "words would land, use one quote block. Never more than two lists and one quote per article. "
         . "Do not invent statistics, user counts or claims about the site's features beyond what is stated.\n\n"
         . ($existing ? "Recently published (do not repeat these angles): " . implode(' | ', $existing) . "\n\n" : '')
         . "TOPIC: " . $topic . ($angle !== '' ? "\nANGLE: " . $angle : '')
@@ -842,9 +880,8 @@ function aiQueueRun(): void
     $blocks = [];
     foreach ((array)($post['body'] ?? []) as $b) {
         if (!is_array($b)) continue;
-        $t = in_array($b['t'] ?? '', ['p', 'h2'], true) ? $b['t'] : 'p';
-        $x = sanitizeText((string)($b['x'] ?? ''), 4000);
-        if ($x !== '') $blocks[] = ['t' => $t, 'x' => $x];
+        $norm = aiNormalizeBlock($b);
+        if ($norm !== null) $blocks[] = $norm;
     }
     if (!$blocks) {
         $r = $fail();
@@ -973,9 +1010,8 @@ function aiQueueSave(): void
     $blocks = [];
     foreach ((array)($post['body'] ?? []) as $b) {
         if (!is_array($b)) continue;
-        $t = in_array($b['t'] ?? '', ['p', 'h2'], true) ? $b['t'] : 'p';
-        $x = sanitizeText((string)($b['x'] ?? ''), 4000);
-        if ($x !== '') $blocks[] = ['t' => $t, 'x' => $x];
+        $norm = aiNormalizeBlock($b);
+        if ($norm !== null) $blocks[] = $norm;
     }
     if ($title === '' || !$blocks) {
         $r = $release();

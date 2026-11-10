@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, ChevronLeft, Check, User, Moon, Landmark, GraduationCap,
-  Heart, Shield, ClipboardCheck, Globe, KeyRound, Lock, UserRound,
+  Heart, Shield, ClipboardCheck, Globe, Lock, UserRound,
   Sparkles, AlertCircle, Save, HeartHandshake, Camera, Loader2
 } from 'lucide-react';
 import Layout from '../layouts/MainLayout';
@@ -47,7 +47,7 @@ const EMPTY_FORM = {
   // Step 5 — Marriage intentions
   timeline: '', relocation: '', familyInvolvement: '', childrenStatus: '', childrenPlans: '',
   // Step 6 — Privacy & photos
-  photoAccess: 'match', profileVisibility: 'public', managementMode: '', guardianName: '', guardianEmail: '',
+  photoAccess: 'members', profileVisibility: 'public', managementMode: '', guardianName: '', guardianEmail: '',
   // Step 7 — Story
   bio: '', lookingFor: ''
 };
@@ -903,7 +903,7 @@ function StepPhotoUpload() {
   };
 
   return (
-    <Field label="Your photo" hint="Optional — add one now or later from Settings. It follows the visibility rules you pick below.">
+    <Field label="Your photo" hint="A photo helps families recognise you — optional, and you control who sees it. Add one now or later from Settings; it follows the visibility rules you pick below.">
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} aria-label="Upload a profile photo" />
       {photo ? (
         <div className="flex items-center gap-4">
@@ -928,7 +928,7 @@ function StepPhotoUpload() {
 }
 
 // ── Step 6: Privacy & photos — the platform's signature control ─────────────
-const PHOTO_ICONS = { globe: Globe, key: KeyRound, lock: Lock };
+const PHOTO_ICONS = { globe: Globe, user: UserRound, lock: Lock };
 
 function StepPrivacy({ data, update, errors }) {
   return (
@@ -1037,7 +1037,10 @@ const FIELD_LABELS = {
   now: 'Ready for nikah now', '6m': 'Within 6 months', '1y': 'Within 6–12 months', '2y': 'Within 1–2 years', exploring: 'Exploring openly',
   anywhere: 'Anywhere', 'same-country': 'Same country', 'same-city': 'Same city', discuss: 'Open to discuss',
   'from-start': 'From the start', 'after-match': 'After compatibility', 'wali-required': 'Wali in all talks', 'couple-first': 'Couple first',
-  public: 'All members', request: 'Request only', match: 'Blurred until match',
+  public: 'Everyone', members: 'Members only', private: 'Only me',
+  // Old drafts may still carry the retired values — both normalized to
+  // 'members' at save, so the review screen says the same.
+  request: 'Members only', match: 'Members only',
   discoverable: 'Discoverable', limited: 'Limited', hidden: 'Incognito',
   self: 'Self-managed', guardian: 'Guardian-managed',
   'Prefer not to say': 'Private'

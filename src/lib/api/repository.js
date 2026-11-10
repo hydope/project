@@ -62,6 +62,13 @@ export const profilesRepo = {
       testShellsHidden: 0,
     };
   },
+  // Values actually present in the live roster, for the browse filter panel
+  // (citizenship multi-select, income select, height range). Offline there is
+  // no roster, so the lists are empty rather than invented.
+  async filterOptions() {
+    if (useRemote) return http.get('/api/profiles/filter-options');
+    return { citizenships: [], incomeRanges: [], height: { min: null, max: null } };
+  },
   async save(profile) {
     if (useRemote) return http.put('/api/profiles/me', profile);
     const list = allProfiles();

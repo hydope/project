@@ -336,6 +336,7 @@ function routeAdmin(string $method, array $segments): void
     if ($method === 'GET' && $action === 'overview') { adminOverview(); return; }
     if ($method === 'GET' && $action === 'health') { adminHealth(); return; }
     if ($method === 'GET' && $action === 'analytics') { adminAnalytics(); return; }
+    if ($method === 'GET' && $action === 'photo-lift') { adminPhotoLift(); return; }
     if ($method === 'GET' && $action === 'seo') { adminSeoAnalytics(); return; }
     if ($method === 'GET' && $action === 'queue') { adminModerationQueue(); return; }
     if ($method === 'GET' && $action === 'verification-queue') { adminVerificationQueue(); return; }
@@ -416,7 +417,7 @@ function adminVerificationsList(): void
            FROM verifications v
            JOIN users u ON u.id = v.user_id
            LEFT JOIN profiles p ON p.user_id = v.user_id
-          WHERE v.status = ?
+          WHERE v.status = ? AND v.kind IN (\'selfie\', \'id_document\')
           ORDER BY v.created_at ASC LIMIT 200'
     );
     $stmt->execute([$status]);
@@ -426,7 +427,7 @@ function adminVerificationsList(): void
     // how an operator discovers what they did last week.
     $counts = ['pending' => 0, 'approved' => 0, 'rejected' => 0];
     try {
-        foreach (db()->query('SELECT status, COUNT(*) AS n FROM verifications GROUP BY status')->fetchAll() as $r) {
+        foreach (db()->query('SELECT status, COUNT(*) AS n FROM verifications WHERE kind IN (\'selfie\', \'id_document\') GROUP BY status')->fetchAll() as $r) {
             if (isset($counts[(string)$r['status']])) {
                 $counts[(string)$r['status']] = (int)$r['n'];
             }
@@ -469,10 +470,10 @@ function adminApproveVerification(string $verificationId): void
 
     db()->prepare("UPDATE verifications SET status = 'approved', reviewed_by = ?, reviewed_at = UTC_TIMESTAMP(), review_note = ? WHERE id = ?")
         ->execute([$admin['uid'], $note, $verificationId]);
-    // The CASE keeps an existing ID badge when a later selfie is approved:
-    // a selfie approval must never demote a member to the lower tier.
-    db()->prepare("UPDATE profiles SET is_verified = 1, verified_kind = CASE WHEN verified_kind = 'id_document' THEN 'id_document' ELSE ? END, updated_at = UTC_TIMESTAMP() WHERE user_id = ?")
-        ->execute([$kind, $row['user_id']]);
+    // Badge follows the table (syncVerificationBadge): the CASE rule that
+    // kept an existing ID badge when a later selfie was approved now lives
+    // there, so every decide path derives the badge the same way.
+    syncVerificationBadge((string)$row['user_id']);
 
     auditLog('verification.approved', 'verification', $verificationId, [
         'userId' => (string)$row['user_id'],
@@ -500,27 +501,12 @@ function adminRejectVerification(string $verificationId): void
     db()->prepare("UPDATE verifications SET status = 'rejected', reviewed_by = ?, reviewed_at = UTC_TIMESTAMP(), review_note = ? WHERE id = ?")
         ->execute([$admin['uid'], $note, $verificationId]);
 
-    // Revocation: a rejection must clear the badge when the member has no
-    // other approved verification left. Previously the badge, once flipped,
-    // survived every rejection forever. An approved ID document outranks an
-    // approved selfie when both exist.
-    $userId = (string)$verif['user_id'];
-    $stillApproved = db()->prepare(
-        "SELECT kind FROM verifications
-          WHERE user_id = ? AND status = 'approved'
-          ORDER BY (kind = 'id_document') DESC, reviewed_at DESC LIMIT 1"
-    );
-    $stillApproved->execute([$userId]);
-    $remaining = $stillApproved->fetch();
-    if ($remaining) {
-        $rk = (string)($remaining['kind'] ?? '');
-        if (!in_array($rk, ['selfie', 'id_document'], true)) $rk = 'selfie';
-        db()->prepare('UPDATE profiles SET is_verified = 1, verified_kind = ?, updated_at = UTC_TIMESTAMP() WHERE user_id = ?')
-            ->execute([$rk, $userId]);
-    } else {
-        db()->prepare("UPDATE profiles SET is_verified = 0, verified_kind = 'none', updated_at = UTC_TIMESTAMP() WHERE user_id = ?")
-            ->execute([$userId]);
-    }
+    // Revocation: the badge follows whatever approved record remains, or
+    // clears when none does. The derivation lives in syncVerificationBadge
+    // — previously the badge, once flipped, survived every rejection
+    // forever; an approved ID document outranks an approved selfie when
+    // both exist, and an account-only approval never earns a document tier.
+    syncVerificationBadge((string)$verif['user_id']);
 
     auditLog('verification.rejected', 'verification', $verificationId, ['note' => $note, 'userId' => $userId]);
 
@@ -609,7 +595,7 @@ function adminHealth(): void
     }
     try {
         $v = db()->query(
-            "SELECT COUNT(*) AS n FROM verifications WHERE status = 'approved'"
+            "SELECT COUNT(*) AS n FROM verifications WHERE status = 'approved' AND kind IN ('selfie', 'id_document')"
         )->fetch();
         $verified = (int)($v['n'] ?? 0);
     } catch (Throwable $e) {
@@ -731,6 +717,50 @@ function adminAnalytics(): void
 // GET /api/admin/seo?range=7d|30d — the SEO & Growth dashboard dataset.
 //
 // First-party analytics from the pageviews beacon (POST /api/analytics/collect)
+// GET /api/admin/photo-lift — do profiles with photos actually get more
+// interest? Aggregate only (no member rows): real, finished members split
+// by photo presence, with interests received and member-days so the rate is
+// age-adjusted (an older profile has had longer to collect interest).
+// The photo nudge may only quote a number this endpoint proves; a ratio
+// under 1.5x, or a group too small to trust, means qualitative copy only.
+function adminPhotoLift(): void
+{
+    try {
+        $rows = db()->query(
+            "SELECT p.user_id,
+                    (p.photo_url IS NOT NULL AND TRIM(p.photo_url) <> '') AS has_photo,
+                    GREATEST(DATEDIFF(NOW(), p.created_at), 1) AS age_days,
+                    (SELECT COUNT(*) FROM interests i WHERE i.to_user_id = p.user_id) AS interests
+               FROM profiles p
+              WHERE p.user_id NOT IN (SELECT id FROM users WHERE is_test = 1 OR is_admin = 1)
+                AND p.is_seeded = 0
+                AND NOT (TRIM(COALESCE(p.city, '')) = '' AND TRIM(COALESCE(p.country, '')) = '' AND TRIM(COALESCE(p.bio, '')) = '' AND TRIM(COALESCE(p.about_family, '')) = '')"
+        )->fetchAll();
+    } catch (Throwable $e) {
+        je('Photo-lift unavailable.', 500);
+    }
+    $agg = [
+        'with' => ['members' => 0, 'interests' => 0, 'days' => 0],
+        'without' => ['members' => 0, 'interests' => 0, 'days' => 0],
+    ];
+    foreach ($rows as $r) {
+        $g = !empty($r['has_photo']) ? 'with' : 'without';
+        $agg[$g]['members']++;
+        $agg[$g]['interests'] += (int)$r['interests'];
+        $agg[$g]['days'] += max(1, (int)$r['age_days']);
+    }
+    foreach (['with', 'without'] as $g) {
+        $m = $agg[$g]['members'];
+        $d = $agg[$g]['days'];
+        $agg[$g]['avgInterests'] = $m > 0 ? round($agg[$g]['interests'] / $m, 2) : 0;
+        $agg[$g]['perDay'] = $d > 0 ? round($agg[$g]['interests'] / $d, 3) : 0;
+    }
+    $ratio = $agg['without']['perDay'] > 0
+        ? round($agg['with']['perDay'] / $agg['without']['perDay'], 1)
+        : null;
+    json(['withPhoto' => $agg['with'], 'withoutPhoto' => $agg['without'], 'perDayRatio' => $ratio]);
+}
+
 // plus real product aggregates. Everything here is a real COUNT from the
 // database — no sample data, no estimates. Google Analytics 4 runs in parallel
 // via the gtag snippet (measurement ID G-KNR7541E3G); its own numbers live in
@@ -1154,7 +1184,7 @@ function adminModerationQueue(): void
     $pending = db()->query("SELECT v.id, v.kind, v.created_at, u.display_name AS member_name, u.email
                               FROM verifications v
                               LEFT JOIN users u ON u.id = v.user_id
-                             WHERE v.status = 'pending'
+                             WHERE v.status = 'pending' AND v.kind IN ('selfie', 'id_document')
                              ORDER BY v.created_at ASC LIMIT 200")
         ->fetchAll();
 
@@ -1235,33 +1265,14 @@ function adminVerificationBulk(): void
     if ($verb === 'approve') {
         $up = db()->prepare("UPDATE verifications SET status='approved', reviewed_by=?, reviewed_at=UTC_TIMESTAMP(), review_note=? WHERE id IN ({$placeholders})");
         $up->execute(array_merge([$actor['uid'], $note ?: null], $ids));
-        // Two-tier badge sync, grouped per verification kind. A member with at
-        // least one approved ID document earns the ID badge; otherwise the
-        // photo badge. One row per user_id keeps the update set tight.
-        $idUsers = [];
-        $selfieUsers = [];
-        foreach ($rows as $r) {
-            $uid = (string)$r['user_id'];
-            if ((string)($r['kind'] ?? '') === 'id_document') {
-                $idUsers[$uid] = true;
-            } else {
-                $selfieUsers[$uid] = true;
-            }
+        // Badge follows the table (syncVerificationBadge): a member with at
+        // least one approved ID document earns the ID badge, otherwise the
+        // photo badge — and a selfie approval never demotes an existing ID
+        // badge. One call per affected user keeps the update set tight.
+        $affectedUsers = array_unique(array_map(static fn($r) => (string)$r['user_id'], $rows));
+        foreach ($affectedUsers as $uid) {
+            syncVerificationBadge($uid);
         }
-        // Anyone with an id_document approval in this batch gets the ID badge,
-        // regardless of a selfie approval in the same batch.
-        $syncId = function (array $uids, string $kind): void {
-            if (!$uids) return;
-            $ph = implode(',', array_fill(0, count($uids), '?'));
-            // A selfie approval must never demote an existing ID badge; an ID
-            // approval always promotes.
-            $guard = $kind === 'selfie' ? " AND verified_kind <> 'id_document'" : '';
-            $stmt = db()->prepare("UPDATE profiles SET is_verified = 1, verified_kind = ?, updated_at = UTC_TIMESTAMP() WHERE user_id IN ({$ph}){$guard}");
-            $stmt->execute(array_merge([$kind], array_values($uids)));
-        };
-        $selfieOnly = array_diff_key($selfieUsers, $idUsers);
-        $syncId(array_keys($idUsers), 'id_document');
-        $syncId(array_keys($selfieOnly), 'selfie');
     } else {
         $up = db()->prepare("UPDATE verifications SET status='rejected', reviewed_by=?, reviewed_at=UTC_TIMESTAMP(), review_note=? WHERE id IN ({$placeholders})");
         $up->execute(array_merge([$actor['uid'], $note ?: 'Photo was not clear enough - please resubmit.'], $ids));
@@ -1269,23 +1280,8 @@ function adminVerificationBulk(): void
         // clears the badge only when the member has no other approved
         // verification left; otherwise the badge follows the remaining one.
         $affectedUsers = array_unique(array_map(static fn($r) => (string)$r['user_id'], $rows));
-        $checkApproved = db()->prepare(
-            "SELECT kind FROM verifications
-              WHERE user_id = ? AND status = 'approved'
-              ORDER BY (kind = 'id_document') DESC, reviewed_at DESC LIMIT 1"
-        );
-        $keepBadge = db()->prepare('UPDATE profiles SET is_verified = 1, verified_kind = ?, updated_at = UTC_TIMESTAMP() WHERE user_id = ?');
-        $clearBadge = db()->prepare("UPDATE profiles SET is_verified = 0, verified_kind = 'none', updated_at = UTC_TIMESTAMP() WHERE user_id = ?");
         foreach ($affectedUsers as $uid) {
-            $checkApproved->execute([$uid]);
-            $rem = $checkApproved->fetch();
-            if ($rem) {
-                $rk = (string)($rem['kind'] ?? '');
-                if (!in_array($rk, ['selfie', 'id_document'], true)) $rk = 'selfie';
-                $keepBadge->execute([$rk, $uid]);
-            } else {
-                $clearBadge->execute([$uid]);
-            }
+            syncVerificationBadge($uid);
         }
     }
 
@@ -1473,6 +1469,51 @@ function adminWaliRevoke(string $ref): void
     json(['ok' => true, 'ref' => $ref]);
 }
 
+// ── Verification badge: ONE derivation, from ONE table ────────────────────
+// The verifications table is the single source of truth for every verification
+// decision (2026-11-09 unification). Best approved record wins:
+// id_document > selfie > account review. An account-only approval keeps the
+// member verified (is_verified=1) with kind 'none' — exactly the badge the
+// accounts queue has always granted; a document tier is never overwritten by
+// an account decision, and a rejection clears the badge only when no approved
+// record remains. Every decide path (account, document, bulk) calls this
+// instead of writing the badge inline, so the two queues can never disagree
+// about what a member's card shows.
+function syncVerificationBadge(string $userId): void
+{
+    try {
+        $best = db()->prepare(
+            "SELECT kind FROM verifications WHERE user_id = ? AND status = 'approved'
+              ORDER BY (kind = 'id_document') DESC, (kind = 'selfie') DESC, reviewed_at DESC LIMIT 1"
+        );
+        $best->execute([$userId]);
+        $row = $best->fetch();
+    } catch (Throwable) {
+        return; // table not migrated yet — leave the badge as it is
+    }
+    if (!$row) {
+        try {
+            db()->prepare("UPDATE profiles SET is_verified = 0, verified_kind = 'none', updated_at = UTC_TIMESTAMP() WHERE user_id = ?")
+                ->execute([$userId]);
+        } catch (Throwable) { /* member may have no profile row yet */ }
+        return;
+    }
+    $kind = (string)($row['kind'] ?? '');
+    if ($kind === 'account') {
+        // Account review alone: verified, no document tier.
+        try {
+            db()->prepare("UPDATE profiles SET is_verified = 1, verified_kind = CASE WHEN verified_kind IN ('id_document', 'selfie') THEN verified_kind ELSE 'none' END, updated_at = UTC_TIMESTAMP() WHERE user_id = ?")
+                ->execute([$userId]);
+        } catch (Throwable) { /* member may have no profile row yet */ }
+        return;
+    }
+    $kind = in_array($kind, ['selfie', 'id_document'], true) ? $kind : 'selfie';
+    try {
+        db()->prepare("UPDATE profiles SET is_verified = 1, verified_kind = CASE WHEN verified_kind = 'id_document' THEN 'id_document' ELSE ? END, updated_at = UTC_TIMESTAMP() WHERE user_id = ?")
+            ->execute([$kind, $userId]);
+    } catch (Throwable) { /* member may have no profile row yet */ }
+}
+
 // GET /api/admin/verification-queue
 //
 // Accounts waiting for a human to review them. Returning bare user rows would
@@ -1488,21 +1529,31 @@ function adminVerificationQueue(): void
     }
     $limit = max(1, min(200, (int)($_GET['limit'] ?? 50)));
 
+    // The queue lists FROM the verifications table (2026-11-09 unification):
+    // each user is joined to their account-review row (kind='account'); a
+    // member with no row has never been reviewed. The status shown is
+    // derived from that row, not from users.verification_status — the two
+    // can no longer disagree, because the table is the only writer.
     $where = 'u.is_admin = 0';
     $params = [];
-    if ($status !== 'all') {
-        $where .= ' AND u.verification_status = ?';
-        $params[] = $status;
+    if ($status === 'verified') {
+        $where .= " AND v.status = 'approved'";
+    } elseif ($status === 'rejected') {
+        $where .= " AND v.status = 'rejected'";
+    } elseif ($status === 'unverified') {
+        $where .= " AND (v.id IS NULL OR v.status = 'pending')";
     }
 
     try {
         $rows = db()->prepare(
-            "SELECT u.id, u.email, u.display_name, u.created_at, u.verification_status,
+            "SELECT u.id, u.email, u.display_name, u.created_at,
+                    CASE WHEN v.status = 'approved' THEN 'verified' WHEN v.status = 'rejected' THEN 'rejected' ELSE 'unverified' END AS verification_status,
                     u.verified_at, u.verification_note, u.email_verified,
                     p.display_name AS profile_name, p.age, p.gender, p.city, p.country,
                     p.sect, p.profession, p.education_level, p.username, p.bio,
                     p.photo_url, p.marital_status, p.religiosity
                FROM users u
+               LEFT JOIN verifications v ON v.user_id = u.id AND v.kind = 'account'
                LEFT JOIN profiles p ON p.user_id = u.id
               WHERE {$where}
               ORDER BY u.created_at ASC
@@ -1543,13 +1594,14 @@ function adminVerificationQueue(): void
         foreach ((array)$load("SELECT user_id, COUNT(*) AS n FROM wali_links WHERE revoked_at IS NULL AND user_id IN ({$ph}) GROUP BY user_id", $ids) as $r) {
             $waliBy[(string)$r['user_id']] = (int)$r['n'];
         }
-        foreach ((array)$load("SELECT user_id, COUNT(*) AS n FROM verifications WHERE status = 'approved' AND user_id IN ({$ph}) GROUP BY user_id", $ids) as $r) {
+        foreach ((array)$load("SELECT user_id, COUNT(*) AS n FROM verifications WHERE status = 'approved' AND kind IN ('selfie', 'id_document') AND user_id IN ({$ph}) GROUP BY user_id", $ids) as $r) {
             $verifBy[(string)$r['user_id']] = (int)$r['n'];
         }
         // Pending identity documents (2026-11-09, P0 batch): the cross-state
         // chip in AdminVerifyAccounts — an account whose ID doc is still
         // waiting must not be rejected blindly from the accounts queue.
-        foreach ((array)$load("SELECT user_id, COUNT(*) AS n FROM verifications WHERE status = 'pending' AND user_id IN ({$ph}) GROUP BY user_id", $ids) as $r) {
+        // Kind-filtered: an account-review row is not a document.
+        foreach ((array)$load("SELECT user_id, COUNT(*) AS n FROM verifications WHERE status = 'pending' AND kind IN ('selfie', 'id_document') AND user_id IN ({$ph}) GROUP BY user_id", $ids) as $r) {
             $pendingDocBy[(string)$r['user_id']] = (int)$r['n'];
         }
 
@@ -1615,7 +1667,9 @@ function adminVerificationQueue(): void
     $counts = ['unverified' => 0, 'verified' => 0, 'rejected' => 0];
     try {
         foreach (db()->query(
-            'SELECT verification_status AS s, COUNT(*) AS n FROM users WHERE is_admin = 0 AND is_test = 0 GROUP BY verification_status'
+            "SELECT CASE WHEN v.status = 'approved' THEN 'verified' WHEN v.status = 'rejected' THEN 'rejected' ELSE 'unverified' END AS s, COUNT(*) AS n
+               FROM users u LEFT JOIN verifications v ON v.user_id = u.id AND v.kind = 'account'
+              WHERE u.is_admin = 0 AND u.is_test = 0 GROUP BY s"
         )->fetchAll() as $r) {
             $counts[(string)$r['s']] = (int)$r['n'];
         }
@@ -1655,28 +1709,33 @@ function applyVerification(string $userId, string $decision, ?string $note, arra
 
     // The profile badge reads profiles.is_verified, not users.verification_status.
     // Without this sync, an admin approval never showed the verified check on
-    // the member's card — verification looked broken.
+    // the member's card — verification looked broken. The badge is derived
+    // from the verifications table (syncVerificationBadge, above), never
+    // written inline, so the two queues cannot disagree about it.
+    //
+    // The account decision itself is recorded in the verifications table as
+    // a kind='account' row — one per member, updated in place — so the
+    // accounts queue lists from the table instead of from a second status
+    // column that drifted from it. users.verification_status stays as a
+    // cached mirror (existing readers + the queue filter), but it is
+    // written ONLY here, in the same call as the table row. storage_path
+    // is NOT NULL on the table; 'account-review' marks a row with no file.
     try {
-        if ($decision === 'approve') {
-            db()->prepare('UPDATE profiles SET is_verified = 1 WHERE user_id = ?')
-                ->execute([$userId]);
+        $acc = db()->prepare("SELECT id FROM verifications WHERE user_id = ? AND kind = 'account' LIMIT 1");
+        $acc->execute([$userId]);
+        $accRow = $acc->fetch();
+        $accStatus = $next === 'verified' ? 'approved' : 'rejected';
+        if ($accRow) {
+            db()->prepare("UPDATE verifications SET status = ?, reviewed_by = ?, reviewed_at = UTC_TIMESTAMP(), review_note = ? WHERE id = ?")
+                ->execute([$accStatus, (string)($actor['uid'] ?? ''), $note, $accRow['id']]);
         } else {
-            // Rejecting the ACCOUNT must not strip a badge earned by an
-            // approved identity document (2026-11-09, P0 batch): the two
-            // queues are separate decisions. Only clear the badge when no
-            // approved document exists for this member.
-            $hasApprovedDoc = false;
-            try {
-                $doc = db()->prepare("SELECT 1 FROM verifications WHERE user_id = ? AND status = 'approved' LIMIT 1");
-                $doc->execute([$userId]);
-                $hasApprovedDoc = (bool)$doc->fetch();
-            } catch (Throwable) { /* verifications table not migrated yet — clear as before */ }
-            if (!$hasApprovedDoc) {
-                db()->prepare('UPDATE profiles SET is_verified = 0 WHERE user_id = ?')
-                    ->execute([$userId]);
-            }
+            db()->prepare("INSERT INTO verifications (id, user_id, kind, storage_path, status, reviewed_by, reviewed_at, review_note) VALUES (?, ?, 'account', 'account-review', ?, ?, UTC_TIMESTAMP(), ?)")
+                ->execute([uuid(), $userId, $accStatus, (string)($actor['uid'] ?? ''), $note]);
         }
-    } catch (Throwable) { /* member may have no profile row yet */ }
+    } catch (Throwable $e) {
+        error_log('[api] account verification row failed: ' . substr($e->getMessage(), 0, 120));
+    }
+    syncVerificationBadge($userId);
 
     auditLog('account.' . $decision . 'd', 'user', $userId, [
         'from' => $row['verification_status'],

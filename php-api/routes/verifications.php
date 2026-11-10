@@ -60,7 +60,10 @@ function verificationSubmit(): void
 function verificationMine(): void
 {
     $user = requireAuthUser();
-    $stmt = db()->prepare('SELECT id, kind, status, review_note, created_at, reviewed_at FROM verifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20');
+    // Document submissions only — account-review rows (kind='account') are
+    // an admin record, not something the member submitted; showing one here
+    // would render a kind the Get Verified UI does not know.
+    $stmt = db()->prepare("SELECT id, kind, status, review_note, created_at, reviewed_at FROM verifications WHERE user_id = ? AND kind IN ('selfie', 'id_document') ORDER BY created_at DESC LIMIT 20");
     $stmt->execute([$user['uid']]);
     json($stmt->fetchAll());
 }

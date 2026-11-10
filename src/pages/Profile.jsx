@@ -44,7 +44,10 @@ export default function Profile() {
   // In-app block confirmation replaces window.confirm() (auto-dismissed by
   // automated browsers, silently cancelling the block).
   const [confirmBlock, setConfirmBlock] = useState(false);
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
+  // The viewer is the owner when the signed-in uid is the profile id
+  // (profiles are keyed by user id). The server sends no isOwner flag.
+  const isOwner = Boolean(isLoggedIn && user?.uid && profile && String(user.uid) === String(profile.id || id));
   const navigate = useNavigate();
 
   // Interest + messaging: the server enforces the nikah-first rule — a
@@ -244,6 +247,15 @@ export default function Profile() {
                     {profile.photosLocked && (
                       <p className="text-xs leading-relaxed" style={{ color: 'var(--color-ink-tertiary)' }}>
                         This member keeps their photos private until they choose to share.
+                      </p>
+                    )}
+                    {/* Photo nudge (2026-11-09): owner-only, and only when the
+                        owner has no photo at all. Other viewers see the plain
+                        "No photo yet" state above — never a prompt to fix
+                        someone else's profile. */}
+                    {isOwner && !profile.photosLocked && (
+                      <p className="text-xs leading-relaxed" style={{ color: 'var(--color-ink-tertiary)' }}>
+                        Members see a lock icon here — <Link to="/settings?tab=privacy" className="underline font-medium" style={{ color: 'var(--color-primary)' }}>add a photo to be recognised</Link>. Optional, and you choose who sees it.
                       </p>
                     )}
                   </div>

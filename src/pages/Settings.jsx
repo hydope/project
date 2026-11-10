@@ -1,5 +1,6 @@
 import { usePageTitle } from '../lib/usePageTitle';
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { readIsDark, writeIsDark, applyIsDark } from '../lib/theme';
 import Layout from '../layouts/MainLayout';
 import { useAuth } from '../lib/auth/AuthContext';
@@ -83,7 +84,13 @@ function settingsKey() {
 export default function Settings() {
   usePageTitle('Settings');
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState('profile');
+  // Deep-link a tab: /settings?tab=privacy (used by the Dashboard photo
+  // nudge). Unknown values fall back to 'profile'.
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => {
+    const t = searchParams.get('tab');
+    return ['profile', 'privacy', 'notifications', 'appearance', 'security', 'account'].includes(t) ? t : 'profile';
+  });
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [bioSaving, setBioSaving] = useState(false);
@@ -125,6 +132,12 @@ export default function Settings() {
           blockUnverified: typeof me.blockUnverified === 'boolean' ? me.blockUnverified : p.blockUnverified,
           allowFamilyView: typeof me.allowFamilyView === 'boolean' ? me.allowFamilyView : p.allowFamilyView,
         }));
+        // Notification prefs (2026-11-09): the server copy is the source of
+        // truth — the server can only respect what it stores. Merge over the
+        // localStorage defaults; a failed fetch keeps the local values.
+        if (me?.notificationPrefs && typeof me.notificationPrefs === 'object') {
+          setNotifications((n) => ({ ...n, ...me.notificationPrefs }));
+        }
       } catch { /* leave blank — a missing handle is not an error */ }
       try {
         const { listBlocks } = await import('../lib/api/safety');
@@ -319,9 +332,28 @@ export default function Settings() {
   const [deleteDetail, setDeleteDetail] = useState('');
 
   const [notifications, setNotifications] = useState({
-    emailMessages: true, emailMatches: true, emailWeeklyDigest: true,
+    emailInterests: true, emailMessages: true, emailMatches: true, emailWeeklyDigest: true,
     pushMessages: true, pushMatches: false, pushProfileViews: false
   });
+  const [notifNote, setNotifNote] = useState('');
+
+  // Notification prefs (2026-11-09): persisted server-side so the server
+  // can respect them when an event fires. The tab has no save button, so a
+  // flip saves immediately and reverts if the request fails. localStorage
+  // keeps a copy for the brief moment before the server responds on reload.
+  const saveNotificationPrefs = async (next) => {
+    const prev = notifications;
+    setNotifications(next);
+    try { localStorage.setItem(settingsKey(), JSON.stringify({ privacy, notifications: next, profile, twoFactor })); } catch { /* storage full */ }
+    try {
+      const { api } = await import('../lib/api/client');
+      await api.updateProfile('me', { notificationPrefs: next });
+      setNotifNote('');
+    } catch {
+      setNotifications(prev);
+      setNotifNote('Could not save that preference — please try again.');
+    }
+  };
 
   const [twoFactor, setTwoFactor] = useState(false);
 
@@ -711,27 +743,20 @@ export default function Settings() {
             {activeTab === 'notifications' && (
               <div className="space-y-6">
                 <h2 className="text-xl font-semibold text-ink">Notifications</h2>
+                <p className="text-sm text-muted">Email notifications are sent from the server when the event happens; turning one off stops the email. Push notifications are saved, but push is not live yet — nothing is sent until it is.</p>
+                {notifNote && <p className="text-sm text-red-600">{notifNote}</p>}
                 {[
-                  { key: 'emailMessages', label: 'New messages (email)' },
+                  { key: 'emailInterests', label: 'New interest (email)' },
                   { key: 'emailMatches', label: 'New matches (email)' },
-                  { key: 'emailWeeklyDigest', label: 'Weekly activity digest' },
-                  { key: 'pushMessages', label: 'New messages (push)' },
-                  { key: 'pushMatches', label: 'New matches (push)' },
-                  { key: 'pushProfileViews', label: 'Profile views (push)' }
+                  { key: 'emailMessages', label: 'New messages (email)' },
+                  { key: 'emailWeeklyDigest', label: 'Weekly activity digest', hint: 'Sent on Sundays, only when you have new activity.' },
+                  { key: 'pushMessages', label: 'New messages (push)', hint: 'Saved, but push is not live yet — nothing is sent.' },
+                  { key: 'pushMatches', label: 'New matches (push)', hint: 'Saved, but push is not live yet — nothing is sent.' },
+                  { key: 'pushProfileViews', label: 'Profile views (push)', hint: 'Saved, but push is not live yet — nothing is sent.' }
                 ].map(item => (
                   <div key={item.key} className="flex items-center justify-between py-3 border-b border-line/10 last:border-0">
-                    <span className="text-sm font-medium text-ink">{item.label}</span>
-                    <button onClick={() => {
-                      const next = { ...notifications, [item.key]: !notifications[item.key] };
-                      setNotifications(next);
-                      // The notifications tab has no save button, so a flip
-                      // must persist immediately — otherwise it is lost on
-                      // reload unless the member also saves from the Profile
-                      // tab. (2026-11-09, P0 batch: the digest toggle also
-                      // wrote a phantom key, `weeklyDigest`, that nothing
-                      // read; the state key is `emailWeeklyDigest`.)
-                      try { localStorage.setItem(settingsKey(), JSON.stringify({ privacy, notifications: next, profile, twoFactor })); } catch { /* storage full */ }
-                    }} className={`relative h-6 w-11 flex items-center transition-all duration-200 ${notifications[item.key] ? 'btn btn-primary' : 'btn btn-ghost'} `}>
+                    <span className="text-sm font-medium text-ink">{item.label}{item.hint ? <span className="block text-xs font-normal text-muted">{item.hint}</span> : null}</span>
+                    <button onClick={() => saveNotificationPrefs({ ...notifications, [item.key]: !notifications[item.key] })} className={`relative h-6 w-11 flex items-center transition-all duration-200 ${notifications[item.key] ? 'btn btn-primary' : 'btn btn-ghost'} `}>
                       <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${notifications[item.key] ? 'translate-x-5' : 'translate-x-0.5'}`} />
                     </button>
                   </div>

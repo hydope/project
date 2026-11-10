@@ -633,7 +633,6 @@ function Watermark({ dark }) {
 
 // Forwarded ref so the download button can serialize this exact DOM.
 const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, photo, lang = 'en' }, ref) {
-  const dark = t.id === 'midnight';
   const hasName = !!data.name;
   const tr = I18N[lang] || I18N.en;
   const rtl = (LANGUAGES.find(l => l.code === lang)?.rtl) || false;
@@ -652,6 +651,8 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
   );
 
   // ── ESSENTIAL: ultra-clean, minimal ──────────────────────────────
+  // The simple template — refined, not restyled: a hairline double rule
+  // under the title, a thin frame on the photo, and a touch more air.
   if (t.id === 'essential') {
     return (
       <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, padding: '64px 72px 90px', position: 'relative', fontFamily: '-apple-system, "Segoe UI", sans-serif' }}>
@@ -659,17 +660,18 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
           {bismillah}
           <p style={{ fontSize: 28, fontWeight: 300, letterSpacing: 8, textTransform: 'uppercase', margin: '8px 0 0', color: t.ink }}>{tr.biodata}</p>
           <div style={{ width: 40, height: 2, background: t.accent, margin: '16px auto 0' }} />
+          <div style={{ width: 40, height: 1, background: t.accent, margin: '4px auto 0', opacity: 0.45 }} />
         </div>
         {hasName && (
-          <p style={{ textAlign: 'center', fontSize: 22, fontWeight: 600, margin: '0 0 32px' }}>{data.name}</p>
+          <p style={{ textAlign: 'center', fontSize: 24, fontWeight: 600, letterSpacing: 0.5, margin: '0 0 32px' }}>{data.name}</p>
         )}
         {photo && (
           <div style={{ textAlign: 'center', marginBottom: 32 }}>
-            <img src={photo} alt="" style={{ width: 140, height: 168, objectFit: 'cover', borderRadius: 4 }} />
+            <img src={photo} alt="" style={{ width: 140, height: 168, objectFit: 'cover', borderRadius: 6, border: '1px solid rgba(0,0,0,0.12)' }} />
           </div>
         )}
         {sections.map(s => (
-          <div key={s.title} style={{ marginBottom: 28 }}>
+          <div key={s.title} style={{ marginBottom: 30 }}>
             <SectionTitle accent={t.accent} muted={t.muted}>{s.title}</SectionTitle>
             {s.rows.map(f => <DetailRow key={f.key} label={f.label} value={data[f.key]} ink={t.ink} muted={t.muted} />)}
           </div>
@@ -680,6 +682,8 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
   }
 
   // ── NOOR: ivory & emerald ────────────────────────────────────────
+  // Arched photo, a geometric eight-point star divider under the title,
+  // and a refined emerald — no more boxed header or plain rectangle photo.
   if (t.id === 'noor') {
     return (
       <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
@@ -687,8 +691,15 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
         <div style={{ padding: '48px 64px 90px' }}>
           <div style={{ textAlign: 'center', marginBottom: 30 }}>
             {bismillah}
-            <div style={{ display: 'inline-block', border: `1px solid ${t.accent}`, padding: '10px 36px', marginTop: 8 }}>
-              <p style={{ fontSize: 26, fontWeight: 400, letterSpacing: 6, margin: 0, color: t.accent }}>{tr.biodata}</p>
+            <p style={{ fontSize: 26, fontWeight: 400, letterSpacing: 6, margin: '8px 0 0', color: t.accent }}>{tr.biodata}</p>
+            {/* Eight-point star: two squares, one rotated 45°, over hairlines. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '18px auto 0', maxWidth: 320 }}>
+              <div style={{ flex: 1, height: 1, background: t.accent, opacity: 0.35 }} />
+              <div style={{ position: 'relative', width: 12, height: 12, flexShrink: 0 }}>
+                <div style={{ position: 'absolute', inset: 0, background: t.accent }} />
+                <div style={{ position: 'absolute', inset: 0, background: t.accent, transform: 'rotate(45deg)' }} />
+              </div>
+              <div style={{ flex: 1, height: 1, background: t.accent, opacity: 0.35 }} />
             </div>
           </div>
           <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start' }}>
@@ -705,7 +716,7 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
               ))}
             </div>
             {photo && (
-              <img src={photo} alt="" style={{ width: 168, height: 200, objectFit: 'cover', borderRadius: 8, border: `1px solid ${t.accent}`, flexShrink: 0 }} />
+              <img src={photo} alt="" style={{ width: 168, height: 200, objectFit: 'cover', borderRadius: '84px 84px 10px 10px', border: `1px solid ${t.accent}`, flexShrink: 0 }} />
             )}
           </div>
         </div>
@@ -715,6 +726,8 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
   }
 
   // ── SAHARA: warm editorial ───────────────────────────────────────
+  // Oversized serif name, arched photo, and bronze hairlines — the thick
+  // rule and circle photo are gone; the label-over-value grid stays, refined.
   if (t.id === 'sahara') {
     return (
       <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
@@ -723,11 +736,12 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 8 }}>
             <div>
               {bismillah}
-              {hasName && <p style={{ fontSize: 38, fontWeight: 400, margin: '6px 0 0', lineHeight: 1.1 }}>{data.name}</p>}
+              {hasName && <p style={{ fontSize: 44, fontWeight: 400, margin: '6px 0 0', lineHeight: 1.1, letterSpacing: 0.5 }}>{data.name}</p>}
             </div>
-            {photo && <img src={photo} alt="" style={{ width: 130, height: 156, objectFit: 'cover', borderRadius: 100, border: `3px solid ${t.accent}` }} />}
+            {photo && <img src={photo} alt="" style={{ width: 130, height: 156, objectFit: 'cover', borderRadius: '65px 65px 10px 10px', border: `2px solid ${t.accent}` }} />}
           </div>
-          <div style={{ height: 2, background: t.accent, margin: '20px 0 28px', opacity: 0.6 }} />
+          <div style={{ height: 1, background: t.accent, margin: '20px 0 4px', opacity: 0.6 }} />
+          <div style={{ height: 1, background: t.accent, margin: '0 0 28px', opacity: 0.3 }} />
           {sections.map(s => (
             <div key={s.title} style={{ marginBottom: 26 }}>
               <h2 style={{ fontSize: 13, fontWeight: 700, letterSpacing: 2.5, textTransform: 'uppercase', color: t.accent, margin: '0 0 12px' }}>{s.title}</h2>
@@ -747,8 +761,10 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
     );
   }
 
-  // ── MIDNIGHT: dark luxury ───────────────────────────────────────
   // ── WILAYAT: light Shia elegance — Ya Ali & Ya Fatima ──────────────────
+  // Corners and double frame kept. The white section cards are gone —
+  // sections are divided by hairlines now, so the page breathes — and the
+  // photo is arched to match Noor and Sahara.
   return (
     <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
       {/* Corner invocations */}
@@ -779,7 +795,7 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
 
         {photo && (
           <div style={{ textAlign: 'center', marginBottom: 26 }}>
-            <img src={photo} alt="" style={{ width: 148, height: 178, objectFit: 'cover', borderRadius: 8, border: `2px solid ${t.accent}` }} />
+            <img src={photo} alt="" style={{ width: 148, height: 178, objectFit: 'cover', borderRadius: '74px 74px 10px 10px', border: `2px solid ${t.accent}` }} />
           </div>
         )}
         {hasName && (
@@ -789,8 +805,8 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
           <p style={{ textAlign: 'center', fontSize: 12.5, letterSpacing: 2, color: t.muted, margin: '0 0 26px', textTransform: 'uppercase' }}>{data.religion}</p>
         )}
 
-        {sections.map(s => (
-          <div key={s.title} style={{ marginBottom: 24, background: '#ffffff', borderRadius: 10, padding: '18px 22px', border: '1px solid rgba(14,107,79,0.12)' }}>
+        {sections.map((s, si) => (
+          <div key={s.title} style={{ marginBottom: 24, paddingBottom: si < sections.length - 1 ? 24 : 0, borderBottom: si < sections.length - 1 ? `1px solid ${t.accent}2e` : 'none' }}>
             <h2 style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2.5, textTransform: 'uppercase', color: t.accent, margin: '0 0 12px' }}>{s.title}</h2>
             {s.rows.filter(f => f.key !== 'name' && f.key !== 'religion').map(f => (
               <div key={f.key} style={{ display: 'flex', gap: 14, padding: '5px 0', fontSize: 13.5 }}>

@@ -1,0 +1,39 @@
+name: Weekly Digest
+
+# Sends the weekly digest email to members who opted in (Settings →
+# Notifications → Weekly digest), and only when they have new activity in
+# the past 7 days. No activity → no email, ever.
+# Runs every Sunday 08:00 UTC.
+#
+# Fully autonomous: calls the server-side HTTP trigger which runs the
+# digest PHP script on the production server (where MySQL is reachable).
+# No manual intervention needed.
+
+on:
+  schedule:
+    - cron: '0 8 * * 0'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger weekly digest on production server
+        env:
+          SEEDER_CRON_KEY: ${{ secrets.SEEDER_CRON_KEY }}
+        run: |
+          echo "Triggering weekly digest on production server..."
+          RESP=$(curl -s --max-time 300 -X POST https://shiarishta.com/api/weekly-digest-cron.php \
+            -H "X-Seeder-Cron-Key: $SEEDER_CRON_KEY" \
+            -H "Content-Type: application/json")
+
+          echo "Response: $RESP"
+
+          # Check if successful
+          echo "$RESP" | grep -q '"ok":true' && {
+            echo "✓ Weekly digest completed successfully"
+            exit 0
+          }
+
+          echo "✗ Weekly digest failed"
+          exit 1

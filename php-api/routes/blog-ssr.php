@@ -61,7 +61,8 @@ function blogSsrFetchPost(string $slug): ?array
     return $row;
 }
 
-/** Render [{t:'p'|'h2', x:'...'}] body blocks as HTML. */
+/** Render [{t:'p'|'h2'|'ul'|'ol'|'quote', x:'...'}] body blocks as HTML. List
+ * items arrive newline-separated in x (see aiNormalizeBlock). */
 function blogSsrBodyHtml(array $body): string
 {
     $out = '';
@@ -70,10 +71,28 @@ function blogSsrBodyHtml(array $body): string
             continue;
         }
         $text = htmlspecialchars((string)($b['x'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        if (($b['t'] ?? 'p') === 'h2') {
-            $out .= "<h2>{$text}</h2>";
-        } else {
-            $out .= "<p>{$text}</p>";
+        switch ($b['t'] ?? 'p') {
+            case 'h2':
+                $out .= "<h2>{$text}</h2>";
+                break;
+            case 'ul':
+            case 'ol': {
+                $tag = ($b['t'] ?? 'ul') === 'ol' ? 'ol' : 'ul';
+                $items = array_values(array_filter(
+                    array_map('trim', preg_split('/\r\n|\r|\n/', (string)($b['x'] ?? '')) ?: []),
+                    static fn($l) => $l !== ''
+                ));
+                $out .= "<{$tag}>" . implode('', array_map(
+                    static fn($i) => '<li>' . htmlspecialchars($i, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</li>',
+                    $items
+                )) . "</{$tag}>";
+                break;
+            }
+            case 'quote':
+                $out .= "<blockquote>{$text}</blockquote>";
+                break;
+            default:
+                $out .= "<p>{$text}</p>";
         }
     }
     return $out;

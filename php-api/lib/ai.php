@@ -26,6 +26,16 @@ function aiPlatformFacts(): array
 {
     return [
         [
+            'w' => ['nikah-first', 'nikah first', 'nikah', 'marriage-first', 'marriage first', 'not a dating', 'dating app', 'serious marriage'],
+            'x' => "Yes — Shia Rishta is nikah-first, not a dating app. It is built for people seeking a serious marriage: "
+                . "profiles state intentions, faith practice and what they are looking for, and messaging opens only after a "
+                . "mutual interest — both sides expressed interest.\n\n"
+                . "Family and wali involvement are part of the design: a member can list a guardian (wali) who gets read-only "
+                . "access to the profile, and verified matchmakers and guardians can open introductions.\n\n"
+                . "Privacy is built around that purpose: photos have tiers — public (anyone can see), members-only (any "
+                . "signed-in member), or private (only you) — and members control who sees each detail of their profile.",
+        ],
+        [
             'w' => ['verification', 'verified', 'badge', 'gold badge', 'id check', 'identity', 'verify'],
             'x' => "Identity verification is free for every member — it is never sold as an upgrade. Submit a selfie or ID "
                 . "document from Settings → Verification. A moderator reviews each submission by hand, usually within 24 hours.\n\n"
@@ -45,7 +55,8 @@ function aiPlatformFacts(): array
             'w' => ['privacy', 'private', 'hidden', 'hide', 'incognito', 'who can see', 'visible', 'photos', 'screenshot', 'blur'],
             'x' => "You control three separate visibility settings:\n\n"
                 . "• Profile — public, visible only after you express interest, or only after you match.\n"
-                . "• Photos — public, hidden until interest, or private until matched.\n"
+                . "• Photos — public (anyone can see), members-only (any signed-in member), or private (only you). "
+                . "Older 'request'/'match' photo settings still need a mutual interest before the photo opens.\n"
                 . "• Chats — readable only by you and the person you are talking to.\n\n"
                 . "Incognito mode hides your profile from search entirely without unlisting you.\n\n"
                 . "Messages and uploaded documents are encrypted at rest (AES-256-GCM). A database leak cannot yield readable "

@@ -36,10 +36,12 @@ function routeMatchmaker(string $method, array $segments): void
 // ── Pending-submission photos ─────────────────────────────────────────────
 // Uploaded matchmaker photos live under <photo root>/matchmaker/<uid>/<uuid>.<ext>:
 // same storage root as profile photos (outside the web root), segregated so a
-// pending photo can never be confused with a live member photo. The stored
-// value is the server filesystem path — exactly what profiles.photo_url holds
-// for uploaded member photos — so the approval path copies it verbatim and the
-// existing photoServe() serves it unchanged once the profile exists.
+// pending photo can never be confused with a live member photo. The upload
+// endpoint returns the SERVE URL (/api/matchmaker/photo/<uid>/<file>) — never
+// the filesystem path — and the submit/delete/replace endpoints resolve that
+// URL back to the local file server-side, so the approval path still copies
+// a filesystem path into profiles.photo_url verbatim and the existing
+// photoServe() serves it unchanged once the profile exists.
 
 // A matchmaker photo is a server-generated file under
 // <photo root>/matchmaker/<uid>/<uuid>.<ext>. Anything else (a pasted http
@@ -52,6 +54,24 @@ function matchmakerLocalPhotoPath(string $p): ?string
     return is_file($p) ? $p : null;
 }
 
+// Resolve EITHER form of a matchmaker photo reference to the local file:
+// the serve URL (/api/matchmaker/photo/<uid>/<file>) the upload endpoint
+// now returns, or a legacy absolute filesystem path stored before that
+// change. $ownerUid, when given, must match the file's owner — a member
+// can never resolve (and therefore delete or submit) another member's
+// photo. Returns null for anything else (pasted http links included).
+function matchmakerResolvePhotoLocal(string $p, ?string $ownerUid = null): ?string
+{
+    $p = trim($p);
+    if ($p === '') return null;
+    if (preg_match('#^/api/matchmaker/photo/([0-9a-f-]{36})/([0-9a-f-]{36}\.(?:jpg|png|webp))$#', $p, $m)) {
+        if ($ownerUid !== null && $m[1] !== $ownerUid) return null;
+        $local = photoBaseDir() . '/matchmaker/' . $m[1] . '/' . $m[2];
+        return is_file($local) ? $local : null;
+    }
+    return matchmakerLocalPhotoPath($p);
+}
+
 // URL an <img> (or useAuthedImage) can render for a submission's photo:
 // pasted links as-is; uploaded files via the authed serve endpoint.
 function matchmakerPhotoPreviewUrl(string $photoUrl, string $submittedBy): ?string
@@ -61,6 +81,11 @@ function matchmakerPhotoPreviewUrl(string $photoUrl, string $submittedBy): ?stri
         return null;
     }
     if (preg_match('#^https?://#i', $p)) {
+        return $p;
+    }
+    // Already a serve URL (e.g. a submission stored before the resolve step
+    // ran, or a form holding the upload response): it is renderable as-is.
+    if (preg_match('#^/api/matchmaker/photo/[0-9a-f-]{36}/[0-9a-f-]{36}\.(?:jpg|png|webp)$#', $p)) {
         return $p;
     }
     if (!preg_match('#^/.+/photos/matchmaker/([0-9a-f-]{36})/([0-9a-f-]{36}\.(?:jpg|png|webp))$#', $p, $m)) {
@@ -78,9 +103,11 @@ function matchmakerPhotoPreviewUrl(string $photoUrl, string $submittedBy): ?stri
 // multipart read, 5 MB cap, byte-sniffed mime, decode check, pixel cap,
 // structural completeness, EXIF strip. The file is written under the
 // submitter's matchmaker directory with a server-generated name (the client
-// filename is never used). No profile row is needed — the returned server
-// path is what the form puts in photo_url, and the approval path copies it
-// into profiles.photo_url verbatim, so photoServe() serves it unchanged.
+// filename is never used). No profile row is needed. The response returns
+// the SERVE URL as photo_url — never the filesystem path (2026-11-09: the
+// old response leaked the absolute server path) — and the submit endpoint
+// resolves that URL back to the local file before storing it, so the
+// approval path still copies a filesystem path into profiles.photo_url.
 function matchmakerPhotoUpload(): void
 {
     $user = requireAuthUser();
@@ -131,40 +158,49 @@ function matchmakerPhotoUpload(): void
     }
 
     // 5. A replaced upload leaves its file behind with nothing referencing
-    // it. The client sends the previous server path; remove it (own files
-    // only — the pattern check plus the uid match make another member's
-    // path unlinkable).
+    // it. The client sends the previous photo reference — a serve URL, or a
+    // legacy filesystem path from an older form — and it is resolved (own
+    // files only) before unlinking.
     $prev = trim((string)($_POST['previous_path'] ?? ''));
-    if ($prev !== '' && $prev !== $path
-        && preg_match('#^/.+/photos/matchmaker/([0-9a-f-]{36})/[0-9a-f-]{36}\.(?:jpg|png|webp)$#', $prev, $m)
-        && $m[1] === $uid) {
-        $old = matchmakerLocalPhotoPath($prev);
-        if ($old !== null) {
+    if ($prev !== '') {
+        $old = matchmakerResolvePhotoLocal($prev, $uid);
+        if ($old !== null && $old !== $path) {
             @unlink($old);
         }
     }
 
     auditLog('matchmaker.photo_uploaded', 'matchmaker_photo', basename($path), ['by' => $uid]);
-    json(['ok' => true, 'photo_url' => $path, 'preview_url' => '/api/matchmaker/photo/' . $uid . '/' . basename($path)], 201);
+    $serveUrl = '/api/matchmaker/photo/' . $uid . '/' . basename($path);
+    json(['ok' => true, 'photo_url' => $serveUrl, 'preview_url' => $serveUrl], 201);
 }
 
 // DELETE /api/matchmaker/photo — remove an uploaded-but-unsubmitted photo
-// (the form's Remove button). Only the owner's own files, matched by the
-// strict server-generated pattern.
+// (the form's Remove button). Accepts the serve URL the upload endpoint
+// returns, or a legacy filesystem path. Only the owner's own files, matched
+// by the strict server-generated pattern; anything else is not ours to delete.
 function matchmakerPhotoDelete(): void
 {
     $user = requireAuthUser();
     $body = requestJson();
     $path = trim((string)($body['path'] ?? ''));
-    if (!preg_match('#^/.+/photos/matchmaker/([0-9a-f-]{36})/[0-9a-f-]{36}\.(?:jpg|png|webp)$#', $path, $m)) {
+    $uid = (string)$user['uid'];
+    $local = null;
+    if (preg_match('#^/api/matchmaker/photo/([0-9a-f-]{36})/([0-9a-f-]{36}\.(?:jpg|png|webp))$#', $path, $m)) {
+        if ($m[1] !== $uid) {
+            je('Not found.', 404);
+        }
+        $candidate = photoBaseDir() . '/matchmaker/' . $m[1] . '/' . $m[2];
+        $local = is_file($candidate) ? $candidate : null;
+    } elseif (preg_match('#^/.+/photos/matchmaker/([0-9a-f-]{36})/[0-9a-f-]{36}\.(?:jpg|png|webp)$#', $path, $m)) {
+        if ($m[1] !== $uid) {
+            je('Not found.', 404);
+        }
+        $local = matchmakerLocalPhotoPath($path);
+    } else {
         je('Nothing to remove.', 400);
     }
-    if ($m[1] !== (string)$user['uid']) {
-        je('Not found.', 404);
-    }
-    $real = matchmakerLocalPhotoPath($path);
-    if ($real !== null) {
-        @unlink($real);
+    if ($local !== null) {
+        @unlink($local);
     }
     json(['ok' => true]);
 }
@@ -240,6 +276,22 @@ function matchmakerSubmit(): void
     if ($gender !== 'female') {
         je('Matchmaker submissions are for female profiles only.', 403);
     }
+    // The form sends the photo as the serve URL the upload endpoint
+    // returned (/api/matchmaker/photo/<uid>/<file>). Resolve it back to the
+    // local file before storing, so the approval path still copies a
+    // filesystem path into profiles.photo_url verbatim. A pasted http(s)
+    // link is stored as-is (it is not our file); anything unresolvable is
+    // stored as no photo rather than a dangling reference.
+    $photoUrlRaw = trim((string)($body['photo_url'] ?? ''));
+    $photoUrl = '';
+    if ($photoUrlRaw !== '') {
+        $resolved = matchmakerResolvePhotoLocal($photoUrlRaw, (string)$user['uid']);
+        if ($resolved !== null) {
+            $photoUrl = $resolved;
+        } elseif (preg_match('#^https?://#i', $photoUrlRaw)) {
+            $photoUrl = $photoUrlRaw;
+        }
+    }
     $payload = [
         'display_name' => $name,
         'age' => isset($body['age']) ? (int)$body['age'] : null,
@@ -250,7 +302,7 @@ function matchmakerSubmit(): void
         'profession' => trim((string)($body['profession'] ?? '')),
         'education_level' => trim((string)($body['education_level'] ?? '')),
         'marital_status' => trim((string)($body['marital_status'] ?? '')),
-        'photo_url' => trim((string)($body['photo_url'] ?? '')),
+        'photo_url' => $photoUrl,
         'contact_note' => trim((string)($body['contact_note'] ?? '')),
     ];
 

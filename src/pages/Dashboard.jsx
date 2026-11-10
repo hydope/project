@@ -12,7 +12,7 @@ import { formatCity, formatCountry } from '../lib/format';
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  User, MessageCircle, Eye, Users, Sparkles, Flame, ArrowRight
+  User, MessageCircle, Eye, Users, Sparkles, Flame, ArrowRight, Camera
 } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
 
@@ -317,6 +317,24 @@ export default function Dashboard() {
                 <p className="text-xs mt-1" style={{ color: 'var(--color-ink-tertiary)' }}>{card.trend}</p>
               </motion.div>
             ))}
+          </div>
+        )}
+
+        {/* Photo nudge (2026-11-09): a quiet suggestion, never a requirement.
+            Shown only while the member has no photo. No number is quoted:
+            the live data proves no lift — 0 interests received by any real
+            member, with or without a photo — so any "7x" claim would be
+            invented. Publishing is never blocked by a missing photo. */}
+        {serverProfile && !serverProfile.photo && (
+          <div className="card p-4 sm:p-5 mb-8 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="h-11 w-11 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-primary-subtle)' }}>
+              <Camera className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>Add your photo — you&rsquo;re almost there</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-secondary)' }}>A photo helps families recognise you. You choose who sees it — public, members only, or only you.</p>
+            </div>
+            <Link to="/settings?tab=privacy" className="btn btn-primary btn-sm flex-shrink-0">Upload a photo</Link>
           </div>
         )}
 

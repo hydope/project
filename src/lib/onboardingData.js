@@ -113,11 +113,15 @@ export const CHILDREN_PLANS_OPTIONS = [
   'Undecided'
 ];
 
-// Photo privacy — the platform's signature control
+// Photo privacy — the platform's signature control. The labels say exactly
+// what the server enforces (2026-11-09): public means ANYONE, members means
+// any signed-in member, private means only you. The old 'request'/'match'
+// options promised features that never existed (no photo requests; both
+// normalized to 'members' at save), so they are gone.
 export const PHOTO_ACCESS_OPTIONS = [
-  { value: 'public', label: 'Visible to all members', desc: 'Any signed-in member can view your photos', icon: 'globe' },
-  { value: 'request', label: 'Request only', desc: 'Members must send a photo request you approve', icon: 'key' },
-  { value: 'match', label: 'Blurred until match', desc: 'Photos unblur only after a mutual match', icon: 'lock' }
+  { value: 'public', label: 'Visible to everyone', desc: 'Anyone — even signed-out visitors — can view your photos', icon: 'globe' },
+  { value: 'members', label: 'Members only', desc: 'Any signed-in member can view your photos', icon: 'user' },
+  { value: 'private', label: 'Only me', desc: 'Nobody else can view your photos', icon: 'lock' }
 ];
 
 export const PROFILE_VISIBILITY_OPTIONS = [

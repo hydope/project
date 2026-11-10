@@ -82,9 +82,10 @@ export default function BlogPost() {
     // Normalize "5 minread" / "5 min read" variants to "5 min" — the template
     // appends " read", so cards and posts never show a spacing typo.
     readTime: (() => { const m = String(ssrPost.read_time || '5 min').match(/(\d+)\s*min/i); return m ? `${m[1]} min` : '5 min'; })(),
-    // DB body is [{t:'p'|'h2', x:'...'}]; convert to the static article blocks.
+    // DB body is [{t:'p'|'h2'|'ul'|'ol'|'quote', x:'...'}]; convert to the
+    // static article blocks. List items arrive newline-separated in x.
     body: (Array.isArray(ssrPost.body) ? ssrPost.body : []).map(b => ({
-      type: b.t === 'h2' ? 'h2' : 'p',
+      type: ['h2', 'ul', 'ol', 'quote'].includes(b.t) ? b.t : 'p',
       text: b.x,
     })),
   } : null);
@@ -158,11 +159,21 @@ export default function BlogPost() {
           <img src={post.image} alt={post.title} className="w-full h-64 sm:h-80 object-cover" loading="eager" />
         </div>
         <div style={{ color: 'var(--color-ink-secondary)', lineHeight: 1.8, fontSize: '1rem' }}>
-          {post.body.map((b, i) => (b.type || b.t) === 'h2' ? (
-            <h2 key={i} style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-ink)', margin: '2rem 0 0.75rem' }}>{b.x || b.text}</h2>
-          ) : (
-            <p key={i} style={{ marginBottom: '1.25rem' }}>{b.x || b.text}</p>
-          ))}
+          {post.body.map((b, i) => {
+            const type = b.type || b.t;
+            if (type === 'h2') {
+              return <h2 key={i} style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-ink)', margin: '2rem 0 0.75rem' }}>{b.x || b.text}</h2>;
+            }
+            if (type === 'ul' || type === 'ol') {
+              const items = String(b.x || b.text || '').split('\n').map(s => s.trim()).filter(Boolean);
+              const Tag = type === 'ol' ? 'ol' : 'ul';
+              return <Tag key={i} style={{ margin: '0 0 1.25rem 1.25rem', lineHeight: 1.8 }}>{items.map((it, j) => <li key={j}>{it}</li>)}</Tag>;
+            }
+            if (type === 'quote') {
+              return <blockquote key={i} style={{ borderLeft: '3px solid var(--color-gold)', paddingLeft: '1rem', margin: '0 0 1.25rem', fontStyle: 'italic', color: 'var(--color-ink)' }}>{b.x || b.text}</blockquote>;
+            }
+            return <p key={i} style={{ marginBottom: '1.25rem' }}>{b.x || b.text}</p>;
+          })}
         </div>
         <div className="mt-8 pt-6" style={{ borderTop: '1px solid var(--color-border)' }}>
           <Link to="/auth/register" className="button primary px-6 py-2.5 font-semibold">Start your journey — it&rsquo;s free</Link>
