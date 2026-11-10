@@ -243,8 +243,14 @@ route('GET /wali reads wali_links', 'GET', ['wali'], 'FROM wali_links');
 route('GET /analytics reads the time series', 'GET', ['analytics'], 'FROM users');
 
 // Manual account verification: the queue a moderator works through.
-route('GET /verification-queue lists accounts awaiting review', 'GET', ['verification-queue'], 'WHERE u.is_admin = 0 AND u.verification_status = ?');
-route('GET /verification-queue?status=all is allowed', 'GET', ['verification-queue'], 'u.verification_status');
+// 2026-11-09 unification: the queue lists FROM the verifications table
+// (kind='account' rows), and verification_status is DERIVED from that row
+// via CASE — the users.verification_status column is only a mirror the
+// decide paths update. Pin the join + the derivation, never the old column:
+// approving in one queue used to leave the other pending because the two
+// queues read different sources.
+route('GET /verification-queue lists accounts awaiting review', 'GET', ['verification-queue'], 'LEFT JOIN verifications v ON v.user_id = u.id AND v.kind = \'account\'');
+route('GET /verification-queue?status=all is allowed', 'GET', ['verification-queue'], 'END AS verification_status');
 
 // Writes. The queue route must be matched before the :id branch reads
 // 'bulk' as a user id.
