@@ -514,10 +514,10 @@ export function BrowseProfiles() {
                     {filterOptions?.citizenships?.length ? (
                       <div className="flex flex-wrap gap-1.5">
                         {filterOptions.citizenships.map(c => {
-                          const on = filters.citizenship.includes(c.value);
+                          const on = filters.citizenship.includes(c);
                           return (
-                            <button key={c.value} type="button" onClick={() => setFilter('citizenship', on ? filters.citizenship.filter(x => x !== c.value) : [...filters.citizenship, c.value])} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${on ? 'btn btn-primary' : 'btn btn-ghost'}`} aria-pressed={on}>
-                              {c.value} ({c.count})
+                            <button key={c} type="button" onClick={() => setFilter('citizenship', on ? filters.citizenship.filter(x => x !== c) : [...filters.citizenship, c])} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${on ? 'btn btn-primary' : 'btn btn-ghost'}`} aria-pressed={on}>
+                              {c}
                             </button>
                           );
                         })}
