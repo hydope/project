@@ -26,9 +26,9 @@ function toSession(user) {
 }
 
 export const auth = {
-  async register({ email, password, displayName, sect }) {
+  async register({ email, password, displayName, sect, dateOfBirth }) {
     if (useRemote) {
-      const data = await http.post('/api/auth/register', { email, password, displayName, sect });
+      const data = await http.post('/api/auth/register', { email, password, displayName, sect, dateOfBirth });
       http.setToken(data.token);
       write(SESSION_KEY, data.user);
       return data.user;
