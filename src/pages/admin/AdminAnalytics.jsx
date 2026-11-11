@@ -172,7 +172,7 @@ export default function AdminAnalytics() {
   const deviceTotal = devices.reduce((a, d) => a + d.views, 0);
 
   const engagementStats = [
-    { label: 'Interests between members', value: engagement.interestsTotal },
+    { label: 'Interests between real members', value: engagement.interestsTotal },
     { label: 'Mutual pairs', value: engagement.mutualPairs },
     { label: 'Conversations started', value: engagement.conversationsTotal },
     { label: 'Messages (7 days)', value: engagement.messages7d },

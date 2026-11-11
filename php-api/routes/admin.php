@@ -717,6 +717,13 @@ function adminAnalytics(): void
     // not a test account, not a seeder account, profile not seeded.
     $real = "u.is_admin = 0 AND u.is_test = 0 AND u.email NOT LIKE 'seeded-%@shiarishta.com' AND COALESCE(p.is_seeded, 0) = 0";
     $joinP = 'LEFT JOIN profiles p ON p.user_id = u.id';
+    // Real-member check for the OTHER side of a relationship (interest
+    // partner, conversation partner), given that side's user-id column.
+    // Always rendered through sprintf so the LIKE pattern keeps one %.
+    $partnerReal = fn(string $col): string => sprintf(
+        "EXISTS (SELECT 1 FROM users ux LEFT JOIN profiles px ON px.user_id = ux.id WHERE ux.id = %s AND ux.is_admin = 0 AND ux.is_test = 0 AND ux.email NOT LIKE 'seeded-%%@shiarishta.com' AND COALESCE(px.is_seeded, 0) = 0)",
+        $col
+    );
     // Finished profile = the publish-complete set (same four fields the
     // profile publish gate checks: city, country, bio, expectations).
     $finished = "TRIM(COALESCE(p.city, '')) <> '' AND TRIM(COALESCE(p.country, '')) <> '' AND TRIM(COALESCE(p.bio, '')) <> '' AND TRIM(COALESCE(p.expectations, '')) <> ''";
@@ -753,8 +760,8 @@ function adminAnalytics(): void
         'finished' => $stepCount($finished),
         'visible' => $stepCount("{$finished} AND p.visibility <> 'private'"),
         'sentInterest' => $stepCount('EXISTS (SELECT 1 FROM interests i WHERE i.from_user_id = u.id)'),
-        'mutual' => $stepCount('EXISTS (SELECT 1 FROM interests i1 JOIN interests i2 ON i2.from_user_id = i1.to_user_id AND i2.to_user_id = i1.from_user_id WHERE i1.from_user_id = u.id)'),
-        'conversation' => $stepCount('EXISTS (SELECT 1 FROM conversations c WHERE c.user_a = u.id OR c.user_b = u.id)'),
+        'mutual' => $stepCount('EXISTS (SELECT 1 FROM interests i1 JOIN interests i2 ON i2.from_user_id = i1.to_user_id AND i2.to_user_id = i1.from_user_id WHERE i1.from_user_id = u.id AND ' . $partnerReal('i1.to_user_id') . ')'),
+        'conversation' => $stepCount('EXISTS (SELECT 1 FROM conversations c WHERE (c.user_a = u.id AND ' . $partnerReal('c.user_b') . ') OR (c.user_b = u.id AND ' . $partnerReal('c.user_a') . '))'),
     ];
     $funnelLabels = [
         'signups' => 'Joined (real people)',
@@ -781,19 +788,9 @@ function adminAnalytics(): void
     }
 
     // ── Engagement health ─────────────────────────────────────────────────
-    $realPair = "EXISTS (SELECT 1 FROM users ux LEFT JOIN profiles px ON px.user_id = ux.id WHERE ux.id = %s AND ux.is_admin = 0 AND ux.is_test = 0 AND ux.email NOT LIKE 'seeded-%%@shiarishta.com' AND COALESCE(px.is_seeded, 0) = 0)";
-    $interestsTotal = $count(sprintf(
-        'SELECT COUNT(*) AS n FROM interests i WHERE ' . $realPair . ' AND ' . $realPair,
-        'i.from_user_id', 'i.to_user_id'
-    ));
-    $mutualPairs = $count(sprintf(
-        'SELECT COUNT(*) AS n FROM interests i1 JOIN interests i2 ON i2.from_user_id = i1.to_user_id AND i2.to_user_id = i1.from_user_id WHERE i1.from_user_id < i1.to_user_id AND ' . $realPair . ' AND ' . $realPair,
-        'i1.from_user_id', 'i1.to_user_id'
-    ));
-    $conversationsTotal = $count(sprintf(
-        'SELECT COUNT(*) AS n FROM conversations c WHERE ' . $realPair . ' AND ' . $realPair,
-        'c.user_a', 'c.user_b'
-    ));
+    $interestsTotal = $count('SELECT COUNT(*) AS n FROM interests i WHERE ' . $partnerReal('i.from_user_id') . ' AND ' . $partnerReal('i.to_user_id'));
+    $mutualPairs = $count('SELECT COUNT(*) AS n FROM interests i1 JOIN interests i2 ON i2.from_user_id = i1.to_user_id AND i2.to_user_id = i1.from_user_id WHERE i1.from_user_id < i1.to_user_id AND ' . $partnerReal('i1.from_user_id') . ' AND ' . $partnerReal('i1.to_user_id'));
+    $conversationsTotal = $count('SELECT COUNT(*) AS n FROM conversations c WHERE ' . $partnerReal('c.user_a') . ' AND ' . $partnerReal('c.user_b'));
     $messages7d = $count('SELECT COUNT(*) AS n FROM messages WHERE created_at >= DATE_SUB(?, INTERVAL 7 DAY)', [$nowUtc]);
     $messages30d = $count('SELECT COUNT(*) AS n FROM messages WHERE created_at >= DATE_SUB(?, INTERVAL 30 DAY)', [$nowUtc]);
     $active7d = $count("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real} AND u.last_active_at >= DATE_SUB(?, INTERVAL 7 DAY)", [$nowUtc]);
@@ -805,7 +802,10 @@ function adminAnalytics(): void
     $withBio = $stepCount("TRIM(COALESCE(p.bio, '')) <> ''");
     $idVerified = $stepCount("p.verified_kind = 'id_document'");
     $photoVerified = $stepCount("p.verified_kind = 'selfie'");
-    $anyVerified = $stepCount('COALESCE(p.is_verified, 0) = 1');
+    // "Any verified badge" must match what members actually see: the badge
+    // is driven by verified_kind alone. The legacy is_verified flag has
+    // rows the badge logic ignores, so counting it overstates the number.
+    $anyVerified = $stepCount("p.verified_kind IN ('id_document', 'selfie')");
     $pct = fn(int $n): float => $realMembers > 0 ? round($n * 100 / $realMembers, 1) : 0.0;
     $quality = [
         'finished' => $funnelN['finished'],
@@ -826,7 +826,7 @@ function adminAnalytics(): void
     $insight = null;
     $leakTemplates = [
         'verified' => fn(int $drop, int $base): string => "{$drop} of {$base} people who joined never confirmed their email — they cannot send interests or publish changes until they do.",
-        'finished' => fn(int $drop, int $base): string => "Most people who join never finish their profile — {$drop} of {$base} members are missing a city, a bio or what they are looking for, so they stay invisible in browse.",
+        'finished' => fn(int $drop, int $base): string => "Most people who join never finish their profile — {$drop} of {$base} members are missing a city, a bio or what they are looking for, so their profile looks empty and other members pass them by.",
         'visible' => fn(int $drop, int $base): string => "{$drop} members finished their profile but set it to private, so nobody can find them in browse.",
         'sentInterest' => fn(int $drop, int $base): string => "{$drop} members are visible in browse but have never sent a single interest — the profiles are up, but nobody is reaching out.",
         'mutual' => fn(int $drop, int $base): string => "Interest is mostly one-way — {$drop} members sent an interest that was never returned, so almost no conversations can start.",
