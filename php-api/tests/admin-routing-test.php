@@ -1115,5 +1115,9 @@ check(
 // from the live database, including the false-positive cases.
 require_once __DIR__ . '/test-shell-probe.php';
 
+// Behavioural check of automatic-recommendation gender eligibility
+// (opposite-gender only, fail closed) against the shipped lib functions.
+require_once __DIR__ . '/recommendation-gender-probe.php';
+
 echo "\n$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

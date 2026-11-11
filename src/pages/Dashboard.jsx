@@ -192,18 +192,24 @@ export default function Dashboard() {
     // Never show the member their own profile as a match.
     const me = String(user?.uid || '');
     const myProfile = serverProfile || (typeof getMyProfile === 'function' ? getMyProfile() : null);
-    // Hard gender filter: a member seeking women must NEVER see a man (or
-    // vice versa) in "Top matches for you". This is a filter, not a score
-    // tweak — same-gender profiles are excluded entirely.
-    const seeking = myProfile?.seekingGender || myProfile?.seeking_gender || null;
+    // Hard gender filter (Syed's order): automatic recommendations show
+    // ONLY opposite-gender profiles — fail closed, the same rule the
+    // server applies to first-connections / new-this-week. Target = the
+    // seeking gender when it is also the opposite of the member's own
+    // gender; one recorded signal decides alone; a conflict or no
+    // signal means NO recommendations, never "show everyone". A
+    // candidate with no recorded gender is excluded — "opposite" can't
+    // be confirmed. (Manual Profiles browsing is untouched.)
+    const normGender = (v) => { const s = String(v ?? '').trim().toLowerCase(); return s === 'male' || s === 'female' ? s : ''; };
+    const ownGender = normGender(myProfile?.gender);
+    const seekingGender = normGender(myProfile?.seekingGender || myProfile?.seeking_gender);
+    const oppositeGender = ownGender ? (ownGender === 'male' ? 'female' : 'male') : '';
+    let targetGender = '';
+    if (ownGender && seekingGender) targetGender = seekingGender === oppositeGender ? seekingGender : '';
+    else targetGender = seekingGender || oppositeGender;
     return profiles
       .filter(p => String(p.id ?? p.user_id ?? p.uid ?? '') !== me)
-      .filter(p => {
-        if (!seeking) return true; // unknown preference: don't hide anyone
-        const g = (p.gender || '').toLowerCase();
-        if (!g) return true; // unknown candidate gender: keep (can't judge)
-        return g === seeking.toLowerCase();
-      })
+      .filter(p => targetGender !== '' && normGender(p.gender) === targetGender)
       .map(p => {
         // Honest score only when the viewer has onboarded; otherwise null.
         let score = null;

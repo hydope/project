@@ -16,6 +16,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../lib/recommendation_gender.php';
+
 function routeProfiles(string $method, array $segments): void
 {
     $id = $segments[0] ?? null;
@@ -1175,14 +1177,27 @@ function firstConnectionViews(array $rows, array $viewer, array $extraById = [])
 function profilesNewThisWeek(): void
 {
     $viewer = requireAuthUser();
-    // Joined in the last 14 days, newest first, at most 5.
-    $rows = firstConnectionRows($viewer, ['u.created_at >= (UTC_TIMESTAMP() - INTERVAL 14 DAY)']);
+    // The viewer's own profile row decides recommendation gender
+    // eligibility (lib/recommendation_gender.php): automatic
+    // recommendations show only opposite-gender profiles, fail closed.
+    $vStmt = db()->prepare('SELECT gender, seeking_gender FROM profiles WHERE user_id = ? LIMIT 1');
+    $vStmt->execute([(string)$viewer['uid']]);
+    $viewerRow = $vStmt->fetch() ?: null;
+    // Eligibility applies to the whole pool BEFORE the window count,
+    // the widening fallback and the slice of 5 — filtering after the
+    // slice could leave the card short, and filtering not at all is
+    // how a woman was shown another woman here with a Send interest
+    // button.
+    $rows = recommendationEligibleRows(
+        firstConnectionRows($viewer, ['u.created_at >= (UTC_TIMESTAMP() - INTERVAL 14 DAY)']),
+        $viewerRow
+    );
     if (count($rows) < 3) {
         // Too few brand-new members to fill the card from the window
         // alone — widen to the most recent real joiners (the same pool
         // without the date cut), still finished + visible. The card
         // never pads with anyone else.
-        $rows = firstConnectionRows($viewer);
+        $rows = recommendationEligibleRows(firstConnectionRows($viewer), $viewerRow);
     }
     json(firstConnectionViews(array_slice($rows, 0, 5), $viewer));
 }
@@ -1217,17 +1232,14 @@ function profilesFirstConnections(): void
     $vStmt->execute([(string)$viewer['uid']]);
     $viewerRow = $vStmt->fetch();
 
-    // Eligibility, not scoring: a member seeking women is never suggested
-    // a man (and vice versa) — the same hard filter the dashboard's "Top
-    // matches" applies. A candidate with no recorded gender can't be
-    // judged, so they stay, exactly like the dashboard rule.
-    $seeking = $viewerRow ? ($viewerRow['seeking_gender'] ?? null) : null;
-    if ($seeking) {
-        $rows = array_values(array_filter($rows, static function (array $r) use ($seeking): bool {
-            $g = (string)($r['gender'] ?? '');
-            return $g === '' || $g === (string)$seeking;
-        }));
-    }
+    // Eligibility, not scoring (Syed's order, 2026-11-11): automatic
+    // recommendations show ONLY opposite-gender profiles, fail closed —
+    // the shared rule in lib/recommendation_gender.php (target must be
+    // the seeking gender AND the opposite of the viewer's own gender;
+    // unknown-gender candidates are excluded, not waved through as the
+    // old seeking-only filter did). Applied to the pool BEFORE the
+    // scoring/boost ranking below.
+    $rows = recommendationEligibleRows($rows, $viewerRow ?: null);
 
     // Rank by the EXISTING server match score — CompatibilityService, the
     // same scorer browse ?sort=match uses; no second formula is invented
