@@ -264,11 +264,35 @@ function blockIsActive(array $row): bool
     return strtotime($until) > time();
 }
 
+// The member's own moderation-block row when a block is ACTIVE, else null.
+// Login and /auth/me surface the state (the UI must be able to say WHY
+// actions fail), and requireNotBlocked() below enforces it on writes.
+function memberBlockState(string $userId): ?array
+{
+    $stmt = db()->prepare('SELECT is_blocked, blocked_until FROM profiles WHERE user_id = ? LIMIT 1');
+    $stmt->execute([$userId]);
+    $row = $stmt->fetch();
+    if (!$row || !blockIsActive($row)) return null;
+    return $row;
+}
+
+// Gate for member WRITE actions while moderation-blocked (2026-11-11
+// sweep fix): a blocked member used to keep full API access — only their
+// profile was hidden. They can still sign in (to appeal a report or
+// delete their account — those paths deliberately do NOT call this),
+// but interests, messages, profile publishing and community posting
+// return 403 with the reason stated.
+function requireNotBlocked(array $user): void
+{
+    if (memberBlockState((string)$user['uid']) !== null) {
+        je('Your account is blocked by the moderation team, so this action is not available. You can still sign in, appeal a report, or delete your account.', 403);
+    }
+}
+
 // User-to-user block (2026-11-09, P0 batch): a row in `blocks` in EITHER
 // direction hides both members' profiles from each other and stops interest
 // and messaging. The moderation `is_blocked` flag above is a different thing
-// (admin action against one account); this is a member action against another.
-function isBlockedBetween(string $a, string $b): bool
+// (admin action against one account); this is a member action against another.function isBlockedBetween(string $a, string $b): bool
 {
     if ($a === '' || $b === '' || $a === $b) return false;
     $stmt = db()->prepare('SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?) LIMIT 1');

@@ -210,6 +210,15 @@ export default function Settings() {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsNote, setSessionsNote] = useState('');
 
+  // Security — change password while signed in (2026-11-11: previously the
+  // forgot-email flow was the only way). The server requires the current
+  // password and signs out every other session.
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwNote, setPwNote] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
+
   // Data export
   const [exporting, setExporting] = useState(false);
 
@@ -279,6 +288,30 @@ export default function Settings() {
       setSessions([]);
     } finally {
       setSessionsLoading(false);
+    }
+  };
+
+  const changePassword = async () => {
+    setPwNote('');
+    if (pwNew.length < 8) { setPwNote('New password must be at least 8 characters.'); return; }
+    if (pwNew !== pwConfirm) { setPwNote('The new passwords do not match.'); return; }
+    setPwSaving(true);
+    try {
+      const { http } = await import('../lib/api/transport');
+      const res = await http.post('/api/auth/change-password', { currentPassword: pwCurrent, newPassword: pwNew });
+      setPwCurrent('');
+      setPwNew('');
+      setPwConfirm('');
+      const n = Number(res?.otherSessionsRevoked || 0);
+      setPwNote(n > 0
+        ? `Password changed. ${n} other ${n === 1 ? 'session was' : 'sessions were'} signed out.`
+        : 'Password changed.');
+      // Other sessions are gone server-side; refresh the list if it is open.
+      if (sessions !== null) loadSessions();
+    } catch (e) {
+      setPwNote(String(e?.message || '') || 'Could not change your password.');
+    } finally {
+      setPwSaving(false);
     }
   };
 
@@ -942,10 +975,19 @@ export default function Settings() {
 
                 <div>
                   <h3 className="text-base font-semibold text-ink mb-2">Change password</h3>
-                  <p className="text-sm text-muted mb-3">Use the forgot-password flow to reset your password securely via email.</p>
-                  <a href="/auth/forgot" className="button secondary px-4 py-2 text-sm font-semibold inline-block">
-                    Reset password
-                  </a>
+                  <p className="text-sm text-muted mb-3">Enter your current password and choose a new one. Changing it signs out your other devices; this device stays signed in.</p>
+                  <div className="space-y-2 max-w-sm">
+                    <input type="password" value={pwCurrent} onChange={e => setPwCurrent(e.target.value)} placeholder="Current password" autoComplete="current-password" className="input w-full" aria-label="Current password" />
+                    <input type="password" value={pwNew} onChange={e => setPwNew(e.target.value)} placeholder="New password (8+ characters)" autoComplete="new-password" className="input w-full" aria-label="New password" />
+                    <input type="password" value={pwConfirm} onChange={e => setPwConfirm(e.target.value)} placeholder="Repeat new password" autoComplete="new-password" className="input w-full" aria-label="Repeat new password" />
+                  </div>
+                  {pwNote && <p className="text-sm text-muted mt-2">{pwNote}</p>}
+                  <button onClick={changePassword} disabled={pwSaving || !pwCurrent || !pwNew || !pwConfirm} className="button secondary px-4 py-2 text-sm font-semibold mt-3 disabled:opacity-50">
+                    {pwSaving ? 'Changing…' : 'Change password'}
+                  </button>
+                  <p className="text-xs text-muted mt-3">
+                    Forgot your current password? <a href="/auth/forgot" className="underline">Reset it by email</a>.
+                  </p>
                 </div>
 
                 <div className="pt-4 border-t border-line/10">

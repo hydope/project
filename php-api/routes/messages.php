@@ -189,6 +189,8 @@ function messageThread(string $id): void
 function startConversation(): void
 {
     $user = requireAuthUser();
+    // Moderation-blocked members cannot open conversations (2026-11-11).
+    requireNotBlocked($user);
     // P0: messaging requires a verified email — unverified accounts get no
     // member access to the conversation loop.
     requireVerifiedEmail((string)$user['uid']);
@@ -239,6 +241,8 @@ function startConversation(): void
 function sendMessage(string $id): void
 {
     $user = requireAuthUser();
+    // Moderation-blocked members cannot send messages (2026-11-11).
+    requireNotBlocked($user);
     // P0: messaging requires a verified email.
     requireVerifiedEmail((string)$user['uid']);
     $payload = requestJson();
@@ -319,6 +323,8 @@ function sendMessage(string $id): void
 function sendMessageImage(string $id): void
 {
     $user = requireAuthUser();
+    // Moderation-blocked members cannot send messages (2026-11-11).
+    requireNotBlocked($user);
     // P0: messaging requires a verified email.
     requireVerifiedEmail((string)$user['uid']);
 

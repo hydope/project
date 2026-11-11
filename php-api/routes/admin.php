@@ -588,10 +588,21 @@ function adminVerificationFile(string $verificationId): void
 }
 function adminOverview(): void
 {
+    // One definition of "real" (2026-11-11 sweep fix) — the adminAnalytics()
+    // one: not admin, not test, not a seeder account, profile not seeded.
+    // totalMembers used to count every non-test user (206, most of them
+    // seeder accounts) and activeProfiles every non-blocked profile, so
+    // the dashboard's headline numbers described accounts no real person
+    // owns. totalMembers is now the real-member total; activeProfiles is
+    // the analytics funnel's "visible" step: real members whose finished
+    // profile is actually showing in browse.
+    $real = "u.is_admin = 0 AND u.is_test = 0 AND u.email NOT LIKE 'seeded-%@shiarishta.com' AND COALESCE(p.is_seeded, 0) = 0";
+    $joinP = 'LEFT JOIN profiles p ON p.user_id = u.id';
+    $finished = "TRIM(COALESCE(p.city, '')) <> '' AND TRIM(COALESCE(p.country, '')) <> '' AND TRIM(COALESCE(p.bio, '')) <> '' AND TRIM(COALESCE(p.expectations, '')) <> ''";
     // COUNT(*) comes back as a string from MySQL — cast for numeric parity.
     json([
-        'totalMembers' => (int)db()->query("SELECT COUNT(*) AS n FROM users WHERE is_test = 0")->fetch()['n'],
-        'activeProfiles' => (int)db()->query('SELECT COUNT(*) AS n FROM profiles WHERE is_blocked = 0 AND user_id NOT IN (SELECT id FROM users WHERE is_test = 1)')->fetch()['n'],
+        'totalMembers' => (int)db()->query("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real}")->fetch()['n'],
+        'activeProfiles' => (int)db()->query("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real} AND {$finished} AND p.visibility <> 'private'")->fetch()['n'],
         'messagesToday' => (int)db()->query('SELECT COUNT(*) AS n FROM messages WHERE created_at > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 DAY)')->fetch()['n'],
         'livePosts' => (int)db()->query('SELECT COUNT(*) AS n FROM posts WHERE is_hidden = 0')->fetch()['n'],
         'repliesThisWeek' => (int)db()->query('SELECT COUNT(*) AS n FROM replies WHERE created_at > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)')->fetch()['n'],
@@ -610,15 +621,24 @@ function adminOverview(): void
 function adminHealth(): void
 {
     $rows = db()->query(
-        'SELECT p.user_id, p.display_name, p.city, p.profession, p.visibility, u.is_test AS owner_test
+        'SELECT p.user_id, p.display_name, p.city, p.profession, p.visibility, p.is_seeded,
+                u.is_test AS owner_test, u.is_admin AS owner_admin, u.email AS owner_email
            FROM profiles p
            LEFT JOIN users u ON u.id = p.user_id'
     )->fetchAll();
 
-    // Negate, for the same array_filter reason documented in profilesStats():
-    // passing isTestShellRow() directly would report the 48 shells as the real
-    // profile count and leave the banner reassuring an operator about junk data.
-    $real = array_values(array_filter($rows, static fn(array $r): bool => !isTestShellRow($r)));
+    // "Real" is the adminAnalytics() definition (2026-11-11 sweep fix):
+    // the profile belongs to a real member — owner not an admin, not a
+    // test account, not a seeder account, and the profile itself not
+    // seeded. This banner used to count every non-shell profile (205,
+    // seeded rows included) while analytics counted real members (50) —
+    // two admin screens quoting two different "real" numbers.
+    $real = array_values(array_filter($rows, static fn(array $r): bool =>
+        (int)($r['owner_admin'] ?? 0) === 0
+        && (int)($r['owner_test'] ?? 0) === 0
+        && !((str_starts_with((string)($r['owner_email'] ?? ''), 'seeded-') && str_ends_with((string)($r['owner_email'] ?? ''), '@shiarishta.com')))
+        && (int)($r['is_seeded'] ?? 0) === 0
+    ));
     // Test shells hidden from browse — ONE definition (2026-11-11 sweep
     // fix), shared with profilesStats(): owner account flagged is_test OR
     // profile matches the shell patterns. This endpoint used to count
@@ -1265,11 +1285,26 @@ function adminReports(): void
     json($stmt->fetchAll());
 }
 
-// POST /api/admin/reports/:id/action — hide the target + mark actioned
+// POST /api/admin/reports/:id/action — apply the admin's CHOSEN action
+// (2026-11-11 sweep fix): the body carries the verb — 'hide' hides the
+// reported content (the historical behavior, kept as the default so an
+// older client sending no verb behaves as before), 'dismiss' closes the
+// report without touching any content. Every path records actioned_by/at
+// and an audit entry; the reporter's status view and appeal work off the
+// resulting status exactly as before.
 function adminReportAction(string $reportId): void
 {
     $admin = currentUser();
+    $body = requestJson();
+    $verb = (string)($body['action'] ?? 'hide');
     try {
+        if ($verb === 'dismiss') {
+            AdminService::dismissReport($reportId, (string)$admin['uid']);
+            json(['ok' => true, 'action' => 'dismissed']);
+        }
+        if ($verb !== 'hide' && $verb !== 'hide_profile') {
+            je('Unknown report action.', 400);
+        }
         $result = AdminService::actionReport($reportId, (string)$admin['uid']);
         json(['ok' => true, 'action' => $result['action'], 'target_type' => $result['target_type']]);
     } catch (RuntimeException $e) {

@@ -15,6 +15,7 @@ function routeAuth(string $method, array $segments): void
     if ($method === 'GET'  && $action === 'verify-email') { authVerifyEmail(); return; }
     if ($method === 'POST' && $action === 'verify' && ($segments[1] ?? '') === 'request') { authVerifyRequest(); return; }
     if ($method === 'POST' && $action === 'change-email') { authChangeEmail(); return; }
+    if ($method === 'POST' && $action === 'change-password') { authChangePassword(); return; }
     if ($method === 'GET'  && $action === 'verify')   { authVerifyToken(); return; }
     if ($method === 'GET'  && $action === 'sessions') { authSessions(); return; }
     if ($method === 'GET'  && $action === 'me') { authMe(); return; }
@@ -122,8 +123,14 @@ function authLogin(): void
     // HttpOnly cookie: XSS-proof token storage for browsers.
     setAuthCookie($token);
 
+    // Moderation state travels with the session (2026-11-11): a blocked
+    // member still signs in — they may need to appeal or delete the
+    // account — but the client must be able to show WHY writes fail.
+    $session = makeMemberSession($user);
+    $session['isBlocked'] = memberBlockState((string)$user['id']) !== null;
+
     json([
-        'user' => makeMemberSession($user),
+        'user' => $session,
         'token' => $token,
     ]);
 }
@@ -154,7 +161,39 @@ function authMe(): void
     $stmt->execute([$user['uid']]);
     $row = $stmt->fetch();
     if (!$row) je('Authentication required', 401);
-    json(['user' => makeMemberSession($row)]);
+    $session = makeMemberSession($row);
+    $session['isBlocked'] = memberBlockState((string)$row['id']) !== null;
+    json(['user' => $session]);
+}
+
+// POST /api/auth/change-password — signed-in password change (2026-11-11
+// sweep fix: the forgot-email flow was the ONLY way to change a password).
+// Requires the current password — a wrong one changes nothing. A successful
+// change signs out every OTHER session through the same token denylist
+// logout uses, while this session stays alive.
+function authChangePassword(): void
+{
+    $user = requireAuthUser();
+    $payload = requestJson();
+    $current = (string)($payload['currentPassword'] ?? '');
+    $new = (string)($payload['newPassword'] ?? '');
+    if (strlen($new) < 8 || strlen($new) > 128) {
+        je('New password must be between 8 and 128 characters.', 400);
+    }
+    $stmt = db()->prepare('SELECT password_hash FROM users WHERE id = ? LIMIT 1');
+    $stmt->execute([$user['uid']]);
+    $row = $stmt->fetch();
+    if (!$row || !password_verify($current, (string)$row['password_hash'])) {
+        je('Your current password is incorrect.', 401);
+    }
+    db()->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+        ->execute([password_hash($new, PASSWORD_BCRYPT), $user['uid']]);
+    $revoked = 0;
+    if (function_exists('revokeUsersOtherTokens')) {
+        $revoked = revokeUsersOtherTokens((string)$user['uid'], function_exists('sessionTokenHash') ? sessionTokenHash() : null);
+    }
+    auditLog('user.password_changed', 'user', (string)$user['uid'], ['otherSessionsRevoked' => $revoked]);
+    json(['ok' => true, 'otherSessionsRevoked' => $revoked]);
 }
 
 // ─── Email verification (table-based, P0) ────────────────────────────────────

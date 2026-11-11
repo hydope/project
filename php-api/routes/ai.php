@@ -732,17 +732,24 @@ function aiUpdatePost(string $id): void
     json(['ok' => true, 'id' => $id, 'status' => $status]);
 }
 
-/** DELETE /api/ai/posts/:id */
+/** DELETE /api/ai/posts/:id — accepts the slug too (2026-11-11 sweep
+ * fix): every public URL names a post by slug, so an admin working from
+ * the live page had no deletable identifier. */
 function aiDeletePost(string $id): void
 {
     $probe = db()->prepare('SELECT id, slug FROM blog_posts WHERE id = ? LIMIT 1');
     $probe->execute([$id]);
     $post = $probe->fetch();
     if (!$post) {
+        $probe = db()->prepare('SELECT id, slug FROM blog_posts WHERE slug = ? LIMIT 1');
+        $probe->execute([$id]);
+        $post = $probe->fetch();
+    }
+    if (!$post) {
         je('Post not found.', 404);
     }
-    db()->prepare('DELETE FROM blog_posts WHERE id = ?')->execute([$id]);
-    auditLog('post.deleted', 'blog_post', $id, ['slug' => $post['slug']]);
+    db()->prepare('DELETE FROM blog_posts WHERE id = ?')->execute([(string)$post['id']]);
+    auditLog('post.deleted', 'blog_post', (string)$post['id'], ['slug' => $post['slug']]);
     json(['ok' => true]);
 }
 

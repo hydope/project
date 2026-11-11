@@ -259,7 +259,7 @@ export default function AdminAnalytics() {
                     <span className="font-semibold text-ink">{s.label}</span>
                     <span className="text-muted whitespace-nowrap">
                       <span className="font-bold text-ink">{s.n.toLocaleString()}</span>
-                      {idx > 0 && <> · {s.pctOfPrev}% of the step before</>}
+                      {idx > 0 && <> · {s.pctOfSignups}% of everyone who joined</>}
                       {s.dropFromPrev > 0 && (
                         <span className="text-danger inline-flex items-center gap-0.5 ml-2">
                           <TrendingDown className="w-3 h-3" />{s.dropFromPrev.toLocaleString()} lost here

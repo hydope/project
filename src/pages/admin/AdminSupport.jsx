@@ -172,10 +172,14 @@ export default function AdminSupport() {
     }
   };
 
+  // Both choices go to the one action endpoint with the verb stated
+  // explicitly in the body (2026-11-11): 'hide' hides the reported
+  // content, 'dismiss' closes the report without touching content. The
+  // endpoint used to hide the content whatever it was sent.
   const act = async (id, action) => {
     try {
-      await http.post(`/api/admin/reports/${encodeURIComponent(id)}/${action}`, {});
-      addToast(action === 'action' ? 'Report actioned — content hidden.' : 'Report dismissed.', 'success');
+      await http.post(`/api/admin/reports/${encodeURIComponent(id)}/action`, { action });
+      addToast(action === 'dismiss' ? 'Report dismissed.' : 'Report actioned — content hidden.', 'success');
       loadReports();
     } catch (e) {
       addToast(e.message || 'Action failed.', 'error');
@@ -241,7 +245,7 @@ return (
                   Reported {r.target_type} by {r.reporter_email || 'member'} · {ago(r.created_at)}
                 </p>
                 <div className="flex gap-2 mt-3">
-                  <button onClick={() => act(r.id, 'action')}
+                  <button onClick={() => act(r.id, 'hide')}
                     className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-danger text-white">Take action</button>
                   <button onClick={() => act(r.id, 'dismiss')}
                     className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-line/30 text-muted">Dismiss</button>

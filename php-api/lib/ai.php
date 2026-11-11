@@ -499,7 +499,14 @@ function aiAnswerQuestion(string $question, array $history = [], array $context 
     }
     $messages[] = ['role' => 'user', 'content' => $question];
 
-    $answer = aiComplete($messages);
+    // Chat answers are short by instruction ("be warm, concise"); the
+    // shared aiComplete default max_tokens (16000) is sized for blog-post
+    // generation and let chat answers generate for tens of seconds — a
+    // matching question took 16.7s in the 2026-11-10 sweep. Capping chat
+    // output bounds generation time without touching the model, the
+    // timeout, or the facts fallback below: this endpoint's reliability
+    // matters more than its verbosity (2026-11-11).
+    $answer = aiComplete($messages, ['max_tokens' => 1024]);
     if ($answer !== null) {
         return ['answer' => $answer, 'grounded' => true, 'source' => 'model'];
     }

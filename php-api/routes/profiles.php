@@ -58,9 +58,13 @@ function routeProfiles(string $method, array $segments): void
     if ($method === 'POST' && $id === 'me' && $sub === 'video') { videoUpload(); return; }
     if ($method === 'DELETE' && $id === 'me' && $sub === 'video') { videoDelete(); return; }
     if ($method === 'GET' && $id === 'interests' && ($segments[1] ?? '') === 'received') { interestsReceived(); return; }
-    if ($method === 'GET' && $id === 'notifications') { notificationsList(); return; }
-    if ($method === 'POST' && $id === 'notifications' && ($segments[1] ?? '') === 'read') { notificationsRead(); return; }
+    // Sub-paths MUST be matched before the bare list route: the list test
+    // only looks at $segments[0], so GET /notifications/unread-count was
+    // swallowed by it and returned the full list instead of the count
+    // (2026-11-11 sweep fix) — the same trap that once hid /me/favourites.
     if ($method === 'GET' && $id === 'notifications' && ($segments[1] ?? '') === 'unread-count') { notificationsUnreadCount(); return; }
+    if ($method === 'POST' && $id === 'notifications' && ($segments[1] ?? '') === 'read') { notificationsRead(); return; }
+    if ($method === 'GET' && $id === 'notifications') { notificationsList(); return; }
     if ($method === 'GET' && $id !== null && $sub === 'photo') { photoServe($id); return; }
     if ($method === 'GET' && $id !== null && $sub === 'video') { videoServe($id); return; }
     if ($method === 'GET' && $id !== null) { profileById($id); return; }
@@ -1241,6 +1245,8 @@ function profileById(string $id): void
 function profileUpdate(): void
 {
     $user = requireAuthUser();
+    // Moderation-blocked members cannot publish changes (2026-11-11).
+    requireNotBlocked($user);
     $b = requestJson();
 
     // Guardian-managed profiles (2026-11-09): what is already stored, so a
@@ -1624,6 +1630,20 @@ function profileUpdate(): void
         je('Verify your email to publish your profile. You can keep saving a draft until then.', 403);
     }
 
+    // "Looking for" minimum, server-side (2026-11-11 sweep fix): onboarding
+    // promises 20 characters but only the client enforced it — a direct
+    // PUT stored 15. Enforced only when the value is being CHANGED to a
+    // non-empty one, so a legacy profile whose stored text is shorter is
+    // never locked out of saving unrelated changes: an unchanged value
+    // (the edit form resubmitting what is stored) always passes.
+    if (array_key_exists('expectations', $eff)) {
+        $newExp = trim((string)$eff['expectations']);
+        $oldExp = trim((string)($storedRow['expectations'] ?? ''));
+        if ($newExp !== '' && $newExp !== $oldExp && mb_strlen($newExp) < 20) {
+            je('Please write at least 20 characters about what you are looking for.', 400);
+        }
+    }
+
     if (!$sets) {
         je('Nothing to update.', 400);
     }
@@ -1713,6 +1733,8 @@ function profileInterest(string $id): void
     if ($id === (string)$user['uid']) {
         je('You cannot express interest in yourself.', 400);
     }
+    // Moderation-blocked members cannot send interest (2026-11-11).
+    requireNotBlocked($user);
     $stmt = db()->prepare('SELECT 1 FROM users WHERE id = ? LIMIT 1');
     $stmt->execute([$id]);
     if (!$stmt->fetch()) {

@@ -14,8 +14,8 @@ function routeCommunity(string $method, array $segments): void
     if ($method === 'POST' && $action === 'post' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === 'replies') { postReply((string)$segments[1]); return; }
     if ($method === 'GET' && $action !== null && ($segments[1] ?? null) === 'posts') { communityPosts((string)$action); return; }
     if ($method === 'POST' && $action !== null && ($segments[1] ?? null) === 'posts') { communityCreatePost((string)$action); return; }
-    // Moderation — admin-only hard delete. The button lives on CommunityPost;
-    // wiring verified: admin auth, correct ID, list refresh after delete.
+    // Deletes — the post's author or an admin for posts; the reply's
+    // author or an admin for replies (author delete added 2026-11-11).
     if ($method === 'DELETE' && $action === 'post' && ($segments[1] ?? null) !== null) { communityDeletePost((string)$segments[1]); return; }
     if ($method === 'DELETE' && $action === 'reply' && ($segments[1] ?? null) !== null) { communityDeleteReply((string)$segments[1]); return; }
 
@@ -66,14 +66,22 @@ function communityDeletePost(string $postId): void
     }
 }
 
-// DELETE /api/community/reply/:id — admin moderation: remove one reply.
+// DELETE /api/community/reply/:id — the author can delete their own
+// reply; admins can delete any reply (2026-11-11 sweep fix). This was
+// admin-only while post delete already allowed the author, so a member
+// could remove their post but never their own comment under it.
 function communityDeleteReply(string $replyId): void
 {
-    requireAdminUser();
-    $probe = db()->prepare('SELECT id FROM replies WHERE id = ? LIMIT 1');
+    $user = requireAuthUser();
+    $probe = db()->prepare('SELECT id, author_id FROM replies WHERE id = ? LIMIT 1');
     $probe->execute([$replyId]);
-    if (!$probe->fetch()) {
+    $reply = $probe->fetch();
+    if (!$reply) {
         je('Reply not found.', 404);
+    }
+    $isAdmin = !empty($user['isAdmin']);
+    if (!$isAdmin && (string)$reply['author_id'] !== (string)$user['uid']) {
+        je('You can only delete your own replies.', 403);
     }
     db()->prepare('DELETE FROM replies WHERE id = ?')->execute([$replyId]);
     json(['ok' => true, 'id' => $replyId]);
@@ -141,6 +149,8 @@ function communityPosts(string $slug): void
 function communityCreatePost(string $slug): void
 {
     $user = requireAuthUser();
+    // Moderation-blocked members cannot post (2026-11-11).
+    requireNotBlocked($user);
     $payload = requestJson();
     $title = trim((string)($payload['title'] ?? ''));
     $body = mb_substr(trim((string)($payload['body'] ?? '')), 0, 10000);
@@ -194,6 +204,8 @@ function postThread(string $id): void
 function postReply(string $postId): void
 {
     $user = requireAuthUser();
+    // Moderation-blocked members cannot post (2026-11-11).
+    requireNotBlocked($user);
     $payload = requestJson();
     $body = trim((string)($payload['body'] ?? ''));
 
