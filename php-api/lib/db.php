@@ -521,6 +521,11 @@ function visibleProfile(array $row, ?array $viewer): ?array
             // must be able to tell it apart from a personal profile, so the
             // origin travels in every payload — anonymous included.
             'isMatchmaker' => !empty($row['is_matchmaker']),
+            // First Connections (2026-11-11): the member opted in to being
+            // suggested to new members as a first connection. A consent
+            // flag the member controls — shown as a badge, never inferred
+            // from activity.
+            'openToIntroductions' => !empty($row['open_to_intros']),
             'username' => $row['username'] ?? null,
             'religiosity' => $row['religiosity'] ?? null,
             'educationLevel' => $row['education_level'] ?? null,
@@ -626,6 +631,8 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'managementMode' => !empty($row['management_mode']) ? (string)$row['management_mode'] : null,
             // Matchmaker origin (2026-11-09): see the anonymous branch.
             'isMatchmaker' => !empty($row['is_matchmaker']),
+            // First Connections (2026-11-11): see the anonymous branch.
+            'openToIntroductions' => !empty($row['open_to_intros']),
             // Public handle the member chose for themselves. Null when unset.
             'username' => $row['username'] ?? null,
             // ── Filterable fields ────────────────────────────────────────────

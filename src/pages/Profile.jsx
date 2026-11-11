@@ -562,6 +562,22 @@ export default function Profile() {
               </div>
             )}
 
+            {/* Open to introductions (2026-11-11): the member turned this
+                on themselves in Settings — they welcome a first interest
+                from new members, who see them among their first suggested
+                connections. */}
+            {profile.openToIntroductions === true && (
+              <div className="p-4 rounded-xl flex items-start gap-3" style={{ background: 'var(--color-primary-subtle)', border: '1px solid var(--color-border)' }}>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-primary)', color: '#fff' }}>
+                  <HeartHandshake className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>Open to introductions</p>
+                  <p className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>This member has said they welcome a first interest from new members.</p>
+                </div>
+              </div>
+            )}
+
             <div className="p-4 rounded-xl flex items-center gap-3" style={{ background: 'var(--color-primary-subtle)', border: '1px solid var(--color-border)' }}>
               <Award className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--color-primary)' }} />
               <p className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>

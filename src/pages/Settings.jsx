@@ -162,6 +162,7 @@ export default function Settings() {
           contactVisibility: me.contactVisibility || p.contactVisibility,
           blockUnverified: typeof me.blockUnverified === 'boolean' ? me.blockUnverified : p.blockUnverified,
           allowFamilyView: typeof me.allowFamilyView === 'boolean' ? me.allowFamilyView : p.allowFamilyView,
+          openToIntroductions: typeof me.openToIntroductions === 'boolean' ? me.openToIntroductions : p.openToIntroductions,
         }));
         // Notification prefs (2026-11-09): the server copy is the source of
         // truth — the server can only respect what it stores. Merge over the
@@ -379,7 +380,10 @@ export default function Settings() {
     // a feature that did not exist. The two toggles below are enforced by
     // the server — blockUnverified hides your profile from unverified
     // members and blocks their interest; allowFamilyView gates wali links.
-    allowFamilyView: true, blockUnverified: false
+    allowFamilyView: true, blockUnverified: false,
+    // First Connections (2026-11-11): opt-in to be suggested to new
+    // members. Default off — nobody is put forward until they choose it.
+    openToIntroductions: false
   });
   const [privacySaved, setPrivacySaved] = useState('');
   // Hide-any-field (2026-11-09): payload keys the member wants hidden from
@@ -662,7 +666,8 @@ export default function Settings() {
                   { key: 'photoVisibility', label: 'Who can see my photos', type: 'select', options: [{ v: 'public', l: 'Public — anyone' }, { v: 'members', l: 'Members only' }, { v: 'private', l: 'Private — only me' }] },
                   { key: 'contactVisibility', label: 'Who can see my contact details', hint: 'Your phone number and email shown on your profile', type: 'select', options: [{ v: 'public', l: 'Public — anyone' }, { v: 'members', l: 'Members only' }, { v: 'private', l: 'Private — only me' }] },
                   { key: 'allowFamilyView', label: 'Allow family members to view profile', hint: 'Wali view links stop working while this is off', type: 'toggle' },
-                  { key: 'blockUnverified', label: 'Block unverified members', hint: 'Members whose email is not verified cannot see your profile or send interest', type: 'toggle' }
+                  { key: 'blockUnverified', label: 'Block unverified members', hint: 'Members whose email is not verified cannot see your profile or send interest', type: 'toggle' },
+                  { key: 'openToIntroductions', label: 'Open to introductions', hint: 'New members will see you among their first suggested connections', type: 'toggle' }
                 ].map(item => (
                   <div key={item.key} className="flex items-center justify-between py-3 border-b border-line/10 last:border-0">
                     <span className="text-sm font-medium text-ink">
@@ -731,6 +736,10 @@ export default function Settings() {
                         // unverified members, allowFamilyView gates wali links.
                         blockUnverified: privacy.blockUnverified,
                         allowFamilyView: privacy.allowFamilyView,
+                        // First Connections (2026-11-11): the opt-in that
+                        // puts this member in new members' first suggested
+                        // connections, with the badge on their card.
+                        openToIntroductions: privacy.openToIntroductions,
                         // Hide-any-field (2026-11-09): the list of payload
                         // keys to omit for other viewers.
                         hiddenFields,

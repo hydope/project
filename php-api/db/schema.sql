@@ -119,6 +119,11 @@ CREATE TABLE IF NOT EXISTS profiles (
   -- while the copy claimed server enforcement.
   block_unverified   TINYINT(1)   NOT NULL DEFAULT 0,
   allow_family_view  TINYINT(1)   NOT NULL DEFAULT 1,
+  -- First Connections (2026-11-11): the member's opt-in to be suggested
+  -- to brand-new members as a first connection. Default off — nobody is
+  -- put forward until they choose it. Also added by
+  -- migrateAddOpenToIntrosColumn() (marker digest).
+  open_to_intros     TINYINT(1)   NOT NULL DEFAULT 0,
   income_range       VARCHAR(80)  DEFAULT NULL,
   marital_status     VARCHAR(60)  DEFAULT NULL,
   children           VARCHAR(60)  DEFAULT NULL,

@@ -77,6 +77,7 @@ function migrateSchema(): void
     migrateAddMessageSenderIndex();
     migrateRepairSeededPhotoPaths();
     migrateAddProfileDepthColumns();
+    migrateAddOpenToIntrosColumn();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -1654,5 +1655,23 @@ function migrateRepairSeededPhotoPaths(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (seeded photo repair) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * First Connections opt-in (2026-11-11): profiles.open_to_intros — the
+ * member's own choice to be suggested to brand-new members as a first
+ * connection. Default 0 (off): nobody is put forward until they opt in
+ * from Settings. Also declared in db/schema.sql (marker digest).
+ */
+function migrateAddOpenToIntrosColumn(): void
+{
+    try {
+        $cols = db()->query("SHOW COLUMNS FROM profiles LIKE 'open_to_intros'")->fetchAll();
+        if (!$cols) {
+            db()->exec("ALTER TABLE profiles ADD COLUMN open_to_intros TINYINT(1) NOT NULL DEFAULT 0 AFTER allow_family_view");
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (open_to_intros) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }

@@ -347,6 +347,12 @@ export default function ProfileCard({ profile, className = '' }) {
               {profile.isMatchmaker === true && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }} title="Uploaded by a matchmaker — this profile is unclaimed">Uploaded by a matchmaker</span>
               )}
+              {/* Open to introductions (2026-11-11): the member opted in
+                  to being suggested to new members as a first connection.
+                  A consent badge — shown only when the API flag is on. */}
+              {profile.openToIntroductions === true && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }} title="This member welcomes a first interest from new members">Open to introductions</span>
+              )}
             </>
           )}
         </div>

@@ -12,7 +12,7 @@ import { formatCity, formatCountry } from '../lib/format';
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  User, MessageCircle, Eye, Users, Sparkles, Flame, ArrowRight, Camera
+  User, MessageCircle, Eye, Users, Sparkles, Flame, ArrowRight, Camera, Heart
 } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
 
@@ -53,6 +53,93 @@ function MatchCard({ p, i }) {
   );
 }
 
+// First Connections (2026-11-11): one row of the "New this week" / "Your
+// first connections" cards — photo, name, city, the honest match reason
+// when the server sent one, and a one-tap Send interest that reuses the
+// exact interest endpoint (and all of its gates) the profile cards use.
+// A gate refusal (e.g. an unverified member) shows the server's own
+// message under the row — never a silent failure.
+function ConnectionRow({ p, showReason }) {
+  const { url: photoUrl } = useAuthedImage(p.photo);
+  const [sent, setSent] = useState(p.interestSent === true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const send = async () => {
+    if (busy || sent) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api.expressInterest(p.id);
+      setSent(true);
+    } catch (e) {
+      setError(e?.message || 'Could not send interest.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  // Plain words, facts only: where they live, plus the server's own top
+  // match reason on the first-connections card. Nothing is invented —
+  // a member with no city and no reason shows their location line.
+  const reasonBits = [];
+  if (p.city) reasonBits.push('Lives in ' + formatCity(p.city));
+  if (showReason && Array.isArray(p.matchReasons) && p.matchReasons.length) {
+    reasonBits.push(p.matchReasons[0]);
+  }
+  return (
+    <div className="flex items-center gap-3 py-3 border-b last:border-0" style={{ borderColor: 'var(--color-border)' }}>
+      <Link to={'/profiles/' + p.id} className="flex-shrink-0" aria-label={p.displayName}>
+        {photoUrl ? (
+          <img src={photoUrl} alt={p.displayName} className="w-12 h-12 rounded-full object-cover" loading="lazy" />
+        ) : (
+          <div className="w-12 h-12 rounded-full flex items-center justify-center font-bold select-none"
+            role="img" aria-label={`${p.displayName} has not added a photo`}
+            style={{ background: 'linear-gradient(160deg, #134e39 0%, #0c1220 70%)', color: 'rgba(212,175,105,0.5)' }}>
+            {(p.displayName || '?').trim()[0]?.toUpperCase()}
+          </div>
+        )}
+      </Link>
+      <div className="flex-1 min-w-0">
+        <Link to={'/profiles/' + p.id} className="text-sm font-semibold truncate block" style={{ color: 'var(--color-ink)' }}>
+          {p.displayName}{p.age ? `, ${p.age}` : ''}
+        </Link>
+        <p className="text-xs truncate" style={{ color: 'var(--color-ink-secondary)' }}>
+          {reasonBits.length ? reasonBits.join(' · ') : ([formatCity(p.city), formatCountry(p.country)].filter(Boolean).join(', ') || 'Location not set')}
+        </p>
+        {p.openToIntroductions === true && (
+          <span className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}>Open to introductions</span>
+        )}
+        {error && <p className="text-xs mt-1" style={{ color: 'var(--color-danger)' }}>{error}</p>}
+      </div>
+      <button
+        onClick={send}
+        disabled={busy || sent}
+        className={'flex-shrink-0 px-3.5 py-2 text-xs font-semibold rounded-lg flex items-center gap-1.5 disabled:opacity-70 ' + (sent ? '' : 'btn-primary')}
+        style={sent ? { background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' } : undefined}
+        aria-label={sent ? `Interest sent to ${p.displayName}` : `Send interest to ${p.displayName}`}
+      >
+        <Heart className={'w-3.5 h-3.5 ' + (sent ? 'fill-current' : '')} />
+        {busy ? 'Sending…' : sent ? 'Interest sent' : 'Send interest'}
+      </button>
+    </div>
+  );
+}
+
+// A First Connections card hides entirely when its list is empty — the
+// server only ever sends real, finished, visible members, and an empty
+// card would be filler.
+function ConnectionsCard({ title, subtitle, profiles, showReason }) {
+  if (!profiles.length) return null;
+  return (
+    <div className="card p-4 sm:p-5 mb-8">
+      <h2 className="text-base font-semibold" style={{ color: 'var(--color-ink)' }}>{title}</h2>
+      <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-secondary)' }}>{subtitle}</p>
+      <div>
+        {profiles.map(p => <ConnectionRow key={p.id} p={p} showReason={showReason} />)}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   usePageTitle('Dashboard');
   const { user, refreshUser } = useAuth();
@@ -65,6 +152,11 @@ export default function Dashboard() {
   // Profile-completion banner (2026-10-24): persistent until the profile is
   // complete — Syed's order is to keep reminding until they finish.
   const [recoveryStatus, setRecoveryStatus] = useState(null);
+  // First Connections (2026-11-11): the server's two real-member lists.
+  // first-connections comes back empty for accounts older than 14 days
+  // (the server owns that rule); both cards hide when their list is empty.
+  const [newThisWeek, setNewThisWeek] = useState([]);
+  const [firstConnections, setFirstConnections] = useState([]);
 
   useEffect(() => {
     // NOTE: the /api prefix is required. Production builds set VITE_API_URL
@@ -73,6 +165,8 @@ export default function Dashboard() {
     // {error: <html>} and the banner rendered "Your profile is% complete"
     // with no number. That exact bug shipped 2026-10-24.
     http.get("/api/users/me/completeness").then(setRecoveryStatus).catch(() => { /* banner hidden on error */ });
+    http.get("/api/profiles/new-this-week").then((r) => { if (Array.isArray(r)) setNewThisWeek(r); }).catch(() => { /* card hidden on error */ });
+    http.get("/api/profiles/first-connections").then((r) => { if (Array.isArray(r)) setFirstConnections(r); }).catch(() => { /* card hidden on error */ });
   }, []);
 
   // Verification-state refresh lives in AuthContext (boot + window focus), which
@@ -340,6 +434,23 @@ export default function Dashboard() {
             <Link to="/settings?tab=privacy" className="btn btn-primary btn-sm flex-shrink-0">Upload a photo</Link>
           </div>
         )}
+
+        {/* First Connections (2026-11-11): real members only — the server
+            never pads these lists. "Your first connections" is ranked for
+            brand-new accounts (the server returns it empty after 14 days);
+            "New this week" shows the newest real joiners to everyone. */}
+        <ConnectionsCard
+          title="Your first connections"
+          subtitle="A good place to start — beginning with members who said they welcome a first hello."
+          profiles={firstConnections}
+          showReason
+        />
+        <ConnectionsCard
+          title="New this week"
+          subtitle="The newest real members to join Shia Rishta."
+          profiles={newThisWeek}
+          showReason={false}
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1">

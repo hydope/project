@@ -29,6 +29,10 @@ function routeProfiles(string $method, array $segments): void
     if ($method === 'GET' && $id === 'stats') { profilesStats(); return; }
     // Filter options MUST be matched before the `/:id` branch, same as stats.
     if ($method === 'GET' && $id === 'filter-options') { profilesFilterOptions(); return; }
+    // First Connections (2026-11-11): literal ids, matched before the
+    // `/:id` branch for the same reason as stats/filter-options above.
+    if ($method === 'GET' && $id === 'new-this-week') { profilesNewThisWeek(); return; }
+    if ($method === 'GET' && $id === 'first-connections') { profilesFirstConnections(); return; }
     // Saved profiles.
     //
     // MUST be matched BEFORE the `/me` branch below. The `/me` test only looks at
@@ -1095,6 +1099,196 @@ function profilesList(): void
     json($list);
 }
 
+// ─── First Connections (2026-11-11) ─────────────────────────────────────────
+// Two honest, consent-based surfaces that give a new member someone real to
+// connect with on day one. The analytics behind this: 36 interests ever
+// between real members, 0 mutual pairs, 0 conversations — people join, see
+// nobody who is plainly open to contact, and go quiet.
+//
+// REAL MEMBERS ONLY, by the analytics definition (admin.php): not admin,
+// not test, not a seeder account, profile not seeded — plus not demo and
+// not matchmaker-submitted (those rows have no member behind them who
+// could receive an interest). Finished + visible uses the exact browse
+// rules: not private, not unfinished (city+country+bio+about_family all
+// empty), not moderation-blocked, not blocked with the caller in either
+// direction, and block_unverified owners hidden from unverified callers.
+// Test shells are filtered in PHP like the browse list. If nobody
+// qualifies the list is empty and the UI hides the card — no filler, ever.
+function firstConnectionRows(array $viewer, array $extraWhere = [], array $extraParams = []): array
+{
+    $unfinished = "(TRIM(COALESCE(p.city, '')) = '' AND TRIM(COALESCE(p.country, '')) = '' AND TRIM(COALESCE(p.bio, '')) = '' AND TRIM(COALESCE(p.about_family, '')) = '')";
+    $where = [
+        'u.is_admin = 0',
+        'u.is_test = 0',
+        "u.email NOT LIKE 'seeded-%@shiarishta.com'",
+        'COALESCE(p.is_seeded, 0) = 0',
+        'COALESCE(p.is_demo, 0) = 0',
+        'COALESCE(p.is_matchmaker, 0) = 0',
+        '(p.is_blocked = 0 OR (p.blocked_until IS NOT NULL AND p.blocked_until <= NOW()))',
+        "p.visibility <> 'private'",
+        "NOT $unfinished",
+        'p.user_id <> ?',
+        'NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?))',
+    ];
+    $params = [(string)$viewer['uid'], (string)$viewer['uid'], (string)$viewer['uid']];
+    if (!viewerIsEmailVerified($viewer)) {
+        $where[] = 'p.block_unverified = 0';
+    }
+    $where = array_merge($where, $extraWhere);
+    $params = array_merge($params, $extraParams);
+    $sql = 'SELECT p.*, u.created_at AS account_created_at, ' . lastActiveSql() . ' AS last_active_at'
+        . ' FROM profiles p JOIN users u ON u.id = p.user_id WHERE ' . implode(' AND ', $where)
+        . ' ORDER BY u.created_at DESC';
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+    // Test shells never belong in a member-facing list (the same
+    // post-filter profilesList applies, for the same reason: the
+    // predicate list lives in one shared function).
+    return array_values(array_filter($rows, static fn(array $row): bool => !isTestShellRow($row)));
+}
+
+// Card payloads for the First Connections surfaces: the standard
+// visibleProfile() shape plus the caller's interest state (exactly as the
+// browse list attaches it, so a sent interest still reads "sent" after a
+// reload) and the account's join time, which the card uses honestly.
+function firstConnectionViews(array $rows, array $viewer, array $extraById = []): array
+{
+    $sentStmt = db()->prepare('SELECT to_user_id FROM interests WHERE from_user_id = ?');
+    $sentStmt->execute([(string)$viewer['uid']]);
+    $sentIds = [];
+    foreach ($sentStmt->fetchAll() as $s) { $sentIds[(string)$s['to_user_id']] = true; }
+    $views = [];
+    foreach ($rows as $row) {
+        $view = visibleProfile($row, $viewer);
+        if ($view === null) continue;
+        $view['interestSent'] = isset($sentIds[(string)($view['id'] ?? '')]);
+        $view['joinedAt'] = $row['account_created_at'] ?? null;
+        foreach (($extraById[(string)$row['user_id']] ?? []) as $k => $v) {
+            $view[$k] = $v;
+        }
+        $views[] = $view;
+    }
+    return $views;
+}
+
+function profilesNewThisWeek(): void
+{
+    $viewer = requireAuthUser();
+    // Joined in the last 14 days, newest first, at most 5.
+    $rows = firstConnectionRows($viewer, ['u.created_at >= (UTC_TIMESTAMP() - INTERVAL 14 DAY)']);
+    if (count($rows) < 3) {
+        // Too few brand-new members to fill the card from the window
+        // alone — widen to the most recent real joiners (the same pool
+        // without the date cut), still finished + visible. The card
+        // never pads with anyone else.
+        $rows = firstConnectionRows($viewer);
+    }
+    json(firstConnectionViews(array_slice($rows, 0, 5), $viewer));
+}
+
+function profilesFirstConnections(): void
+{
+    $viewer = requireAuthUser();
+    // The card is for brand-new members only: an account older than 14
+    // days gets an empty list and the dashboard hides the card. One
+    // source of truth — the account's real creation time (stored UTC),
+    // not a client-side guess.
+    $meStmt = db()->prepare('SELECT created_at FROM users WHERE id = ? LIMIT 1');
+    $meStmt->execute([(string)$viewer['uid']]);
+    $meRow = $meStmt->fetch();
+    $joinedAt = $meRow ? strtotime((string)$meRow['created_at'] . ' UTC') : false;
+    if ($joinedAt === false || $joinedAt < time() - 14 * 86400) {
+        json([]);
+        return;
+    }
+
+    $rows = firstConnectionRows($viewer, [
+        // Already contacted is not a first connection: anyone the caller
+        // already sent interest to is out, and so is anyone who declined
+        // the caller (a decline sticks — profileInterest() refuses a
+        // re-send, so suggesting them would be a dead-end button).
+        'NOT EXISTS (SELECT 1 FROM interests i WHERE i.from_user_id = ? AND i.to_user_id = p.user_id)',
+        'NOT EXISTS (SELECT 1 FROM interest_declines d WHERE d.decliner_id = p.user_id AND d.sender_id = ?)',
+    ], [(string)$viewer['uid'], (string)$viewer['uid']]);
+
+    // The caller's own row, for the scorer and the seeking filter.
+    $vStmt = db()->prepare('SELECT * FROM profiles WHERE user_id = ? LIMIT 1');
+    $vStmt->execute([(string)$viewer['uid']]);
+    $viewerRow = $vStmt->fetch();
+
+    // Eligibility, not scoring: a member seeking women is never suggested
+    // a man (and vice versa) — the same hard filter the dashboard's "Top
+    // matches" applies. A candidate with no recorded gender can't be
+    // judged, so they stay, exactly like the dashboard rule.
+    $seeking = $viewerRow ? ($viewerRow['seeking_gender'] ?? null) : null;
+    if ($seeking) {
+        $rows = array_values(array_filter($rows, static function (array $r) use ($seeking): bool {
+            $g = (string)($r['gender'] ?? '');
+            return $g === '' || $g === (string)$seeking;
+        }));
+    }
+
+    // Rank by the EXISTING server match score — CompatibilityService, the
+    // same scorer browse ?sort=match uses; no second formula is invented
+    // here. BOOST RULE: an opted-in member's effective rank is their raw
+    // score + 15, so consent outranks a raw-score gap of up to 14 points
+    // (being openly willing to be contacted is the point of this list),
+    // while a much stronger match still wins. The payload always carries
+    // the RAW score and the scorer's own reasons — the number a member
+    // sees stays the honest compatibility figure, never the boosted one.
+    // Ties break: opted-in first, then raw score, then newest joiner
+    // (rows arrive newest-first, so the index preserves it). A caller
+    // with no sect gets no scores at all (the scorer's own honesty
+    // contract — score() returns null): then opted-in members rank
+    // first, newest first, and no score is attached.
+    require_once __DIR__ . '/../lib/compatibility.php';
+    $scored = [];
+    foreach ($rows as $idx => $row) {
+        $score = null;
+        $reasons = [];
+        if ($viewerRow) {
+            try {
+                $s = CompatibilityService::score($row, $viewerRow);
+                if ($s !== null) {
+                    $score = $s['overall'];
+                    $reasons = $s['reasons'];
+                }
+            } catch (Throwable $e) {
+                error_log('[api] first-connections score: ' . substr($e->getMessage(), 0, 120));
+            }
+        }
+        $open = !empty($row['open_to_intros']);
+        $scored[] = [
+            'row' => $row, 'idx' => $idx, 'score' => $score, 'reasons' => $reasons,
+            'open' => $open,
+            'rank' => ($score ?? -1) + ($open ? 15 : 0),
+        ];
+    }
+    usort($scored, static function (array $a, array $b): int {
+        if ($a['rank'] !== $b['rank']) return $b['rank'] <=> $a['rank'];
+        if ($a['open'] !== $b['open']) return $a['open'] ? -1 : 1;
+        $sa = $a['score'] ?? -1;
+        $sb = $b['score'] ?? -1;
+        if ($sa !== $sb) return $sb <=> $sa;
+        return $a['idx'] <=> $b['idx'];
+    });
+    $top = array_slice($scored, 0, 5);
+
+    $extraById = [];
+    $topRows = [];
+    foreach ($top as $t) {
+        $topRows[] = $t['row'];
+        if ($t['score'] !== null) {
+            $extraById[(string)$t['row']['user_id']] = [
+                'matchScore' => $t['score'],
+                'matchReasons' => $t['reasons'],
+            ];
+        }
+    }
+    json(firstConnectionViews($topRows, $viewer, $extraById));
+}
+
 function profileMe(): void
 {
     $user = requireAuthUser();
@@ -1500,7 +1694,9 @@ function profileUpdate(): void
         // Privacy toggles + contact phone (2026-11-09, P0 batch). These were
         // collected in Settings but never sent to the server — the save wrote
         // localStorage and only the bio reached the API.
-        'contactPhone', 'blockUnverified', 'allowFamilyView'];
+        'contactPhone', 'blockUnverified', 'allowFamilyView',
+        // First Connections opt-in (2026-11-11): the Settings toggle.
+        'openToIntroductions'];
 
     // Accept the same key under both shapes. The browse filter sends `education`
     // (that is the query-param name) while the onboarding form sends
@@ -1529,10 +1725,12 @@ function profileUpdate(): void
         'pref_education'        => 'prefEducation',
         'pref_location'         => 'prefLocation',
         'pref_must_haves'       => 'prefMustHaves',
+        // First Connections (2026-11-11): snake_case spelling of the toggle.
+        'open_to_intros'        => 'openToIntroductions',
     ];
     // Privacy toggles arrive as JSON booleans; the columns are TINYINT.
     // Normalize here so a string "false" can never store as truthy.
-    foreach (['blockUnverified', 'allowFamilyView'] as $toggle) {
+    foreach (['blockUnverified', 'allowFamilyView', 'openToIntroductions'] as $toggle) {
         if (array_key_exists($toggle, $b)) {
             $b[$toggle] = !empty($b[$toggle]) && $b[$toggle] !== 'false' && $b[$toggle] !== '0' ? 1 : 0;
         }
@@ -1567,6 +1765,7 @@ function profileUpdate(): void
             'contactPhone' => 'contact_phone',
             'blockUnverified' => 'block_unverified',
             'allowFamilyView' => 'allow_family_view',
+            'openToIntroductions' => 'open_to_intros',
             // Profile depth (2026-11-10).
             'educationField' => 'education_field',
             'educationInstitution' => 'education_institution',
