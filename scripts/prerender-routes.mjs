@@ -106,6 +106,25 @@ const slugifyLocation = (s) =>
 const displayNameFromSlug = (slug) =>
   slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
+// Country spelling groups (2026-11-11): the same groups the API's
+// resolveLocationFilterValues() merges (and src/data/countryAliases.js
+// lists as variations). First entry is the group's canonical key — used
+// only to bucket counts consistently, never as a URL.
+const COUNTRY_SLUG_GROUPS = [
+  ['united-kingdom', 'uk', 'great-britain', 'britain', 'england'],
+  ['usa', 'united-states', 'united-states-of-america', 'america', 'us'],
+  ['uae', 'united-arab-emirates', 'emirates'],
+  ['saudi-arabia', 'saudi', 'ksa', 'kingdom-of-saudi-arabia'],
+  ['south-korea', 'korea', 'republic-of-korea'],
+  ['netherlands', 'holland'],
+  ['new-zealand', 'nz'],
+  ['ivory-coast', 'cote-d-ivoire'],
+];
+const canonicalCountrySlug = (slug) => {
+  for (const g of COUNTRY_SLUG_GROUPS) if (g.includes(slug)) return g[0];
+  return slug;
+};
+
 // Generic community note for a location with no curated note. The runtime
 // CityPage renders this exact sentence for non-curated places, so the
 // prerendered document and the live page agree.
@@ -150,6 +169,10 @@ async function fetchDynamicLocations() {
   const curatedCountrySlugs = new Set(COUNTRIES.map((c) => c.slug));
   const cities = new Map(); // slug -> { slug, name, countryVotes: Map }
   const countries = new Map(); // slug -> { slug, name }
+  // Live profile counts for EVERY location slug (curated included) — the
+  // noindex decision for zero-profile pages is made from these, never
+  // from the stale committed snapshot, when the fetch succeeds.
+  const liveCounts = { cities: new Map(), countries: new Map() };
   try {
     let offset = 0;
     const limit = 100;
@@ -169,6 +192,14 @@ async function fetchDynamicLocations() {
       const data = await res.json();
       const rows = Array.isArray(data) ? data : (data.rows || []);
       for (const p of rows) {
+        const cityCountSlug = slugifyLocation(String(p.city || '').trim());
+        if (cityCountSlug) {
+          liveCounts.cities.set(cityCountSlug, (liveCounts.cities.get(cityCountSlug) || 0) + 1);
+        }
+        const countryCountSlug = canonicalCountrySlug(slugifyLocation(String(p.country || '').trim()));
+        if (countryCountSlug) {
+          liveCounts.countries.set(countryCountSlug, (liveCounts.countries.get(countryCountSlug) || 0) + 1);
+        }
         const city = String(p.city || '').trim();
         if (city) {
           const slug = slugifyLocation(city);
@@ -200,7 +231,7 @@ async function fetchDynamicLocations() {
     }
   } catch (err) {
     console.warn(`dynamic locations: live API fetch failed (${err.message}) — prerendering curated locations only.`);
-    return { cities: [], countries: [] };
+    return { cities: [], countries: [], liveCounts: { cities: new Map(), countries: new Map() }, live: false };
   }
   const cityList = [...cities.values()].map((c) => {
     let country = '';
@@ -210,12 +241,41 @@ async function fetchDynamicLocations() {
     }
     return { slug: c.slug, name: c.name, country };
   });
-  const out = { cities: cityList, countries: [...countries.values()] };
+  const out = { cities: cityList, countries: [...countries.values()], liveCounts, live: true };
   console.log(`dynamic locations: ${out.cities.length} cities, ${out.countries.length} countries with member profiles (not in the curated list)`);
   return out;
 }
 
 const DYNAMIC_LOCATIONS = await fetchDynamicLocations();
+
+// Live community totals for the homepage hero (2026-11-11 sweep fix): the
+// member count used to exist only in the React render, so the served HTML
+// showed crawlers and first paint NO number at all. Same source the client
+// uses (the public stats endpoint, `browsable` = the count a visitor
+// actually sees in /profiles); the client keeps refreshing it live after
+// boot. A failed fetch simply omits the line — never a stale figure.
+async function fetchSiteStats() {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const res = await fetch(DYNAMIC_API.replace(/\/profiles\/?$/, '/profiles/stats'), {
+        headers: { Accept: 'application/json' },
+        signal: ctrl.signal,
+      });
+      if (!res.ok) return null;
+      const d = await res.json();
+      const browsable = Number(d.browsable ?? d.members ?? 0);
+      if (!Number.isFinite(browsable) || browsable <= 0) return null;
+      return { members: browsable, cities: Number(d.cities ?? 0) };
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return null;
+  }
+}
+const SITE_STATS = await fetchSiteStats();
 
 const ALL = {
   ...ROUTE_SEO,
@@ -225,6 +285,39 @@ const ALL = {
   ...dynamicLocationRouteSeo(DYNAMIC_LOCATIONS),
   '/locations': { title: 'Shia Matrimony by City & Country | Shia Rishta', desc: 'Find Shia matrimonial profiles by city or country. Browse verified Shia rishta in Karachi, London, Toronto, Dubai and more. Free to browse.', h1: 'Shia matrimony by location', lede: 'Find Shia matrimonial profiles by city or country. Every location listed is a real Shia community with its own page, and each page links to live, filtered results.', sections: [{ h2: 'Where are members?', p: ['This directory lists every city and country with a real Shia community. Pages with members show live profiles; pages without members yet describe the community and invite the first profile.', 'Where a location is not listed here, it has no curated community page yet — but any city or country with member profiles has its own page, linked from those members\' profiles.'] }], faq: [] },
 };
+
+// Zero-profile location pages carry noindex in the SERVED document
+// (2026-11-11 sweep fix). The runtime CityPage already flips the robots
+// meta after its fetch resolves, but a crawler that never runs JS read
+// "index, follow" here — the audit's noindex never reached the raw HTML.
+// Counts come from the SAME live roster fetch as the dynamic pages
+// (bucketed over the whole browsable roster, curated slugs included);
+// the committed snapshot is only a fallback when that fetch failed, and
+// dynamic routes have profiles by construction. Countries are counted
+// through the alias groups, so "UK" profiles keep the united-kingdom
+// page indexable exactly as the merged filter sees them.
+for (const [route, meta] of Object.entries(ALL)) {
+  const m = route.match(/^\/(city|country)\/([^/]+)$/);
+  if (!m) continue;
+  const kind = m[1] === 'city' ? 'cities' : 'countries';
+  const slug = m[1] === 'country' ? canonicalCountrySlug(m[2]) : m[2];
+  let count;
+  if (DYNAMIC_LOCATIONS.live) {
+    count = DYNAMIC_LOCATIONS.liveCounts[kind].get(slug) || 0;
+  } else {
+    const snap = (m[1] === 'city' ? ALL_LOCATIONS.cities : ALL_LOCATIONS.countries)
+      .find((x) => (m[1] === 'country' ? canonicalCountrySlug(x.slug) : x.slug) === slug);
+    count = snap?.count || 0;
+  }
+  if (count === 0) meta.noindex = true;
+}
+
+// Homepage hero count (same fix batch): the live browsable total, baked
+// into the served hero; React refreshes it from the same endpoint.
+if (ALL['/'] && SITE_STATS) {
+  ALL['/'].memberCount = SITE_STATS.members;
+  ALL['/'].memberCities = SITE_STATS.cities;
+}
 
 /**
  * BreadcrumbList for a route. Only real routes appear, and the homepage has
@@ -446,11 +539,15 @@ function renderBody(meta, route) {
   // screen now occupy roughly the same space. The badges are omitted here on
   // purpose: they are decorative, and reproducing them would re-introduce the
   // entrance animation that was itself an LCP contributor.
+  const heroCount = meta.memberCount
+    ? `<p class="seo-hero-count"><strong>${meta.memberCount} ${meta.memberCount === 1 ? 'member' : 'members'}</strong>${meta.memberCities ? ` across ${meta.memberCities} ${meta.memberCities === 1 ? 'city' : 'cities'}` : ''}</p>`
+    : '';
   parts.push(
     '<section class="seo-hero">',
     '<div class="seo-hero-copy">',
     `<h1>${esc(meta.h1)}</h1>`,
     `<p>${esc(meta.lede)}</p>`,
+    heroCount,
     '<p class="seo-cta">',
     `<a class="seo-btn" href="${SITE_URL}/profiles">Browse profiles</a>`,
     `<a class="seo-btn-ghost" href="${SITE_URL}/auth/register">Create free account</a>`,
@@ -616,10 +713,15 @@ async function buildRouteHtml(route, meta, baseHtml) {
   // crawler that does not execute JS saw NO directive at all, which an audit
   // correctly reported as "robots meta not specified". Static is the only
   // version most crawlers ever read, so it must be in the served document.
+  // Zero-profile location pages are marked noindex above (meta.noindex) —
+  // the same value CityPage's runtime effect applies after its fetch.
   if (!/<meta name="robots"/.test(html)) {
+    const robots = meta.noindex
+      ? 'noindex, nofollow'
+      : 'index, follow, max-image-preview:large, max-snippet:-1';
     html = html.replace(
       /(<link rel="canonical"[^>]*\/?>)/,
-      '$1\n    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />',
+      `$1\n    <meta name="robots" content="${robots}" />`,
     );
   }
 

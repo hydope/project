@@ -882,7 +882,12 @@ function profilesList(): void
     if ($searchable($maritalStatus, 'marital')) { $where[] = 'p.marital_status = ?'; $params[] = $maritalStatus; }
     if ($searchable($convertStatus, 'convert')) { $where[] = 'p.convert_status = ?'; $params[] = $convertStatus; }
     $verifiedOnly = ($_GET['verifiedOnly'] ?? 'false') === 'true';
-    if ($verifiedOnly) { $where[] = 'p.is_verified = 1'; }
+    // Badge truth (2026-11-11 sweep fix): the filter must agree with the
+    // badges members actually see, and those are derived from verified_kind
+    // (id_document = gold, selfie = blue). The legacy is_verified flag has
+    // rows with verified_kind 'none' — no badge anywhere — so filtering on
+    // it showed members people the site itself nowhere calls verified.
+    if ($verifiedOnly) { $where[] = "p.verified_kind IN ('id_document', 'selfie')"; }
     if ($search !== null && trim((string)$search) !== '') {
         // utf8mb4_unicode_ci LIKE is case-insensitive — parity with ILIKE.
         $where[] = '(p.display_name LIKE ? OR p.profession LIKE ? OR p.city LIKE ?)';

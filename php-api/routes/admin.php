@@ -610,15 +610,24 @@ function adminOverview(): void
 function adminHealth(): void
 {
     $rows = db()->query(
-        'SELECT p.user_id, p.display_name, p.city, p.profession, p.visibility
-           FROM profiles p'
+        'SELECT p.user_id, p.display_name, p.city, p.profession, p.visibility, u.is_test AS owner_test
+           FROM profiles p
+           LEFT JOIN users u ON u.id = p.user_id'
     )->fetchAll();
 
     // Negate, for the same array_filter reason documented in profilesStats():
     // passing isTestShellRow() directly would report the 48 shells as the real
     // profile count and leave the banner reassuring an operator about junk data.
     $real = array_values(array_filter($rows, static fn(array $r): bool => !isTestShellRow($r)));
-    $shells = count($rows) - count($real);
+    // Test shells hidden from browse — ONE definition (2026-11-11 sweep
+    // fix), shared with profilesStats(): owner account flagged is_test OR
+    // profile matches the shell patterns. This endpoint used to count
+    // pattern-shells over ALL profiles (50) while the public stats counted
+    // them only over non-test owners (7); both now count the same set.
+    $shells = 0;
+    foreach ($rows as $r) {
+        if (!empty($r['owner_test']) || isTestShellRow($r)) $shells++;
+    }
 
     // A profile that is browsable but has nothing in it is the other half of
     // the problem: a wall of blanks reads exactly like a wall of junk.
@@ -1700,10 +1709,10 @@ function adminAuditList(): void
 function adminWaliLinks(): void
 {
     try {
-        // wali_links has no `id` column (the token is the primary key) and
-        // revokes via a `revoked` flag, not a `revoked_at` timestamp. Selecting
-        // the wrong names here is what kept this endpoint reporting
-        // "not available" forever.
+        // wali_links has no `id` column (the token is the primary key).
+        // Selecting the wrong names here is what kept this endpoint
+        // reporting "not available" forever. Both revoke paths (member and
+        // admin) stamp revoked_at — the member's restore window keys on it.
         //
         // The token itself is NEVER returned. It is the bearer credential that
         // opens a read-only view of that member's profile, so an admin list must
@@ -1749,7 +1758,12 @@ function adminWaliRevoke(string $ref): void
     if (!preg_match('/^[0-9a-f]{12}$/', $ref)) {
         je('Unknown companion link.', 404);
     }
-    $stmt = db()->prepare('UPDATE wali_links SET revoked = 1 WHERE LEFT(SHA2(token, 256), 12) = ? AND revoked = 0');
+    // revoked_at MUST be stamped here, exactly as the member revoke in
+    // routes/wali.php stamps it: the member's 24h restore window is keyed
+    // on revoked_at, and a NULL there reads as "revoked more than 24 hours
+    // ago" forever — an admin-revoked link could never be restored
+    // (2026-11-11 sweep fix).
+    $stmt = db()->prepare('UPDATE wali_links SET revoked = 1, revoked_at = UTC_TIMESTAMP() WHERE LEFT(SHA2(token, 256), 12) = ? AND revoked = 0');
     $stmt->execute([$ref]);
     if ($stmt->rowCount() === 0) {
         je('Link not found or already revoked.', 404);
@@ -2113,14 +2127,29 @@ function adminFunnel(): void
         }
     };
 
+    // Definitions aligned with adminAnalytics() (2026-11-11 sweep fix):
+    // every step counts REAL members only (not admin, not test, not a
+    // seeder account, profile not seeded), so no step can ever exceed
+    // "Registered". The old published step counted profile rows —
+    // including orphan rows whose user no longer exists — and reported
+    // 208 published out of 206 registered (101%).
+    $real = "u.is_admin = 0 AND u.is_test = 0 AND u.email NOT LIKE 'seeded-%@shiarishta.com' AND COALESCE(p.is_seeded, 0) = 0";
+    $joinP = 'LEFT JOIN profiles p ON p.user_id = u.id';
+    $finished = "TRIM(COALESCE(p.city, '')) <> '' AND TRIM(COALESCE(p.country, '')) <> '' AND TRIM(COALESCE(p.bio, '')) <> '' AND TRIM(COALESCE(p.expectations, '')) <> ''";
+    $partnerReal = static fn(string $col): string => sprintf(
+        "EXISTS (SELECT 1 FROM users ux LEFT JOIN profiles px ON px.user_id = ux.id WHERE ux.id = %s AND ux.is_admin = 0 AND ux.is_test = 0 AND ux.email NOT LIKE 'seeded-%%@shiarishta.com' AND COALESCE(px.is_seeded, 0) = 0)",
+        $col
+    );
+
     $steps = [
-        ['key' => 'registered', 'label' => 'Registered', 'n' => $count('SELECT COUNT(*) AS n FROM users WHERE is_test = 0')],
-        ['key' => 'verified', 'label' => 'Email verified', 'n' => $count('SELECT COUNT(*) AS n FROM users WHERE email_verified = 1 AND is_test = 0')],
-        ['key' => 'published', 'label' => 'Profile published', 'n' => $count("SELECT COUNT(*) AS n FROM profiles WHERE visibility != 'private' AND user_id NOT IN (SELECT id FROM users WHERE is_test = 1)")],
-        ['key' => 'idVerified', 'label' => 'ID verified', 'n' => $count('SELECT COUNT(*) AS n FROM profiles WHERE is_verified = 1 AND user_id NOT IN (SELECT id FROM users WHERE is_test = 1)')],
-        ['key' => 'interested', 'label' => 'Interest sent', 'n' => $count('SELECT COUNT(DISTINCT from_user_id) AS n FROM interests')],
+        ['key' => 'registered', 'label' => 'Registered', 'n' => $count("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real}")],
+        ['key' => 'verified', 'label' => 'Email verified', 'n' => $count("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real} AND u.email_verified = 1")],
+        ['key' => 'published', 'label' => 'Profile published', 'n' => $count("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real} AND {$finished} AND p.visibility <> 'private'")],
+        ['key' => 'idVerified', 'label' => 'ID verified', 'n' => $count("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real} AND p.verified_kind = 'id_document'")],
+        ['key' => 'interested', 'label' => 'Interest sent', 'n' => $count("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real} AND EXISTS (SELECT 1 FROM interests i WHERE i.from_user_id = u.id)")],
         ['key' => 'matched', 'label' => 'Mutual match', 'n' => $count(
-            'SELECT COUNT(*) AS n FROM interests a JOIN interests b ON a.from_user_id = b.to_user_id AND a.to_user_id = b.from_user_id',
+            'SELECT COUNT(*) AS n FROM interests i1 JOIN interests i2 ON i2.from_user_id = i1.to_user_id AND i2.to_user_id = i1.from_user_id WHERE i1.from_user_id < i1.to_user_id AND '
+            . $partnerReal('i1.from_user_id') . ' AND ' . $partnerReal('i1.to_user_id')
         )],
     ];
 

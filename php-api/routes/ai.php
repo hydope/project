@@ -583,6 +583,18 @@ function aiCreatePost(): void
         ? $draft['status']
         : 'draft';
     $schedule = normaliseSchedule($draft['scheduledFor'] ?? $draft['scheduled_for'] ?? null);
+    // A scheduled post needs a FUTURE date (2026-11-11 sweep fix): a past
+    // date was accepted and the publish-due cron then flipped the post
+    // live at its next run, silently. The update path already required a
+    // date; create now requires one too, and both reject the past.
+    if ($status === 'scheduled') {
+        if ($schedule === null) {
+            je('A scheduled post needs a publish date.', 400);
+        }
+        if (strtotime($schedule) <= time()) {
+            je('The publish date must be in the future.', 400);
+        }
+    }
 
     $blocks = [];
     foreach ((array)($draft['body'] ?? []) as $b) {
@@ -690,6 +702,9 @@ function aiUpdatePost(string $id): void
         $schedule = normaliseSchedule($body['scheduledFor'] ?? $body['scheduled_for'] ?? null);
         if ($schedule === null) {
             je('A scheduled post needs a publish date.', 400);
+        }
+        if (strtotime($schedule) <= time()) {
+            je('The publish date must be in the future.', 400);
         }
         $sets[] = 'scheduled_for = ?';
         $args[] = $schedule;

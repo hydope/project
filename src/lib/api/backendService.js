@@ -74,7 +74,7 @@ export const profiles = {
     return delay(200, 500).then(() => this.getAll().then(r => {
       if (f.minAge) r = r.filter(p => p.age >= +f.minAge);
       if (f.maxAge) r = r.filter(p => p.age <= +f.maxAge);
-      if (f.verifiedOnly) r = r.filter(p => p.is_verified);
+      if (f.verifiedOnly) r = r.filter(p => (p.verified_kind ? p.verified_kind !== 'none' : p.is_verified));
       if (f.gender) r = r.filter(p => p.gender === f.gender);
       if (f.sect && f.sect !== 'Any sect') r = r.filter(p => p.sect === f.sect);
       if (f.search) {

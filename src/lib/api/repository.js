@@ -37,7 +37,7 @@ export const profilesRepo = {
     let list = allProfiles();
     if (filters.minAge) list = list.filter((p) => p.age >= +filters.minAge);
     if (filters.maxAge) list = list.filter((p) => p.age <= +filters.maxAge);
-    if (filters.verifiedOnly) list = list.filter((p) => p.is_verified);
+    if (filters.verifiedOnly) list = list.filter((p) => (p.verified_kind ? p.verified_kind !== 'none' : p.is_verified));
     if (filters.gender) list = list.filter((p) => p.gender === filters.gender);
     if (filters.sect && filters.sect !== 'Any sect') list = list.filter((p) => p.sect === filters.sect);
     if (filters.search) {

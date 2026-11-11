@@ -130,9 +130,15 @@ function authLogin(): void
 
 function authLogout(): void
 {
-    // The client clears its own token; this drops the row so the session list
-    // stops showing a signed-out device.
-    requireAuthUser();
+    // Denylist the token itself, not just its session row (2026-11-11):
+    // requireAuthUser() verifies the JWT signature, so without this the
+    // token stayed fully valid until expiry and "logout" revoked nothing.
+    // Only THIS token dies — the member's other sessions keep working.
+    $user = requireAuthUser();
+    $token = hbearer();
+    if ($token !== null && function_exists('revokeToken')) {
+        revokeToken($token, isset($user['exp']) ? (int)$user['exp'] : null);
+    }
     dropSession();
     clearAuthCookie();
     json(['ok' => true]);

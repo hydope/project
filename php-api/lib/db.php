@@ -75,6 +75,14 @@ function requireAuthUser(): array
     if ($user === null) {
         je('Authentication required', 401);
     }
+    // Signed-out tokens stay signed out (2026-11-11): logout denylists the
+    // token's hash until its expiry, because the JWT signature alone would
+    // otherwise keep it valid for days. Runtime-resolved like touchSession
+    // below (lib/sessions.php loads after this file) and failure-tolerant —
+    // a denylist error can never lock members out.
+    if (function_exists('tokenIsRevoked') && tokenIsRevoked()) {
+        je('Authentication required', 401);
+    }
     // Refresh last_seen for the Security tab's session list. Runtime-resolved
     // (lib/sessions.php loads after this file) — guarded so a stripped deploy
     // can never brick authentication.
@@ -217,6 +225,22 @@ function profilesStats(): void
         $browsable++;
     }
 
+    // Test shells hidden from browse — ONE definition (2026-11-11 sweep
+    // fix), shared with adminHealth(): a profile browse hides for test
+    // reasons, i.e. its owner account is flagged is_test OR the profile
+    // matches the shared shell patterns (isTestShellRow). The two counters
+    // previously counted pattern-shells over different universes — this
+    // endpoint excluded is_test owners first (7) while admin health did
+    // not (50) — so the site quoted two different numbers for one thing.
+    $shellRows = db()->query(
+        'SELECT p.display_name, p.city, p.profession, u.is_test AS owner_test
+           FROM profiles p LEFT JOIN users u ON u.id = p.user_id'
+    )->fetchAll();
+    $shellsHidden = 0;
+    foreach ($shellRows as $r) {
+        if (!empty($r['owner_test']) || isTestShellRow($r)) $shellsHidden++;
+    }
+
     json([
         'members' => count($real),
         'browsable' => $browsable,
@@ -224,7 +248,7 @@ function profilesStats(): void
         'verified' => $verified,
         // Names only — a city label a member published themselves.
         'topCities' => array_slice(array_keys($cities), 0, 6),
-        'testShellsHidden' => count($rows) - count($real),
+        'testShellsHidden' => $shellsHidden,
     ]);
 }
 
@@ -725,12 +749,37 @@ function resolveLocationFilterValues(string $column, string $requested): array
     $slug = slugifyLocation($requested);
     if ($slug === '') return [];
     $col = $column === 'country' ? 'country' : 'city';
+    // Country spelling groups (2026-11-11 sweep fix): a member who stored
+    // "UK" and one who stored "United Kingdom" are in the SAME country, and
+    // the /country pages already treat them as one (the uk page 301-merges
+    // into united-kingdom; src/data/countryAliases.js lists the same
+    // variations). The browse filter resolved only the exact slug, so
+    // ?country=uk found 4 people and ?country=united-kingdom found 5 —
+    // disjoint sets for one country. For countries, a slug matches every
+    // stored value whose slug is in its group. Cities keep exact-slug
+    // matching: "York" and "New York" must never merge.
+    $slugs = [$slug];
+    if ($col === 'country') {
+        $groups = [
+            ['uk', 'united-kingdom', 'great-britain', 'britain', 'england'],
+            ['usa', 'united-states', 'united-states-of-america', 'america', 'us'],
+            ['uae', 'united-arab-emirates', 'emirates'],
+            ['saudi-arabia', 'saudi', 'ksa', 'kingdom-of-saudi-arabia'],
+            ['south-korea', 'korea', 'republic-of-korea'],
+            ['netherlands', 'holland'],
+            ['new-zealand', 'nz'],
+            ['ivory-coast', 'cote-d-ivoire'],
+        ];
+        foreach ($groups as $g) {
+            if (in_array($slug, $g, true)) { $slugs = $g; break; }
+        }
+    }
     $stmt = db()->prepare("SELECT DISTINCT {$col} FROM profiles WHERE {$col} IS NOT NULL AND TRIM({$col}) <> ''");
     $stmt->execute();
     $values = [];
     foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $stored) {
         $stored = (string)$stored;
-        if (slugifyLocation(trim($stored)) === $slug) $values[] = $stored;
+        if (in_array(slugifyLocation(trim($stored)), $slugs, true)) $values[] = $stored;
     }
     return $values;
 }
