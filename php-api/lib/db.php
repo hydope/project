@@ -313,6 +313,32 @@ function lastActiveLabel($ts): ?string
     return 'over a week ago';
 }
 
+// Last-active SQL (2026-11-10, fallback): the recorded login/activity
+// timestamp (users.last_active_at) always wins. When it is NULL — every
+// member whose activity predates the tracking column — fall back to the
+// member's own real signals: the latest message they sent, the latest
+// interest they sent, and their profile's updated_at; the newest of the
+// three is the honest last-activity moment. REAL members only, mirroring
+// the analytics definition of real: seeded profiles never gain a value
+// (their updated_at moves when the seeder runs — deriving "active" from
+// it would fabricate a person's presence), and neither do test accounts,
+// demo/sample profiles, or user-less matchmaker profiles. The expression
+// is selected AS last_active_at so visibleProfile() needs no change.
+// Aliases: profiles p, users u.
+function lastActiveSql(): string
+{
+    return "COALESCE(u.last_active_at, CASE WHEN u.id IS NOT NULL"
+        . " AND COALESCE(u.is_test, 0) = 0"
+        . " AND COALESCE(p.is_seeded, 0) = 0"
+        . " AND COALESCE(p.is_demo, 0) = 0"
+        . " AND u.email NOT LIKE 'seeded-%@shiarishta.com'"
+        . " THEN (SELECT MAX(s.ts) FROM ("
+        . "SELECT MAX(m.created_at) AS ts FROM messages m WHERE m.sender_id = p.user_id"
+        . " UNION ALL SELECT MAX(i.created_at) AS ts FROM interests i WHERE i.from_user_id = p.user_id"
+        . " UNION ALL SELECT p.updated_at AS ts"
+        . ") s) END)";
+}
+
 // Hide-any-field (2026-11-09): profiles.hidden_fields holds a JSON array of
 // payload keys the member wants hidden from other viewers. DISPLAY-ONLY —
 // the stored values stay in the row, so server-side matching and browse
@@ -327,6 +353,11 @@ function applyHiddenFields(array $payload, array $row, bool $isOwner): array
     $hidden = $raw === '' ? [] : json_decode($raw, true);
     if (!is_array($hidden)) $hidden = [];
     $hidden = array_values(array_unique(array_map('strval', $hidden)));
+    // Last login is never hideable (Syed's explicit order, 2026-11-10): it
+    // is a fact about the account, not a profile detail. 'lastActive' is
+    // out of the profileUpdate() allowlist, and a value stored before the
+    // rule (or sent by a hand-crafted client) has no effect here either.
+    $hidden = array_values(array_diff($hidden, ['lastActive']));
     if ($isOwner) {
         $payload['hiddenFields'] = $hidden;
         return $payload;

@@ -963,7 +963,7 @@ function profilesList(): void
     // Real profiles first, seeded profiles after — then newest-first within
     // each group. Seeded profiles fill out the directory but never outrank
     // a real member.
-    $sql = 'SELECT p.*, u.last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE ' . implode(' AND ', $where) . ' ORDER BY p.is_seeded ASC, p.created_at DESC' . (($paged || $sortMatch) ? '' : ' LIMIT ' . (isset($limit) ? (int)$limit : 100));
+    $sql = 'SELECT p.*, ' . lastActiveSql() . ' AS last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE ' . implode(' AND ', $where) . ' ORDER BY p.is_seeded ASC, p.created_at DESC' . (($paged || $sortMatch) ? '' : ' LIMIT ' . (isset($limit) ? (int)$limit : 100));
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
@@ -1089,7 +1089,7 @@ function profilesList(): void
 function profileMe(): void
 {
     $user = requireAuthUser();
-    $stmt = db()->prepare('SELECT p.*, u.last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE p.user_id = ? LIMIT 1');
+    $stmt = db()->prepare('SELECT p.*, ' . lastActiveSql() . ' AS last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE p.user_id = ? LIMIT 1');
     $stmt->execute([$user['uid']]);
     $row = $stmt->fetch();
 
@@ -1114,7 +1114,7 @@ function favouritesList(): void
 
     try {
         $rows = db()->prepare(
-            'SELECT p.*, u.last_active_at, f.created_at AS fav_created_at
+            'SELECT p.*, ' . lastActiveSql() . ' AS last_active_at, f.created_at AS fav_created_at
                FROM favourites f
                JOIN profiles p ON p.user_id = f.profile_id
                LEFT JOIN users u ON u.id = p.user_id
@@ -1188,7 +1188,7 @@ function favouriteRemove(string $id): void
 
 function profileById(string $id): void
 {
-    $stmt = db()->prepare('SELECT p.*, u.last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE p.user_id = ? LIMIT 1');
+    $stmt = db()->prepare('SELECT p.*, ' . lastActiveSql() . ' AS last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE p.user_id = ? LIMIT 1');
     $stmt->execute([$id]);
     $row = $stmt->fetch();
 
@@ -1413,16 +1413,18 @@ function profileUpdate(): void
             'profession', 'incomeRange', 'timeline', 'relocation', 'familyInvolvement',
             'children', 'childrenPlans', 'bio', 'expectations', 'aboutFamily',
             // Profile depth (2026-11-10): every new display field is
-            // hideable. 'video' and 'lastActive' are server-allowlist-only —
-            // the video is governed by its photo tier, not a toggle, and
-            // last-active has no Settings toggle (it is a fact, not a
-            // detail); accepting the keys keeps a client that sends them
-            // from silently losing the rest of the list.
+            // hideable. 'video' is server-allowlist-only — it is governed
+            // by its photo tier, not a toggle; accepting the key keeps a
+            // client that sends it from silently losing the rest of the
+            // list. 'lastActive' is NOT accepted (removed 2026-11-10,
+            // Syed's explicit order): last login is always visible and a
+            // member can never hide it — applyHiddenFields() also strips
+            // it from any list stored before the rule.
             'educationField', 'educationInstitution', 'employer', 'residencyStatus',
             'build', 'hobbies', 'convertStatus',
             'prefAgeMin', 'prefAgeMax', 'prefHeightMinCm', 'prefHeightMaxCm',
             'prefEducation', 'prefLocation', 'prefMustHaves',
-            'video', 'lastActive'];
+            'video'];
         $hiddenClean = array_values(array_unique(array_intersect(
             array_map('strval', $hiddenRaw), $hiddenAllowed)));
         $b['hidden_fields'] = $hiddenClean === [] ? null : json_encode($hiddenClean);
@@ -1652,7 +1654,7 @@ function profileUpdate(): void
     db()->prepare($sql)->execute($insertVals);
     touchLastActive($user['uid']);
 
-    $fetch = db()->prepare('SELECT p.*, u.last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE p.user_id = ? LIMIT 1');
+    $fetch = db()->prepare('SELECT p.*, ' . lastActiveSql() . ' AS last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE p.user_id = ? LIMIT 1');
     $fetch->execute([$user['uid']]);
     $row = $fetch->fetch();
     if (!$row) {
