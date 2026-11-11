@@ -253,28 +253,109 @@ export function locationsWithMembers(profiles) {
   };
 }
 
+/** Trim to at most `max` chars, ending on a whole word. */
+function trimToWords(str, max) {
+  if (str.length <= max) return str;
+  const cut = str.slice(0, max - 1);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > 40 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;—-]+$/, '');
+}
+
+/**
+ * Per-location meta description (2026-11-10 on-page audit fix).
+ *
+ * The old description was ONE sentence repeated on ~180 city/country pages
+ * with only the place name swapped — a near-duplicate across the whole
+ * cluster. Every curated location carries a unique community note, so the
+ * description is built from that note: no two curated pages share one.
+ */
+export function locationMetaDesc(name, note) {
+  const full = `Shia matrimony in ${name}. ${note} Privacy-first profiles and wali-involved introductions. Free to join.`;
+  if (full.length <= 155) return full;
+  // Too long: drop the boilerplate suffix before trimming the note itself,
+  // so the description still ends on a complete sentence where it can.
+  const bare = `Shia matrimony in ${name}. ${note}`;
+  return trimToWords(bare, 155);
+}
+
+/**
+ * The substantive sections every location page carries (2026-11-10 audit
+ * fix). The prerender used to emit ONLY the one-line community note (~35
+ * words) — a thin shell at 180-page scale. These sections add the true,
+ * universal process copy: how a Shia rishta actually proceeds, and how the
+ * search works. Nothing local is invented: the only place-specific facts
+ * are the curated note itself and, when known, the real profile count from
+ * the committed snapshot. `count` semantics: >0 prints the count, 0 says
+ * no profiles yet, null stays neutral (the runtime page, whose live count
+ * is capped by its fetch limit, passes null so it never prints a wrong
+ * figure).
+ */
+export function buildLocationSections({ name, note, count }) {
+  const countPara =
+    count > 0
+      ? `There are currently ${count} ShiaRishta ${count === 1 ? 'profile' : 'profiles'} from ${name}, and every one is searchable by marja, practice, age, and education — the questions Shia families ask first.`
+      : count === 0
+        ? `No ShiaRishta profiles from ${name} are listed yet — the first profile from a place is usually the one that starts its search. Profiles from the wider region are searchable by marja, practice, age, and education — the questions Shia families ask first.`
+        : `ShiaRishta profiles from ${name} are searchable by marja, practice, age, and education — the questions Shia families ask first.`;
+  return [
+    { h2: `About Shia families in ${name}`, p: [note] },
+    {
+      h2: `How Shia matchmaking works in ${name}`,
+      p: [
+        `A Shia rishta in ${name} usually begins the way it begins everywhere: one family learns of a suitable person — through relatives, through the local community, or through a matchmaker — and approaches the other family. The families talk first: is this person Shia, which marja do they follow, how do they practise, what does each side want from a marriage? Only when both families are comfortable does an introduction happen, with the wali — the bride’s guardian — involved from the start rather than brought in at the end.`,
+        'Many families then seek guidance through istikhara before proceeding, settle the mahr, and move to the nikah itself. The whole process is family-led by design: a rishta is a proposal carried by a family and answered by a family, not a private arrangement between two strangers.',
+      ],
+    },
+    {
+      h2: `Searching for a rishta in ${name}`,
+      p: [
+        countPara,
+        'Photos stay private by default: each member chooses who sees theirs, contact details are never published, and a conversation opens only after interest is mutual. Members can earn photo and ID verification badges, so a family can see that identity has been checked before the first introduction. New to the process? Read [how Shia rishtay work](/shia-rishtay/) and [what a Shia nikah involves](/shia-nikah/) before your family’s first introduction.',
+      ],
+    },
+  ];
+}
+
+/** The three questions every location page answers (visible FAQ + FAQPage schema). */
+export function buildLocationFaq({ name }) {
+  return [
+    {
+      q: `How do I find a Shia rishta in ${name}?`,
+      a: `Browse the profiles listed for ${name}, filter by marja, practice, age, and education, and express interest where a profile fits. Introductions are family-led, with the wali involved from the start, and a conversation opens only after interest is mutual.`,
+    },
+    {
+      q: `Is ShiaRishta free to use in ${name}?`,
+      a: 'Yes. Joining, browsing, and creating a profile are free, and there are no charges based on where you live.',
+    },
+    {
+      q: 'Can my family be involved in the introduction?',
+      a: 'Yes — that is how the process is designed to work. Parents, guardians, and the wali can be part of introductions from the first step, and matchmakers can submit profiles on behalf of the families they serve.',
+    },
+  ];
+}
+
 /** Prerender entries for every curated location. Each page carries its unique community note. */
 export function locationRouteSeo(withMembers) {
   const out = {};
   for (const c of withMembers.cities) {
     out[`/city/${c.slug}`] = {
       title: `Shia Matrimony in ${c.name} | Shia Rishta & Matchmaking`,
-      desc: `Browse Shia matrimonial profiles in ${c.name}. Privacy-first photos, mutual-interest messaging and wali-supported introductions. Free to join.`,
+      desc: locationMetaDesc(c.name, c.note),
       h1: `Shia matrimony in ${c.name}`,
       lede: `Shia Rishta profiles in ${c.name}, ${c.country}. Every profile is created with marriage intent, photos stay private by default, and a conversation opens only after interest is mutual.`,
-      sections: [{ h2: `About Shia families in ${c.name}`, p: c.note }],
-      faq: [],
+      sections: buildLocationSections({ name: c.name, note: c.note, kind: 'city', count: c.count || 0 }),
+      faq: buildLocationFaq({ name: c.name }),
       liveFilter: `/profiles?city=${encodeURIComponent(c.name)}`,
     };
   }
   for (const k of withMembers.countries) {
     out[`/country/${k.slug}`] = {
       title: `Shia Matrimony in ${k.name} | Free Shia Rishta Platform`,
-      desc: `Find Shia brides and grooms in ${k.name}. Privacy-first profiles, wali and guardian workflows, mutual-interest messaging. Free.`,
+      desc: locationMetaDesc(k.name, k.note),
       h1: `Shia matrimony in ${k.name}`,
       lede: `Shia matrimonial profiles across ${k.name}, filterable by city, sect, marja and practice. Free to browse, and no account is needed to view public profiles.`,
-      sections: [{ h2: `Shia families in ${k.name}`, p: k.note }],
-      faq: [],
+      sections: buildLocationSections({ name: k.name, note: k.note, kind: 'country', count: k.count || 0 }),
+      faq: buildLocationFaq({ name: k.name }),
       liveFilter: `/profiles?country=${encodeURIComponent(k.name)}`,
     };
   }

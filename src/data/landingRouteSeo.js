@@ -36,47 +36,43 @@ const LANDING_BODY = {
           'This page explains what a Shia nikah is, what makes it valid, how it differs from Sunni practice, and how to find a Shia spouse for nikah.',
           'Marriage is among the most recommended acts in Islam. The Prophet (s.a.w.) is reported to have said, “Whosoever marries, he has protected half of his religion,” and “Whoever likes to follow my tradition, then [he should know that] marriage is of my tradition.” Imam al-Baqir (a.s.) is reported to have said that no institution has been created in Islam more favoured and dearer to Allah than wedlock.',
           'In Shia law, marriage is of two kinds: permanent and temporary. A permanent marriage has no fixed time limit. A temporary marriage (mut’ah) fixes a duration and a mahr in the contract. Both are real marriages under Shia fiqh, and both follow the same contract rules — formula, consent, and mahr — with the duration stated in the temporary case.',
-          'The nikah is a contract, and like any contract it has conditions. Ayatollah Sistani’s Islamic Laws (Ruling 2389) sets out five conditions for the marriage contract to be valid. First, the formula must be said in Arabic, as a matter of obligatory precaution. If the man or woman cannot say it in Arabic, they may say it in another language, using words that convey the meaning of zawwajtu (I wed) and qabiltu (I accept). They do not need to appoint an agent in that case. Second, intention: the man and woman — or their agents — must intend to establish the marriage when they say the formula. Third, sanity and maturity: the person saying the formula must be sane, and if saying it for themselves, must be of the age of legal responsibility (baligh). Fourth, the parties must be specified: if agents or guardians say the formula, they must name or indicate the husband and wife. A formula that does not identify a particular person is invalid. Fifth, consent: both the man and the woman must consent to the marriage. If they appear to disapprove but it is known that in their hearts they consent, the contract is valid — and if a marriage is contracted without consent and both later consent, it becomes valid.',
+          'The nikah is a contract, and like any contract it has conditions. Ayatollah Sistani’s Islamic Laws (Ruling 2389) sets out five: the formula said in Arabic as a matter of obligatory precaution (another language conveying the same meaning is permitted when Arabic is not possible); intention to establish the marriage; sanity and maturity in the person speaking; the husband and wife clearly specified; and the consent of both parties. The [complete Shia nikah guide](/shia-nikah-guide/) sets out each condition in full, with the reasoning behind it.',
         ],
       },
       {
         h2: 'The formula (sigha)',
         p: [
           'The formula is the heart of the nikah. For a permanent marriage, the woman says: “Zawwajtuka nafsi ’ala as-sidaq al-ma’lum” — I have made myself your wife on the agreed mahr. The man replies immediately: “Qabiltut tazwij” — I accept the marriage.',
-          'The acceptance must follow without a long pause. The couple may recite the formula themselves, or they may appoint representatives (wakil) to recite it on their behalf. A woman may represent a man and a man may represent a woman. One representative may act for both spouses. A small mispronunciation does not invalidate the contract if the meaning is unchanged.',
+          'The acceptance must follow without a long pause. The couple may recite the formula themselves, or appoint representatives (wakil) to recite it on their behalf — one representative may act for both spouses. A small mispronunciation does not invalidate the contract if the meaning is unchanged, and no cleric is required for the contract to be valid. The [complete guide](/shia-nikah-guide/) covers representatives and the temporary-marriage formula in detail.',
         ],
       },
       {
         h2: 'Mahr: the bride’s right',
         p: [
           'The mahr is the marriage gift the husband gives the wife. It is agreed before the nikah and named in the contract, and it belongs to the bride alone. It is her absolute right — not a bride price, and not a payment to her family.',
-          'There is no fixed amount. It can be symbolic, like a copy of the Quran, or substantial, like property or a sum of money. Many Shia families choose amounts with religious meaning: 14 gold coins for the Fourteen Infallibles, 313 coins for the companions of Imam Mahdi (a.s.), or the mahr of Sayyida Fatima (a.s.), which was 500 silver dirhams. What matters is that it is agreed, named, and understood by both sides before the contract is spoken.',
-          'If no mahr is named in the contract, the permanent marriage is still valid. In that case, once the marriage is consummated, the wife is entitled to the mahr al-mithl — the customary mahr of women of her standing. The rule is different for a temporary marriage: if no mahr is named there, the contract is invalid, even if the omission was by mistake or forgetfulness. (Ayatollah Sistani, Islamic Laws, Ruling 2437.)',
+          'There is no fixed amount. It can be symbolic, like a copy of the Quran, or substantial, like property or a sum of money. Many families choose an amount with religious meaning — the mahr of Sayyida Fatima (a.s.), for example, was 500 silver dirhams. What matters is that it is agreed, named, and understood by both sides before the contract is spoken.',
+          'If no mahr is named in the contract, the permanent marriage is still valid: once the marriage is consummated, the wife is entitled to the mahr al-mithl — the customary mahr of women of her standing. A temporary marriage with no mahr named is invalid, even if the omission was by mistake (Ayatollah Sistani, Islamic Laws, Ruling 2437). The [guide’s mahr section](/shia-nikah-guide/) explains the rule in full.',
         ],
       },
       {
         h2: 'The wali’s permission',
         p: [
-          'The wali — the bride’s guardian, usually her father or paternal grandfather — plays a real role in a Shia nikah. Per Ayatollah Sistani’s Code of Practice for Muslims in the West, in marrying a virgin woman it is necessary to get the consent of her father or paternal grandfather if she is not independent, and it is precautionarily obligatory to seek their consent even if she is independent. A woman who has been married before does not need her guardian’s permission in the same way.',
-          'In practice, the wali’s involvement starts well before the nikah — at the proposal stage, when the families first meet. The wali is part of the conversation, not an approver brought in at the end.',
+          'The wali — the bride’s guardian, usually her father or paternal grandfather — plays a real role in a Shia nikah. For a virgin woman, his consent is necessary if she is not independent, and per Ayatollah Sistani’s Code of Practice for Muslims in the West it is precautionarily obligatory to seek it even if she is independent. A woman who has been married before does not need her guardian’s permission in the same way.',
+          'His involvement begins well before the contract — at the proposal stage, when the families first meet. The [complete guide](/shia-nikah-guide/) covers the wali and consent in full.',
         ],
       },
       {
-        h2: 'Witnesses: the point most guides get wrong',
+        h2: 'Witnesses are not a condition',
         p: [
-          'Here is the single most misunderstood fact about Shia nikah, and the one most general wedding guides state incorrectly. In Shia fiqh, witnesses are not required for the nikah. Ayatollah Sistani’s Code of Practice states plainly: “There is no condition for the presence of witnesses during the solemnization of the marriage, just as the presence of a cleric is not a condition for the validity of the marriage.”',
-          'Witnesses are required for divorce (talaq) in Shia law. That is the opposite of the Sunni position, where witnesses are required for the nikah and not for divorce. Many general guides — including the guide that currently ranks first for “shia marriage” — state that two witnesses must observe the contract. That is the Sunni rule, not the Shia one. A Shia nikah performed without witnesses, with the formula, consent, mahr, and (where required) the wali’s permission, is valid.',
-          'Families still commonly have witnesses present, and there is nothing wrong with that. But it is custom and good practice, not a condition of validity.',
+          'In Shia fiqh, witnesses are not required for the nikah. Ayatollah Sistani’s Code of Practice states: “There is no condition for the presence of witnesses during the solemnization of the marriage, just as the presence of a cleric is not a condition for the validity of the marriage.” Witnesses are required for divorce (talaq) in Shia law — the opposite of the Sunni position.',
+          'Families still commonly have witnesses present, as custom and good record-keeping. But a nikah spoken with the formula, intention, consent, mahr, and (where required) the wali’s permission is valid without them. The [complete guide](/shia-nikah-guide/) explains why so many general guides state this rule the wrong way round.',
         ],
       },
       {
         h2: 'Who may marry whom',
         p: [
-          'A Shia man may marry a Sunni woman. The famous verdict — held by Ayatollah Sistani, Ayatollah Makarem Shirazi, and the late Ayatollah Lankarani — is that it is permissible, provided there is no fear that the marriage will lead one to lose one’s faith.',
-          'A Shia woman marrying a Sunni man is restricted. In Ayatollah Sistani’s view it is not permissible as a matter of obligatory precaution, because of the risk to her beliefs; other maraji treat it as disliked (makruh) rather than forbidden. A family in this situation should ask its own marja.',
-          'Marriage to a non-Muslim. A Muslim man may not contract a permanent marriage with a woman who is not among the People of the Book. Temporary marriage with a woman of the People of the Book is permissible in Shia law, with conditions; Ayatollah Sistani treats even that with obligatory precaution.',
-          'Forbidden relations. Marriage with close relatives (mahram) — mother, daughter, sister, aunts, nieces, stepmother, mother-in-law, and others named in the rulings — is forbidden, as is marriage to a woman who is already married or in her waiting period.',
-          'Where a question is genuinely disputed, the right step is to ask a scholar who follows your marja, not to rely on a website.',
+          'A Shia man may marry a Sunni woman — the famous verdict, held by Ayatollah Sistani, Ayatollah Makarem Shirazi, and the late Ayatollah Lankarani, permits it provided there is no fear of losing one’s faith. A Shia woman marrying a Sunni man is restricted by obligatory precaution in Sistani’s view. A Muslim man may not contract a permanent marriage with a woman who is not among the People of the Book, and marriage with close relatives (mahram), a woman who is already married, or a woman in her waiting period is forbidden.',
+          'Those are summaries. The [complete guide](/shia-nikah-guide/) treats each case in full — and where a question is genuinely disputed, the right step is to ask a scholar who follows your marja, not to rely on a website.',
         ],
       },
       {
@@ -89,19 +85,27 @@ const LANDING_BODY = {
       {
         h2: 'Finding a spouse for nikah',
         p: [
-          'A nikah needs a spouse, and finding one is the part most families find hardest — particularly in the diaspora, where the local community is small and children move away. ShiaRishta exists for that search: Shia profiles from the UK, USA, and Canada, filtered by marja and practice, with ID-verified badges available, family-led introductions with the wali involved from the start, and a free biodata maker families can share on WhatsApp.',
+          'A nikah needs a spouse, and finding one is the part most families find hardest — particularly in the diaspora, where the local community is small and children move away. ShiaRishta exists for that search: Shia profiles from the UK, USA, and Canada, filtered by marja and practice, with ID-verified badges available, family-led introductions with the wali involved from the start, and a free biodata maker families can share on WhatsApp. Start with [Shia rishtay](/shia-rishtay/) — the proposals families are weighing now — and read [how Shia marriage works](/shia-marriage/) for the journey from first introduction to the contract.',
           'Joining is free. Browse profiles or create a free account to start.',
         ],
       },
     ],
     faq: [
       { q: 'What makes a Shia nikah valid?', a: 'The formula spoken with intention, the consent of both parties, the mahr agreed and named, and — where required — the wali’s permission. The formula should be in Arabic where possible. No cleric and no witnesses are required for validity in Shia fiqh.' },
-      { q: 'Do I need witnesses for a Shia nikah?', a: 'No. Witnesses are not a condition for the nikah in Shia law. They are required for divorce, not for marriage. Many families still have witnesses present as a matter of custom.' },
-      { q: 'Does a cleric need to perform the nikah?', a: 'No. The couple may recite the formula themselves or appoint representatives. A cleric is commonly present and is good practice, but is not a condition of validity.' },
-      { q: 'What is the mahr, and how much should it be?', a: 'The mahr is the husband’s gift to the wife, agreed before the nikah and named in the contract. It is her absolute right. There is no fixed amount — symbolic or substantial, often chosen with religious significance (for example, the 500 silver dirhams of Sayyida Fatima). If no mahr is named, a permanent marriage is still valid and the wife is entitled to the mahr al-mithl once the marriage is consummated (Sistani, Ruling 2437).' },
-      { q: 'Can a Shia man marry a Sunni woman?', a: 'Yes, per the famous verdict of Ayatollah Sistani, Ayatollah Makarem Shirazi, and others — provided there is no fear of losing one’s faith. A Shia woman marrying a Sunni man is restricted by obligatory precaution in Sistani’s view. Ask your own marja for your situation.' },
+      { q: 'Who can recite the nikah formula?', a: 'The couple themselves, or representatives (wakil) they appoint to recite it on their behalf. A woman may represent a man and a man may represent a woman, and one representative may act for both spouses. A cleric is commonly present, and that is good practice, but a cleric is not a condition of validity.' },
+      { q: 'What is the difference between the nikah and the walima?', a: 'The nikah is the contract that creates the marriage. The walima is the wedding feast that follows it — celebration, not contract. The marriage is already valid before the walima is held, and the feast’s form is a matter of family and culture, not of law.' },
       { q: 'What is the difference between a Shia nikah and a Sunni nikah?', a: 'The core — contract, mahr, consent, formula — is the same. The differences: witnesses are not required for a Shia nikah but are for a Sunni one; witnesses are required for a Shia divorce but not for a Sunni one; and Shia law recognises temporary marriage (mut’ah) while Sunni law does not.' },
       { q: 'Is a nikah enough, or do I need a civil marriage too?', a: 'In the UK, USA, and Canada, the nikah is the religious marriage. For legal recognition — visas, inheritance, hospital rights — you also need a civil marriage registration. Check the requirements where you live.' },
+      { q: 'Where can I read the contract rules in full?', a: 'This page summarises the contract. The complete Shia nikah guide sets out the conditions, mahr, the wali, witnesses, and who may marry whom in full, with sources. For a question that is genuinely disputed, ask a scholar who follows your marja.' },
+    ],
+    related: [
+      { to: '/shia-nikah-guide', label: 'The complete Shia nikah guide' },
+      { to: '/shia-marriage', label: 'Shia marriage, explained' },
+      { to: '/shia-rishtay', label: 'Finding Shia rishtay' },
+      { to: '/shiamatch-alternative', label: 'A free ShiaMatch alternative' },
+      { to: '/shia-matrimonial', label: 'Shia matrimonial profiles' },
+      { to: '/shia-matrimony-usa', label: 'Shia matrimony in the USA' },
+      { to: '/guardians', label: 'How wali workflows work' },
     ],
   },
 
@@ -221,6 +225,13 @@ const LANDING_BODY = {
       { q: 'Is a nikah enough, or do I need a civil marriage too?', a: 'In the UK, USA, and Canada, the nikah is the religious marriage. For legal recognition you also need a civil marriage registration. Check the requirements where you live.' },
       { q: 'How long does a Shia wedding take?', a: 'The nikah itself takes minutes. The celebrations around it — khastegari, engagement, baleh boroun, walima — can span days or weeks depending on the family’s customs. An Iranian aroosi may run over a week; a diaspora wedding may compress everything into a weekend.' },
     ],
+    related: [
+      { to: '/shia-nikah', label: 'The Shia nikah, explained' },
+      { to: '/shia-marriage', label: 'Shia marriage, explained' },
+      { to: '/shia-rishtay', label: 'Finding Shia rishtay' },
+      { to: '/shiamatch-alternative', label: 'A free ShiaMatch alternative' },
+      { to: '/nikah-checklist', label: 'Shia nikah checklist' },
+    ],
   },
   'shia-marriage': {
     h1: 'Shia marriage, from proposal to nikah',
@@ -233,8 +244,8 @@ const LANDING_BODY = {
           'The proposal (khastegari). The process usually begins with a formal proposal: the groom’s family approaches the bride’s family, often bringing flowers or sweets, and the two families meet. This is the khastegari, and it is not a formality. It is the meeting where compatibility is first examined — education, life goals, religious observance, expectations about extended family. In the diaspora, this meeting may happen in a restaurant or by video call when families live in different countries, but the purpose is the same.',
           'Family discussion and the wali. After the proposal, the families discuss expectations, and the wali — the bride’s guardian, usually her father — is part of the conversation. The wali’s role is real in Shia marriage: for a virgin woman, the consent of her father or paternal grandfather is required (and, per Ayatollah Sistani, it is precautionarily obligatory to seek it even if she is independent). A woman who has been married before does not need her guardian’s permission in the same way. What varies most in practice is how early the family is involved, and how much of the process is expected to be private between the couple. Those are worth agreeing explicitly rather than assuming.',
           'Istikhara. Many families seek guidance through istikhara before proceeding — prayer and reflection on whether the marriage is right. It is a spiritual consultation, not a substitute for thinking: the families that use it well combine it with the practical questions, so the guidance confirms a decision the facts already support.',
-          'The mahr. Before the nikah, the families agree the mahr — the marriage gift the husband gives the wife. The mahr is the bride’s absolute right, and it belongs to her alone. It can be symbolic (a copy of the Quran) or substantial (property, gold, or a sum of money). Many Shia families choose amounts with religious significance — for example, 14 gold coins for the Fourteen Infallibles, or 313 coins for the companions of Imam Mahdi (a.s.). The mahr of Sayyida Fatima (a.s.) was 500 silver dirhams, and many families take that as a reference point. What matters is that the mahr is agreed before the contract, named in it, and understood by both sides.',
-          'The nikah. The nikah is the contract itself. The woman says the formula — “Zawwajtuka nafsi ’ala as-sidaq al-ma’lum” (I have made myself your wife on the agreed mahr) — and the man replies immediately, “Qabiltut tazwij” (I accept the marriage). In Shia fiqh, the formula should be said in Arabic as a matter of obligatory precaution, but if the couple cannot say it in Arabic, they may say it in another language using words that convey the same meaning. The couple may recite it themselves or appoint representatives to recite it for them. No cleric is required for the contract to be valid, and — unlike Sunni practice — no witnesses are required for the nikah itself in Shia fiqh. (Witnesses are required for divorce, not for marriage — the opposite of the Sunni position.) Both parties must consent, and both must intend the marriage.',
+          'The mahr. Before the nikah, the families agree the mahr — the marriage gift the husband gives the wife. It is the bride’s absolute right, and it belongs to her alone. It can be symbolic (a copy of the Quran) or substantial (property, gold, or a sum of money). What matters at this stage is that it is agreed before the contract and named in it. What mahr is and how the rules around it work are covered on [the Shia nikah page](/shia-nikah/) and in full in the [complete nikah guide](/shia-nikah-guide/).',
+          'The nikah. The nikah is the contract itself: the formula is spoken with intention and consent, with the agreed mahr named, and the two become husband and wife. No cleric is required for the contract to be valid. This page is about the journey around the contract — for the contract itself, its conditions, and what makes it valid, see [the Shia nikah, explained](/shia-nikah/).',
           'The walima. After the nikah comes the walima, the wedding feast. Its form varies enormously: a large hall in London or Houston, a family gathering in Dearborn, a sofreh aghd spread in an Iranian family, a mangni and mehndi in a South Asian one. The feast is celebration, not contract. The marriage is already valid.',
         ],
       },
@@ -243,7 +254,7 @@ const LANDING_BODY = {
         p: [
           'The contract is the marriage. In Shia Islam, the nikah is not a blessing on a relationship that already exists. It is the act that creates the marriage. Two people become husband and wife when the formula is spoken with intention and consent — not when a ceremony is held, not when a document is signed. That is why the details of the contract matter so much, and why families take care over the mahr, the formula, and the wali’s permission.',
           'The wali’s role is structural. The wali is not a guest at the wedding. For a virgin bride, the father’s or paternal grandfather’s consent is part of the process. This reflects a view of marriage as a family act, not a private arrangement between two individuals.',
-          'Temporary marriage exists. Shia fiqh recognises two kinds of marriage: permanent and temporary (mut’ah), where a duration and a mahr are fixed in the contract. Temporary marriage follows the same contract rules — formula, consent, mahr — with the duration stated. It is a real and distinctively Shia part of the law, and a family should understand it exists even if it is not what they are seeking.',
+          'Temporary marriage exists. Shia fiqh also recognises temporary marriage (mut’ah), where a duration and a mahr are fixed in the contract. It is a real and distinctively Shia part of the law, and a family should understand it exists even if it is not what they are seeking. The [complete nikah guide](/shia-nikah-guide/) explains how it works.',
           'Rulings differ by marja. The details above follow the widely followed rulings of Ayatollah Sistani. Other maraji differ on points of detail — for example, on the conditions around a Shia woman marrying a Sunni man. A family should follow its own marja and, where a question is genuinely disputed, ask a scholar rather than relying on a website.',
         ],
       },
@@ -264,12 +275,21 @@ const LANDING_BODY = {
       },
     ],
     faq: [
-      { q: 'What is the difference between a Shia marriage and a Sunni marriage?', a: 'The core is the same: a nikah contract with a mahr, consent, and a formula. The differences are in the details: in Shia fiqh, witnesses are not required for the nikah (they are required for divorce), while in Sunni fiqh witnesses are required for the nikah and not for divorce. The wali’s role, the treatment of temporary marriage, and some rules on who may marry whom also differ. Rulings vary by marja and school, so a mixed-school family should ask a scholar about their specific situation.' },
-      { q: 'Is a nikah valid without a cleric present?', a: 'Yes, in Shia fiqh. The contract requires the formula, intention, consent, and (where applicable) the wali’s permission. A cleric is not a condition for validity, and the couple may recite the formula themselves or appoint representatives.' },
-      { q: 'Do I need witnesses for a Shia nikah?', a: 'No. In Shia fiqh there is no condition for the presence of witnesses at the solemnisation of the marriage. Witnesses are required for divorce (talaq), not for marriage. This is the opposite of the Sunni position, and it is the point most general guides get wrong.' },
-      { q: 'What is mahr, and how much should it be?', a: 'Mahr is the marriage gift from the husband to the wife, agreed before the nikah and named in the contract. It is the bride’s absolute right. There is no fixed amount: it can be symbolic or substantial, and many families choose amounts with religious meaning. The mahr of Sayyida Fatima (a.s.) was 500 silver dirhams.' },
-      { q: 'Can a Shia marry a Sunni?', a: 'Rulings differ by marja. The famous verdict is that a Shia man marrying a Sunni woman is permissible, provided there is no fear of losing one’s faith; a Shia woman marrying a Sunni man is restricted by obligatory precaution in Ayatollah Sistani’s view, because of the risk to her beliefs. Families in this situation should ask their own marja.' },
+      { q: 'What is khastegari?', a: 'The formal proposal: the groom’s family approaches the bride’s family, often bringing flowers or sweets, and the two families meet. It is the meeting where compatibility is first examined — education, life goals, religious observance, and expectations about extended family. In the diaspora it may happen in a restaurant or by video call, but the purpose is the same.' },
+      { q: 'How long does the process from proposal to nikah take?', a: 'There is no fixed timeline. Some families move from proposal to nikah in weeks; others take months of discussion, istikhara, and family meetings. What matters is that the practical questions — where the couple will live, the mahr, family expectations — are settled before the contract, not after it.' },
+      { q: 'Can the families meet by video call?', a: 'Yes. When families live in different cities or countries, the khastegari and the discussions after it often happen by video call. The purpose of the meetings — examining compatibility honestly — is the same as meeting in person.' },
+      { q: 'What should we discuss before the nikah if we live in different countries?', a: 'Where the couple will live, how often they will visit family, what immigration involves, and how the wedding itself will be arranged across two countries. A match that is right in every other respect can still fail if the couple never agreed where they would live.' },
       { q: 'How do I find a Shia spouse if my local community is small?', a: 'Widen the search: a platform like ShiaRishta shows profiles from other cities and countries, and long-distance introductions are normal in the Shia diaspora. Matchmakers can also search on a family’s behalf.' },
+      { q: 'Where can I read the nikah contract rules in full?', a: 'This page covers the journey. The contract itself — the formula, its conditions, mahr, the wali’s permission, and witnesses — is explained on the Shia nikah page and set out in full, with sources, in the complete Shia nikah guide.' },
+    ],
+    related: [
+      { to: '/shia-nikah', label: 'The Shia nikah, explained' },
+      { to: '/shia-nikah-guide', label: 'The complete Shia nikah guide' },
+      { to: '/shia-rishtay', label: 'Finding Shia rishtay' },
+      { to: '/shiamatch-alternative', label: 'A free ShiaMatch alternative' },
+      { to: '/shia-matrimonial', label: 'Shia matrimonial profiles' },
+      { to: '/shia-brides', label: 'Find a Shia bride' },
+      { to: '/shia-grooms', label: 'Find a Shia groom' },
     ],
   },
   'shia-brides': {
@@ -395,7 +415,7 @@ const LANDING_BODY = {
         h2: 'What is a Shia rishta?',
         p: [
           '“Rishta” is singular. “Rishtay” is what families actually search for — the proposals a family weighs together, comparing deen, practice, and family values before choosing. A rishta is not a date. It is a proposal carried by a family, examined by a family, and answered by a family. That is the whole difference between a Shia rishta and the way the rest of the internet talks about dating, and it is why the search for one works differently too.',
-          'This page explains what a Shia rishta is, how Shia matchmaking actually works, what families look for, and how to search for Shia rishtay in the UK, USA, and Canada — including Baltimore, Houston, Dearborn, London, and Toronto.',
+          'This page explains what a Shia rishta is, how Shia matchmaking actually works, what families look for, and how to search for Shia rishtay in the UK, USA, and Canada — including [Baltimore](/city/baltimore), [Houston](/city/houston), [Dearborn](/shia-rishta-dearborn), [London](/city/london), and [Toronto](/city/toronto).',
           'A rishta is a marriage proposal. In Shia families it usually begins when one family learns of a suitable person — through relatives, through the community, through a matchmaker, or through a platform like ShiaRishta — and approaches the other family. The two people at the centre of it are not shopping. Their families are doing the first round of checking together: is this person Shia, what marja do they follow, how do they practise, what does their family value, what do they want from a marriage?',
           'The word itself carries the weight. A rishta is not a match or a connection. It is a proposal with a family behind it, and the answer to a rishta is a family decision. That is why Shia parents stay involved from the first introduction rather than joining the process at the end. The wali — the bride’s guardian, usually her father — is part of the conversation from the start, not brought in to approve something already decided.',
         ],
@@ -431,11 +451,11 @@ const LANDING_BODY = {
       {
         h2: 'Shia rishtay by city',
         p: [
-          'Baltimore, USA. Baltimore is home to a growing Shia community, and families here often search across the Washington DC–Baltimore corridor as one area. The practical question for a Baltimore rishta is distance: a match in Northern Virginia or Washington DC is close enough for families to meet easily, and many families treat the whole corridor as local. For families in Baltimore, a platform that shows profiles from across the corridor — not just one city — makes the difference between a search that stalls and one that moves.',
-          'Houston, USA. Houston has a large and active Shia community, with several centres and a strong network of families. The search here benefits from community size: there are more profiles, more events, and more family connections to check through. The challenge is the opposite of a small community — filtering. A Houston family needs search filters that actually work (marja, practice, education) so the size of the pool helps rather than overwhelms.',
-          'Dearborn, USA. Dearborn, Michigan, has a large, well-established Shia community, one of the longest-standing in the United States. Families here often have deep local networks, and a rishta may come through relatives or the local centre before it ever reaches a platform. Where a platform helps in Dearborn is for families whose children have moved away, or for those looking beyond the local circle — a profile from another state, checked the same way a local introduction would be.',
-          'London, UK. London’s Shia community is large and spread across the city, with established centres and a strong tradition of community events. A London rishta search often spans the whole city and beyond — Birmingham, Manchester, and other UK cities are all within reach for family meetings. For London families, the question is usually not whether there are profiles, but whether the profiles are real. Verification matters more than volume.',
-          'Toronto, Canada. Toronto has a large Shia community and a steady flow of new families. The search here often crosses the border — families in Toronto look at profiles in the United States as well, particularly in nearby states. A Toronto rishta may involve questions about immigration and settlement that a local match does not, and families do well to discuss those early rather than after the nikah.',
+          '[Baltimore](/city/baltimore), USA. Baltimore is home to a growing Shia community, and families here often search across the Washington DC–Baltimore corridor as one area. The practical question for a Baltimore rishta is distance: a match in Northern Virginia or Washington DC is close enough for families to meet easily, and many families treat the whole corridor as local. For families in Baltimore, a platform that shows profiles from across the corridor — not just one city — makes the difference between a search that stalls and one that moves.',
+          '[Houston](/city/houston), USA. Houston has a large and active Shia community, with several centres and a strong network of families. The search here benefits from community size: there are more profiles, more events, and more family connections to check through. The challenge is the opposite of a small community — filtering. A Houston family needs search filters that actually work (marja, practice, education) so the size of the pool helps rather than overwhelms.',
+          '[Dearborn](/shia-rishta-dearborn), USA. Dearborn, Michigan, has a large, well-established Shia community, one of the longest-standing in the United States. Families here often have deep local networks, and a rishta may come through relatives or the local centre before it ever reaches a platform. Where a platform helps in Dearborn is for families whose children have moved away, or for those looking beyond the local circle — a profile from another state, checked the same way a local introduction would be.',
+          '[London](/city/london), UK. London’s Shia community is large and spread across the city, with established centres and a strong tradition of community events. A London rishta search often spans the whole city and beyond — Birmingham, Manchester, and other UK cities are all within reach for family meetings. For London families, the question is usually not whether there are profiles, but whether the profiles are real. Verification matters more than volume.',
+          '[Toronto](/city/toronto), Canada. Toronto has a large Shia community and a steady flow of new families. The search here often crosses the border — families in Toronto look at profiles in the United States as well, particularly in nearby states. A Toronto rishta may involve questions about immigration and settlement that a local match does not, and families do well to discuss those early rather than after the nikah.',
         ],
       },
       {
@@ -461,6 +481,17 @@ const LANDING_BODY = {
       { q: 'What if the match is in another country?', a: 'Long-distance rishtay are common in the Shia diaspora. Families should discuss the practical questions early: where the couple will live, how often they will visit, and what the immigration and settlement picture looks like. A platform search makes the introduction; the families decide the rest.' },
       { q: 'Do you have profiles outside the UK, USA, and Canada?', a: 'ShiaRishta welcomes members from any country. The search is strongest in the UK, USA, and Canada, where the member base is largest, and it grows as more families join.' },
       { q: 'How is this different from a general Muslim matrimony site?', a: 'ShiaRishta is Shia-specific: marja filters, wali involvement, and a process built around how Shia families actually arrange a rishta. A general site cannot filter on the things that matter most to a Shia family.' },
+    ],
+    related: [
+      { to: '/shia-rishta-london', label: 'Shia rishta in London' },
+      { to: '/shia-rishta-toronto', label: 'Shia rishta in Toronto' },
+      { to: '/shia-rishta-chicago', label: 'Shia rishta in Chicago' },
+      { to: '/shia-marriage', label: 'Shia marriage, explained' },
+      { to: '/shia-nikah', label: 'The Shia nikah, explained' },
+      { to: '/shia-nikah-guide', label: 'The complete Shia nikah guide' },
+      { to: '/shiamatch-alternative', label: 'A free ShiaMatch alternative' },
+      { to: '/shia-brides', label: 'Find a Shia bride' },
+      { to: '/shia-grooms', label: 'Find a Shia groom' },
     ],
   },
   'shiamatch-alternative': {
@@ -529,7 +560,7 @@ const LANDING_BODY = {
       {
         h2: 'How to try ShiaRishta',
         p: [
-          'Joining is free and takes a few minutes: create a free account, add your details, and start browsing profiles. If you already have a biodata, the biodata maker can turn it into a shareable format. If you are a matchmaker, you can create a matchmaker account and submit profiles for the families you serve.',
+          'Joining is free and takes a few minutes: create a free account, add your details, and start browsing profiles. If you already have a biodata, the biodata maker can turn it into a shareable format. If you are a matchmaker, you can create a matchmaker account and submit profiles for the families you serve. Or start by browsing [Shia rishtay](/shia-rishtay/) — the proposals families are weighing now — and read [how the nikah contract works](/shia-nikah/) before your family’s first introduction.',
         ],
       },
     ],
@@ -539,6 +570,16 @@ const LANDING_BODY = {
       { q: 'Can I keep my ShiaMatch profile and use ShiaRishta too?', a: 'Yes. There is no rule against using more than one platform, and many families do. A profile on each widens the search.' },
       { q: 'How is verification different from ShiaMatch?', a: 'ShiaMatch has no verification system: a profile is taken on trust, and contact details are exchanged after a mutual request. ShiaRishta verifies photo and government ID and shows badges on the profile, so a family can see that identity has been checked before the first introduction.' },
       { q: 'Does ShiaRishta have the same number of profiles as ShiaMatch?', a: 'ShiaMatch states on its homepage that it features thousands of profiles, built up since 1999. ShiaRishta is newer and its member base is still growing. The trade-off is between the size of the older pool and the verification, tools, and free access of the newer one — which is why many families use both.' },
+    ],
+    related: [
+      { to: '/shia-rishtay', label: 'Finding Shia rishtay' },
+      { to: '/shia-marriage', label: 'Shia marriage, explained' },
+      { to: '/shia-nikah', label: 'The Shia nikah, explained' },
+      { to: '/shia-nikah-guide', label: 'The complete Shia nikah guide' },
+      { to: '/shia-matrimony-usa', label: 'Shia matrimony in the USA' },
+      { to: '/syed-rishta', label: 'Syed rishta' },
+      { to: '/biodata-maker', label: 'Free biodata maker' },
+      { to: '/safety', label: 'Safety center' },
     ],
   },
 };
@@ -555,6 +596,7 @@ export function landingRouteSeo(meta = {}) {
       lede: m.desc || body.h1,
       sections: body.sections || [{ h2: 'What this covers', p: [body.more] }],
       faq: body.faq || [],
+      related: body.related || [],
     };
   }
   return out;

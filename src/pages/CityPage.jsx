@@ -7,9 +7,29 @@ import { http } from '../lib/api/transport';
 import { MapPin, Users, Heart, ShieldCheck } from 'lucide-react';
 import ProfileCard from '../components/ProfileCard';
 import { countryAliases } from '../data/countryAliases';
-import { CITIES, COUNTRIES } from '../data/locationSeo';
+import { CITIES, COUNTRIES, buildLocationSections, buildLocationFaq } from '../data/locationSeo';
 import { tagPagesForPlace } from '../data/tagLandingPages';
 import NotFound from './NotFound';
+
+// Inline links in the shared location copy: [label](/path) — mirrors
+// richText() in scripts/prerender-routes.mjs, so the live page and the
+// prerendered document carry the same links.
+function renderRich(text, keyPrefix) {
+  const parts = String(text).split(/\[([^\]]+)\]\((\/[a-z0-9\-/]*)\)/gi);
+  if (parts.length === 1) return text;
+  const out = [];
+  for (let i = 0; i < parts.length; i += 3) {
+    if (parts[i]) out.push(parts[i]);
+    if (parts[i + 1] !== undefined) {
+      out.push(
+        <Link key={`${keyPrefix}-${i}`} to={parts[i + 2]} className="hover:underline" style={{ color: 'var(--color-primary)' }}>
+          {parts[i + 1]}
+        </Link>
+      );
+    }
+  }
+  return out;
+}
 
 /**
  * Location landing page — city or country.
@@ -222,6 +242,38 @@ export default function CityPage() {
               shares your values. Creating your own profile is free and takes minutes.
             </p>
           </div>
+        </section>
+
+        {/* Process + search sections — the same substantive copy the
+            prerender emits (buildLocationSections in locationSeo.js), so
+            the live page and the crawler document agree. Section [0] is
+            the community note, already rendered above. count is null:
+            the live fetch is capped, so the copy never prints a figure
+            it cannot stand behind (2026-11-10 on-page audit fix). */}
+        {buildLocationSections({ name, note: '', kind, count: profiles.length > 0 ? null : 0 }).slice(1).map((s) => (
+          <section key={s.h2} className="mt-6 p-6 rounded-2xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <h2 className="text-lg font-bold mb-3" style={{ color: 'var(--color-ink)' }}>
+              {s.h2}
+            </h2>
+            {s.p.map((para, i) => (
+              <p key={i} className="text-sm leading-relaxed mb-3 last:mb-0" style={{ color: 'var(--color-ink-secondary)' }}>
+                {renderRich(para, `${s.h2}-${i}`)}
+              </p>
+            ))}
+          </section>
+        ))}
+
+        {/* FAQ — same questions the prerender emits (buildLocationFaq). */}
+        <section className="mt-6 p-6 rounded-2xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+          <h2 className="text-lg font-bold mb-3" style={{ color: 'var(--color-ink)' }}>
+            Questions about Shia rishta in {name}
+          </h2>
+          {buildLocationFaq({ name }).map((f) => (
+            <div key={f.q} className="mb-4 last:mb-0">
+              <h3 className="text-sm font-bold mb-1" style={{ color: 'var(--color-ink)' }}>{f.q}</h3>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--color-ink-secondary)' }}>{f.a}</p>
+            </div>
+          ))}
         </section>
 
         {/* Popular searches — REAL LINKS when tag pages exist for this place

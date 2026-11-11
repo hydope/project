@@ -31,7 +31,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { ROUTE_SEO, SHARED_NAV, SITE_URL } from '../src/data/routeSeo.js';
 import { landingRouteSeo } from '../src/data/landingRouteSeo.js';
-import { CITIES, COUNTRIES, locationRouteSeo } from '../src/data/locationSeo.js';
+import { CITIES, COUNTRIES, locationRouteSeo, buildLocationSections, buildLocationFaq, locationMetaDesc } from '../src/data/locationSeo.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath as __f2u } from 'url';
 import { LANDING_PAGE_META } from '../src/pages/landing/landingPageMeta.js';
@@ -50,6 +50,30 @@ const esc = (s = '') =>
     .replace(/"/g, '&quot;');
 
 const attr = esc;
+
+/**
+ * Inline links in body copy: [label](/path) — the ONLY markup section copy
+ * may carry (2026-11-10 internal-linking fix: the audit found zero links
+ * between the money pages in any body copy). Everything else is escaped as
+ * before. Only site-internal paths are honoured — anything else renders as
+ * plain text, so copy can never smuggle in an external or script URL.
+ * LandingPage.jsx renderRich() mirrors this for the runtime page. FAQ
+ * answers deliberately do NOT pass through here: the FAQPage JSON-LD is
+ * generated from the same strings, and schema text must stay plain.
+ */
+function richText(text) {
+  const parts = String(text).split(/\[([^\]]+)\]\((\/[a-z0-9\-/]*)\)/gi);
+  // split with two capture groups: [text, label, href, text, label, href, …]
+  let out = '';
+  for (let i = 0; i < parts.length; i += 3) {
+    out += esc(parts[i]);
+    if (parts[i + 1] !== undefined) {
+      const href = parts[i + 2].endsWith('/') ? parts[i + 2] : `${parts[i + 2]}/`;
+      out += `<a href="${SITE_URL}${href}">${esc(parts[i + 1])}</a>`;
+    }
+  }
+  return out;
+}
 
 // Landing pages merged into the core routes. Before this they served the homepage
 // document, canonical tag included, which told Google to index each of them AS the
@@ -91,24 +115,30 @@ const dynamicLocationNote = (name) =>
 function dynamicLocationRouteSeo(dynamic) {
   const out = {};
   for (const c of dynamic.cities) {
+    const note = dynamicLocationNote(c.name);
     out[`/city/${c.slug}`] = {
       title: `Shia Matrimony in ${c.name} | Shia Rishta & Matchmaking`,
-      desc: `Browse Shia matrimonial profiles in ${c.name}. Privacy-first photos, mutual-interest messaging and wali-supported introductions. Free to join.`,
+      desc: locationMetaDesc(c.name, note),
       h1: `Shia matrimony in ${c.name}`,
       lede: `Shia Rishta profiles in ${c.name}${c.country ? `, ${c.country}` : ''}. Every profile is created with marriage intent, photos stay private by default, and a conversation opens only after interest is mutual.`,
-      sections: [{ h2: `About Shia families in ${c.name}`, p: dynamicLocationNote(c.name) }],
-      faq: [],
+      // Same expanded sections as curated pages (2026-11-10 audit fix).
+      // count is null: the page exists because profiles exist, but this
+      // pass does not total them, so the copy stays neutral rather than
+      // printing a figure it cannot stand behind.
+      sections: buildLocationSections({ name: c.name, note, kind: 'city', count: null }),
+      faq: buildLocationFaq({ name: c.name }),
       liveFilter: `/profiles?city=${encodeURIComponent(c.name)}`,
     };
   }
   for (const k of dynamic.countries) {
+    const note = dynamicLocationNote(k.name);
     out[`/country/${k.slug}`] = {
       title: `Shia Matrimony in ${k.name} | Free Shia Rishta Platform`,
-      desc: `Find verified Shia brides and grooms in ${k.name}. Privacy-first profiles, wali and guardian workflows, mutual-interest messaging. Free.`,
+      desc: locationMetaDesc(k.name, note),
       h1: `Shia matrimony in ${k.name}`,
       lede: `Shia matrimonial profiles across ${k.name}, filterable by city, sect, marja and practice. Free to browse, and no account is needed to view public profiles.`,
-      sections: [{ h2: `Shia families in ${k.name}`, p: dynamicLocationNote(k.name) }],
-      faq: [],
+      sections: buildLocationSections({ name: k.name, note, kind: 'country', count: null }),
+      faq: buildLocationFaq({ name: k.name }),
       liveFilter: `/profiles?country=${encodeURIComponent(k.name)}`,
     };
   }
@@ -325,6 +355,9 @@ function locationsHubHtml() {
     '<h2>Before you search</h2>',
     '<p>Photos are private by default: a member can show photos to everyone, only to people they have mutual interest with, or only to matches. Contact details are never published, and a conversation opens only after interest is mutual from both sides. Browsing is free and needs no account.</p>',
     `<p>Looking for something specific? Try <a href="${SITE_URL}/syed-rishta/">Syed rishta</a>, <a href="${SITE_URL}/shia-nikah/">what nikah involves</a>, or the <a href="${SITE_URL}/profile-guide/">profile guide</a>.</p>`,
+    // The five money pages (2026-11-10 internal-linking fix): the hub linked
+    // 180+ location pages and none of the pages that explain the process.
+    `<p>New to the process? Start with the guides: <a href="${SITE_URL}/shia-rishtay/">how Shia rishtay work</a>, <a href="${SITE_URL}/shia-marriage/">the Shia marriage journey</a>, <a href="${SITE_URL}/shia-nikah/">what a Shia nikah involves</a>, the <a href="${SITE_URL}/shia-nikah-guide/">complete Shia nikah guide</a>, and the <a href="${SITE_URL}/shiamatch-alternative/">free ShiaMatch alternative</a>.</p>`,
     '</article>'
   );
 
@@ -452,11 +485,11 @@ function renderBody(meta, route) {
       : section.p
         ? [section.p]
         : [];
-    for (const para of paras) parts.push(`<p>${esc(para)}</p>`);
+    for (const para of paras) parts.push(`<p>${richText(para)}</p>`);
     for (const step of section.steps || []) {
       parts.push(`<h3>${esc(step.h3)}</h3>`);
       const stepParas = Array.isArray(step.p) ? step.p : [step.p];
-      for (const para of stepParas) parts.push(`<p>${esc(para)}</p>`);
+      for (const para of stepParas) parts.push(`<p>${richText(para)}</p>`);
     }
     parts.push('</article>');
   }
@@ -473,6 +506,19 @@ function renderBody(meta, route) {
       parts.push(`<p>${esc(f.a)}</p>`);
       parts.push('</article>');
     }
+  }
+
+  // "Keep exploring" — the related-pages block the runtime LandingPage
+  // renders for the same pages (2026-11-10 internal-linking fix). Until now
+  // the prerendered document had no equivalent, so a crawler saw no links
+  // between the money pages in the static document at all.
+  if (meta.related?.length) {
+    parts.push('<article class="seo-section">', '<h2>Keep exploring</h2>', '<ul>');
+    for (const r of meta.related) {
+      const href = r.to.endsWith('/') ? r.to : `${r.to}/`;
+      parts.push(`<li><a href="${SITE_URL}${href}">${esc(r.label)}</a></li>`);
+    }
+    parts.push('</ul>', '</article>');
   }
 
   // Location pages must lead to LIVE results, not a static dead end. A page

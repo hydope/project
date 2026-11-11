@@ -9,6 +9,33 @@ import { useStats } from '../../lib/api/client';
 // landingPages.js holds all eight hand-written landing pages — dynamically
 // imported so it ships as its own async chunk instead of bloating the
 // shared entry chunk.
+// Inline links in body copy: [label](/path) — the only markup landing copy
+// may carry (2026-11-10 internal-linking fix). Mirrors richText() in
+// scripts/prerender-routes.mjs so the runtime page and the prerendered
+// document carry the same links. Anything that is not a site-internal path
+// renders as plain text. FAQ answers never pass through here — FaqSection
+// feeds them into FAQPage JSON-LD, which must stay plain text.
+function renderRich(text, keyPrefix) {
+  const parts = String(text).split(/\[([^\]]+)\]\((\/[a-z0-9\-/]*)\)/gi);
+  if (parts.length === 1) return text;
+  const out = [];
+  for (let i = 0; i < parts.length; i += 3) {
+    if (parts[i]) out.push(parts[i]);
+    if (parts[i + 1] !== undefined) {
+      out.push(
+        <Link
+          key={`${keyPrefix}-${i}`}
+          to={parts[i + 2]}
+          style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
+        >
+          {parts[i + 1]}
+        </Link>,
+      );
+    }
+  }
+  return out;
+}
+
 export default function LandingPage() {
   // NOTE: landing routes are static paths (/shia-matrimony-usa, /shia-brides,
   // …), not a :slug param — derive the slug from the pathname. (useParams
@@ -91,7 +118,7 @@ export default function LandingPage() {
         </h1>
 
         {page.intro.map((p, i) => (
-          <p key={i} style={{ color: 'var(--color-ink-secondary)', lineHeight: 1.8, fontSize: '1.0625rem', marginBottom: '1.25rem' }}>{p}</p>
+          <p key={i} style={{ color: 'var(--color-ink-secondary)', lineHeight: 1.8, fontSize: '1.0625rem', marginBottom: '1.25rem' }}>{renderRich(p, `intro-${i}`)}</p>
         ))}
 
         {page.download && (
@@ -125,7 +152,7 @@ export default function LandingPage() {
           <section key={i} style={{ marginBottom: '2rem' }}>
             <h2 style={{ fontSize: '1.375rem', fontWeight: 700, color: 'var(--color-ink)', marginBottom: '0.75rem' }}>{s.h2}</h2>
             {s.body.map((p, j) => (
-              <p key={j} style={{ color: 'var(--color-ink-secondary)', lineHeight: 1.8, marginBottom: '1rem' }}>{p}</p>
+              <p key={j} style={{ color: 'var(--color-ink-secondary)', lineHeight: 1.8, marginBottom: '1rem' }}>{renderRich(p, `s${i}-${j}`)}</p>
             ))}
           </section>
         ))}

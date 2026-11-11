@@ -241,6 +241,39 @@ export default function Locations() {
           </>
         )}
 
+        {/* Guides — the money pages (2026-11-10 internal-linking fix). The
+            hub linked 180+ location pages and none of the five pages that
+            explain the process; families and crawlers both stalled here. */}
+        <section aria-labelledby="guides-heading" className="mb-12">
+          <h2 id="guides-heading" className="text-xl font-bold mb-4" style={{ color: 'var(--color-ink)' }}>
+            Before you search: the guides
+          </h2>
+          <ul className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))' }}>
+            {[
+              { to: '/shia-rishtay', label: 'Shia rishtay, explained', blurb: 'What a rishta is, how Shia matchmaking works, and what families look for.' },
+              { to: '/shia-marriage', label: 'Shia marriage, explained', blurb: 'The journey from proposal (khastegari) to nikah and walima.' },
+              { to: '/shia-nikah', label: 'The Shia nikah, explained', blurb: 'The contract itself: formula, conditions, mahr, wali, and witnesses.' },
+              { to: '/shia-nikah-guide', label: 'The complete Shia nikah guide', blurb: 'The full reference — the contract, the traditions, and regional variations.' },
+              { to: '/shiamatch-alternative', label: 'A free ShiaMatch alternative', blurb: 'How ShiaRishta compares: free for everyone, verification badges, modern apps.' },
+            ].map((g) => (
+              <li key={g.to}>
+                <Link
+                  to={g.to}
+                  className="group flex flex-col h-full rounded-2xl p-5 transition-transform hover:-translate-y-0.5"
+                  style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+                >
+                  <p className="font-bold text-base mb-1" style={{ color: 'var(--color-ink)' }}>{g.label}</p>
+                  <p className="text-xs leading-relaxed flex-1" style={{ color: 'var(--color-ink-secondary)' }}>{g.blurb}</p>
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold mt-3" style={{ color: 'var(--color-primary)' }}>
+                    Read the guide
+                    <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+
         {/* FAQ — honest, answerable from the page itself */}
         <section aria-labelledby="locations-faq" className="mb-12 max-w-3xl">
           <h2 id="locations-faq" className="text-xl font-bold mb-4" style={{ color: 'var(--color-ink)' }}>

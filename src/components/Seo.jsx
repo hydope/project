@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { LANDING_PAGE_META } from '../pages/landing/landingPageMeta.js';
 import { buildTagLandingPages } from '../data/tagLandingPages.js';
 import { ARTICLE_META } from '../data/articleMeta.js';
-import { CITIES, COUNTRIES } from '../data/locationSeo.js';
+import { CITIES, COUNTRIES, locationMetaDesc } from '../data/locationSeo.js';
 import { ROUTE_SEO, SITE_URL } from '../data/routeSeo.js';
 import { SOCIAL_LINKS } from '../data/socialLinks.js';
 import { trackPageView, beaconPageView } from '../lib/analytics.js';
@@ -167,7 +167,7 @@ function resolveMeta(pathname) {
     if (city) {
       return {
         title: `Shia Matrimony in ${city.name} | Shia Rishta & Matchmaking`,
-        desc: `Browse Shia matrimonial profiles in ${city.name}. Privacy-first photos, mutual-interest messaging and wali-supported introductions. Free to join.`,
+        desc: locationMetaDesc(city.name, city.note),
         index: true,
       };
     }
@@ -183,7 +183,7 @@ function resolveMeta(pathname) {
     if (country) {
       return {
         title: `Shia Matrimony in ${country.name} | Free Shia Rishta Platform`,
-        desc: `Find Shia brides and grooms in ${country.name}. Privacy-first profiles, wali and guardian workflows, mutual-interest messaging. Free.`,
+        desc: locationMetaDesc(country.name, country.note),
         index: true,
       };
     }
