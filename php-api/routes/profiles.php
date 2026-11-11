@@ -1742,6 +1742,7 @@ function profileUpdate(): void
     }
     $sets = [];
     $values = [];
+    $colPos = [];
     foreach ($cols as $key) {
         if (!array_key_exists($key, $b)) continue;
         $col = match ($key) {
@@ -1794,6 +1795,21 @@ function profileUpdate(): void
             }
         }
         if ($col === 'display_name' && ($v === null || trim((string)$v) === '')) continue;
+        // One entry per column: $cols carries both spellings of several
+        // columns (contact_visibility/contactVisibility,
+        // photos_visibility/photosVisibility, display_name/displayName)
+        // and a client may send both — Settings.jsx sends the contact
+        // pair on purpose. The upsert below copies $sets into the INSERT
+        // column list verbatim, and MySQL rejects a column named twice
+        // (error 1110), which 500'd the ENTIRE save — every Privacy &
+        // Safety setting saved through that screen failed this way, not
+        // just the introductions toggle. Last spelling wins; $sets and
+        // $values stay aligned.
+        if (isset($colPos[$col])) {
+            $values[$colPos[$col]] = $v;
+            continue;
+        }
+        $colPos[$col] = count($sets);
         $sets[] = "{$col} = ?";
         $values[] = $v;
     }
