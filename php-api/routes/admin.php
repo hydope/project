@@ -675,15 +675,212 @@ function adminHealth(): void
     ]);
 }
 
-// GET /api/admin/analytics?range=7d|30d|90d — real series from created_at buckets.
-// Node uses generate_series (Postgres); MySQL has none, so the day axis is
-// built in PHP and counts come from one grouped query each.
+// GET /api/admin/analytics?range=7d|30d|90d — the admin dashboard dataset.
+//
+// PLAIN RULE FOR THIS ENDPOINT: real people only. Every count below excludes
+// seeded profiles, test accounts and admin accounts (the same definition the
+// daily member snapshot uses), and every number is counted from the database
+// at request time — nothing is hardcoded.
+//
+// The old memberGrowth chart counted EVERY users row created that day —
+// seeded profiles and leftover test accounts included — so it reported test
+// accounts as "growth" (on 2026-11-10 it showed 2, and both were leftover
+// test accounts). It now counts real signups only and is titled accordingly.
 function adminAnalytics(): void
 {
     $range = in_array($_GET['range'] ?? '', ['7d', '30d', '90d'], true) ? (string)$_GET['range'] : '7d';
     $days = ['7d' => 7, '30d' => 30, '90d' => 90][$range];
 
-    // generate_series(now() - days, now()) is inclusive → days + 1 buckets.
+    // Scalar count via fetchAll only (the routing-test stub has no
+    // fetchColumn); any failure degrades to 0 instead of 500ing the page.
+    $count = function (string $sql, array $params = []): int {
+        try {
+            $stmt = db()->prepare($sql);
+            $stmt->execute($params);
+            $rows = $stmt->fetchAll();
+            return (int)($rows[0]['n'] ?? 0);
+        } catch (Throwable) {
+            return 0;
+        }
+    };
+    $queryRows = function (string $sql, array $params = []): array {
+        try {
+            $stmt = db()->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetchAll();
+        } catch (Throwable) {
+            return [];
+        }
+    };
+
+    // REAL member predicate (users alias u, profiles alias p): not an admin,
+    // not a test account, not a seeder account, profile not seeded.
+    $real = "u.is_admin = 0 AND u.is_test = 0 AND u.email NOT LIKE 'seeded-%@shiarishta.com' AND COALESCE(p.is_seeded, 0) = 0";
+    $joinP = 'LEFT JOIN profiles p ON p.user_id = u.id';
+    // Finished profile = the publish-complete set (same four fields the
+    // profile publish gate checks: city, country, bio, expectations).
+    $finished = "TRIM(COALESCE(p.city, '')) <> '' AND TRIM(COALESCE(p.country, '')) <> '' AND TRIM(COALESCE(p.bio, '')) <> '' AND TRIM(COALESCE(p.expectations, '')) <> ''";
+
+    // "Today" for the admin is the New York day; the database stores UTC, so
+    // the day bounds are computed here and passed as UTC datetimes.
+    $ny = new DateTimeZone('America/New_York');
+    $utc = new DateTimeZone('UTC');
+    $asUtc = fn(DateTimeImmutable $d): string => $d->setTimezone($utc)->format('Y-m-d H:i:s');
+    $todayNy = (new DateTimeImmutable('now', $ny))->setTime(0, 0, 0);
+    $todayStart = $asUtc($todayNy);
+    $tomorrowStart = $asUtc($todayNy->modify('+1 day'));
+    $yesterdayStart = $asUtc($todayNy->modify('-1 day'));
+    $nowUtc = $asUtc(new DateTimeImmutable('now', $ny));
+
+    // ── Headline strip ────────────────────────────────────────────────────
+    $signupsToday = $count("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real} AND u.created_at >= ? AND u.created_at < ?", [$todayStart, $tomorrowStart]);
+    $signupsYesterday = $count("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real} AND u.created_at >= ? AND u.created_at < ?", [$yesterdayStart, $todayStart]);
+    $realMembers = $count("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real}");
+    $visitorsToday = $count('SELECT COUNT(DISTINCT visitor_hash) AS n FROM pageviews WHERE created_at >= ? AND created_at < ?', [$todayStart, $tomorrowStart]);
+    $pageviewsToday = $count('SELECT COUNT(*) AS n FROM pageviews WHERE created_at >= ? AND created_at < ?', [$todayStart, $tomorrowStart]);
+    $interestsToday = $count(
+        "SELECT COUNT(*) AS n FROM interests i JOIN users u ON u.id = i.from_user_id {$joinP}
+          WHERE {$real} AND i.created_at >= ? AND i.created_at < ?",
+        [$todayStart, $tomorrowStart]
+    );
+    $messagesToday = $count('SELECT COUNT(*) AS n FROM messages WHERE created_at >= ? AND created_at < ?', [$todayStart, $tomorrowStart]);
+
+    // ── Funnel (all time, real members) ───────────────────────────────────
+    $stepCount = fn(string $extra): int => $count("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real} AND {$extra}");
+    $funnelN = [
+        'signups' => $realMembers,
+        'verified' => $stepCount('u.email_verified = 1'),
+        'finished' => $stepCount($finished),
+        'visible' => $stepCount("{$finished} AND p.visibility <> 'private'"),
+        'sentInterest' => $stepCount('EXISTS (SELECT 1 FROM interests i WHERE i.from_user_id = u.id)'),
+        'mutual' => $stepCount('EXISTS (SELECT 1 FROM interests i1 JOIN interests i2 ON i2.from_user_id = i1.to_user_id AND i2.to_user_id = i1.from_user_id WHERE i1.from_user_id = u.id)'),
+        'conversation' => $stepCount('EXISTS (SELECT 1 FROM conversations c WHERE c.user_a = u.id OR c.user_b = u.id)'),
+    ];
+    $funnelLabels = [
+        'signups' => 'Joined (real people)',
+        'verified' => 'Confirmed their email',
+        'finished' => 'Finished their profile',
+        'visible' => 'Visible in browse',
+        'sentInterest' => 'Sent at least one interest',
+        'mutual' => 'Have a mutual interest',
+        'conversation' => 'Have a conversation',
+    ];
+    $funnelSteps = [];
+    $prevN = null;
+    foreach ($funnelLabels as $key => $label) {
+        $n = $funnelN[$key];
+        $funnelSteps[] = [
+            'key' => $key,
+            'label' => $label,
+            'n' => $n,
+            'pctOfSignups' => $funnelN['signups'] > 0 ? round($n * 100 / $funnelN['signups'], 1) : 0.0,
+            'pctOfPrev' => $prevN === null ? 100.0 : ($prevN > 0 ? round($n * 100 / $prevN, 1) : 0.0),
+            'dropFromPrev' => $prevN === null ? 0 : max(0, $prevN - $n),
+        ];
+        $prevN = $n;
+    }
+
+    // ── Engagement health ─────────────────────────────────────────────────
+    $realPair = "EXISTS (SELECT 1 FROM users ux LEFT JOIN profiles px ON px.user_id = ux.id WHERE ux.id = %s AND ux.is_admin = 0 AND ux.is_test = 0 AND ux.email NOT LIKE 'seeded-%%@shiarishta.com' AND COALESCE(px.is_seeded, 0) = 0)";
+    $interestsTotal = $count(sprintf(
+        'SELECT COUNT(*) AS n FROM interests i WHERE ' . $realPair . ' AND ' . $realPair,
+        'i.from_user_id', 'i.to_user_id'
+    ));
+    $mutualPairs = $count(sprintf(
+        'SELECT COUNT(*) AS n FROM interests i1 JOIN interests i2 ON i2.from_user_id = i1.to_user_id AND i2.to_user_id = i1.from_user_id WHERE i1.from_user_id < i1.to_user_id AND ' . $realPair . ' AND ' . $realPair,
+        'i1.from_user_id', 'i1.to_user_id'
+    ));
+    $conversationsTotal = $count(sprintf(
+        'SELECT COUNT(*) AS n FROM conversations c WHERE ' . $realPair . ' AND ' . $realPair,
+        'c.user_a', 'c.user_b'
+    ));
+    $messages7d = $count('SELECT COUNT(*) AS n FROM messages WHERE created_at >= DATE_SUB(?, INTERVAL 7 DAY)', [$nowUtc]);
+    $messages30d = $count('SELECT COUNT(*) AS n FROM messages WHERE created_at >= DATE_SUB(?, INTERVAL 30 DAY)', [$nowUtc]);
+    $active7d = $count("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real} AND u.last_active_at >= DATE_SUB(?, INTERVAL 7 DAY)", [$nowUtc]);
+    $active30d = $count("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real} AND u.last_active_at >= DATE_SUB(?, INTERVAL 30 DAY)", [$nowUtc]);
+    $dormant = max(0, $realMembers - $active30d);
+
+    // ── Member quality (real members) ─────────────────────────────────────
+    $withPhoto = $stepCount("p.photo_url IS NOT NULL AND TRIM(p.photo_url) <> ''");
+    $withBio = $stepCount("TRIM(COALESCE(p.bio, '')) <> ''");
+    $idVerified = $stepCount("p.verified_kind = 'id_document'");
+    $photoVerified = $stepCount("p.verified_kind = 'selfie'");
+    $anyVerified = $stepCount('COALESCE(p.is_verified, 0) = 1');
+    $pct = fn(int $n): float => $realMembers > 0 ? round($n * 100 / $realMembers, 1) : 0.0;
+    $quality = [
+        'finished' => $funnelN['finished'],
+        'finishedPct' => $pct($funnelN['finished']),
+        'withPhoto' => $withPhoto,
+        'withPhotoPct' => $pct($withPhoto),
+        'withBio' => $withBio,
+        'withBioPct' => $pct($withBio),
+        'emailVerified' => $funnelN['verified'],
+        'emailVerifiedPct' => $pct($funnelN['verified']),
+        'idVerified' => $idVerified,
+        'photoVerified' => $photoVerified,
+        'anyVerified' => $anyVerified,
+    ];
+
+    // ── Plain-English insight (rule-based, no AI) ─────────────────────────
+    // Pick the biggest funnel leak; earliest step wins ties.
+    $insight = null;
+    $leakTemplates = [
+        'verified' => fn(int $drop, int $base): string => "{$drop} of {$base} people who joined never confirmed their email — they cannot send interests or publish changes until they do.",
+        'finished' => fn(int $drop, int $base): string => "Most people who join never finish their profile — {$drop} of {$base} members are missing a city, a bio or what they are looking for, so they stay invisible in browse.",
+        'visible' => fn(int $drop, int $base): string => "{$drop} members finished their profile but set it to private, so nobody can find them in browse.",
+        'sentInterest' => fn(int $drop, int $base): string => "{$drop} members are visible in browse but have never sent a single interest — the profiles are up, but nobody is reaching out.",
+        'mutual' => fn(int $drop, int $base): string => "Interest is mostly one-way — {$drop} members sent an interest that was never returned, so almost no conversations can start.",
+        'conversation' => fn(int $drop, int $base): string => "{$drop} members have a mutual interest but no conversation has started yet.",
+    ];
+    $biggestDrop = 0;
+    foreach ($funnelSteps as $s) {
+        if ($s['dropFromPrev'] > $biggestDrop && isset($leakTemplates[$s['key']])) {
+            $biggestDrop = $s['dropFromPrev'];
+            $insight = $leakTemplates[$s['key']]($s['dropFromPrev'], $funnelN['signups']);
+        }
+    }
+    if ($insight === null) {
+        if ($funnelN['signups'] === 0) {
+            $insight = 'No real members have joined yet.';
+        } elseif ($signupsToday === 0) {
+            $insight = 'No new signups yet today. The funnel has no big leak — the site mainly needs more visitors.';
+        } else {
+            $insight = "{$signupsToday} people joined today and the funnel has no big leak — most members finish each step.";
+        }
+    }
+
+    // ── Leak list: real members stuck right now (newest first, max 20) ────
+    $stuckWhere = "(u.email_verified = 0 OR NOT ({$finished}))";
+    $leaksTotal = $count("SELECT COUNT(*) AS n FROM users u {$joinP} WHERE {$real} AND {$stuckWhere}");
+    $leakRows = [];
+    foreach ($queryRows(
+        "SELECT u.id, u.display_name AS account_name, u.email, u.email_verified, u.created_at AS joined_at,
+                p.display_name AS profile_name, p.city, p.country, p.bio, p.expectations
+           FROM users u {$joinP}
+          WHERE {$real} AND {$stuckWhere}
+          ORDER BY u.created_at DESC LIMIT 20"
+    ) as $r) {
+        $missing = [];
+        if ((int)($r['email_verified'] ?? 0) === 0) $missing[] = 'email not verified';
+        if (trim((string)($r['city'] ?? '')) === '') $missing[] = 'no city';
+        if (trim((string)($r['country'] ?? '')) === '') $missing[] = 'no country';
+        if (trim((string)($r['bio'] ?? '')) === '') $missing[] = 'no bio';
+        if (trim((string)($r['expectations'] ?? '')) === '') $missing[] = 'has not said what they are looking for';
+        $leakRows[] = [
+            'id' => (string)($r['id'] ?? ''),
+            'accountName' => (string)($r['account_name'] ?? ''),
+            'profileName' => (string)($r['profile_name'] ?? $r['account_name'] ?? ''),
+            'email' => (string)($r['email'] ?? ''),
+            'city' => (string)($r['city'] ?? ''),
+            'country' => (string)($r['country'] ?? ''),
+            'joinedAt' => (string)($r['joined_at'] ?? ''),
+            'missing' => $missing,
+        ];
+    }
+
+    // ── Charts: same day axis as before. memberGrowth now counts REAL
+    // signups only; messageVolume and biodataCreated are unchanged (they
+    // were already honest counts of their own tables).
     $labels = [];
     $dayKeys = [];
     for ($i = $days; $i >= 0; $i--) {
@@ -691,7 +888,6 @@ function adminAnalytics(): void
         $labels[] = date('M d', $ts);
         $dayKeys[] = date('Y-m-d', $ts);
     }
-
     $bucketCounts = function (string $table) use ($days): array {
         // $days is an int derived from a fixed enum above — safe to inline
         // (placeholder markers are not accepted inside INTERVAL by all
@@ -705,8 +901,15 @@ function adminAnalytics(): void
         }
         return $map;
     };
-
-    $memberCounts = $bucketCounts('users');
+    $realSignupCounts = [];
+    try {
+        $stmt = db()->prepare("SELECT DATE(u.created_at) AS d, COUNT(*) AS n FROM users u {$joinP}
+            WHERE {$real} AND u.created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY) GROUP BY DATE(u.created_at)");
+        $stmt->execute();
+        foreach ($stmt->fetchAll() as $r) {
+            $realSignupCounts[(string)$r['d']] = (int)$r['n'];
+        }
+    } catch (Throwable) { /* chart degrades to zeros */ }
     $messageCounts = $bucketCounts('messages');
 
     // Biodata maker usage — from the audit trail (action = 'biodata.created').
@@ -723,12 +926,43 @@ function adminAnalytics(): void
 
     json([
         'range' => $range,
+        'timezone' => 'America/New_York',
+        'headline' => [
+            'signupsToday' => $signupsToday,
+            'signupTarget' => 5,
+            'signupsYesterday' => $signupsYesterday,
+            'realMembers' => $realMembers,
+            'visitorsToday' => $visitorsToday,
+            'pageviewsToday' => $pageviewsToday,
+            'interestsToday' => $interestsToday,
+            'messagesToday' => $messagesToday,
+        ],
+        'insight' => $insight,
+        'funnel' => [
+            'window' => 'All time — everyone who ever joined',
+            'steps' => $funnelSteps,
+        ],
+        'engagement' => [
+            'interestsTotal' => $interestsTotal,
+            'mutualPairs' => $mutualPairs,
+            'conversationsTotal' => $conversationsTotal,
+            'messages7d' => $messages7d,
+            'messages30d' => $messages30d,
+            'active7d' => $active7d,
+            'active30d' => $active30d,
+            'dormant' => $dormant,
+        ],
+        'quality' => $quality,
+        'leaks' => [
+            'total' => $leaksTotal,
+            'rows' => $leakRows,
+        ],
         'charts' => [
             [
                 'key' => 'memberGrowth',
-                'title' => 'Member Growth',
+                'title' => 'Real signups per day',
                 'labels' => $labels,
-                'values' => array_map(fn($d) => $memberCounts[$d] ?? 0, $dayKeys),
+                'values' => array_map(fn($d) => $realSignupCounts[$d] ?? 0, $dayKeys),
                 'color' => 'var(--color-primary)',
             ],
             [

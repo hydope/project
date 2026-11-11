@@ -28,6 +28,13 @@ export default function AdminMembers() {
   // "Cannot access ... before initialization" on every render.
   const [searchParams, setSearchParams] = useSearchParams();
   const seededOnly = searchParams.get('seeded') === '1';
+  // Arriving from the Analytics leak list (/admin/members?q=...) pre-fills
+  // the search box, so the admin lands on that member, not the full list.
+  useEffect(() => {
+    const qParam = searchParams.get('q');
+    if (qParam) setQ(qParam);
+    // Mount only: the param is a landing hint, not a live binding.
+  }, []);
   // Test accounts are hidden by default; admins can reveal them for cleanup.
   const [showTest, setShowTest] = useState(false);
 
