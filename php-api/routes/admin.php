@@ -878,51 +878,52 @@ function adminAnalytics(): void
         ];
     }
 
-    // ── Charts: same day axis as before. memberGrowth now counts REAL
-    // signups only; messageVolume and biodataCreated are unchanged (they
-    // were already honest counts of their own tables).
+    // ── Charts: memberGrowth now counts REAL signups only (the old chart
+    // counted every profile creation); messageVolume and biodataCreated
+    // are the same honest counts of their own tables as before. All three
+    // are bucketed into New York days, same as the headline.
+    // Day axis is New York days (the response declares America/New_York
+    // and the headline uses NY bounds); each point counts events whose UTC
+    // timestamp falls inside that NY day.
     $labels = [];
     $dayKeys = [];
     for ($i = $days; $i >= 0; $i--) {
-        $ts = time() - ($i * 86400);
-        $labels[] = date('M d', $ts);
-        $dayKeys[] = date('Y-m-d', $ts);
+        $d = $todayNy->modify("-{$i} days");
+        $labels[] = $d->format('M d');
+        $dayKeys[] = $d->format('Y-m-d');
     }
-    $bucketCounts = function (string $table) use ($days): array {
-        // $days is an int derived from a fixed enum above — safe to inline
-        // (placeholder markers are not accepted inside INTERVAL by all
-        // MariaDB versions with native prepares).
-        $stmt = db()->prepare("SELECT DATE(created_at) AS d, COUNT(*) AS n FROM {$table}
-            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY) GROUP BY DATE(created_at)");
-        $stmt->execute();
-        $map = [];
-        foreach ($stmt->fetchAll() as $r) {
-            $map[(string)$r['d']] = (int)$r['n'];
+    // Bucket a list of UTC created_at values into New York days. (Done in
+    // PHP to avoid CONVERT_TZ, which needs named-timezone tables the server
+    // may not have loaded; the window is a few hundred rows at most.)
+    $windowStart = $asUtc($todayNy->modify("-{$days} days"));
+    $windowEnd = $tomorrowStart;
+    $countsByNyDay = function (string $sql, array $params) use ($ny, $utc): array {
+        try {
+            $stmt = db()->prepare($sql);
+            $stmt->execute($params);
+            $map = [];
+            foreach ($stmt->fetchAll() as $r) {
+                $d = (new DateTimeImmutable((string)($r['created_at'] ?? ''), $utc))->setTimezone($ny)->format('Y-m-d');
+                $map[$d] = ($map[$d] ?? 0) + 1;
+            }
+            return $map;
+        } catch (Throwable) {
+            return [];
         }
-        return $map;
     };
-    $realSignupCounts = [];
-    try {
-        $stmt = db()->prepare("SELECT DATE(u.created_at) AS d, COUNT(*) AS n FROM users u {$joinP}
-            WHERE {$real} AND u.created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY) GROUP BY DATE(u.created_at)");
-        $stmt->execute();
-        foreach ($stmt->fetchAll() as $r) {
-            $realSignupCounts[(string)$r['d']] = (int)$r['n'];
-        }
-    } catch (Throwable) { /* chart degrades to zeros */ }
-    $messageCounts = $bucketCounts('messages');
-
+    $realSignupCounts = $countsByNyDay(
+        "SELECT u.created_at FROM users u {$joinP} WHERE {$real} AND u.created_at >= ? AND u.created_at < ?",
+        [$windowStart, $windowEnd]
+    );
+    $messageCounts = $countsByNyDay(
+        'SELECT created_at FROM messages WHERE created_at >= ? AND created_at < ?',
+        [$windowStart, $windowEnd]
+    );
     // Biodata maker usage — from the audit trail (action = 'biodata.created').
-    $biodataCounts = [];
-    try {
-        $stmt = db()->prepare("SELECT DATE(created_at) AS d, COUNT(*) AS n FROM admin_audit
-            WHERE action = 'biodata.created'
-            AND created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY) GROUP BY DATE(created_at)");
-        $stmt->execute();
-        foreach ($stmt->fetchAll() as $r) {
-            $biodataCounts[(string)$r['d']] = (int)$r['n'];
-        }
-    } catch (Throwable) { /* audit table may predate biodata logging */ }
+    $biodataCounts = $countsByNyDay(
+        "SELECT created_at FROM admin_audit WHERE action = 'biodata.created' AND created_at >= ? AND created_at < ?",
+        [$windowStart, $windowEnd]
+    );
 
     json([
         'range' => $range,
