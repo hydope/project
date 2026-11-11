@@ -37,4 +37,5 @@ export const LANDING_PAGE_META = {
   'shia-rishta-atlanta': { title: 'Shia Rishta in Atlanta | Find a Shia Match for Nikah \u2013 Shia Rishta', desc: 'Searching for a Shia rishta in Atlanta? Meet Shia brides and grooms across Georgia and the Southeast \u2014 marja and practice filters, wali-involved introductions. Free to join.' },
   'shia-rishta-seattle': { title: 'Shia Rishta in Seattle | Find a Shia Match for Nikah \u2013 Shia Rishta', desc: 'Searching for a Shia rishta in Seattle? Meet Shia brides and grooms across the Pacific Northwest and nationwide \u2014 wali-involved, privacy-first. Free to join.' },
   'shia-rishtay': { title: 'Shia Rishtay | Find a Shia Rishta for Nikah – Shia Rishta', desc: 'Searching for Shia rishtay? Meet Shia brides and grooms across the UK, USA and Canada — filtered by marja, practice and family values. Free to join.' },
+  'shia-rishta-online': { title: 'Shia Rishta Online | Find a Shia Spouse – Shia Rishta', desc: 'Searching for a Shia rishta online? How the search works, staying safe and private, and keeping your family involved — from first profile to nikah.' },
 };

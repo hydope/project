@@ -52,6 +52,7 @@ function llmsTxt(): void
         '/shia-nikah' => 'Shia nikah',
         '/shia-nikah-guide' => 'Shia nikah guide',
         '/shia-rishtay' => 'Shia rishtay',
+        '/shia-rishta-online' => 'Shia rishta online',
     ];
     foreach ($landing as $path => $desc) {
         $lines[] = "- [$desc](" . $base . $path . ($path === '/' ? '' : '/') . ")";

@@ -193,6 +193,7 @@ const router = createBrowserRouter([
   { path: '/shia-rishta-atlanta', element: <LazyRoute component={LandingPage} /> },
   { path: '/shia-rishta-seattle', element: <LazyRoute component={LandingPage} /> },
   { path: '/shia-rishtay', element: <LazyRoute component={LandingPage} /> },
+  { path: '/shia-rishta-online', element: <LazyRoute component={LandingPage} /> },
   { path: '/shiamatch-alternative', element: <LazyRoute component={LandingPage} /> },
   // Programmatic tag landing pages (11 tags × profile cities/countries).
   // Generated at build time; hand-written pages above take precedence on

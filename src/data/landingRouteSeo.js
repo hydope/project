@@ -116,7 +116,7 @@ const LANDING_BODY = {
         h2: 'What nikah is',
         p: [
           'If you search for “Shia marriage” or “Shia nikah” online, the first result is a general wedding site. It is a good guide to the celebrations. It is also wrong on the law in at least one important place — it states that two witnesses must observe the contract. In Shia fiqh, they do not have to.',
-          'This guide is written to be the accurate one: the nikah contract as Shia law understands it, the traditions that surround it, and the practical questions families actually ask. Where the sources disagree, it says so. Where a ruling depends on your marja, it says that too.',
+          'This guide is written to be the accurate one: the nikah contract as Shia law understands it, the traditions that surround it, and the practical questions families actually ask. Where the sources disagree, it says so. Where a ruling depends on your marja, it says that too. If you are still looking for the right person, [finding a Shia rishta online](/shia-rishta-online/) explains how the search itself works.',
           'Nikah is the contract that makes a marriage valid in Islam. It is not a blessing on a relationship, and it is not a ceremony that ratifies something already decided. It is the act that creates the marriage. When the formula is spoken with intention and consent, two people become husband and wife.',
           'Marriage is among the most recommended acts in Islam. The Prophet (s.a.w.) is reported to have said, “Whosoever marries, he has protected half of his religion,” and “Whoever likes to follow my tradition, then [he should know that] marriage is of my tradition.” Imam Muhammad al-Baqir (a.s.) is reported to have said that no institution has been created in Islam more favoured and dearer to Allah than wedlock. Marriage is obligatory for a person who fears falling into what is unlawful through remaining unmarried.',
           'In Shia law, marriage is of two kinds. A permanent marriage has no fixed time limit — it is the marriage most people mean when they say “nikah.” A temporary marriage (mut’ah) fixes a duration and a mahr in the contract itself. Both are real marriages under Shia fiqh, and both follow the same contract rules: formula, consent, and mahr, with the duration stated in the temporary case. Temporary marriage is a distinctively Shia part of the law — Sunni law does not recognise it — and a family should understand that it exists, even if it is not what they are seeking.',
@@ -231,6 +231,7 @@ const LANDING_BODY = {
       { to: '/shia-rishtay', label: 'Finding Shia rishtay' },
       { to: '/shiamatch-alternative', label: 'A free ShiaMatch alternative' },
       { to: '/nikah-checklist', label: 'Shia nikah checklist' },
+      { to: '/shia-rishta-online', label: 'Finding a Shia rishta online' },
     ],
   },
   'shia-marriage': {
@@ -431,7 +432,7 @@ const LANDING_BODY = {
       {
         h2: 'How Shia matchmaking works, step by step',
         p: [
-          'The search. Families look within their own networks first — relatives, friends, the local centre — and then widen the search. This is where a platform helps: it puts profiles from other cities and countries in front of a family that has already exhausted its local circle. A good search is filtered by marja, practice, age, education, and location, because a family that has to read a hundred irrelevant profiles will stop reading.',
+          'The search. Families look within their own networks first — relatives, friends, the local centre — and then widen the search. This is where a platform helps: it puts profiles from other cities and countries in front of a family that has already exhausted its local circle. A good search is filtered by marja, practice, age, education, and location, because a family that has to read a hundred irrelevant profiles will stop reading. Most families now begin that search online — see [finding a Shia rishta online](/shia-rishta-online/).',
           'The shortlist. Families compare a small number of serious proposals rather than collecting as many as possible. The questions at this stage are practical: deen and practice, family background, education and work, health, and what each side wants from the marriage. A biodata — a one-page summary of the person and their family — is how most families do this, and it is why a clear, honest biodata matters more than a long one.',
           'The introduction. When both families are interested, they arrange an introduction. The wali is present or informed. The couple meets with family around them, not alone, and the conversation is about compatibility — values, expectations, how each side sees married life. Nobody is asked to decide anything at this meeting.',
           'Istikhara and reflection. Many families do istikhara — seeking guidance through prayer — before proceeding. It is not a substitute for thinking. Families that do it well use it alongside the practical questions, not instead of them: the guidance confirms a decision that the facts already support.',
@@ -486,6 +487,89 @@ const LANDING_BODY = {
       { to: '/shia-rishta-london', label: 'Shia rishta in London' },
       { to: '/shia-rishta-toronto', label: 'Shia rishta in Toronto' },
       { to: '/shia-rishta-chicago', label: 'Shia rishta in Chicago' },
+      { to: '/shia-marriage', label: 'Shia marriage, explained' },
+      { to: '/shia-nikah', label: 'The Shia nikah, explained' },
+      { to: '/shia-nikah-guide', label: 'The complete Shia nikah guide' },
+      { to: '/shiamatch-alternative', label: 'A free ShiaMatch alternative' },
+      { to: '/shia-brides', label: 'Find a Shia bride' },
+      { to: '/shia-grooms', label: 'Find a Shia groom' },
+      { to: '/shia-rishta-online', label: 'Finding a Shia rishta online' },
+    ],
+  },
+  'shia-rishta-online': {
+    h1: 'Shia Rishta Online: Finding a Shia Spouse on the Internet, the Right Way',
+    sections: [
+      {
+        h2: 'What “rishta” means — and what changes online',
+        p: [
+          'Searching for a shia rishta online is now how most Shia families begin the marriage search — not because tradition has been abandoned, but because the Shia community is spread thin. A family in Baltimore may have a handful of Shia families at their local centre; the right match might be in Houston, Dearborn, London or Toronto. The internet simply puts those families within reach.',
+          'But “online” changes the search in real ways. This page explains what looking for a Shia rishta online actually involves, how it differs from the traditional matchmaker route, how to keep it safe and private, and how your family stays involved from the first click to the nikah. If the process itself is new to you, start with [what a Shia rishta is](/shia-rishtay/).',
+          'A rishta is a marriage proposal: one family putting forward their son or daughter for another family’s consideration, with marriage — nikah — as the explicit goal from the start. It is not dating. The intention is declared up front, families are part of the process, and the end point is a decision, not an open-ended relationship.',
+          'Online, the proposal arrives as a profile instead of through an auntie, a matchmaker or a word at the mosque. The substance is the same — faith, character, family, compatibility — but three things change:',
+          'You do the first round of filtering yourself. Instead of a matchmaker who already knows both families, you read profiles and judge from what is written.',
+          'The pool is much bigger, and much less pre-vetted. Anyone can create a profile on most platforms. Verification becomes your job, at least in part.',
+          'Geography stops being the limit. A rishta that would never have crossed your path offline can arrive from another state or another country — which also means more proposals to weigh, and more care needed.',
+        ],
+      },
+      {
+        h2: 'How a Shia rishta search works online, step by step',
+        p: [
+          '1. Create an honest profile. Your profile is your rishta. It should cover what a family would ask in person: age, city, sect and marja’ of taqlid, level of practice (prayer, fasting, hijab where relevant), education and work, family background, and what you are looking for in a spouse. Vague profiles attract vague proposals.',
+          '2. Search with the filters that matter. The advantage of an online platform built for Shia Muslims is filtering by the things that actually decide compatibility in a Shia marriage: marja’, practice, city, age, and family values. A generic dating app cannot filter by marja’. A Shia platform can.',
+          '3. Express interest — privately. On [ShiaRishta](/), interest is one-sided until it is mutual: nobody is notified that you approached them unless they have expressed interest back. That protects the dignity of both sides, the way a discreet family introduction used to.',
+          '4. Talk, with boundaries. Once interest is mutual, a conversation opens. This is the stage for real questions — practice, expectations, where you would live, family involvement, timeline — not small talk. Keep it purposeful, and bring your family in early rather than after months of private messaging.',
+          '5. Move to families and meetings. A serious online rishta should leave the screen quickly: family-to-family contact, then meetings conducted properly, with a wali or mahram involved as your family’s practice requires.',
+          '6. Decide, then proceed to nikah. Background checks, consultation with people you trust (istishara), and — if you are genuinely undecided after all that — istikhara. Then the proposal is accepted or declined, and the families move to mahr, [the nikah contract](/shia-nikah/), and the wedding.',
+        ],
+      },
+      {
+        h2: 'Online rishta vs the traditional matchmaker',
+        p: [
+          'Neither route is automatically better. They fail in different ways.',
+          'The traditional route — a matchmaker, a rishta auntie, the mosque community — comes with built-in vetting: someone knows both families. Its limits are reach and speed: the pool is whoever one person happens to know, and a good proposal can take a year to surface.',
+          'The online route trades that built-in vetting for reach. You see more proposals in a week than a matchmaker might bring in a year, including from cities and countries you could never search offline. The cost is that you and your family must do the vetting yourselves: checking profiles, asking for references, verifying what people claim.',
+          'In practice, many families now use both: online for reach, and the family-and-community checks of the traditional route before anything is agreed. On ShiaRishta, the two are combined deliberately — matchmakers can run accounts for the families they serve, and guardians can be linked to a profile from the start.',
+        ],
+      },
+      {
+        h2: 'Safety and privacy: the non-negotiables',
+        p: [
+          'A rishta involves your family’s honour and your personal details. Treat both carefully online.',
+          'Control your photos. A photo is the most sensitive thing on a profile. On ShiaRishta, every member chooses who sees their photos: everyone, only people they have mutual interest with, or only matches — and locked photos are never sent to a browser that has not passed the access check. Use the strict settings until you are confident about a specific match, and never feel pressured to unlock a photo early. A serious family will respect the boundary; pressure to remove it is itself information.',
+          'Never send money. No legitimate rishta process involves sending money to someone you have not met: not for travel, not for “visa fees”, not for an emergency. A request for money ends the conversation — report the profile.',
+          'Verify before you invest. Profiles can understate age, marital status and almost anything else. Before families meet: a video call, references from the person’s community or mosque, and questions asked more than once in different ways. Verification badges help — on ShiaRishta, profiles can carry ID-verified and photo-verified badges after review — but they support your own checks, never replace them.',
+          'Keep early conversations on the platform. Moving to private messaging apps in the first exchange removes every protection the platform gives you, including blocking and reporting. Exchange contact details when both families are ready, not before.',
+          'Watch for the standard red flags. Refusing any family involvement, avoiding video calls, a story that keeps changing, rushing to declarations of love, or pushing to move countries quickly — each one is a reason to slow down or walk away.',
+        ],
+      },
+      {
+        h2: 'How family involvement works online',
+        p: [
+          'The most common fear about online rishtas is that they cut the family out. They don’t have to — and on a platform built for Shia marriage, they shouldn’t.',
+          'A guardian or parent can be involved from the first step: linked to the profile, seeing introductions, and approving what moves forward. Conversations can be chaperoned. Introductions can be family-to-family from the start, with the two people talking only inside a structure both families are comfortable with.',
+          'The practical rule is simple: the earlier the family is involved, the safer and faster the process. An online rishta that stays a private two-person chat for months has drifted from what a rishta is. Bring the families in while the conversation is still new, and let the process become what it was always meant to be — two families deciding, carefully and in the open.',
+        ],
+      },
+      {
+        h2: 'Who should look for a Shia rishta online',
+        p: [
+          'Online search suits you if your local Shia community is small, if your family has specific requirements (a particular marja’, a city, a language or cultural background) that a small local pool cannot meet, or if you simply want to see serious proposals beyond one matchmaker’s notebook. It suits families who are willing to do their own verification work in exchange for that reach.',
+          'It is not a shortcut around the process. The meetings, the questions, the family checks and the decision are the same as they have always been — only the introductions arrive differently.',
+          'Start here: [browse Shia profiles](/profiles/) or [create a free account](/auth/register) and set up your profile the way you would want your family represented.',
+        ],
+      },
+    ],
+    faq: [
+      { q: 'Is looking for a Shia rishta online acceptable Islamically?', a: 'The medium is not the issue; the conduct is. A search conducted with marriage as the stated goal, family involvement, and proper boundaries between the two people before nikah is the traditional process carried out with new tools. If you have a specific concern, ask your marja’ or a scholar you trust.' },
+      { q: 'How is this different from a dating app?', a: 'Intent and structure. A rishta platform is built around declared marriage intent, family involvement and compatibility in faith and practice — including filters like marja’ that no dating app carries. There is no swiping culture and no casual browsing for entertainment; profiles exist to be considered for marriage.' },
+      { q: 'Can my parents or wali be involved from the start?', a: 'Yes. On ShiaRishta a parent, guardian or wali can be linked to your profile, see introductions, and be part of the process from the first expression of interest — and a guardian link can be revoked at any time, with effect immediately.' },
+      { q: 'Do I have to show my photo to everyone?', a: 'No. You choose: everyone, only after mutual interest, or only matches. The default is the most restrictive setting. Many women in particular keep photos locked until a match is serious and families are talking, and serious families understand this.' },
+      { q: 'How do I know a profile is genuine?', a: 'Look for verified badges, a complete and consistent profile, and willingness to involve family and community references. Then do your own checks: video calls, questions asked through people who know them, and a meeting conducted properly before any commitment. No platform badge replaces family due diligence.' },
+      { q: 'Can I find a rishta from another country?', a: 'Yes — that is one of the main reasons families search online. Shia communities in the UK, USA, Canada and elsewhere are all part of the same pool. Cross-border matches add practical questions — relocation, immigration process, which country’s courts register the marriage — so raise them early, not after the aqd.' },
+      { q: 'What should I do if a conversation feels wrong?', a: 'Stop it. Block the profile and report it. Discomfort is information: a process meant to end in marriage should feel dignified at every stage, and anyone who pressures, rushes or isolates you from your family is showing you who they are.' },
+    ],
+    related: [
+      { to: '/shia-rishtay', label: 'Finding Shia rishtay' },
       { to: '/shia-marriage', label: 'Shia marriage, explained' },
       { to: '/shia-nikah', label: 'The Shia nikah, explained' },
       { to: '/shia-nikah-guide', label: 'The complete Shia nikah guide' },
