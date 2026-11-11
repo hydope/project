@@ -15,8 +15,9 @@ declare(strict_types=1);
 
 // The rule lives in its own dependency-free file, so this probe needs
 // no database and no HTTP helpers — and it calls the production
-// functions directly, never a copy.
-require __DIR__ . '/../lib/recommendation_gender.php';
+// functions directly, never a copy. require_once: the parent suite has
+// already loaded the lib through routes/profiles.php.
+require_once __DIR__ . '/../lib/recommendation_gender.php';
 
 // Standalone: `php tests/recommendation-gender-probe.php` prints and
 // exits non-zero on failure. Included: the parent suite (admin-routing-
