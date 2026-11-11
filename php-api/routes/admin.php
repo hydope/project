@@ -622,7 +622,7 @@ function adminHealth(): void
 {
     $rows = db()->query(
         'SELECT p.user_id, p.display_name, p.city, p.profession, p.visibility, p.is_seeded,
-                u.is_test AS owner_test, u.is_admin AS owner_admin, u.email AS owner_email
+                u.id AS owner_id, u.is_test AS owner_test, u.is_admin AS owner_admin, u.email AS owner_email
            FROM profiles p
            LEFT JOIN users u ON u.id = p.user_id'
     )->fetchAll();
@@ -632,9 +632,13 @@ function adminHealth(): void
     // test account, not a seeder account, and the profile itself not
     // seeded. This banner used to count every non-shell profile (205,
     // seeded rows included) while analytics counted real members (50) —
-    // two admin screens quoting two different "real" numbers.
+    // two admin screens quoting two different "real" numbers. The owner
+    // row must also EXIST: orphan profile rows whose account was deleted
+    // (3 on first live check) passed the LEFT JOIN with NULL owner fields
+    // and inflated this count above the member total.
     $real = array_values(array_filter($rows, static fn(array $r): bool =>
-        (int)($r['owner_admin'] ?? 0) === 0
+        ($r['owner_id'] ?? null) !== null
+        && (int)($r['owner_admin'] ?? 0) === 0
         && (int)($r['owner_test'] ?? 0) === 0
         && !((str_starts_with((string)($r['owner_email'] ?? ''), 'seeded-') && str_ends_with((string)($r['owner_email'] ?? ''), '@shiarishta.com')))
         && (int)($r['is_seeded'] ?? 0) === 0
