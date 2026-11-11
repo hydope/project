@@ -292,7 +292,8 @@ function requireNotBlocked(array $user): void
 // User-to-user block (2026-11-09, P0 batch): a row in `blocks` in EITHER
 // direction hides both members' profiles from each other and stops interest
 // and messaging. The moderation `is_blocked` flag above is a different thing
-// (admin action against one account); this is a member action against another.function isBlockedBetween(string $a, string $b): bool
+// (admin action against one account); this is a member action against another.
+function isBlockedBetween(string $a, string $b): bool
 {
     if ($a === '' || $b === '' || $a === $b) return false;
     $stmt = db()->prepare('SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?) LIMIT 1');
