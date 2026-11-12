@@ -362,6 +362,18 @@ function lastActiveLabel($ts): ?string
     return 'over a week ago';
 }
 
+// Raw last-active instant (2026-11-11): the ISO-8601 UTC form of the SAME
+// timestamp lastActiveLabel() buckets, parsed the same way it parses it, so
+// clients can render the actual date ("Last seen 8 Nov 2026") in the
+// viewer's own timezone. NULL stays null — no recorded activity, no label.
+function lastActiveIso($ts): ?string
+{
+    if ($ts === null || $ts === '') return null;
+    $t = strtotime((string)$ts);
+    if ($t === false) return null;
+    return gmdate('Y-m-d\TH:i:s\Z', $t);
+}
+
 // Last-active SQL (2026-11-10, fallback): the recorded login/activity
 // timestamp (users.last_active_at) always wins. When it is NULL — every
 // member whose activity predates the tracking column — fall back to the
@@ -406,7 +418,7 @@ function applyHiddenFields(array $payload, array $row, bool $isOwner): array
     // is a fact about the account, not a profile detail. 'lastActive' is
     // out of the profileUpdate() allowlist, and a value stored before the
     // rule (or sent by a hand-crafted client) has no effect here either.
-    $hidden = array_values(array_diff($hidden, ['lastActive']));
+    $hidden = array_values(array_diff($hidden, ['lastActive', 'lastActiveAt']));
     if ($isOwner) {
         $payload['hiddenFields'] = $hidden;
         return $payload;
@@ -570,8 +582,11 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'prefLocation' => $row['pref_location'] ?? null,
             'prefMustHaves' => $row['pref_must_haves'] ?? null,
             // Last active (2026-11-10): 'today' / 'this week' / 'over a week
-            // ago' / null (never recorded — shown as nothing).
+            // ago' / null (never recorded — shown as nothing). lastActiveAt
+            // (2026-11-11) carries the raw instant next to it — clients now
+            // render the actual date from it.
             'lastActive' => lastActiveLabel($row['last_active_at'] ?? null),
+            'lastActiveAt' => lastActiveIso($row['last_active_at'] ?? null),
             'photosVisibility' => $tier,
             'photosLocked' => $photosLocked,
             'photo' => ($photosLocked || (string)($row['photo_url'] ?? '') === '')
@@ -678,6 +693,7 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'prefLocation' => $row['pref_location'] ?? null,
             'prefMustHaves' => $row['pref_must_haves'] ?? null,
             'lastActive' => lastActiveLabel($row['last_active_at'] ?? null),
+            'lastActiveAt' => lastActiveIso($row['last_active_at'] ?? null),
             // MUST be sent: the client renders its "photos are private" state
             // from this. Omitting it left the lock overlay permanently hidden,
             // so a member who hid their photos still looked fully visible.

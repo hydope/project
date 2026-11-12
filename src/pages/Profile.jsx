@@ -5,7 +5,7 @@ import { analytics } from '../lib/analytics';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/auth/AuthContext';
 import LoginGate from '../components/LoginGate';
-import { formatCity, formatCountry } from '../lib/format';
+import { formatCity, formatCountry, formatDateShort, isStaleActivity } from '../lib/format';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { ArrowLeft, ShieldCheck, MapPin, Heart, MessageCircle, Bookmark, Lock, Users, Award, Sparkles, ChevronRight, HeartHandshake } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
@@ -19,14 +19,10 @@ import { whatsappShareUrl, copyProfileLink } from '../lib/shareProfile';
 import { cmToFeetInches } from '../lib/height';
 import { useAuthedImage } from '../lib/api/useAuthedImage';
 
-// Last active (2026-11-10): honest buckets only — never an exact timestamp.
-// A profile last seen over a week ago reads differently (muted) so a dead
-// profile never looks as live as one active today.
-const LAST_ACTIVE_LABELS = {
-  today: 'Active today',
-  'this week': 'Active this week',
-  'over a week ago': 'Active over a week ago',
-};
+// Last seen (2026-11-11): the actual date, formatted from the raw
+// lastActiveAt timestamp — no buckets. A profile not seen for over a week
+// reads differently (muted) so a dead profile never looks as live as one
+// seen today.
 
 // No stock/placeholder photo is injected into the gallery. A member who hides
 // their photos gets an honest "photos are private" state, never someone else's
@@ -458,9 +454,9 @@ export default function Profile() {
                   { label: 'Children plans', value: profile.childrenPlans },
                   // Profile depth (2026-11-10): education detail, employer,
                   // residency, build, hobbies, convert status — only rows
-                  // with a value render. Last active is a fact, not a detail:
-                  // 'over a week ago' renders muted so a dead profile looks
-                  // different from a live one.
+                  // with a value render. Last seen is a fact, not a detail:
+                  // a date over a week old renders muted so a dead profile
+                  // looks different from a live one.
                   { label: 'Field of study', value: profile.educationField },
                   { label: 'Institution', value: profile.educationInstitution },
                   { label: 'Employer', value: profile.employer },
@@ -468,7 +464,7 @@ export default function Profile() {
                   { label: 'Build', value: profile.build },
                   { label: 'Hobbies', value: profile.hobbies },
                   { label: 'Muslim background', value: profile.convertStatus },
-                  { label: 'Last active', value: LAST_ACTIVE_LABELS[profile.lastActive] || null, muted: profile.lastActive === 'over a week ago' },
+                  { label: 'Last seen', value: formatDateShort(profile.lastActiveAt), muted: isStaleActivity(profile.lastActiveAt) },
                 ].filter(item => item.value).map(item => (
                   <div key={item.label} className="p-3 rounded-xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
                     <p className="text-[11px] uppercase tracking-wider font-bold mb-0.5" style={{ color: 'var(--color-ink-faint)' }}>{item.label}</p>

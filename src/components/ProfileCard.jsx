@@ -7,7 +7,7 @@ import { cmToFeetInches } from '../lib/height';
 import VerifiedBadge from './VerifiedBadge';
 import { useAuthedImage } from '../lib/api/useAuthedImage';
 import { computeCompatibility, getMyProfile } from '../lib/compatibility';
-import { formatCity, formatCountry } from '../lib/format';
+import { formatCity, formatCountry, formatDateShort, isStaleActivity } from '../lib/format';
 import { useAuth } from '../lib/auth/AuthContext';
 import LoginGate from './LoginGate';
 import SampleProfileBadge from './SampleProfileBadge';
@@ -265,13 +265,14 @@ export default function ProfileCard({ profile, className = '' }) {
                 cmToFeetInches(profile.heightCm)].filter(Boolean).join(' · ')}
             </p>
           )}
-          {/* Last active (2026-11-10): honest buckets only. A profile last
-              seen over a week ago reads muted so a dead profile never looks
-              as live as one active today. Nothing renders when the server
-              never recorded activity — never claim inactivity without data. */}
-          {profile.lastActive && (
-            <p className="text-xs truncate" style={{ color: profile.lastActive === 'over a week ago' ? 'var(--color-ink-faint)' : 'var(--color-ink-secondary)' }}>
-              {profile.lastActive === 'today' ? 'Active today' : profile.lastActive === 'this week' ? 'Active this week' : 'Active over a week ago'}
+          {/* Last seen (2026-11-11): the actual date, formatted from the
+              raw lastActiveAt timestamp — no buckets. A profile not seen
+              for over a week reads muted so a dead profile never looks as
+              live as one seen today. Nothing renders when the server never
+              recorded activity — never claim inactivity without data. */}
+          {formatDateShort(profile.lastActiveAt) && (
+            <p className="text-xs truncate" style={{ color: isStaleActivity(profile.lastActiveAt) ? 'var(--color-ink-faint)' : 'var(--color-ink-secondary)' }}>
+              Last seen {formatDateShort(profile.lastActiveAt)}
             </p>
           )}
           {/* Labelled before anything else the card says. A sample profile is
