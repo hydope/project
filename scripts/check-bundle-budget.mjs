@@ -54,10 +54,19 @@ const BUDGETS = { totalJS: 728 * 1024, totalCSS: 50 * 1024, maxChunk: 150 * 1024
 let totalJS = 0, totalCSS = 0, maxChunk = 0, maxChunkName = '';
 const violations = [];
 
-for (const file of readdirSync(DIST)) {
-  const path = join(DIST, file);
-  if (!statSync(path).isFile()) continue;
-  const { readFileSync } = await import('fs');
+// Assets live in a per-build namespace subdirectory (dist/assets/b-<id>/,
+// see vite.config.js) — walk recursively or the gate would measure an
+// empty directory and pass vacuously.
+const { readFileSync } = await import('fs');
+function* walk(dir) {
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry);
+    if (statSync(path).isDirectory()) yield* walk(path);
+    else yield { file: entry, path };
+  }
+}
+
+for (const { file, path } of walk(DIST)) {
   const gzipped = gzipSync(readFileSync(path)).length;
 
   if (file.endsWith('.js')) {

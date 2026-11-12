@@ -20,6 +20,22 @@ allowedEnvVars.forEach(key => {
   }
 });
 
+// Per-build asset namespace (2026-11-12 incident fix). Two successive
+// builds once produced the SAME chunk filename (users-<hash>.js) with
+// different export contracts; immutable edge caching froze the old copy,
+// and phones loading the new build's importers crashed with
+// "does not provide an export named 'U'". Content hashes alone do not
+// make a filename unique across builds — the hash is over content that
+// can coincide for re-export barrels — so every deploy now ships its
+// chunks under assets/b-<buildId>/, a directory no earlier build ever
+// used. A fresh page load therefore only ever requests URLs that were
+// minted by its own build; stale edge copies of old URLs are simply
+// never referenced again. BUILD_ID comes from CI (github.sha); local
+// builds share the harmless 'local' namespace.
+const buildId = (process.env.BUILD_ID || process.env.GITHUB_SHA || 'local')
+  .replace(/[^a-zA-Z0-9-]/g, '')
+  .slice(0, 12) || 'local';
+
 export default defineConfig({
   plugins: [react()],
   // Build ID — injected into the bundle so the app can detect when the
@@ -48,7 +64,7 @@ export default defineConfig({
   define: defineOptions,
   build: {
     outDir: 'dist',
-    assetsDir: 'assets',
+    assetsDir: `assets/b-${buildId}`,
     // es2022 floor (2026-11-12, speed batch): every browser that can run
     // React 19 clears it (Chrome 94+, Safari 15.4+, Firefox 93+), and it
     // lets esbuild drop transpile shims for class fields, .at(),
