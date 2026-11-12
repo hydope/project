@@ -187,6 +187,7 @@ function organizationNode() {
     '@id': `${SITE}/#organization`,
     name: 'Shia Rishta',
     url: SITE,
+    logo: `${SITE}/icon-512.png`,
     description: 'A nikah-first Shia matrimony platform for serious families, with privacy-protected profiles and wali-supported introductions.',
     areaServed: 'Worldwide',
     knowsAbout: ['Shia Islam', 'Nikah', 'Islamic marriage', 'Wali', 'Matrimony'],
@@ -200,6 +201,7 @@ function websiteNode() {
     '@id': `${SITE}/#website`,
     url: SITE,
     name: 'Shia Rishta',
+    alternateName: 'ShiaRishta',
     publisher: { '@id': `${SITE}/#organization` },
     potentialAction: {
       '@type': 'SearchAction',
