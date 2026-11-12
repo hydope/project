@@ -246,8 +246,8 @@ jobs:
           # Prove the NEW build is actually served: the bundle hash in the live
           # HTML must match the hash vite just emitted into dist/index.html.
           # (A 200 here with a stale hash means the upload didn't take.)
-          live_js=$(curl -sk --max-time 40 https://shiarishta.com/ | grep -o '/assets/index-[^"]*\.js' | head -1)
-          built_js=$(grep -o '/assets/index-[^"]*\.js' dist/index.html | head -1)
+          live_js=$(curl -sk --max-time 40 https://shiarishta.com/ | grep -o '/assets/[^"]*index-[^"]*\.js' | head -1)
+          built_js=$(grep -o '/assets/[^"]*index-[^"]*\.js' dist/index.html | head -1)
           echo "live bundle:  ${live_js:-<none found>}"
           echo "built bundle: ${built_js:-<none found>}"
           if [ -z "$live_js" ] || [ -z "$built_js" ]; then
