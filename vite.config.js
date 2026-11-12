@@ -49,11 +49,23 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    // es2022 floor (2026-11-12, speed batch): every browser that can run
+    // React 19 clears it (Chrome 94+, Safari 15.4+, Firefox 93+), and it
+    // lets esbuild drop transpile shims for class fields, .at(),
+    // Object.hasOwn and friends — measured −3.0 KB of total gzip, which
+    // is what puts the bundle budget back in the green with headroom.
+    target: 'es2022',
     // Don't preload below-the-fold vendor/layout chunks on first paint.
     // vendor-motion (framer-motion) and MainLayout are only needed when a
     // guarded member route renders or a toast fires — both happen after
     // first paint. They still load on demand via the dynamic-import runtime.
     modulePreload: {
+      // No preload polyfill (2026-11-12, speed batch): every browser that
+      // can run this app (React 19, native ESM) supports modulepreload
+      // natively, and dynamic import works regardless — the polyfill was
+      // ~1 KB of entry code emulating preload hints for browsers that
+      // cannot run the app anyway.
+      polyfill: false,
       resolveDependencies: (filename, deps) =>
         deps.filter((d) => !d.includes('vendor-motion') && !d.includes('MainLayout')),
     },

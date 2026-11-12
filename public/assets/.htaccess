@@ -1,0 +1,10 @@
+<IfModule mod_headers.c>
+  # Everything Vite emits into /assets/ is content-hashed: the filename
+  # changes whenever the content does, so a year-long immutable cache is
+  # safe for every file in this directory regardless of hash format.
+  # This blanket rule exists because the filename-pattern rule in the
+  # web-root .htaccess silently missed most real bundles (its hex-only
+  # hash pattern did not match Vite's base64url hashes), leaving origin
+  # responses at the host default max-age=14400 or no-store.
+  Header set Cache-Control "public, max-age=31536000, immutable"
+</IfModule>

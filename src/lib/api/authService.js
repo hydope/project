@@ -1,9 +1,29 @@
 // ─── Auth service — remote JWT backend when VITE_API_URL is set ─────────────
-// Local fallback keeps every flow working offline/demo: bcrypt-hashed passwords
-// in per-member storage, same session shape the backend returns.
-import bcrypt from 'bcryptjs';
+// Local fallback keeps every flow working offline/demo: hashed passwords in
+// per-member storage, same session shape the backend returns.
 import { read, write, clearUserData } from './storage';
 import { http, useRemote } from './transport';
+
+// LOCAL DEMO ONLY password hash. The fallback's user store lives in this
+// browser's localStorage, so a real password hash buys nothing there —
+// anyone who can read the store already has everything it protects.
+// Production auth is the PHP API, which bcrypts server-side. Shipping
+// bcryptjs for this path cost ~40 KB of the first-paint entry bundle
+// (removed 2026-11-12, speed batch). The 'demo$' prefix versions the
+// format so it can never be mistaken for a server bcrypt hash; local
+// demo accounts created before this change must simply re-register.
+function demoHash(password, email) {
+  const s = `${email}:${String(password)}`;
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  for (let round = 0; round < 64; round++) {
+    for (let i = 0; i < s.length; i++) {
+      h1 = Math.imul(h1 ^ s.charCodeAt(i), 0x01000193);
+      h2 = Math.imul(h2 ^ (s.charCodeAt(i) + round), 0x85ebca6b);
+    }
+  }
+  return `demo$${(h1 >>> 0).toString(16)}.${(h2 >>> 0).toString(16)}`;
+}
 
 const USERS_KEY = 'users';
 const SESSION_KEY = 'session';
@@ -37,7 +57,7 @@ export const auth = {
     if (!cleanEmail || !password) throw new Error('Email and password are required');
     const users = read(USERS_KEY, []);
     if (users.some((u) => u.email === cleanEmail)) throw new Error('Email already registered');
-    const passwordHash = bcrypt.hashSync(String(password), 10);
+    const passwordHash = demoHash(password, cleanEmail);
     const user = {
       uid: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
       email: cleanEmail,
@@ -63,7 +83,7 @@ export const auth = {
     const cleanEmail = String(email ?? '').trim().toLowerCase();
     const users = read(USERS_KEY, []);
     const user = users.find((u) => u.email === cleanEmail);
-    if (!user || !bcrypt.compareSync(String(password ?? ''), user.passwordHash)) {
+    if (!user || demoHash(password ?? '', cleanEmail) !== user.passwordHash) {
       throw new Error('Invalid email or password');
     }
     const session = toSession(user);

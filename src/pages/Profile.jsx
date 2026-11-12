@@ -298,7 +298,7 @@ export default function Profile() {
               </div>
               {(profile.gallery || []).length > 1 && (
                 <div className="flex gap-2 p-3">
-                   {(profile.gallery || []).map((photo, i) => (<button key={i} onClick={() => setActivePhoto(i)} aria-label={`View photo ${i + 1} of ${profile.displayName}`} className="flex-1 aspect-square rounded-lg overflow-hidden" style={{ outline: i === activePhoto ? '2px solid var(--color-primary)' : 'none', opacity: i === activePhoto ? 1 : 0.6 }}><img src={apiUrl(photo)} alt="" className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none'; }} /></button>))}
+                   {(profile.gallery || []).map((photo, i) => (<button key={i} onClick={() => setActivePhoto(i)} aria-label={`View photo ${i + 1} of ${profile.displayName}`} className="flex-1 aspect-square rounded-lg overflow-hidden" style={{ outline: i === activePhoto ? '2px solid var(--color-primary)' : 'none', opacity: i === activePhoto ? 1 : 0.6 }}><img src={apiUrl(photo)} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" onError={e => { e.currentTarget.style.display = 'none'; }} /></button>))}
                 </div>
               )}
             </div>

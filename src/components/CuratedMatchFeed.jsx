@@ -176,6 +176,7 @@ export default function CuratedMatchFeed({ profiles = [], onExpressInterest }) {
                   alt={`${current.displayName} — profile photo`}
                   className="w-full h-full object-cover"
                   loading="lazy"
+                  decoding="async"
                   style={{ objectPosition: 'center top' }}
                 />
               ) : (

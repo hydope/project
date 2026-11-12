@@ -88,7 +88,7 @@ export default function Blog() {
               {filtered.map((article) => (
                 <Link key={article.id} to={`/blog/${article.slug}`} className="group rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer" style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)' }}>
                   <div className="relative aspect-[16/10] overflow-hidden">
-                    <img src={article.image} alt={article.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" width="900" height="562" />
+                    <img src={article.image} alt={article.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" decoding="async" width="900" height="562" />
                     {article.trending && (<div className="absolute top-3 left-3 flex items-center gap-1 text-[10px] font-bold text-white px-2 py-1 rounded-full" style={{ background: 'var(--color-accent)' }}><TrendingUp className="w-3 h-3" /> Trending</div>)}
                     <div className="absolute bottom-3 left-3 flex items-center gap-2 text-[10px] font-medium">
                       <button className="button ghost btn-xs" onClick={(e) => { e.preventDefault(); toggleBookmark(article.id); }} aria-label={bookmarked.has(article.id) ? 'Remove bookmark' : 'Bookmark article'}>

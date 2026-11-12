@@ -689,6 +689,48 @@ function stripJpegExif(string $jpeg): string
     return $out;
 }
 
+// ─── Guest browse cache (2026-11-12, speed batch) ─────────────────────────
+// Anonymous GET /api/profiles and /filter-options ran the full roster
+// queries on every hit, and on this shared host each uncached hit costs
+// seconds of TTFB. A 60-second file cache (the sitemap cache's pattern)
+// keyed on the full query string absorbs guest bursts; the TTL
+// self-expires, so writes need no invalidation. Authenticated requests
+// bypass it entirely — currentUser() resolves the bearer header AND the
+// auth cookie, so a signed-in member can never be served a cached
+// anonymous payload, and an anonymous payload never contains personalized
+// fields (interestSent/favourited are constants when the viewer is null).
+function guestBrowseCacheFile(string $ns, bool $anonymous): ?string
+{
+    if (!$anonymous) return null;
+    $qs = $_SERVER['QUERY_STRING'] ?? '';
+    return __DIR__ . '/../storage/guest-' . $ns . '-' . md5($qs) . '.json';
+}
+
+function guestBrowseCacheServe(string $file): void
+{
+    if (!is_file($file) || filemtime($file) <= time() - 60) return;
+    $cached = @file_get_contents($file);
+    if ($cached === false || $cached === '') return;
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    header('X-Content-Type-Options: nosniff');
+    header('X-Guest-Cache: HIT');
+    echo $cached;
+    exit;
+}
+
+function guestBrowseCacheStore(string $file, mixed $payload): void
+{
+    $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($encoded === false) return;
+    @file_put_contents($file, $encoded, LOCK_EX);
+    // Opportunistic prune: distinct filter combinations mint distinct
+    // files, so drop anything past its useful life while we are here.
+    foreach (glob(__DIR__ . '/../storage/guest-*.json') ?: [] as $f) {
+        if (filemtime($f) < time() - 300) @unlink($f);
+    }
+}
+
 // GET /api/profiles/filter-options — distinct values actually present in
 // browsable profiles, so the Filters panel never offers a choice that
 // matches nobody. Same base roster as browse: real, finished, unblocked
@@ -696,6 +738,8 @@ function stripJpegExif(string $jpeg): string
 // are most-common first; the client renders them in this order.
 function profilesFilterOptions(): void
 {
+    $guestCache = guestBrowseCacheFile('filter-options', currentUser() === null);
+    if ($guestCache !== null) guestBrowseCacheServe($guestCache);
     // Real members only: JOIN users (see adminPhotoLift — a NOT IN filter
     // lets orphaned profiles of deleted accounts leak in). Approved
     // matchmaker profiles have no users row, so they are admitted by their
@@ -756,7 +800,7 @@ function profilesFilterOptions(): void
     arsort($con);
     arsort($hob);
     arsort($lang);
-    json([
+    $payload = [
         'citizenships' => array_keys($cit),
         'incomeRanges' => array_keys($inc),
         'heightRange' => ['min' => $minH, 'max' => $maxH],
@@ -765,12 +809,16 @@ function profilesFilterOptions(): void
         'convertStatuses' => array_keys($con),
         'hobbies' => array_keys($hob),
         'languages' => array_keys($lang),
-    ]);
+    ];
+    if ($guestCache !== null) guestBrowseCacheStore($guestCache, $payload);
+    json($payload);
 }
 
 function profilesList(): void
 {
     $viewer = currentUser();
+    $guestCache = guestBrowseCacheFile('profiles', $viewer === null);
+    if ($guestCache !== null) guestBrowseCacheServe($guestCache);
     $params = [];
     $where = ['(p.is_blocked = 0 OR (p.blocked_until IS NOT NULL AND p.blocked_until <= NOW()))'];
     // QA/test accounts must never appear in the public directory, even when
@@ -1095,10 +1143,11 @@ function profilesList(): void
         $list[] = $view;
     }
 
-    if ($paged) {
-        json(['rows' => $list, 'total' => $pageTotal, 'hasMore' => ($pageOffset + $pageLimit < $pageTotal)]);
-    }
-    json($list);
+    $payload = $paged
+        ? ['rows' => $list, 'total' => $pageTotal, 'hasMore' => ($pageOffset + $pageLimit < $pageTotal)]
+        : $list;
+    if ($guestCache !== null) guestBrowseCacheStore($guestCache, $payload);
+    json($payload);
 }
 
 // ─── First Connections (2026-11-11) ─────────────────────────────────────────
