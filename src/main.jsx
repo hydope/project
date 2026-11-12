@@ -3,6 +3,23 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './styles/globals.css'; // Import global styles
 import './styles/premium.css'; // Premium design layer
+import { healChunkLoadError, clearChunkHealFlagOnBoot } from './lib/chunkHeal.js';
+
+// Stale-bundle self-heal (see lib/chunkHeal.js): a chunk/dynamic-import
+// failure that escapes a React boundary — preload failures, layout-level
+// lazy imports — still gets the one guarded hard reload instead of
+// stranding the member on an error screen after a deploy.
+window.addEventListener('error', (event) => {
+  healChunkLoadError(event.error ?? event.message);
+});
+window.addEventListener('unhandledrejection', (event) => {
+  healChunkLoadError(event.reason);
+});
+// Vite's own preload channel: __vite__preload dispatches this before it
+// throws, so it is the earliest signal of a dead chunk on this stack.
+window.addEventListener('vite:preloadError', (event) => {
+  if (healChunkLoadError(event.payload)) event.preventDefault();
+});
 
 // SPA navigations should always start at the top — no browser scroll restoration jumps
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
@@ -25,3 +42,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>
 );
+
+// Boot survived → forget any earlier heal so the next deploy can heal too.
+clearChunkHealFlagOnBoot();

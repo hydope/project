@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { healChunkLoadError } from '../lib/chunkHeal.js';
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -14,19 +15,12 @@ export default class ErrorBoundary extends Component {
   componentDidCatch(error, errorInfo) {
     // Log to console in development — in production, send to error tracking service
     console.error('ErrorBoundary caught:', error, errorInfo);
-    // Stale-chunk recovery: if a lazy route chunk 404s after a deploy,
-    // the cached index.html is outdated. Reload once to fetch the fresh
-    // entry point (index.html is no-cache, so this recovers cleanly).
-    const msg = String(error?.message || '');
-    if (/dynamically imported module|Loading chunk \d+ failed|ChunkLoadError/i.test(msg)) {
-      try {
-        const key = 'sh_chunk_reload';
-        if (!sessionStorage.getItem(key)) {
-          sessionStorage.setItem(key, '1');
-          window.location.reload();
-        }
-      } catch { /* storage unavailable — show the manual UI below */ }
-    }
+    // Stale-chunk recovery: a lazy chunk that no longer exists after a
+    // deploy gets one guarded hard reload (shared helper — timestamp
+    // window + clear-on-boot, so it can never loop and never stays
+    // disabled for the life of a long-lived tab the way the old
+    // never-cleared flag did). Anything else shows the manual UI below.
+    healChunkLoadError(error);
   }
 
   render() {

@@ -78,30 +78,32 @@ function PageSkeleton() {
 }
 
 import { Component } from 'react';
+import { healChunkLoadError } from './lib/chunkHeal.js';
 
-// Catches chunk-load failures (e.g. stale bundle after a deploy) and retries
-// once before showing a recoverable error instead of a white-screen crash.
+// Catches chunk-load failures (e.g. stale bundle after a deploy) and
+// self-heals with one guarded hard reload before showing a recoverable
+// error instead of a white-screen crash. Every lazy route renders inside
+// this boundary (via LazyRoute), so it is the retry layer for all route
+// chunk imports.
 class ChunkErrorBoundary extends Component {
   constructor(props) {
     super(props);
     this.state = { failed: false, retrying: false };
-    // If we reloaded for this route already, don't loop forever.
-    this.reloadKey = `chunk-retry:${window.location.pathname}`;
   }
   static getDerivedStateFromError() {
     return { failed: true };
   }
   componentDidCatch(error) {
-    // On ANY lazy-route failure, reload once with a cache-buster. Deploys
-    // ship new hashed chunks frequently; a stale HTML/JS mix is the
-    // overwhelming cause of these errors. One reload with a fresh URL
-    // resolves it. Guarded by sessionStorage so it never loops.
-    if (!this.state.retrying && !sessionStorage.getItem(this.reloadKey)) {
-      sessionStorage.setItem(this.reloadKey, '1');
+    // Chunk-load failure only: the shared helper reloads at most once per
+    // 30s window (timestamped sessionStorage guard, cleared after a
+    // successful boot), so a stale HTML/JS mix heals itself while a chunk
+    // that is genuinely gone shows the screen below instead of looping —
+    // and a later deploy can heal again, which the old never-cleared
+    // per-path flag made impossible for the life of the tab session.
+    // A genuine render error is not fixed by a reload, so it falls
+    // straight through to the manual screen.
+    if (healChunkLoadError(error)) {
       this.setState({ retrying: true });
-      const url = new URL(window.location.href);
-      url.searchParams.set('_r', Date.now().toString(36));
-      window.location.replace(url.toString());
     }
   }
   render() {
