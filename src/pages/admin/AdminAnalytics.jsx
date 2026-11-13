@@ -277,13 +277,28 @@ export default function AdminAnalytics() {
           )}
         </section>
 
-        {/* Charts — real signups, messages, biodatas */}
+        {/* Charts — real signups per day, then daily traffic */}
         <div className="mb-6">
           <section className="rounded-xl border border-line/20 bg-elevated p-5">
             <h3 className="text-sm font-bold text-ink mb-4 inline-flex items-center gap-2">
               <UserPlus className="w-4 h-4 text-muted" /> Real signups per day
             </h3>
             <MiniBars chart={chartByKey('memberGrowth')} target={headline.signupTarget ?? 5} loading={loading} />
+          </section>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2 mb-6">
+          <section className="rounded-xl border border-line/20 bg-elevated p-5">
+            <h3 className="text-sm font-bold text-ink mb-4 inline-flex items-center gap-2">
+              <Eye className="w-4 h-4 text-muted" /> Visitors per day
+            </h3>
+            <MiniBars chart={chartByKey('dailyVisitors')} loading={loading} />
+          </section>
+          <section className="rounded-xl border border-line/20 bg-elevated p-5">
+            <h3 className="text-sm font-bold text-ink mb-4 inline-flex items-center gap-2">
+              <MousePointerClick className="w-4 h-4 text-muted" /> Pageviews per day
+            </h3>
+            <MiniBars chart={chartByKey('dailyPageviews')} loading={loading} />
           </section>
         </div>
 

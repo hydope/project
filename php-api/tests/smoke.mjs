@@ -309,8 +309,8 @@ const run = async () => {
   check('overview returns numeric counts', overview.status === 200 && typeof overview.data?.totalMembers === 'number', JSON.stringify(overview.data).slice(0, 80));
 
   const analytics = await api('GET', '/api/admin/analytics?range=7d', { token: adminToken });
-  check('analytics returns two charts with labels=values', analytics.status === 200
-    && analytics.data?.charts?.length === 2
+  check('analytics returns five charts with labels=values', analytics.status === 200
+    && analytics.data?.charts?.length === 5
     && analytics.data.charts[0].labels.length === analytics.data.charts[0].values.length,
     `labels=${analytics.data?.charts?.[0]?.labels?.length}`);
 

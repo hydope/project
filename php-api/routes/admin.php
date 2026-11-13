@@ -913,8 +913,9 @@ function adminAnalytics(): void
 
     // ── Charts: memberGrowth now counts REAL signups only (the old chart
     // counted every profile creation); messageVolume and biodataCreated
-    // are the same honest counts of their own tables as before. All three
-    // are bucketed into New York days, same as the headline.
+    // are the same honest counts of their own tables as before.
+    // dailyVisitors and dailyPageviews come from the pageviews log (below).
+    // All of them are bucketed into New York days, same as the headline.
     // Day axis is New York days (the response declares America/New_York
     // and the headline uses NY bounds); each point counts events whose UTC
     // timestamp falls inside that NY day.
@@ -957,6 +958,32 @@ function adminAnalytics(): void
         "SELECT created_at FROM admin_audit WHERE action = 'biodata.created' AND created_at >= ? AND created_at < ?",
         [$windowStart, $windowEnd]
     );
+    // Traffic per day from the first-party pageviews log, bucketed into the
+    // same New York days by the same code as the charts above — so the last
+    // point of each series IS the headline number for today (pageviewsToday
+    // counts the same rows; visitorsToday counts the same distinct hashes).
+    $pageviewCounts = $countsByNyDay(
+        'SELECT created_at FROM pageviews WHERE created_at >= ? AND created_at < ?',
+        [$windowStart, $windowEnd]
+    );
+    $visitorCounts = [];
+    try {
+        $stmt = db()->prepare('SELECT visitor_hash, created_at FROM pageviews WHERE created_at >= ? AND created_at < ?');
+        $stmt->execute([$windowStart, $windowEnd]);
+        $visitorSets = [];
+        foreach ($stmt->fetchAll() as $r) {
+            if (($r['visitor_hash'] ?? null) === null) {
+                continue; // COUNT(DISTINCT …) ignores NULL hashes; match it.
+            }
+            $d = (new DateTimeImmutable((string)($r['created_at'] ?? ''), $utc))->setTimezone($ny)->format('Y-m-d');
+            $visitorSets[$d][(string)$r['visitor_hash']] = true;
+        }
+        foreach ($visitorSets as $d => $set) {
+            $visitorCounts[$d] = count($set);
+        }
+    } catch (Throwable) {
+        $visitorCounts = [];
+    }
 
     json([
         'range' => $range,
@@ -1012,6 +1039,20 @@ function adminAnalytics(): void
                 'labels' => $labels,
                 'values' => array_map(fn($d) => $biodataCounts[$d] ?? 0, $dayKeys),
                 'color' => 'var(--color-success)',
+            ],
+            [
+                'key' => 'dailyVisitors',
+                'title' => 'Visitors per day',
+                'labels' => $labels,
+                'values' => array_map(fn($d) => $visitorCounts[$d] ?? 0, $dayKeys),
+                'color' => 'var(--color-accent)',
+            ],
+            [
+                'key' => 'dailyPageviews',
+                'title' => 'Pageviews per day',
+                'labels' => $labels,
+                'values' => array_map(fn($d) => $pageviewCounts[$d] ?? 0, $dayKeys),
+                'color' => 'var(--color-primary)',
             ],
         ],
     ]);
