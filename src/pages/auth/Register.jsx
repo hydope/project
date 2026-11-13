@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { analytics } from '../../lib/analytics';
@@ -6,15 +6,113 @@ import { useRemote } from '../../lib/api/transport';
 import { Eye, EyeOff, Mail, Lock, User, Sparkles, X } from 'lucide-react';
 import SocialLogin from '../../components/SocialLogin';
 
+// ── In-progress signup draft (2026-11-13 fix) ─────────────────────────────
+// A reload used to wipe the whole form and force a full retype. The four
+// non-secret fields are kept in sessionStorage — session-scoped on purpose:
+// the draft dies with the tab and never outlives the browsing session.
+// Passwords are NEVER written to storage, in any form.
+const DRAFT_KEY = 'sr-register-draft';
+
+function loadDraft() {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (!d || typeof d !== 'object') return null;
+    // Whitelist: restore only the four non-secret fields, whatever was saved.
+    return {
+      displayName: typeof d.displayName === 'string' ? d.displayName : '',
+      email: typeof d.email === 'string' ? d.email : '',
+      sect: typeof d.sect === 'string' ? d.sect : '',
+      dateOfBirth: typeof d.dateOfBirth === 'string' ? d.dateOfBirth : '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearDraft() {
+  try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* storage unavailable */ }
+}
+
+// ── Segmented date-of-birth options (2026-11-13 fix) ──────────────────────
+// The native date input forced ~28 years of month-by-month scrolling for a
+// normal adult birth date. Three dropdowns (day / named month / year)
+// assemble the same ISO YYYY-MM-DD string the API expects, so the client
+// validation below and the server 18+ gate are untouched. Years span from
+// 18 years ago down to 100 years ago, newest first — exactly the range that
+// can pass the 18+ gate.
+const MONTH_OPTIONS = [
+  { value: '01', label: 'January' }, { value: '02', label: 'February' },
+  { value: '03', label: 'March' }, { value: '04', label: 'April' },
+  { value: '05', label: 'May' }, { value: '06', label: 'June' },
+  { value: '07', label: 'July' }, { value: '08', label: 'August' },
+  { value: '09', label: 'September' }, { value: '10', label: 'October' },
+  { value: '11', label: 'November' }, { value: '12', label: 'December' },
+];
+const THIS_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = [];
+for (let y = THIS_YEAR - 18; y >= THIS_YEAR - 100; y--) YEAR_OPTIONS.push(String(y));
+
+// Days that exist in the chosen month. With no month chosen allow 31; with a
+// month but no year yet, February allows 29 — the year pick re-clamps below.
+function daysInMonth(year, month) {
+  if (!month) return 31;
+  if (!year) return [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][Number(month) - 1];
+  return new Date(Number(year), Number(month), 0).getDate();
+}
+
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({ displayName: '', email: '', password: '', confirmPassword: '', sect: '', dateOfBirth: '' });
+  const [formData, setFormData] = useState(() => {
+    const draft = loadDraft();
+    return {
+      displayName: draft ? draft.displayName : '',
+      email: draft ? draft.email : '',
+      password: '',
+      confirmPassword: '',
+      sect: draft ? draft.sect : '',
+      dateOfBirth: draft ? draft.dateOfBirth : '',
+    };
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [tosAccepted, setTosAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Persist the draft as the member types (non-secret fields only). When all
+  // four are empty the key is removed instead, so a cleared form stays clear.
+  const { displayName, email, sect, dateOfBirth } = formData;
+  useEffect(() => {
+    try {
+      if (!displayName && !email && !sect && !dateOfBirth) clearDraft();
+      else sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ displayName, email, sect, dateOfBirth }));
+    } catch { /* storage unavailable — the form still works, just without restore */ }
+  }, [displayName, email, sect, dateOfBirth]);
+
+  // Segmented DOB: parts are derived from the assembled ISO string so the
+  // draft, validation and the API payload all share one source of truth.
+  const dobMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(formData.dateOfBirth || '');
+  const dobYear = dobMatch ? dobMatch[1] : '';
+  const dobMonth = dobMatch ? dobMatch[2] : '';
+  const dobDay = dobMatch ? dobMatch[3] : '';
+  const maxDobDay = daysInMonth(dobYear, dobMonth);
+
+  const handleDobChange = (part) => (e) => {
+    let y = dobYear, m = dobMonth, d = dobDay;
+    if (part === 'year') y = e.target.value;
+    else if (part === 'month') m = e.target.value;
+    else d = e.target.value;
+    // Clamp the day into the chosen month/year so an impossible date
+    // (31 February, 29 Feb in a non-leap year) can never be assembled.
+    if (d && Number(d) > daysInMonth(y, m)) d = String(daysInMonth(y, m)).padStart(2, '0');
+    const iso = y && m && d ? `${y}-${m}-${d}` : '';
+    setFormData(prev => ({ ...prev, dateOfBirth: iso }));
+    setError('');
+    setFieldErrors(prev => ({ ...prev, dateOfBirth: '' }));
+  };
 
   const passwordChecks = {
     length: formData.password.length >= 8,
@@ -66,6 +164,8 @@ export default function Register() {
     setError('');
     try {
       await register({ email: formData.email, password: formData.password, displayName: formData.displayName, sect: formData.sect, dateOfBirth: formData.dateOfBirth });
+      // Signup succeeded — the draft has served its purpose.
+      clearDraft();
       analytics.track('account_created', { browser_local: true });
       // 2026-11-01 stuck-signup fix: show the verify step FIRST. Before this
       // we went straight to /onboard and 69% of real members never verified,
@@ -188,8 +288,36 @@ export default function Register() {
             </div>
 
             <div>
-              <label htmlFor="dateOfBirth" className="block mb-1.5 text-sm font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Date of Birth</label>
-              <input type="date" id="dateOfBirth" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} required max={new Date().toISOString().slice(0, 10)} className="input w-full" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
+              <span id="dob-label" className="block mb-1.5 text-sm font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Date of Birth</span>
+              <div className="grid grid-cols-[0.85fr_1.35fr_1fr] gap-2" role="group" aria-labelledby="dob-label">
+                <div>
+                  <label htmlFor="dobDay" className="sr-only">Day of birth</label>
+                  <select id="dobDay" name="dobDay" value={dobDay} onChange={handleDobChange('day')} required className="input w-full" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+                    <option value="">Day</option>
+                    {Array.from({ length: maxDobDay }, (_, i) => String(i + 1).padStart(2, '0')).map(d => (
+                      <option key={d} value={d}>{Number(d)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="dobMonth" className="sr-only">Month of birth</label>
+                  <select id="dobMonth" name="dobMonth" value={dobMonth} onChange={handleDobChange('month')} required className="input w-full" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+                    <option value="">Month</option>
+                    {MONTH_OPTIONS.map(m => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="dobYear" className="sr-only">Year of birth</label>
+                  <select id="dobYear" name="dobYear" value={dobYear} onChange={handleDobChange('year')} required className="input w-full" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+                    <option value="">Year</option>
+                    {YEAR_OPTIONS.map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
               <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-faint)' }}>
                 You must be 18 or older to join. We store your date of birth only to enforce this.
               </p>

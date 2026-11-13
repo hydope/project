@@ -33,12 +33,23 @@ const NOINDEX_PREFIXES = [
 ];
 
 // Known private routes that deserve a real title (not the 404 one).
+// A value is either a title string or { title, desc } when the route also
+// carries its own meta description.
 const PRIVATE_TITLES = {
   '/auth/login': 'Log in | Shia Rishta',
   '/auth/register': 'Create Your Free Account | Shia Rishta',
   '/auth/forgot': 'Reset Your Password | Shia Rishta',
   '/auth/reset': 'Set a New Password | Shia Rishta',
   '/verify-email': 'Verify Your Email | Shia Rishta',
+  // /verify-pending was missing here and the '/verify' NOINDEX prefix only
+  // matches on a segment boundary ('/verify/…'), so the post-signup screen
+  // fell through to the NotFound meta and its tab read "Page Not Found"
+  // (found in real-user testing, fixed 2026-11-13). Transactional page:
+  // noindex like the other auth routes above.
+  '/verify-pending': {
+    title: 'Check Your Email | Shia Rishta',
+    desc: 'We sent a verification link to your email address. One tap verifies your Shia Rishta account and unlocks your profile and messaging.',
+  },
   '/login': 'Log in | Shia Rishta',
   '/signup': 'Create Your Free Account | Shia Rishta',
   '/signin': 'Log in | Shia Rishta',
@@ -172,7 +183,10 @@ function resolveMeta(pathname) {
     };
   }
   if (PRIVATE_TITLES[path]) {
-    return { title: PRIVATE_TITLES[path], desc: '', index: false };
+    const entry = PRIVATE_TITLES[path];
+    return typeof entry === 'string'
+      ? { title: entry, desc: '', index: false }
+      : { title: entry.title, desc: entry.desc || '', index: false };
   }
   if (NOINDEX_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`))) {
     return { title: 'Shia Rishta', desc: '', index: false };
