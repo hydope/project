@@ -12,6 +12,7 @@ fs.mkdirSync(tmp, { recursive: true });
 for (const [src, out] of [
   ['src/lib/analytics.js', 'analytics.mjs'],
   ['src/lib/onboardingData.js', 'onboardingData.mjs'],
+  ['src/lib/dobParts.js', 'dobParts.mjs'],
 ]) {
   fs.copyFileSync(path.join(root, src), path.join(tmp, out));
 }
@@ -22,6 +23,7 @@ const pass = (name) => { results.push(name); console.log('PASS:', name); };
 (async () => {
   const { createAnalytics } = await import('file:///' + path.join(tmp, 'analytics.mjs').replace(/\\/g, '/'));
   const { computeProfileCompleteness } = await import('file:///' + path.join(tmp, 'onboardingData.mjs').replace(/\\/g, '/'));
+  const { daysInMonth, applyDobPart, dobIso, splitDobParts, dobPartsFromDraft, emptyDobParts } = await import('file:///' + path.join(tmp, 'dobParts.mjs').replace(/\\/g, '/'));
 
   // ── In-memory storage stand-in (no DOM required) ──────────────────────────
   const memoryStorage = () => {
@@ -82,6 +84,38 @@ const pass = (name) => { results.push(name); console.log('PASS:', name); };
   assert.ok(empty < full, `empty (${empty}) should score below filled (${full})`);
   assert.ok(full > 0 && full <= 100);
   pass(`completeness scoring: empty=${empty}, filled=${full}`);
+
+  // 5. Segmented DOB: a PARTIAL pick must survive (2026-11-13 P0 regression
+  // guard — the first segmented picker derived the parts from the assembled
+  // ISO string, so picking Day alone wrote '' and the select snapped back
+  // to its placeholder; the trio could never be completed and signup was
+  // blocked on web + both apps).
+  let parts = applyDobPart(emptyDobParts(), 'day', '15');
+  assert.deepEqual(parts, { day: '15', month: '', year: '' });
+  assert.equal(dobIso(parts), ''); // not a date yet — but the pick is KEPT
+  parts = applyDobPart(parts, 'month', '09');
+  assert.deepEqual(parts, { day: '15', month: '09', year: '' });
+  parts = applyDobPart(parts, 'year', '1992');
+  assert.equal(dobIso(parts), '1992-09-15'); // assembles only when complete
+  pass('DOB partial picks survive and assemble when complete');
+
+  // 6. DOB day clamp follows the NEW parts, leap years included.
+  let feb = applyDobPart({ day: '31', month: '01', year: '1998' }, 'month', '02');
+  assert.equal(feb.day, '28'); // 1998 is not a leap year
+  feb = applyDobPart({ day: '31', month: '01', year: '' }, 'month', '02');
+  assert.equal(feb.day, '29'); // no year yet — February allows 29
+  feb = applyDobPart(feb, 'year', '1999');
+  assert.equal(feb.day, '28'); // the year pick re-clamps
+  assert.equal(daysInMonth('2000', '02'), 29);
+  pass('DOB day clamps against the new month/year');
+
+  // 7. DOB draft restore: stored parts win; a legacy draft carrying only a
+  // complete dateOfBirth (the buggy build could save nothing else) splits.
+  assert.deepEqual(dobPartsFromDraft({ dobDay: '05', dobMonth: '', dobYear: '' }), { day: '05', month: '', year: '' });
+  assert.deepEqual(dobPartsFromDraft({ dateOfBirth: '1992-09-10' }), { day: '10', month: '09', year: '1992' });
+  assert.deepEqual(dobPartsFromDraft(null), { day: '', month: '', year: '' });
+  assert.equal(dobIso(splitDobParts('1992-09-10')), '1992-09-10');
+  pass('DOB draft restore: parts kept, legacy ISO drafts split');
 
   fs.mkdirSync('C:/Users/Mitchell/AppData/Local/Temp/member-audit', { recursive: true });
   fs.writeFileSync('C:/Users/Mitchell/AppData/Local/Temp/member-audit/unit-tests.json',

@@ -5,6 +5,7 @@ import { analytics } from '../../lib/analytics';
 import { useRemote } from '../../lib/api/transport';
 import { Eye, EyeOff, Mail, Lock, User, Sparkles, X } from 'lucide-react';
 import SocialLogin from '../../components/SocialLogin';
+import { daysInMonth, applyDobPart, dobIso, dobPartsFromDraft } from '../../lib/dobParts';
 
 // ── In-progress signup draft (2026-11-13 fix) ─────────────────────────────
 // A reload used to wipe the whole form and force a full retype. The four
@@ -19,12 +20,17 @@ function loadDraft() {
     if (!raw) return null;
     const d = JSON.parse(raw);
     if (!d || typeof d !== 'object') return null;
-    // Whitelist: restore only the four non-secret fields, whatever was saved.
+    // Whitelist: restore only the non-secret fields, whatever was saved.
+    // The DOB is stored as its three parts as well as the assembled string,
+    // so a half-entered date survives a reload too.
     return {
       displayName: typeof d.displayName === 'string' ? d.displayName : '',
       email: typeof d.email === 'string' ? d.email : '',
       sect: typeof d.sect === 'string' ? d.sect : '',
       dateOfBirth: typeof d.dateOfBirth === 'string' ? d.dateOfBirth : '',
+      dobDay: typeof d.dobDay === 'string' ? d.dobDay : '',
+      dobMonth: typeof d.dobMonth === 'string' ? d.dobMonth : '',
+      dobYear: typeof d.dobYear === 'string' ? d.dobYear : '',
     };
   } catch {
     return null;
@@ -54,17 +60,19 @@ const THIS_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = [];
 for (let y = THIS_YEAR - 18; y >= THIS_YEAR - 100; y--) YEAR_OPTIONS.push(String(y));
 
-// Days that exist in the chosen month. With no month chosen allow 31; with a
-// month but no year yet, February allows 29 — the year pick re-clamps below.
-function daysInMonth(year, month) {
-  if (!month) return 31;
-  if (!year) return [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][Number(month) - 1];
-  return new Date(Number(year), Number(month), 0).getDate();
-}
+// The day/month/year state logic (days-in-month, clamping, assembly, draft
+// restore) lives in src/lib/dobParts.js — pure functions, unit-tested in CI.
 
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  // The DOB parts are INDEPENDENT state and the selects bind to them
+  // directly (2026-11-13 P0 fix). The first segmented version derived the
+  // parts from the assembled ISO string while the change handler only ever
+  // wrote complete dates back — so a partial pick assembled to '', the
+  // derived parts read '', and the select snapped back to its placeholder.
+  // The trio could never be completed and signup was blocked.
+  const [dobParts, setDobParts] = useState(() => dobPartsFromDraft(loadDraft()));
   const [formData, setFormData] = useState(() => {
     const draft = loadDraft();
     return {
@@ -73,7 +81,9 @@ export default function Register() {
       password: '',
       confirmPassword: '',
       sect: draft ? draft.sect : '',
-      dateOfBirth: draft ? draft.dateOfBirth : '',
+      // Derived from the parts (a legacy draft's complete dateOfBirth is
+      // split into parts by dobPartsFromDraft, so nothing is lost).
+      dateOfBirth: dobIso(dobPartsFromDraft(draft)),
     };
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -82,34 +92,34 @@ export default function Register() {
   const [tosAccepted, setTosAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Persist the draft as the member types (non-secret fields only). When all
-  // four are empty the key is removed instead, so a cleared form stays clear.
+  // Persist the draft as the member types (non-secret fields only, DOB
+  // parts included so a half-entered date survives a reload). When
+  // everything is empty the key is removed instead, so a cleared form
+  // stays clear. The parts are persisted ONLY here — clearing the draft
+  // (which a successful signup does) clears them with it.
   const { displayName, email, sect, dateOfBirth } = formData;
   useEffect(() => {
     try {
-      if (!displayName && !email && !sect && !dateOfBirth) clearDraft();
-      else sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ displayName, email, sect, dateOfBirth }));
+      if (!displayName && !email && !sect && !dateOfBirth && !dobParts.day && !dobParts.month && !dobParts.year) clearDraft();
+      else sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+        displayName, email, sect, dateOfBirth,
+        dobDay: dobParts.day, dobMonth: dobParts.month, dobYear: dobParts.year,
+      }));
     } catch { /* storage unavailable — the form still works, just without restore */ }
-  }, [displayName, email, sect, dateOfBirth]);
+  }, [displayName, email, sect, dateOfBirth, dobParts]);
 
-  // Segmented DOB: parts are derived from the assembled ISO string so the
-  // draft, validation and the API payload all share one source of truth.
-  const dobMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(formData.dateOfBirth || '');
-  const dobYear = dobMatch ? dobMatch[1] : '';
-  const dobMonth = dobMatch ? dobMatch[2] : '';
-  const dobDay = dobMatch ? dobMatch[3] : '';
+  // Segmented DOB: the selects read the independent parts state; the ISO
+  // string in formData is kept in sync (derived) purely so validation, the
+  // API payload and the draft keep working exactly as before.
+  const dobYear = dobParts.year;
+  const dobMonth = dobParts.month;
+  const dobDay = dobParts.day;
   const maxDobDay = daysInMonth(dobYear, dobMonth);
 
   const handleDobChange = (part) => (e) => {
-    let y = dobYear, m = dobMonth, d = dobDay;
-    if (part === 'year') y = e.target.value;
-    else if (part === 'month') m = e.target.value;
-    else d = e.target.value;
-    // Clamp the day into the chosen month/year so an impossible date
-    // (31 February, 29 Feb in a non-leap year) can never be assembled.
-    if (d && Number(d) > daysInMonth(y, m)) d = String(daysInMonth(y, m)).padStart(2, '0');
-    const iso = y && m && d ? `${y}-${m}-${d}` : '';
-    setFormData(prev => ({ ...prev, dateOfBirth: iso }));
+    const next = applyDobPart(dobParts, part, e.target.value);
+    setDobParts(next);
+    setFormData(prev => ({ ...prev, dateOfBirth: dobIso(next) }));
     setError('');
     setFieldErrors(prev => ({ ...prev, dateOfBirth: '' }));
   };
@@ -164,7 +174,8 @@ export default function Register() {
     setError('');
     try {
       await register({ email: formData.email, password: formData.password, displayName: formData.displayName, sect: formData.sect, dateOfBirth: formData.dateOfBirth });
-      // Signup succeeded — the draft has served its purpose.
+      // Signup succeeded — the draft has served its purpose. (The DOB
+      // parts persist only inside the draft, so they are cleared with it.)
       clearDraft();
       analytics.track('account_created', { browser_local: true });
       // 2026-11-01 stuck-signup fix: show the verify step FIRST. Before this
