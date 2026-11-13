@@ -54,6 +54,17 @@ function authRegister(): void
     // Account type selected at signup: member (default), guardian, or matchmaker.
     $role = $v->get('role') ?: 'member';
 
+    // Registration budget (moved here 2026-11-13): counted only now that
+    // the payload has passed validation — email format, password length,
+    // sect, and the 18+ date-of-birth check above. This used to run in
+    // index.php before validation (3/hour keyed on cip(), which then
+    // returned the shared Cloudflare edge address), so every failed
+    // attempt — e.g. the DOB-bug rejections of 2026-11-10/11 — burned the
+    // shared budget and locked out real signups. Ceiling is now 10/hour
+    // per real client address; the blanket auth:ip check in index.php
+    // (30/15 min) remains the raw-abuse guard for all attempts.
+    rateCheck('register:ip', cip(), 10, 3600, 'Too many accounts created from your network. Try again in an hour.');
+
     // ADMIN_EMAILS drives is_admin on register — the first-admin bootstrap.
     $adminEmails = adminEmails();
     $isAdmin = in_array($email, $adminEmails, true);

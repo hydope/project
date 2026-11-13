@@ -77,7 +77,25 @@ function clearAuthCookie(): void
         'samesite' => 'Lax',
     ]);
 }
+/**
+ * Best client IP for this request (2026-11-13 fix).
+ *
+ * Behind Cloudflare, REMOTE_ADDR is the edge address of the connection —
+ * one address shared by everyone routed through that edge — so every
+ * IP-keyed bucket (rate limits, analytics IP tagging, visitor hashing)
+ * was effectively shared across strangers (the 2026-10-07 mechanism,
+ * re-proven 2026-11-13: TRUST_PROXY is absent from the production .env,
+ * so the forwarded chain below never fired). Cloudflare sends the real
+ * visitor address in CF-Connecting-IP, so prefer it when present and a
+ * syntactically valid IP (the same header routes/biodata.php already
+ * reads directly); fall back to the TRUST_PROXY forwarded chain, then
+ * REMOTE_ADDR.
+ */
 function cip():string{
+    $cfIp = trim((string)($_SERVER['HTTP_CF_CONNECTING_IP'] ?? ''));
+    if ($cfIp !== '' && filter_var($cfIp, FILTER_VALIDATE_IP) !== false) {
+        return $cfIp;
+    }
     if((int)getenv('TRUST_PROXY')===1){
         foreach(['HTTP_X_FORWARDED_FOR','HTTP_X_REAL_IP','REMOTE_ADDR'] as $k){
             $v=$_SERVER[$k]??'';

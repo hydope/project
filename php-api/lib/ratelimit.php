@@ -58,12 +58,14 @@ function writeRateCheck(): void {
     rateCheck('write', cip(), 30, 60, 'Slow down a little — the community will still be here in a minute.');
 }
 
-// Per-user rate limit (2026-11-10, external-audit fixes): cip() returns the
-// shared Cloudflare proxy IP in production, so the IP-based writeRateCheck
-// above is effectively ONE global bucket — one spammer's burst 429s every
-// member. These limits count the authenticated user's own rows instead, so
-// a burst limits only the spammer. $table/$userCol are hardcoded at the
-// call sites, never user input.
+// Per-user rate limit (2026-11-10, external-audit fixes): cip() then
+// returned the shared Cloudflare edge address in production, so the
+// IP-based writeRateCheck above was effectively ONE global bucket — one
+// spammer's burst 429'd every member. cip() resolves the real client IP
+// via CF-Connecting-IP since 2026-11-13, but these limits still count the
+// authenticated user's own rows: per-user counting stays the fairer
+// semantic for member actions (a burst limits only the spammer).
+// $table/$userCol are hardcoded at the call sites, never user input.
 function perUserRateCheck(string $uid, string $table, string $userCol, int $windowSec, int $max, string $message): void
 {
     try {

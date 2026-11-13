@@ -150,15 +150,18 @@ try {
             rateCheck('login:acct', cip() . ':' . $emailKey, 5, 900, 'Too many attempts for this account. Try again in 15 minutes.');
         }
         rateCheck('auth:ip', cip(), 30, 900, 'Too many sign-up/sign-in attempts from your network. Try again in 15 minutes.');
-        if ($method === 'POST' && $action === 'register') rateCheck('register:ip', cip(), 3, 3600, 'Too many accounts created from your network. Try again in an hour.');
+        // register:ip is deliberately NOT checked here (2026-11-13): it runs
+        // inside authRegister() after the payload passes validation, so
+        // failed-validation attempts no longer consume the signup budget.
         if ($action === 'forgot')  rateCheck('forgot:ip', cip(), 5, 3600, 'Too many reset requests. Check your inbox, or try again in an hour.');
         if ($action === 'reset')   rateCheck('reset:ip', cip(), 10, 3600, 'Too many attempts. Try again in an hour.');
         if ($action === 'resend-verification') rateCheck('resend:ip', cip(), 5, 3600, 'Too many verification requests. Try again in an hour.');
     }
-    // Read limiter: DISABLED 2026-10-07 — cip() returns the shared proxy IP
-    // when TRUST_PROXY isn't set, so the bucket was shared across all users
-    // and blocked legitimate traffic. Re-enable only after fixing client IP
-    // detection behind Cloudflare.
+    // Read limiter: DISABLED 2026-10-07 — cip() then returned the shared
+    // Cloudflare edge address when TRUST_PROXY wasn't set, so the bucket
+    // was shared across all users and blocked legitimate traffic. cip()
+    // has resolved the real client IP via CF-Connecting-IP since
+    // 2026-11-13; re-enabling this limiter is a separate decision.
     // if ($method === 'GET' && in_array($resource, ['profiles', 'search'], true)) {
     //     rateCheck('read:profiles', cip(), 120, 300, 'Too many requests. Please slow down.');
     // }
@@ -169,9 +172,11 @@ try {
     // Write limiter for every other mutating resource.
     // EXEMPTION: the analytics beacon (POST /api/analytics/collect) fires on
     // every page view by design. It must NOT consume the shared 'write' bucket
-    // — cip() is the shared Cloudflare proxy IP, so 30/min would 429 every
-    // visitor (the 2026-10-07 incident). The endpoint enforces its own
-    // per-visitor-day bucket inside routeAnalytics().
+    // — when cip() was the shared Cloudflare edge address, 30/min would 429
+    // every visitor (the 2026-10-07 incident); cip() returns the real client
+    // IP since 2026-11-13, and the exemption stays regardless: a per-page-view
+    // beacon does not belong in a 30/min write bucket. The endpoint enforces
+    // its own per-visitor-day bucket inside routeAnalytics().
     $isBeacon = $method === 'POST' && $resource === 'analytics' && ($rest[0] ?? '') === 'collect';
     if (!$isBeacon) {
         writeRateCheck();
