@@ -84,11 +84,27 @@ function displayNameFromSlug(slug) {
     .join(' ');
 }
 
-function resolveMeta(pathname) {
+function resolveMeta(pathname, search = '') {
   // Trailing-slash normalization: /blog/ must resolve exactly like /blog.
   // Without this, /blog/ fell into the /blog/ article branch, matched no
   // article, and the tab showed "Page Not Found".
   const path = pathname.replace(/\/+$/, '') || '/';
+  // Filtered browse (/profiles?city=…, ?country=…, ?search=…) is faceted
+  // navigation — the same list with a filter applied — not a landing page.
+  // Google crawled 29 of these variants and filed them under "Crawled –
+  // currently not indexed" and "Soft 404" (GSC Pages report, data to
+  // 2026-11-08), including filters that match nobody (Leeds, Rome, Oslo
+  // return zero profiles — an empty results page is a textbook soft 404).
+  // Any real query string on the browse route → noindex, follow, while
+  // canonicalFor() ignores the query, so the canonical keeps pointing at
+  // the clean /profiles URL. The unfiltered route stays fully indexable.
+  if (
+    path === '/profiles' &&
+    typeof search === 'string' &&
+    search.replace(/^\?+/, '') !== ''
+  ) {
+    return { ...PUBLIC_META['/profiles'], index: false, robots: 'noindex, follow' };
+  }
   if (PUBLIC_META[path]) return { ...PUBLIC_META[path], index: true };
   // SEO landing pages — meta comes from the hand-written page data.
   const slug = path.replace(/^\/+/, '');

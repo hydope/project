@@ -20,10 +20,30 @@ for (const [src, out] of [
 const results = [];
 const pass = (name) => { results.push(name); console.log('PASS:', name); };
 
+// seoResolve.js is NOT self-contained (it imports six data modules), so it
+// is copied with its import tree preserved and a type:module marker —
+// importing it standalone from a bare copy would fail on relative paths.
+const seoTmp = path.join(os.tmpdir(), 'sh-unit-seo');
+for (const rel of [
+  'lib/seoResolve.js',
+  'pages/landing/landingPageMeta.js',
+  'data/tagLandingPages.js',
+  'data/articleMeta.js',
+  'data/locationSeo.js',
+  'data/routeSeo.js',
+  'data/socialLinks.js',
+]) {
+  const dest = path.join(seoTmp, rel);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(path.join(root, 'src', rel), dest);
+}
+fs.writeFileSync(path.join(seoTmp, 'package.json'), JSON.stringify({ type: 'module' }));
+
 (async () => {
   const { createAnalytics } = await import('file:///' + path.join(tmp, 'analytics.mjs').replace(/\\/g, '/'));
   const { computeProfileCompleteness } = await import('file:///' + path.join(tmp, 'onboardingData.mjs').replace(/\\/g, '/'));
   const { daysInMonth, applyDobPart, dobIso, splitDobParts, dobPartsFromDraft, emptyDobParts } = await import('file:///' + path.join(tmp, 'dobParts.mjs').replace(/\\/g, '/'));
+  const { resolveMeta, canonicalFor } = await import('file:///' + path.join(seoTmp, 'lib', 'seoResolve.js').replace(/\\/g, '/'));
 
   // ── In-memory storage stand-in (no DOM required) ──────────────────────────
   const memoryStorage = () => {
@@ -116,6 +136,25 @@ const pass = (name) => { results.push(name); console.log('PASS:', name); };
   assert.deepEqual(dobPartsFromDraft(null), { day: '', month: '', year: '' });
   assert.equal(dobIso(splitDobParts('1992-09-10')), '1992-09-10');
   pass('DOB draft restore: parts kept, legacy ISO drafts split');
+
+  // 8. Filtered browse is faceted navigation, not a landing page (GSC
+  // 2026-11-08: 29 /profiles?… variants under "Crawled – not indexed" and
+  // "Soft 404"). Any real query string on /profiles → noindex, follow with
+  // the browse title kept; the clean route stays indexable; a bare "?"
+  // changes nothing; queries on other routes are ignored; the canonical
+  // never carries the query.
+  const cleanBrowse = resolveMeta('/profiles');
+  assert.equal(cleanBrowse.index, true);
+  const filtered = resolveMeta('/profiles', '?city=Leeds');
+  assert.equal(filtered.index, false);
+  assert.equal(filtered.robots, 'noindex, follow');
+  assert.equal(filtered.title, cleanBrowse.title);
+  assert.equal(resolveMeta('/profiles/', '?country=Iran').index, false);
+  assert.equal(resolveMeta('/profiles', '?').index, true);
+  assert.equal(resolveMeta('/profiles', '').index, true);
+  assert.equal(resolveMeta('/blog', '?utm_source=x').index, true);
+  assert.equal(canonicalFor('/profiles'), 'https://shiarishta.com/profiles/');
+  pass('filtered browse: noindex+follow with clean canonical, clean route indexable');
 
   fs.mkdirSync('C:/Users/Mitchell/AppData/Local/Temp/member-audit', { recursive: true });
   fs.writeFileSync('C:/Users/Mitchell/AppData/Local/Temp/member-audit/unit-tests.json',

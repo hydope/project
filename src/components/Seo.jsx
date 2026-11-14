@@ -82,7 +82,7 @@ function upsertJsonLd(data) {
 let seoFirstPageViewDone = false;
 
 export default function Seo() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
 
   useEffect(() => {
     // First-page flag flips synchronously so the counting semantics hold
@@ -95,14 +95,16 @@ export default function Seo() {
     let live = true;
     loadSeoResolve().then((m) => {
       if (!live || !m) return;
-      const meta = m.resolveMeta(pathname);
+      const meta = m.resolveMeta(pathname, search);
       const canonical = m.canonicalFor(pathname);
 
       document.title = meta.title;
       upsertMeta('meta[name="description"]', { name: 'description', content: meta.desc || meta.title });
       upsertMeta('meta[name="robots"]', {
         name: 'robots',
-        content: meta.index ? 'index, follow' : 'noindex, nofollow',
+        // A resolver may name its exact robots directive (filtered browse
+        // is "noindex, follow": the variant is not a page, its links are).
+        content: meta.robots || (meta.index ? 'index, follow' : 'noindex, nofollow'),
       });
       upsertMeta('meta[property="og:title"]', { property: 'og:title', content: meta.title });
       upsertMeta('meta[property="og:description"]', { property: 'og:description', content: meta.desc || meta.title });
@@ -126,7 +128,7 @@ export default function Seo() {
     // first. Fire-and-forget; never blocks rendering.
     beaconPageView(pathname);
     return () => { live = false; };
-  }, [pathname]);
+  }, [pathname, search]);
 
   return null;
 }
