@@ -7,7 +7,7 @@ import { cmToFeetInches } from '../lib/height';
 import VerifiedBadge from './VerifiedBadge';
 import { useAuthedImage } from '../lib/api/useAuthedImage';
 import { computeCompatibility, getMyProfile } from '../lib/compatibility';
-import { formatCity, formatCountry, formatDateShort, isStaleActivity } from '../lib/format';
+import { formatCity, formatCountry, formatDateShort, isStaleActivity, SHOW_LAST_SEEN } from '../lib/format';
 import { useAuth } from '../lib/auth/AuthContext';
 import LoginGate from './LoginGate';
 import SampleProfileBadge from './SampleProfileBadge';
@@ -270,7 +270,7 @@ export default function ProfileCard({ profile, className = '' }) {
               for over a week reads muted so a dead profile never looks as
               live as one seen today. Nothing renders when the server never
               recorded activity — never claim inactivity without data. */}
-          {formatDateShort(profile.lastActiveAt) && (
+          {SHOW_LAST_SEEN && formatDateShort(profile.lastActiveAt) && (
             <p className="text-xs truncate" style={{ color: isStaleActivity(profile.lastActiveAt) ? 'var(--color-ink-faint)' : 'var(--color-ink-secondary)' }}>
               Last seen {formatDateShort(profile.lastActiveAt)}
             </p>

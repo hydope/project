@@ -5,7 +5,7 @@ import { analytics } from '../lib/analytics';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/auth/AuthContext';
 import LoginGate from '../components/LoginGate';
-import { formatCity, formatCountry, formatDateShort, isStaleActivity } from '../lib/format';
+import { formatCity, formatCountry, formatDateShort, isStaleActivity, SHOW_LAST_SEEN } from '../lib/format';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { ArrowLeft, ShieldCheck, MapPin, Heart, MessageCircle, Bookmark, Lock, Users, Award, Sparkles, ChevronRight, HeartHandshake } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
@@ -464,7 +464,7 @@ export default function Profile() {
                   { label: 'Build', value: profile.build },
                   { label: 'Hobbies', value: profile.hobbies },
                   { label: 'Muslim background', value: profile.convertStatus },
-                  { label: 'Last seen', value: formatDateShort(profile.lastActiveAt), muted: isStaleActivity(profile.lastActiveAt) },
+                  { label: 'Last seen', value: SHOW_LAST_SEEN ? formatDateShort(profile.lastActiveAt) : null, muted: isStaleActivity(profile.lastActiveAt) },
                 ].filter(item => item.value).map(item => (
                   <div key={item.label} className="p-3 rounded-xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
                     <p className="text-[11px] uppercase tracking-wider font-bold mb-0.5" style={{ color: 'var(--color-ink-faint)' }}>{item.label}</p>

@@ -29,6 +29,14 @@ export function formatCity(raw) {
 
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// Last-seen display switch (Syed's order, 2026-11-14): OFF. Profile cards
+// and profile pages no longer show "Last seen <date>" — a browsing visitor
+// kept meeting weeks-old dates on dormant profiles, which reads as a dead
+// site. The API still sends lastActiveAt and the formatters below still
+// work; only the display is gated, so flipping this one constant back to
+// true restores the label exactly as it was.
+export const SHOW_LAST_SEEN = false;
+
 /** "8 Nov 2026" — the actual calendar date of an ISO timestamp, in the
  * viewer's local timezone. Fixed English month abbreviations so the label
  * reads identically for every viewer. Null for missing/invalid input. */
