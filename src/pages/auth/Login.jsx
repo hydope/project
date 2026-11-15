@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { Eye, EyeOff, Mail, Lock, Sparkles, X } from 'lucide-react';
 import SocialLogin from '../../components/SocialLogin';
+import { logSubmit } from '../../lib/eventLog';
 
 export default function Login() {
   const { login } = useAuth();
@@ -23,8 +24,10 @@ export default function Login() {
     setError('');
     try {
       await login(formData.email, formData.password);
+      logSubmit('login', true);
       navigate('/dashboard');
     } catch (err) {
+      logSubmit('login', false, err.message || 'Login failed');
       setError(err.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);

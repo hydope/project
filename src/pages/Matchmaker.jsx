@@ -4,6 +4,7 @@ import Layout from '../layouts/MainLayout';
 import { http } from '../lib/api/transport';
 import { useAuthedImage } from '../lib/api/useAuthedImage';
 import { useAuth } from '../lib/auth/AuthContext';
+import { logSubmit, logValidation } from '../lib/eventLog';
 import { HeartHandshake, Send, Clock, CheckCircle, XCircle, Upload, Loader2, X } from 'lucide-react';
 
 const MAX_BYTES = 5_000_000;
@@ -148,13 +149,14 @@ export default function Matchmaker() {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.display_name?.trim()) { setMsg('A name is required.'); return; }
+    if (!form.display_name?.trim()) { logValidation('matchmaker_submit', { display_name: 'A name is required.' }); setMsg('A name is required.'); return; }
     setBusy(true); setMsg('');
     try {
       // Female-only roles submit female implicitly — the visible field is
       // locked for them, so inject it here instead of trusting the form.
       const payload = femaleOnly ? { ...form, gender: 'female' } : form;
       const r = await http.post('/api/matchmaker', payload);
+      logSubmit('matchmaker_submit', true);
       setMsg(r.message || 'Submitted.');
       setForm({});
       setPhotoPreview(null);
@@ -162,6 +164,7 @@ export default function Matchmaker() {
       const updated = await http.get('/api/matchmaker/mine').catch(() => null);
       if (updated) setMine(updated.submissions || []);
     } catch (err) {
+      logSubmit('matchmaker_submit', false, err.message || 'Could not submit');
       setMsg(err.message || 'Could not submit. Try again.');
     } finally {
       setBusy(false);

@@ -4,6 +4,7 @@ import Layout from '../layouts/LandingLayout';
 import { useAuth } from '../lib/auth/AuthContext';
 import { Download, ImagePlus, Save, Sparkles, ZoomIn, ZoomOut, Maximize2, Upload, Share2 } from 'lucide-react';
 import { http } from '../lib/api/transport';
+import { logSubmit } from '../lib/eventLog';
 import { jsPDF } from 'jspdf';
 
 const TEMPLATES = [
@@ -319,6 +320,10 @@ export default function BiodataMaker() {
       http.post('/api/biodata/log', {
         data, template, lang, has_photo: !!photo, photo_thumb: photoThumb,
       }).catch(() => {});
+      // User Logs (2026-11-15): biodata creations also land in the client
+      // event log, so they show in the admin User Logs page next to every
+      // other form submit — not only in the audit trail.
+      logSubmit('biodata', true);
     } catch { /* ignore */ }
   };
 

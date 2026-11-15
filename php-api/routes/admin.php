@@ -1070,11 +1070,12 @@ function adminClientEvents(): void
     $limit = max(1, min(200, (int)($_GET['limit'] ?? 100)));
     try {
         clientEventsEnsure();
+        $cols = 'e.id, e.kind, e.name, e.page, e.detail, e.user_id, u.email AS user_email, e.created_at';
         if ($kind !== '') {
-            $stmt = db()->prepare('SELECT id, kind, name, page, detail, user_id, created_at FROM client_events WHERE kind = ? ORDER BY id DESC LIMIT ' . $limit);
+            $stmt = db()->prepare("SELECT $cols FROM client_events e LEFT JOIN users u ON u.id = e.user_id WHERE e.kind = ? ORDER BY e.id DESC LIMIT " . $limit);
             $stmt->execute([$kind]);
         } else {
-            $stmt = db()->query('SELECT id, kind, name, page, detail, user_id, created_at FROM client_events ORDER BY id DESC LIMIT ' . $limit);
+            $stmt = db()->query("SELECT $cols FROM client_events e LEFT JOIN users u ON u.id = e.user_id ORDER BY e.id DESC LIMIT " . $limit);
         }
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as &$r) {
