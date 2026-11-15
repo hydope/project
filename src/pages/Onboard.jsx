@@ -12,7 +12,9 @@ import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
 import { apiUrl, http } from '../lib/api/transport';
 import { saveMyProfile } from '../lib/storage';
-import { parseHeightToCm, cmToFeetInches } from '../lib/height';
+import { cmToFeetInches, cmToHeightParts, heightPartsToCm, heightStringToParts } from '../lib/height';
+import { addCitizenship, normalizeCitizenship, MAX_CITIZENSHIPS } from '../lib/citizenship';
+import HeightChooser from '../components/HeightChooser';
 import {
   SECTS, MARJA_OPTIONS, RELIGIOSITY_LEVELS, PRAYER_OPTIONS,
   MODESTY_OPTIONS_FEMALE, MODESTY_OPTIONS_MALE, DIET_OPTIONS, SYED_OPTIONS,
@@ -38,9 +40,22 @@ function sessionUid() {
 }
 const scopedDraftKey = () => `${DRAFT_KEY}::${sessionUid()}`;
 
+// Drafts saved before the height chooser (2026-11-14) carry heights as
+// typed strings; convert them once, here at restore time, into chooser
+// parts. New drafts save parts directly and pass through untouched.
+function normalizeRestoredData(raw) {
+  if (!raw || typeof raw !== 'object') return raw;
+  const d = { ...raw };
+  for (const [strKey, partsKey] of [['height', 'heightParts'], ['prefHeightMin', 'prefHeightMinParts'], ['prefHeightMax', 'prefHeightMaxParts']]) {
+    if (typeof d[strKey] === 'string' && d[strKey] && !d[partsKey]) d[partsKey] = heightStringToParts(d[strKey]);
+    delete d[strKey];
+  }
+  return d;
+}
+
 const EMPTY_FORM = {
   // Step 1 — About you
-  displayName: '', gender: '', seekingGender: '', age: '', city: '', country: '', height: '', maritalStatus: '', build: '',
+  displayName: '', gender: '', seekingGender: '', age: '', city: '', country: '', heightParts: { feet: '', inches: '' }, maritalStatus: '', build: '',
   // Step 2 — Faith & practice
   sect: '', religiosity: '', prayer: '', marja: '', modesty: '', diet: '', convertStatus: '',
   // Step 3 — Background & lineage
@@ -49,7 +64,7 @@ const EMPTY_FORM = {
   educationLevel: '', educationField: '', educationInstitution: '', profession: '', employer: '', incomeRange: '',
   // Step 5 — Marriage intentions
   timeline: '', relocation: '', familyInvolvement: '', childrenStatus: '', childrenPlans: '',
-  prefAgeMin: '', prefAgeMax: '', prefHeightMin: '', prefHeightMax: '', prefEducation: '', prefLocation: '', prefMustHaves: '',
+  prefAgeMin: '', prefAgeMax: '', prefHeightMinParts: { feet: '', inches: '' }, prefHeightMaxParts: { feet: '', inches: '' }, prefEducation: '', prefLocation: '', prefMustHaves: '',
   // Step 6 — Privacy & photos
   photoAccess: 'members', profileVisibility: 'public', managementMode: '', guardianName: '', guardianEmail: '',
   // Step 7 — Story
@@ -67,8 +82,8 @@ function validateStep(step, d) {
     if (!d.age || Number.isNaN(age) || age < 18 || age > 100) e.age = 'Age must be between 18 and 100.';
     if (!d.city.trim()) e.city = 'City is required.';
     if (!d.country) e.country = 'Country is required.';
-    // Height is optional, but a typed value must parse — feet/inches or cm.
-    if (d.height && parseHeightToCm(d.height) === null) e.height = 'Enter height like 5\'7" or 170 cm.';
+    // Height is optional and picked, not typed (2026-11-14) — the chooser
+    // cannot produce an invalid value, so there is nothing to validate.
   }
   if (step === 2) {
     if (!d.sect) e.sect = 'Please select your sect / community.';
@@ -94,8 +109,9 @@ function validateStep(step, d) {
     if (d.prefAgeMin !== '' && (Number.isNaN(amin) || amin < 18 || amin > 100)) e.prefAgeMin = 'Preferred age must be between 18 and 100.';
     if (d.prefAgeMax !== '' && (Number.isNaN(amax) || amax < 18 || amax > 100)) e.prefAgeMax = 'Preferred age must be between 18 and 100.';
     if (!e.prefAgeMin && !e.prefAgeMax && d.prefAgeMin !== '' && d.prefAgeMax !== '' && amin > amax) e.prefAgeMax = 'The age range is reversed.';
-    if (d.prefHeightMin && parseHeightToCm(d.prefHeightMin) === null) e.prefHeightMin = 'Enter height like 5\'7" or 170 cm.';
-    if (d.prefHeightMax && parseHeightToCm(d.prefHeightMax) === null) e.prefHeightMax = 'Enter height like 5\'7" or 170 cm.';
+    const prefHMin = heightPartsToCm(d.prefHeightMinParts);
+    const prefHMax = heightPartsToCm(d.prefHeightMaxParts);
+    if (prefHMin !== null && prefHMax !== null && prefHMin > prefHMax) e.prefHeightMax = 'The height range is reversed — “to” is below “from”.';
   }
   if (step === 6) {
     if (!d.managementMode) e.managementMode = 'Please choose who manages this profile.';
@@ -255,7 +271,8 @@ export default function Onboard() {
         const raw = localStorage.getItem(scopedDraftKey());
         if (raw) {
           const parsed = JSON.parse(raw);
-          setData(prev => ({ ...prev, ...parsed.data, languages: parsed.data?.languages || [], citizenships: parsed.data?.citizenships || [] }));
+          const restored = normalizeRestoredData(parsed.data);
+          setData(prev => ({ ...prev, ...restored, languages: restored?.languages || [], citizenships: restored?.citizenships || [] }));
           setStep(Math.min(Math.max(parsed.step || 1, 1), totalSteps));
           setDraftRestored(true);
         }
@@ -266,7 +283,8 @@ export default function Onboard() {
       if (cancelled) return;
       const d = res?.draft;
       if (d && d.data) {
-        setData(prev => ({ ...prev, ...d.data, languages: d.data?.languages || [], citizenships: d.data?.citizenships || [] }));
+        const restored = normalizeRestoredData(d.data);
+        setData(prev => ({ ...prev, ...restored, languages: restored?.languages || [], citizenships: restored?.citizenships || [] }));
         setStep(Math.min(Math.max(d.step || 1, 1), totalSteps));
         setDraftRestored(true);
         setDraftReady(true);
@@ -301,12 +319,21 @@ export default function Onboard() {
           employer: p.employer,
           prefAgeMin: p.prefAgeMin != null ? String(p.prefAgeMin) : '',
           prefAgeMax: p.prefAgeMax != null ? String(p.prefAgeMax) : '',
-          prefHeightMin: p.prefHeightMinCm != null ? cmToFeetInches(p.prefHeightMinCm) : '',
-          prefHeightMax: p.prefHeightMaxCm != null ? cmToFeetInches(p.prefHeightMaxCm) : '',
+          prefHeightMinParts: p.prefHeightMinCm != null ? cmToHeightParts(p.prefHeightMinCm) : { feet: '', inches: '' },
+          prefHeightMaxParts: p.prefHeightMaxCm != null ? cmToHeightParts(p.prefHeightMaxCm) : { feet: '', inches: '' },
+          heightParts: p.heightCm != null ? cmToHeightParts(p.heightCm) : { feet: '', inches: '' },
           prefEducation: p.prefEducation, prefLocation: p.prefLocation, prefMustHaves: p.prefMustHaves,
         };
         for (const [k, v] of Object.entries(map)) {
           if ((filled[k] === '' || filled[k] == null) && v) filled[k] = v;
+        }
+        // Height parts (2026-11-14): the ''-check above cannot see into a
+        // { feet, inches } object, so fill those explicitly — only when
+        // the wizard holds no pick yet and the profile carries a value.
+        for (const k of ['heightParts', 'prefHeightMinParts', 'prefHeightMaxParts']) {
+          const cur = filled[k];
+          const v = map[k];
+          if (v && (v.feet || v.inches) && (!cur || (!cur.feet && !cur.inches))) filled[k] = v;
         }
         if (typeof p.languages === 'string' && p.languages && filled.languages.length === 0) {
           filled.languages = p.languages.split(',').map(s => s.trim()).filter(Boolean);
@@ -363,8 +390,8 @@ export default function Onboard() {
       seekingGender: d.seekingGender,
       city: d.city,
       country: d.country,
-      // Stored as cm; the member may type feet/inches or cm.
-      heightCm: parseHeightToCm(d.height),
+      // Stored as cm; the wizard holds chooser parts and derives it.
+      heightCm: heightPartsToCm(d.heightParts),
       maritalStatus: d.maritalStatus,
       sect: d.sect,
       religiosity: d.religiosity,
@@ -393,8 +420,8 @@ export default function Onboard() {
       // education means no preference (sent as null, dropped by clean).
       prefAgeMin: d.prefAgeMin === '' ? null : parseInt(d.prefAgeMin, 10),
       prefAgeMax: d.prefAgeMax === '' ? null : parseInt(d.prefAgeMax, 10),
-      prefHeightMinCm: parseHeightToCm(d.prefHeightMin),
-      prefHeightMaxCm: parseHeightToCm(d.prefHeightMax),
+      prefHeightMinCm: heightPartsToCm(d.prefHeightMinParts),
+      prefHeightMaxCm: heightPartsToCm(d.prefHeightMaxParts),
       prefEducation: d.prefEducation === 'Any' ? null : d.prefEducation,
       prefLocation: d.prefLocation,
       prefMustHaves: d.prefMustHaves,
@@ -733,8 +760,8 @@ function StepAbout({ data, update, errors }) {
         <Field label="Age" required error={errors.age}>
           <TextInput type="number" min="18" max="100" value={data.age} onChange={e => update('age', e.target.value)} placeholder="e.g. 27" ariaLabel="Age" error={errors.age} />
         </Field>
-        <Field label="Height" error={errors.height} hint="e.g. 5'7&quot; — or type cm, e.g. 170 cm">
-          <TextInput value={data.height} onChange={e => update('height', e.target.value)} placeholder="e.g. 5'7&quot;" ariaLabel="Height" error={errors.height} />
+        <Field label="Height" hint="Pick it — no typing, no wrong format">
+          <HeightChooser parts={data.heightParts} onChange={p => update('heightParts', p)} ariaLabel="Height" />
         </Field>
         <Field label="City" required error={errors.city}>
           <TextInput value={data.city} onChange={e => update('city', e.target.value)} placeholder="e.g. Chicago" ariaLabel="City" error={errors.city} />
@@ -805,7 +832,7 @@ function StepLineage({ data, update, errors, toggleIn }) {
           <SelectInput value={data.ethnicity} onChange={e => { update('ethnicity', e.target.value); update('subEthnicity', ''); }} options={ETHNICITIES} error={errors.ethnicity} ariaLabel="Ethnicity" />
         </Field>
         <Field label="Citizenships" hint="Select all that apply — dual citizens welcome">
-          <CitizenshipPicker values={data.citizenships} onToggle={v => toggleIn('citizenships', v)} />
+          <CitizenshipPicker values={data.citizenships} onToggle={v => toggleIn('citizenships', v)} onChange={next => update('citizenships', next)} />
         </Field>
       </div>
       {/* Optional sub-ethnicity (2026-10-24): e.g. South Asian → Indian / Pakistani.
@@ -833,7 +860,16 @@ function StepLineage({ data, update, errors, toggleIn }) {
 }
 
 // Compact dual-citizenship picker with selected-state chips
-function CitizenshipPicker({ values, onToggle }) {
+function CitizenshipPicker({ values, onToggle, onChange }) {
+  const [draft, setDraft] = useState('');
+  const [note, setNote] = useState('');
+  const addTyped = () => {
+    const next = addCitizenship(values, draft, COUNTRIES);
+    if (next) { onChange(next); setDraft(''); setNote(''); return; }
+    if (!normalizeCitizenship(draft)) setNote('Letters only, up to 40 characters — no commas or numbers.');
+    else if (values.length >= MAX_CITIZENSHIPS) setNote(`Up to ${MAX_CITIZENSHIPS} citizenships.`);
+    else setNote('Already in your list.');
+  };
   return (
     <div>
       <div className="flex flex-wrap gap-2 min-h-[3.25rem] p-2 rounded-xl border border-line/30 bg-elevated">
@@ -853,6 +889,21 @@ function CitizenshipPicker({ values, onToggle }) {
           </button>
         ))}
       </div>
+      {/* Write-your-own (2026-11-14): a citizenship the list does not
+          carry can be typed — it is stored exactly like a listed one
+          and appears in browse filters from the database. */}
+      <div className="mt-2 flex gap-2">
+        <input value={draft} onChange={e => { setDraft(e.target.value); setNote(''); }}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTyped(); } }}
+          placeholder="Not listed? Type your citizenship" aria-label="Type a citizenship not in the list"
+          maxLength={60}
+          className="flex-1 px-3 py-2 rounded-lg border border-line/30 bg-elevated text-xs text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary" />
+        <button type="button" onClick={addTyped}
+          className="px-3 py-2 rounded-lg bg-primary text-white text-xs font-semibold">
+          Add
+        </button>
+      </div>
+      {note && <p className="text-[11px] text-muted mt-1">{note}</p>}
     </div>
   );
 }
@@ -929,11 +980,11 @@ function StepIntentions({ data, update, errors }) {
           <Field label="Preferred age — to" error={errors.prefAgeMax}>
             <TextInput type="number" min="18" max="100" value={data.prefAgeMax} onChange={e => update('prefAgeMax', e.target.value)} placeholder="e.g. 30" ariaLabel="Preferred maximum age" error={errors.prefAgeMax} />
           </Field>
-          <Field label="Preferred height — from" error={errors.prefHeightMin} hint="e.g. 5'2&quot;">
-            <TextInput value={data.prefHeightMin} onChange={e => update('prefHeightMin', e.target.value)} placeholder="e.g. 5'2&quot;" ariaLabel="Preferred minimum height" error={errors.prefHeightMin} />
+          <Field label="Preferred height — from" error={errors.prefHeightMin}>
+            <HeightChooser parts={data.prefHeightMinParts} onChange={p => update('prefHeightMinParts', p)} ariaLabel="Preferred minimum height" />
           </Field>
-          <Field label="Preferred height — to" error={errors.prefHeightMax} hint="e.g. 5'10&quot;">
-            <TextInput value={data.prefHeightMax} onChange={e => update('prefHeightMax', e.target.value)} placeholder="e.g. 5'10&quot;" ariaLabel="Preferred maximum height" error={errors.prefHeightMax} />
+          <Field label="Preferred height — to" error={errors.prefHeightMax}>
+            <HeightChooser parts={data.prefHeightMaxParts} onChange={p => update('prefHeightMaxParts', p)} ariaLabel="Preferred maximum height" />
           </Field>
           <Field label="Preferred education">
             <SelectInput value={data.prefEducation} onChange={e => update('prefEducation', e.target.value)} options={PREF_EDUCATION_OPTIONS} placeholder="Any" ariaLabel="Preferred education" />
@@ -1227,11 +1278,11 @@ function StepPrivacy({ data, update, errors }) {
 
 // ── Step 7: Review & publish ────────────────────────────────────────────────
 const REVIEW_SECTIONS = [
-  { step: 1, title: 'About you', fields: [['displayName', 'Name'], ['gender', 'I am a'], ['seekingGender', 'Seeking'], ['age', 'Age'], ['city', 'City'], ['country', 'Country'], ['maritalStatus', 'Marital status'], ['build', 'Build']] },
+  { step: 1, title: 'About you', fields: [['displayName', 'Name'], ['gender', 'I am a'], ['seekingGender', 'Seeking'], ['age', 'Age'], ['city', 'City'], ['country', 'Country'], ['heightParts', 'Height'], ['maritalStatus', 'Marital status'], ['build', 'Build']] },
   { step: 2, title: 'Faith & practice', fields: [['sect', 'Sect'], ['religiosity', 'Religiosity'], ['prayer', 'Prayers'], ['marja', "Marja'"], ['modesty', 'Modesty'], ['diet', 'Diet'], ['convertStatus', 'Muslim background']] },
   { step: 3, title: 'Background & lineage', fields: [['syedStatus', 'Syed status'], ['ethnicity', 'Ethnicity'], ['citizenships', 'Citizenships'], ['languages', 'Languages'], ['residencyStatus', 'Residency'], ['hobbies', 'Hobbies'], ['hobbiesOther', 'Other hobbies']] },
   { step: 4, title: 'Education & career', fields: [['educationLevel', 'Education'], ['educationField', 'Field of study'], ['educationInstitution', 'Institution'], ['profession', 'Profession'], ['employer', 'Employer'], ['incomeRange', 'Income']] },
-  { step: 5, title: 'Marriage intentions', fields: [['timeline', 'Timeline'], ['relocation', 'Relocation'], ['familyInvolvement', 'Family involvement'], ['childrenStatus', 'Children'], ['childrenPlans', 'Views on children'], ['prefAgeMin', 'Preferred age from'], ['prefAgeMax', 'Preferred age to'], ['prefHeightMin', 'Preferred height from'], ['prefHeightMax', 'Preferred height to'], ['prefEducation', 'Preferred education'], ['prefLocation', 'Preferred location'], ['prefMustHaves', 'Must-haves']] },
+  { step: 5, title: 'Marriage intentions', fields: [['timeline', 'Timeline'], ['relocation', 'Relocation'], ['familyInvolvement', 'Family involvement'], ['childrenStatus', 'Children'], ['childrenPlans', 'Views on children'], ['prefAgeMin', 'Preferred age from'], ['prefAgeMax', 'Preferred age to'], ['prefHeightMinParts', 'Preferred height from'], ['prefHeightMaxParts', 'Preferred height to'], ['prefEducation', 'Preferred education'], ['prefLocation', 'Preferred location'], ['prefMustHaves', 'Must-haves']] },
   { step: 6, title: 'Privacy & management', fields: [['photoAccess', 'Photo visibility'], ['profileVisibility', 'Profile visibility'], ['managementMode', 'Managed by']] }
 ];
 
@@ -1252,6 +1303,8 @@ const FIELD_LABELS = {
 };
 
 function fmt(field, value) {
+  // Height chooser parts render as the feet/inches form profiles show.
+  if (field.endsWith('Parts')) { const cm = heightPartsToCm(value); return cm !== null ? cmToFeetInches(cm) : '—'; }
   if (Array.isArray(value)) return value.length ? value.join(', ') : '—';
   if (!value) return '—';
   return FIELD_LABELS[value] || value;

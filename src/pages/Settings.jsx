@@ -7,7 +7,8 @@ import { useAuth } from '../lib/auth/AuthContext';
 import GetVerified from '../components/GetVerified';
 import PhotoUpload from '../components/PhotoUpload';
 import VideoUpload from '../components/VideoUpload';
-import { parseHeightToCm, cmToFeetInches } from '../lib/height';
+import { cmToHeightParts, heightPartsToCm } from '../lib/height';
+import HeightChooser from '../components/HeightChooser';
 import { PREF_EDUCATION_OPTIONS } from '../lib/onboardingData';
 import WaliLinks from '../components/WaliLinks';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -146,11 +147,11 @@ export default function Settings() {
           country: typeof me.country === 'string' ? me.country : pp.country,
           phone: typeof me.contactPhone === 'string' ? me.contactPhone : pp.phone,
           // Partner preferences (2026-11-10): heights come back as cm and
-          // are shown the way the member typed them (feet/inches).
+          // become chooser parts (2026-11-14 — picked, never typed).
           prefAgeMin: me.prefAgeMin != null ? String(me.prefAgeMin) : pp.prefAgeMin,
           prefAgeMax: me.prefAgeMax != null ? String(me.prefAgeMax) : pp.prefAgeMax,
-          prefHeightMin: me.prefHeightMinCm != null ? cmToFeetInches(me.prefHeightMinCm) : pp.prefHeightMin,
-          prefHeightMax: me.prefHeightMaxCm != null ? cmToFeetInches(me.prefHeightMaxCm) : pp.prefHeightMax,
+          prefHeightMinParts: me.prefHeightMinCm != null ? cmToHeightParts(me.prefHeightMinCm) : pp.prefHeightMinParts,
+          prefHeightMaxParts: me.prefHeightMaxCm != null ? cmToHeightParts(me.prefHeightMaxCm) : pp.prefHeightMaxParts,
           prefEducation: typeof me.prefEducation === 'string' ? me.prefEducation : pp.prefEducation,
           prefLocation: typeof me.prefLocation === 'string' ? me.prefLocation : pp.prefLocation,
           prefMustHaves: typeof me.prefMustHaves === 'string' ? me.prefMustHaves : pp.prefMustHaves,
@@ -364,7 +365,7 @@ export default function Settings() {
     // "Save account changes" button. The other new detail fields follow the
     // existing pattern — collected in onboarding, editable by re-running it
     // (which pre-fills from the server profile).
-    prefAgeMin: '', prefAgeMax: '', prefHeightMin: '', prefHeightMax: '',
+    prefAgeMin: '', prefAgeMax: '', prefHeightMinParts: { feet: '', inches: '' }, prefHeightMaxParts: { feet: '', inches: '' },
     prefEducation: '', prefLocation: '', prefMustHaves: '',
   });
   // True once the owner profile has loaded from the server. The Save button
@@ -477,8 +478,8 @@ export default function Settings() {
         // clears the stored value — same as an emptied bio.
         prefAgeMin: profile.prefAgeMin === '' ? null : parseInt(profile.prefAgeMin, 10),
         prefAgeMax: profile.prefAgeMax === '' ? null : parseInt(profile.prefAgeMax, 10),
-        prefHeightMinCm: parseHeightToCm(profile.prefHeightMin),
-        prefHeightMaxCm: parseHeightToCm(profile.prefHeightMax),
+        prefHeightMinCm: heightPartsToCm(profile.prefHeightMinParts),
+        prefHeightMaxCm: heightPartsToCm(profile.prefHeightMaxParts),
         prefEducation: profile.prefEducation === 'Any' ? null : profile.prefEducation,
         prefLocation: profile.prefLocation,
         prefMustHaves: profile.prefMustHaves,
@@ -635,11 +636,11 @@ export default function Settings() {
                     <div><label htmlFor="settings-prefAgeMax" className="text-sm font-medium text-muted mb-1.5 block">Preferred age — to</label>
                       <input id="settings-prefAgeMax" type="number" min="18" max="100" value={profile.prefAgeMax} onChange={e => setProfile(pp => ({ ...pp, prefAgeMax: e.target.value }))} className="input w-full" aria-label="Preferred maximum age" placeholder="e.g. 30" />
                     </div>
-                    <div><label htmlFor="settings-prefHeightMin" className="text-sm font-medium text-muted mb-1.5 block">Preferred height — from</label>
-                      <input id="settings-prefHeightMin" type="text" value={profile.prefHeightMin} onChange={e => setProfile(pp => ({ ...pp, prefHeightMin: e.target.value }))} className="input w-full" aria-label="Preferred minimum height" placeholder="e.g. 5'2&quot;" />
+                    <div><label className="text-sm font-medium text-muted mb-1.5 block">Preferred height — from</label>
+                      <HeightChooser parts={profile.prefHeightMinParts} onChange={p => setProfile(pp => ({ ...pp, prefHeightMinParts: p }))} ariaLabel="Preferred minimum height" />
                     </div>
-                    <div><label htmlFor="settings-prefHeightMax" className="text-sm font-medium text-muted mb-1.5 block">Preferred height — to</label>
-                      <input id="settings-prefHeightMax" type="text" value={profile.prefHeightMax} onChange={e => setProfile(pp => ({ ...pp, prefHeightMax: e.target.value }))} className="input w-full" aria-label="Preferred maximum height" placeholder="e.g. 5'10&quot;" />
+                    <div><label className="text-sm font-medium text-muted mb-1.5 block">Preferred height — to</label>
+                      <HeightChooser parts={profile.prefHeightMaxParts} onChange={p => setProfile(pp => ({ ...pp, prefHeightMaxParts: p }))} ariaLabel="Preferred maximum height" />
                     </div>
                     <div><label htmlFor="settings-prefEducation" className="text-sm font-medium text-muted mb-1.5 block">Preferred education</label>
                       <select id="settings-prefEducation" value={profile.prefEducation} onChange={e => setProfile(pp => ({ ...pp, prefEducation: e.target.value }))} className="input w-full" aria-label="Preferred education">

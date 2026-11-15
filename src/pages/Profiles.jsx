@@ -8,7 +8,8 @@ import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cmToFeetInches, parseHeightToCm } from '../lib/height';
+import { cmToFeetInches, heightPartsToCm } from '../lib/height';
+import HeightChooser from '../components/HeightChooser';
 import {
   Search, SlidersHorizontal, LayoutGrid, Heart, AlertCircle, Shield, Bookmark, Users
 } from 'lucide-react';
@@ -32,12 +33,12 @@ const DEFAULT_FILTERS = {
   search: '', gender: '', minAge: '', maxAge: '', country: '',
   sect: 'Any sect', religiosity: 'Any level', education: 'Any education',
   syedStatus: 'Any', modesty: 'Any', photo: 'any', verifiedOnly: false, sort: 'match',
-  // Height is entered as free text (5'7" or 170 cm) and parsed to cm for the
-  // server; citizenship is a multi-select of values actually present.
+  // Height is picked with the chooser (2026-11-14) and derived to cm for
+  // the server; citizenship is a multi-select of values actually present.
   // Profile depth (2026-11-10): hobbies + language are multi-selects of
   // values actually present; residency, marital and convert status are
   // single selects from the fixed onboarding lists.
-  minHeight: '', maxHeight: '', citizenship: [], incomeRange: 'Any',
+  minHeightParts: { feet: '', inches: '' }, maxHeightParts: { feet: '', inches: '' }, citizenship: [], incomeRange: 'Any',
   hobbies: [], language: [], residencyStatus: 'Any', maritalStatus: 'Any', convertStatus: 'Any'
 };
 
@@ -209,9 +210,8 @@ export function BrowseProfiles() {
       .catch(() => { /* filters work without the option lists */ });
     return () => { cancelled = true; };
   }, []);
-  const minHeightParsed = parseHeightToCm(filters.minHeight);
-  const maxHeightParsed = parseHeightToCm(filters.maxHeight);
-  const heightHintBad = (filters.minHeight && minHeightParsed === null) || (filters.maxHeight && maxHeightParsed === null);
+  const minHeightParsed = heightPartsToCm(filters.minHeightParts);
+  const maxHeightParsed = heightPartsToCm(filters.maxHeightParts);
   const [visibleCount, setVisibleCount] = useState(9);
   // True when the gender filter was set automatically from the member's own
   // seekingGender (not chosen by them). Shown as a transparent notice — never
@@ -356,6 +356,8 @@ export function BrowseProfiles() {
     if (k === 'verifiedOnly') return v === true;
     // A multi-select counts when anything is chosen.
     if (Array.isArray(v)) return v.length > 0;
+    // Height chooser parts count when they form a complete height.
+    if (k === 'minHeightParts' || k === 'maxHeightParts') return heightPartsToCm(v) !== null;
     // 'Any' is a default, not a selection — the bare value is what the
     // syedStatus/modesty selects send (the others send 'Any sect' etc).
     if (typeof v === 'string') return v && !['Any', 'Any sect', 'Any level', 'Any education', 'any'].includes(v);
@@ -365,8 +367,8 @@ export function BrowseProfiles() {
   // The badge count alone never said WHICH filters were on — name them for
   // the tooltip and screen readers.
   const activeFilterNames = activeFilterEntries.map(([k, v]) => {
-    const labels = { gender: 'Looking for', minAge: 'Min age', maxAge: 'Max age', country: 'Country', sect: 'Sect', religiosity: 'Religiosity', education: 'Education', syedStatus: 'Syed status', modesty: 'Modesty', photo: 'Photo', verifiedOnly: 'Verified only', sort: 'Sort', search: 'Search', minHeight: 'Min height', maxHeight: 'Max height', citizenship: 'Citizenship', incomeRange: 'Income', hobbies: 'Hobbies', language: 'Language', residencyStatus: 'Residency', maritalStatus: 'Marital status', convertStatus: 'Muslim background' };
-    return `${labels[k] || k}: ${v === true ? 'on' : Array.isArray(v) ? v.join(', ') : v}`;
+    const labels = { gender: 'Looking for', minAge: 'Min age', maxAge: 'Max age', country: 'Country', sect: 'Sect', religiosity: 'Religiosity', education: 'Education', syedStatus: 'Syed status', modesty: 'Modesty', photo: 'Photo', verifiedOnly: 'Verified only', sort: 'Sort', search: 'Search', minHeightParts: 'Min height', maxHeightParts: 'Max height', citizenship: 'Citizenship', incomeRange: 'Income', hobbies: 'Hobbies', language: 'Language', residencyStatus: 'Residency', maritalStatus: 'Marital status', convertStatus: 'Muslim background' };
+    return `${labels[k] || k}: ${v === true ? 'on' : Array.isArray(v) ? v.join(', ') : (k === 'minHeightParts' || k === 'maxHeightParts') ? (cmToFeetInches(heightPartsToCm(v)) || '') : v}`;
   }).join(', ');
 
   return (
@@ -512,16 +514,15 @@ export function BrowseProfiles() {
                     </select>
                   </div>
                   <div>
-                    <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Height range</label>
-                    <div className="flex gap-2">
-                      <input type="text" placeholder={"Min (e.g. 5'7\")"} value={filters.minHeight} onChange={e => setFilter('minHeight', e.target.value)} className="input" style={{ background: 'var(--color-surface)' }} aria-label="Minimum height" />
-                      <input type="text" placeholder={"Max (e.g. 6'0\")"} value={filters.maxHeight} onChange={e => setFilter('maxHeight', e.target.value)} className="input" style={{ background: 'var(--color-surface)' }} aria-label="Maximum height" />
-                    </div>
-                    {(filters.minHeight || filters.maxHeight) && (
-                      <p className="text-xs mt-1" style={{ color: heightHintBad ? '#b91c1c' : 'var(--color-ink-secondary)' }}>
-                        {filters.minHeight ? (minHeightParsed ? `Min ${minHeightParsed} cm (${cmToFeetInches(minHeightParsed)})` : 'Min: not a height — try 5\'7" or 170 cm.') : ''}
-                        {filters.minHeight && filters.maxHeight ? ' · ' : ''}
-                        {filters.maxHeight ? (maxHeightParsed ? `Max ${maxHeightParsed} cm (${cmToFeetInches(maxHeightParsed)})` : 'Max: not a height — try 5\'7" or 170 cm.') : ''}
+                    <label className="block mb-1.5 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Height range — from</label>
+                    <HeightChooser compact parts={filters.minHeightParts} onChange={p => setFilter('minHeightParts', p)} ariaLabel="Minimum height" />
+                    <label className="block mb-1.5 mt-3 text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Height range — to</label>
+                    <HeightChooser compact parts={filters.maxHeightParts} onChange={p => setFilter('maxHeightParts', p)} ariaLabel="Maximum height" />
+                    {(minHeightParsed !== null || maxHeightParsed !== null) && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--color-ink-secondary)' }}>
+                        {minHeightParsed !== null ? `From ${cmToFeetInches(minHeightParsed)}` : ''}
+                        {minHeightParsed !== null && maxHeightParsed !== null ? ' · ' : ''}
+                        {maxHeightParsed !== null ? `To ${cmToFeetInches(maxHeightParsed)}` : ''}
                       </p>
                     )}
                   </div>

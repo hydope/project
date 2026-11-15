@@ -13,6 +13,8 @@ for (const [src, out] of [
   ['src/lib/analytics.js', 'analytics.mjs'],
   ['src/lib/onboardingData.js', 'onboardingData.mjs'],
   ['src/lib/dobParts.js', 'dobParts.mjs'],
+  ['src/lib/height.js', 'height.mjs'],
+  ['src/lib/citizenship.js', 'citizenship.mjs'],
 ]) {
   fs.copyFileSync(path.join(root, src), path.join(tmp, out));
 }
@@ -43,6 +45,8 @@ fs.writeFileSync(path.join(seoTmp, 'package.json'), JSON.stringify({ type: 'modu
   const { createAnalytics } = await import('file:///' + path.join(tmp, 'analytics.mjs').replace(/\\/g, '/'));
   const { computeProfileCompleteness } = await import('file:///' + path.join(tmp, 'onboardingData.mjs').replace(/\\/g, '/'));
   const { daysInMonth, applyDobPart, dobIso, splitDobParts, dobPartsFromDraft, emptyDobParts } = await import('file:///' + path.join(tmp, 'dobParts.mjs').replace(/\\/g, '/'));
+  const { parseHeightToCm, heightPartsToCm, cmToHeightParts, heightStringToParts } = await import('file:///' + path.join(tmp, 'height.mjs').replace(/\\/g, '/'));
+  const { normalizeCitizenship, addCitizenship } = await import('file:///' + path.join(tmp, 'citizenship.mjs').replace(/\\/g, '/'));
   const { resolveMeta, canonicalFor } = await import('file:///' + path.join(seoTmp, 'lib', 'seoResolve.js').replace(/\\/g, '/'));
 
   // ── In-memory storage stand-in (no DOM required) ──────────────────────────
@@ -155,6 +159,37 @@ fs.writeFileSync(path.join(seoTmp, 'package.json'), JSON.stringify({ type: 'modu
   assert.equal(resolveMeta('/blog', '?utm_source=x').index, true);
   assert.equal(canonicalFor('/profiles'), 'https://shiarishta.com/profiles/');
   pass('filtered browse: noindex+follow with clean canonical, clean route indexable');
+
+  // 9. Height parsing must survive phone keyboards (2026-11-14: iOS smart
+  // punctuation turned 5'10" into curly quotes and the old parser rejected
+  // the member's own height at onboarding). Every quote style a keyboard
+  // can produce parses to the same cm; the chooser parts are independent
+  // state and a partial pick derives to null, never a snapped-back value.
+  assert.equal(parseHeightToCm('5\'10"'), 178);
+  assert.equal(parseHeightToCm('5’10”'), 178);
+  assert.equal(parseHeightToCm('5′10″'), 178);
+  assert.equal(parseHeightToCm('5\'10\'\''), 178);
+  assert.equal(parseHeightToCm('170 cm'), 170);
+  assert.equal(parseHeightToCm('abc'), null);
+  assert.equal(heightPartsToCm({ feet: '5', inches: '10' }), 178);
+  assert.equal(heightPartsToCm({ feet: '5', inches: '' }), null);
+  assert.equal(heightPartsToCm({ feet: '', inches: '' }), null);
+  assert.deepEqual(cmToHeightParts(178), { feet: '5', inches: '10' });
+  assert.deepEqual(heightStringToParts('5’10”'), { feet: '5', inches: '10' });
+  assert.deepEqual(heightStringToParts(''), { feet: '', inches: '' });
+  pass('height: smart quotes parse; chooser parts derive cm, partial pick is null');
+
+  // 10. Citizenship write-your-own (2026-11-14): a typed value normalizes
+  // (case, spacing), adopts the listed spelling when it matches one, and
+  // rejects commas (the storage separator), digits, and over-length text.
+  assert.equal(normalizeCitizenship('  kashmiri  '), 'Kashmiri');
+  assert.equal(normalizeCitizenship('US, UK'), null);
+  assert.equal(normalizeCitizenship('Indian2'), null);
+  assert.equal(normalizeCitizenship(''), null);
+  assert.deepEqual(addCitizenship([], 'pakistan', ['Pakistan', 'India']), ['Pakistan']);
+  assert.deepEqual(addCitizenship(['Pakistan'], 'PAKISTAN', ['Pakistan']), null);
+  assert.deepEqual(addCitizenship(['India'], 'Kashmiri', ['Pakistan']), ['India', 'Kashmiri']);
+  pass('citizenship: typed values normalize, listed spelling wins, junk rejected');
 
   fs.mkdirSync('C:/Users/Mitchell/AppData/Local/Temp/member-audit', { recursive: true });
   fs.writeFileSync('C:/Users/Mitchell/AppData/Local/Temp/member-audit/unit-tests.json',
