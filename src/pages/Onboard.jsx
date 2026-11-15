@@ -14,6 +14,7 @@ import { apiUrl, http } from '../lib/api/transport';
 import { saveMyProfile } from '../lib/storage';
 import { cmToFeetInches, cmToHeightParts, heightPartsToCm, heightStringToParts } from '../lib/height';
 import { addCitizenship, normalizeCitizenship, MAX_CITIZENSHIPS } from '../lib/citizenship';
+import { logSubmit, logValidation } from '../lib/eventLog';
 import HeightChooser from '../components/HeightChooser';
 import {
   SECTS, MARJA_OPTIONS, RELIGIOSITY_LEVELS, PRAYER_OPTIONS,
@@ -463,7 +464,8 @@ export default function Onboard() {
   const goNext = () => {
     const e = validateStep(step, data);
     setErrors(e);
-    if (Object.keys(e).length > 0) return;
+    // Event log (2026-11-15): which wizard fields block progress.
+    if (Object.keys(e).length > 0) { logValidation(`onboarding_step_${step}`, e); return; }
     if (step < totalSteps) { saveProgress(); setStep(s => s + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
     else publish();
   };
@@ -501,6 +503,7 @@ export default function Onboard() {
       // would stall people again at a later step for privacy reasons, and the
       // dashboard completion flow keeps prompting for it after publish.
       if (user?.emailVerified === false) {
+        logSubmit('onboarding_publish', false, 'blocked: email not verified');
         setPublishError('Verify your email first — one tap, then publish. Use Resend above if the link never arrived.');
         return;
       }
@@ -509,6 +512,7 @@ export default function Onboard() {
       // never reached the database and other members saw an empty profile.
       const clean = buildProfilePayload(data);
       await api.updateProfile(user?.uid || 'me', clean);
+      logSubmit('onboarding_publish', true);
       const profile = {
         ...data,
         age: parseInt(data.age, 10),
@@ -524,6 +528,7 @@ export default function Onboard() {
       localStorage.removeItem(scopedDraftKey());
       navigate('/dashboard');
     } catch (e) {
+      logSubmit('onboarding_publish', false, e?.message || 'publish failed');
       setPublishError(e?.message || 'Could not save your profile. Please try again.');
     } finally {
       setPublishing(false);

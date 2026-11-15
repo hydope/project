@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { trackPageView, beaconPageView } from '../lib/analytics.js';
+import { installGlobalErrorLogging } from '../lib/eventLog.js';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // Per-route SEO for the SPA. index.html ships the homepage <head>; this
@@ -127,6 +128,9 @@ export default function Seo() {
     // First-party SEO analytics beacon — every page view, including the
     // first. Fire-and-forget; never blocks rendering.
     beaconPageView(pathname);
+    // Client event log (2026-11-15): install the global crash handlers
+    // once — the guard inside makes repeat calls free.
+    installGlobalErrorLogging();
     return () => { live = false; };
   }, [pathname, search]);
 

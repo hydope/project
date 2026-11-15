@@ -177,7 +177,7 @@ try {
     // IP since 2026-11-13, and the exemption stays regardless: a per-page-view
     // beacon does not belong in a 30/min write bucket. The endpoint enforces
     // its own per-visitor-day bucket inside routeAnalytics().
-    $isBeacon = $method === 'POST' && $resource === 'analytics' && ($rest[0] ?? '') === 'collect';
+    $isBeacon = $method === 'POST' && $resource === 'analytics' && in_array($rest[0] ?? '', ['collect', 'event'], true);
     if (!$isBeacon) {
         writeRateCheck();
     }

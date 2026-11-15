@@ -6,6 +6,7 @@ import { useRemote } from '../../lib/api/transport';
 import { Eye, EyeOff, Mail, Lock, User, Sparkles, X } from 'lucide-react';
 import SocialLogin from '../../components/SocialLogin';
 import { daysInMonth, applyDobPart, dobIso, dobPartsFromDraft } from '../../lib/dobParts';
+import { logSubmit, logValidation } from '../../lib/eventLog';
 
 // ── In-progress signup draft (2026-11-13 fix) ─────────────────────────────
 // A reload used to wipe the whole form and force a full retype. The four
@@ -161,6 +162,9 @@ export default function Register() {
     }
     if (!tosAccepted) errs.tos = 'Please accept the Terms and Privacy Policy to create an account.';
     setFieldErrors(errs);
+    // Event log (2026-11-15): which fields block signups, in aggregate —
+    // field names + messages only, never the typed values.
+    if (Object.keys(errs).length) logValidation('register', errs);
     return Object.keys(errs).length === 0;
   };
 
@@ -177,6 +181,7 @@ export default function Register() {
       // Signup succeeded — the draft has served its purpose. (The DOB
       // parts persist only inside the draft, so they are cleared with it.)
       clearDraft();
+      logSubmit('register', true);
       analytics.track('account_created', { browser_local: true });
       // 2026-11-01 stuck-signup fix: show the verify step FIRST. Before this
       // we went straight to /onboard and 69% of real members never verified,
@@ -184,6 +189,7 @@ export default function Register() {
       // always offers "Continue to profile setup", so onboarding is never blocked.
       navigate('/verify-pending');
     } catch (err) {
+      logSubmit('register', false, err.message || 'Registration failed');
       setError(err.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);

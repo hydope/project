@@ -79,6 +79,7 @@ function PageSkeleton() {
 
 import { Component } from 'react';
 import { healChunkLoadError } from './lib/chunkHeal.js';
+import { logEvent } from './lib/eventLog.js';
 
 // Catches chunk-load failures (e.g. stale bundle after a deploy) and
 // self-heals with one guarded hard reload before showing a recoverable
@@ -94,6 +95,10 @@ class ChunkErrorBoundary extends Component {
     return { failed: true };
   }
   componentDidCatch(error) {
+    // Event log (2026-11-15): every crash-screen hit is recorded with
+    // its message before any self-heal reload — sendBeacon survives the
+    // navigation. This is the trace that did not exist on 2026-11-14.
+    logEvent('error', 'error_boundary', { message: String(error?.message || error || '').slice(0, 300) });
     // Chunk-load failure only: the shared helper reloads at most once per
     // 30s window (timestamped sessionStorage guard, cleared after a
     // successful boot), so a stale HTML/JS mix heals itself while a chunk

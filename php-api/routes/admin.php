@@ -338,6 +338,7 @@ function routeAdmin(string $method, array $segments): void
     if ($method === 'GET' && $action === 'analytics') { adminAnalytics(); return; }
     if ($method === 'GET' && $action === 'photo-lift') { adminPhotoLift(); return; }
     if ($method === 'GET' && $action === 'seo') { adminSeoAnalytics(); return; }
+    if ($method === 'GET' && $action === 'events') { adminClientEvents(); return; }
     if ($method === 'GET' && $action === 'queue') { adminModerationQueue(); return; }
     if ($method === 'GET' && $action === 'verification-queue') { adminVerificationQueue(); return; }
     // POST /verify/bulk — segments are ['verify', 'bulk'], so the verb is at
@@ -1056,6 +1057,34 @@ function adminAnalytics(): void
             ],
         ],
     ]);
+}
+
+// GET /api/admin/events?kind=error&limit=100 — the client event log
+// (2026-11-15): newest first. Rows come from POST /api/analytics/event;
+// detail is the allowlisted JSON the endpoint stored (form/field/message/
+// endpoint/status — never typed values).
+function adminClientEvents(): void
+{
+    requireAdminUser();
+    $kind = in_array($_GET['kind'] ?? '', ['error', 'submit', 'validation', 'api'], true) ? (string)$_GET['kind'] : '';
+    $limit = max(1, min(200, (int)($_GET['limit'] ?? 100)));
+    try {
+        clientEventsEnsure();
+        if ($kind !== '') {
+            $stmt = db()->prepare('SELECT id, kind, name, page, detail, user_id, created_at FROM client_events WHERE kind = ? ORDER BY id DESC LIMIT ' . $limit);
+            $stmt->execute([$kind]);
+        } else {
+            $stmt = db()->query('SELECT id, kind, name, page, detail, user_id, created_at FROM client_events ORDER BY id DESC LIMIT ' . $limit);
+        }
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as &$r) {
+            $r['detail'] = $r['detail'] ? json_decode((string)$r['detail'], true) : null;
+        }
+        unset($r);
+        json(['rows' => $rows]);
+    } catch (Throwable $e) {
+        json(['rows' => [], 'error' => 'events unavailable'], 200);
+    }
 }
 
 // GET /api/admin/seo?range=7d|30d — the SEO & Growth dashboard dataset.

@@ -537,6 +537,22 @@ CREATE TABLE IF NOT EXISTS pageviews (
   KEY idx_pv_ref (referrer_host, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Client event log (2026-11-15): form submits, validation failures and
+-- client crashes from POST /api/analytics/event. Detail is allowlisted
+-- JSON (field names + error messages only — never typed values).
+CREATE TABLE IF NOT EXISTS client_events (
+  id           BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  kind         VARCHAR(16)  NOT NULL,
+  name         VARCHAR(80)  NOT NULL DEFAULT '',
+  page         VARCHAR(255) NOT NULL DEFAULT '/',
+  detail       TEXT         DEFAULT NULL,
+  user_id      CHAR(36)     DEFAULT NULL,
+  visitor_hash CHAR(64)     NOT NULL,
+  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_ce_created (created_at),
+  KEY idx_ce_kind (kind, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS recovery_emails (
   id            BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
   user_id       CHAR(36)     NOT NULL,
