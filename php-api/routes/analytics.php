@@ -159,6 +159,6 @@ function clientEventsEnsure(): void
             created_at DATETIME NOT NULL,
             INDEX idx_created (created_at),
             INDEX idx_kind_created (kind, created_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
 }

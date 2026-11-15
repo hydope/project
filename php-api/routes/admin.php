@@ -1070,14 +1070,35 @@ function adminClientEvents(): void
     $limit = max(1, min(200, (int)($_GET['limit'] ?? 100)));
     try {
         clientEventsEnsure();
+        // The JOIN carries an explicit COLLATE: client_events was created
+        // lazily by the beacon handler (no collation clause), so on
+        // production its user_id column can carry the database-default
+        // collation while users.id is utf8mb4_unicode_ci — comparing them
+        // bare throws "illegal mix of collations" and the first version of
+        // this endpoint silently returned zero rows (caught by the live
+        // probe, 2026-11-15). The fallback below is the second lesson of
+        // that catch: if the email enrichment ever fails, serve the rows
+        // without emails rather than an empty log.
         $cols = 'e.id, e.kind, e.name, e.page, e.detail, e.user_id, u.email AS user_email, e.created_at';
-        if ($kind !== '') {
-            $stmt = db()->prepare("SELECT $cols FROM client_events e LEFT JOIN users u ON u.id = e.user_id WHERE e.kind = ? ORDER BY e.id DESC LIMIT " . $limit);
-            $stmt->execute([$kind]);
-        } else {
-            $stmt = db()->query("SELECT $cols FROM client_events e LEFT JOIN users u ON u.id = e.user_id ORDER BY e.id DESC LIMIT " . $limit);
+        $join = 'FROM client_events e LEFT JOIN users u ON u.id = e.user_id COLLATE utf8mb4_unicode_ci';
+        try {
+            if ($kind !== '') {
+                $stmt = db()->prepare("SELECT $cols $join WHERE e.kind = ? ORDER BY e.id DESC LIMIT " . $limit);
+                $stmt->execute([$kind]);
+            } else {
+                $stmt = db()->query("SELECT $cols $join ORDER BY e.id DESC LIMIT " . $limit);
+            }
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable $joinError) {
+            error_log('[api] admin events join failed, serving without emails: ' . substr($joinError->getMessage(), 0, 120));
+            if ($kind !== '') {
+                $stmt = db()->prepare('SELECT id, kind, name, page, detail, user_id, created_at FROM client_events WHERE kind = ? ORDER BY id DESC LIMIT ' . $limit);
+                $stmt->execute([$kind]);
+            } else {
+                $stmt = db()->query('SELECT id, kind, name, page, detail, user_id, created_at FROM client_events ORDER BY id DESC LIMIT ' . $limit);
+            }
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as &$r) {
             $r['detail'] = $r['detail'] ? json_decode((string)$r['detail'], true) : null;
         }
