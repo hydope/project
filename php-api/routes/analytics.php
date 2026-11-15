@@ -119,7 +119,11 @@ function analyticsEvent(): void
     $userId = null;
     try {
         $u = currentUser();
-        if ($u && !empty($u['id'])) $userId = (string)$u['id'];
+        // The JWT carries `uid`, not `id` (lib/jwt.php) — reading `id`
+        // here silently logged every signed-in member as a guest until
+        // 2026-11-15, when the live probe caught it.
+        $uid = $u['uid'] ?? $u['id'] ?? null;
+        if ($uid) $userId = (string)$uid;
     } catch (Throwable $e) { /* guest or bad token — log anonymously */ }
 
     try {
