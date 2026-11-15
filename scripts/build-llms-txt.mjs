@@ -55,7 +55,8 @@ p('## About');
 p(
   'Shia Rishta is a matchmaking platform for Shia Muslims seeking **nikah** (Islamic',
   'marriage), and for the families, parents, walis and matchmakers who support them.',
-  'It covers Shia marriage, Shia matrimony and nikah searches across Pakistan, the',
+  'Based in Hyderabad, India, serving Shia families worldwide. It covers Shia',
+  'marriage, Shia matrimony and nikah searches across Pakistan, the',
   'Gulf, the United Kingdom, the United States and Canada.',
   '',
   'It is **not** a dating app. Every profile is created with marriage intent. There is',
@@ -141,7 +142,7 @@ for (const [slug, desc] of Object.entries(landingCopy)) {
 // Listed by pattern (244 pages) so AI engines know the full coverage.
 p('### Location tag pages (12 phrases × cities & countries)');
 p('Every city and country with member profiles has dedicated pages for each of these search phrases: Shia Rishta in {place}, Shia Rishtay in {place}, Shia Nikah in {place}, Shia Marriage in {place}, Shia Matrimony in {place}, {place} Shia Brides, {place} Shia Grooms, Shia Shaadi in {place}, Find Shia Rishta {place}, {place} Shia Matrimonial, Shia Nikah Match {place}, Shia Match {place}.');
-p('Covered places: Karachi, Lahore, Sargodha, Mumbai, Chennai, Bangalore, Dubai, Abu Dhabi, Toronto, London, Chicago, Houston, Washington DC, Silver Spring, Sydney, Nanjing, Pakistan, India, UAE, Canada, USA, United Kingdom, Australia.');
+p('Covered places: Karachi, Lahore, Sargodha, Mumbai, Chennai, Bangalore, Dubai, Abu Dhabi, Toronto, London, Chicago, Houston, Washington DC, Silver Spring, Sydney, Pakistan, India, UAE, Canada, USA, United Kingdom, Australia.');
 p('URL patterns: /shia-rishta-{place}, /shia-rishtay-{place}, /shia-nikah-{place}, /shia-marriage-{place}, /shia-matrimony-{place}, /{place}-shia-brides, /{place}-shia-grooms, /shia-shaadi-{place}, /find-shia-rishta-{place}, /{place}-shia-matrimonial, /shia-nikah-match-{place}, /shia-match-{place} — e.g. https://shiarishta.com/shia-match-karachi/');
 
 if (articles.length) {
@@ -155,6 +156,10 @@ p('## Contact');
 p(
   '- General enquiries, privacy requests, takedown requests and safety reports:',
   `  ${SITE_URL}/contact`,
+  '- Base: Hyderabad, India',
+  '- LinkedIn: https://www.linkedin.com/company/shiarishtaofficial/',
+  '- Blog: https://shiarishta.wordpress.com',
+  '- Instagram: https://www.instagram.com/shiarishta.official/',
   '- Privacy policy: https://shiarishta.com/privacy/',
   '- Terms of use: https://shiarishta.com/terms/',
   '- Safety and verification standards: https://shiarishta.com/safety/'

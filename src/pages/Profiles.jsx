@@ -182,7 +182,6 @@ export function Favourites() {
 }
 
 export function BrowseProfiles() {
-  usePageTitle('Browse Profiles');
   const { isLoggedIn } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [profiles, setProfiles] = useState([]);

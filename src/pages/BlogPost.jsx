@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import Layout from '../layouts/LandingLayout';
 import { Clock, ArrowLeft } from 'lucide-react';
 import NotFound from './NotFound';
-import { usePageTitle } from '../lib/usePageTitle';
 
 // articles.js holds all eight full-length articles — dynamically imported so
 // it ships as its own async chunk instead of bloating the shared entry chunk.
@@ -89,8 +88,6 @@ export default function BlogPost() {
       text: b.x,
     })),
   } : null);
-
-  usePageTitle(post ? post.title : 'Article');
 
   useEffect(() => {
     if (!post) return;

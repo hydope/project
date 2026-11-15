@@ -1,150 +1,76 @@
 <?php
-// Dynamic llms.txt — generated from the LIVE database on every request.
+// llms.txt — serves the CURATED static file, nothing generated.
 //
-// Unlike the static build-time llms.txt, this includes:
-// - Every published blog post (including admin-created and queue-generated)
-// - Every city/country with active profiles (with member counts)
-// - All landing pages and core site pages
+// The curated content lives in public/llms.txt, generated at build time by
+// scripts/build-llms-txt.mjs from src/data/routeSeo.js (About → Services →
+// Key pages → Contact, with the brand's accuracy discipline: no member
+// counts, no testimonials, no blanket "Verified" claims).
 //
-// AI crawlers (GPTBot, ClaudeBot, etc.) read /llms.txt to understand the site.
-// This ensures they see everything, not just what existed at build time.
+// This route used to GENERATE a link dump from the live database on every
+// request (2026-11-15, G3 — retired). That output claimed all members were
+// "Verified Shia brides and grooms" (the site's own position: members are
+// email-verified; ID verification is an optional badge), linked a
+// /success-stories/ page the accuracy policy says does not exist, listed
+// duplicate UK country pages with conflicting counts, and published raw
+// member-location strings ("Kapk", "Other") as places. The public
+// /llms.txt URL is now served the static file directly by Apache; this
+// route remains only so a direct /api/llms.txt request returns the same
+// curated content instead of the retired generator's output.
 //
-// GET /llms.txt
+// GET /api/llms.txt (fallback; public /llms.txt is the static file)
 declare(strict_types=1);
 
 function llmsTxt(): void
 {
-    $base = 'https://shiarishta.com';
-    $lines = [];
-    $lines[] = '# ShiaRishta — Shia Matrimony for Nikah';
-    $lines[] = '';
-    $lines[] = 'ShiaRishta is a free nikah-first Shia matrimony platform. Verified Shia brides and';
-    $lines[] = 'grooms, photo privacy by default, wali/guardian involvement, and a free 6-language';
-    $lines[] = 'marriage biodata maker. Everything is free.';
-    $lines[] = '';
-    $lines[] = '## Core pages';
-    $pages = [
-        '/' => 'Homepage — Shia matrimony for nikah',
-        '/profiles' => 'Browse verified Shia profiles',
-        '/locations' => 'Browse Shia profiles by city or country',
-        '/blog' => 'Guidance blog — Shia marriage articles',
-        '/community' => 'Community discussions',
-        '/matchmaker' => 'Submit a profile for review (matchmakers)',
-        '/biodata-maker' => 'Free 6-language marriage biodata maker',
-        '/about' => 'About ShiaRishta',
-        '/safety' => 'Safety guidelines',
-        '/success-stories' => 'Member success stories',
-        '/contact' => 'Contact us',
+    // Deployed layout: this file is public_html/api/routes/llms.php and the
+    // curated file is public_html/llms.txt (two levels up). Repo layout
+    // (local dev): php-api/routes/llms.php, curated file at public/llms.txt.
+    $candidates = [
+        dirname(__DIR__, 2) . '/llms.txt',
+        dirname(__DIR__, 2) . '/public/llms.txt',
     ];
-    foreach ($pages as $path => $desc) {
-        $lines[] = "- [$desc](" . $base . $path . ($path === '/' ? '' : '/') . ")";
-    }
-    $lines[] = '';
-
-    $lines[] = '## Shia matrimony landing pages';
-    $landing = [
-        '/shia-matrimony-usa' => 'Shia matrimony in the USA',
-        '/shia-brides' => 'Shia brides',
-        '/shia-grooms' => 'Shia grooms',
-        '/syed-rishta' => 'Syed rishta',
-        '/shia-matrimonial' => 'Shia matrimonial',
-        '/shia-marriage' => 'Shia marriage',
-        '/shia-nikah' => 'Shia nikah',
-        '/shia-nikah-guide' => 'Shia nikah guide',
-        '/shia-rishtay' => 'Shia rishtay',
-        '/shia-rishta-online' => 'Shia rishta online',
-    ];
-    foreach ($landing as $path => $desc) {
-        $lines[] = "- [$desc](" . $base . $path . ($path === '/' ? '' : '/') . ")";
-    }
-    $lines[] = '';
-
-    try {
-        $pdo = db();
-
-        // Cities with active profiles.
-        $stmt = $pdo->query(
-            "SELECT city, COUNT(*) AS n FROM profiles
-             WHERE is_blocked = 0 AND city IS NOT NULL AND city != '' AND user_id NOT IN (SELECT id FROM users WHERE is_test = 1)
-             GROUP BY city ORDER BY n DESC LIMIT 200"
-        );
-        $cities = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        if ($cities) {
-            $lines[] = '## Shia rishta by city';
-            foreach ($cities as $c) {
-                $city = trim((string)$c['city']);
-                $slug = trim(strtolower((string)preg_replace('/[^a-z0-9]+/i', '-', $city)), '-');
-                if ($slug === '') continue;
-                $n = (int)$c['n'];
-                $lines[] = "- [Shia Rishta in $city | Shia Rishtay in $city | Shia Nikah in $city | Shia Marriage in $city ($n profiles)]({$base}/city/{$slug}/)";
+    foreach ($candidates as $path) {
+        if (is_readable($path)) {
+            $body = file_get_contents($path);
+            if ($body !== false && trim($body) !== '') {
+                header('Content-Type: text/plain; charset=UTF-8');
+                header('Cache-Control: public, max-age=3600');
+                echo $body;
+                exit;
             }
-            $lines[] = '';
         }
-
-        // Countries with active profiles.
-        $stmt = $pdo->query(
-            "SELECT country, COUNT(*) AS n FROM profiles
-             WHERE is_blocked = 0 AND country IS NOT NULL AND country != '' AND user_id NOT IN (SELECT id FROM users WHERE is_test = 1)
-             GROUP BY country ORDER BY n DESC LIMIT 100"
-        );
-        $countries = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        if ($countries) {
-            $lines[] = '## Shia rishta by country';
-            // Alternate country names for AI search: USA -> United States, America etc.
-            $countryAliases = [
-                'usa' => ['United States', 'America', 'US'],
-                'united-states' => ['USA', 'America', 'US'],
-                'us' => ['USA', 'United States', 'America'],
-                'uk' => ['United Kingdom', 'Britain', 'England', 'Great Britain'],
-                'united-kingdom' => ['UK', 'Britain', 'England'],
-                'uae' => ['United Arab Emirates', 'Emirates'],
-                'united-arab-emirates' => ['UAE', 'Emirates'],
-                'saudi-arabia' => ['Saudi', 'KSA', 'Kingdom of Saudi Arabia'],
-                'south-korea' => ['Korea', 'Republic of Korea'],
-                'netherlands' => ['Holland'],
-                'new-zealand' => ['NZ'],
-                'south-africa' => ['SA', 'RSA'],
-            ];
-            foreach ($countries as $c) {
-                $country = trim((string)$c['country']);
-                $slug = trim(strtolower((string)preg_replace('/[^a-z0-9]+/i', '-', $country)), '-');
-                if ($slug === '') continue;
-                $n = (int)$c['n'];
-                $label = "Shia Rishta in $country | Shia Rishtay in $country | Shia Nikah in $country | Shia Marriage in $country";
-                foreach ($countryAliases[$slug] ?? [] as $alt) {
-                    $label .= " | Shia Rishta in $alt";
-                }
-                $lines[] = "- [$label ($n profiles)]({$base}/country/{$slug}/)";
-            }
-            $lines[] = '';
-        }
-
-        // Published blog posts.
-        $stmt = $pdo->query(
-            "SELECT slug, title, excerpt FROM blog_posts
-             WHERE status = 'published'
-             ORDER BY COALESCE(published_at, created_at) DESC LIMIT 500"
-        );
-        $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        if ($posts) {
-            $lines[] = '## Blog articles';
-            foreach ($posts as $p) {
-                $title = trim((string)$p['title']);
-                $excerpt = trim((string)($p['excerpt'] ?? ''));
-                $slug = rawurlencode((string)$p['slug']);
-                $lines[] = "- [$title]($base/blog/$slug)" . ($excerpt !== '' ? " — $excerpt" : '');
-            }
-            $lines[] = '';
-        }
-    } catch (Throwable $e) {
-        // DB unavailable — serve the static core without dynamic sections.
     }
 
-    $lines[] = '## Contact';
-    $lines[] = "- General enquiries: $base/contact";
+    // Curated file unreadable — serve a minimal static fallback with the
+    // same accuracy discipline (no counts, no testimonials, no blanket
+    // verification claim). This text mirrors public/llms.txt's About and
+    // Contact; if it ever has to change, change the curated file first.
+    $fallback = <<<'TXT'
+# Shia Rishta
+
+> Shia matrimony and nikah platform. Browse Shia brides and grooms, keep photos
+> private by default, involve family through wali and guardian workflows, and talk
+> only after mutual interest. Free to join.
+
+## About
+
+Shia Rishta is a matchmaking platform for Shia Muslims seeking nikah (Islamic
+marriage), and for the families, parents, walis and matchmakers who support them.
+Based in Hyderabad, India, serving Shia families worldwide. Every profile is
+created with marriage intent. Members are email-verified; identity verification
+is an optional badge, never a precondition for browsing. There is no payment
+system and no paid tier: creating a profile, browsing, expressing interest,
+messaging a match and all guardian tools are free.
+
+## Contact
+
+- General enquiries, privacy requests, takedown requests and safety reports:
+  https://shiarishta.com/contact
+- Base: Hyderabad, India
+TXT;
 
     header('Content-Type: text/plain; charset=UTF-8');
     header('Cache-Control: public, max-age=3600');
-    echo implode("\n", $lines);
+    echo $fallback;
     exit;
 }

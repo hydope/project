@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Layout from '../layouts/LandingLayout';
-import { usePageTitle } from '../lib/usePageTitle';
 import SampleProfileBadge from '../components/SampleProfileBadge';
 import { XCircle, Lightbulb, ArrowRight, Quote, Sparkles, ChevronDown } from 'lucide-react';
 
@@ -99,7 +98,6 @@ const SECTIONS_GUIDE = [
 ];
 
 export default function ProfileGuide() {
-  usePageTitle('Profile Guide');
   const [openIndex, setOpenIndex] = useState(null);
 
   return (

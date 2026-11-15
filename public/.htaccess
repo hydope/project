@@ -124,9 +124,13 @@ RewriteRule ^members-2/?$ - [G,L]
 # posts, community posts, public profiles) from the API. Must come before the
 # SPA fallback so /sitemap.xml never serves index.html.
 RewriteRule ^sitemap\.xml$ api/sitemap.xml [L]
-# Dynamic llms.txt — served from the live database (blog posts, cities,
-# countries) so AI crawlers see everything, not just build-time content.
-RewriteRule ^llms\.txt$ api/llms.txt [L]
+# llms.txt is served as the STATIC curated file (public/llms.txt, generated
+# at build time by scripts/build-llms-txt.mjs from src/data/routeSeo.js).
+# There used to be a rewrite here to a dynamic PHP generator; it produced a
+# link dump that overclaimed ("Verified" members) and contradicted the
+# brand's accuracy policy, so the generator was retired (2026-11-15, G3).
+# The API route /api/llms.txt remains only as a fallback that serves the
+# same curated file — it is no longer wired to the public URL.
 
 RewriteRule ^comments/ - [G,L]
 RewriteRule ^feed/?$ - [G,L]
@@ -155,6 +159,23 @@ RewriteRule ^pricing\.html$ - [G,L]
 RewriteRule ^google[0-9a-f]+\.html$ - [G,L]
 RewriteRule \.md$ - [G,L]
 RewriteRule ^package-lock\.json$ - [G,L]
+
+# ── True 404s for shell-served unknown routes (2026-11-15, G1) ────────────
+# A genuine Apache 404 serves the SPA shell, so a human still gets the app's
+# styled NotFound view while crawlers see the real 404 status instead of a
+# soft-404 homepage duplicate. (PHP-generated 404s, e.g. blog-ssr's unknown
+# slugs, carry their own body and are unaffected.)
+ErrorDocument 404 /index.html
+
+# Individual profile URLs (/profiles/<user-id>) have no unique static
+# content — the fallback below served them the HOMEPAGE shell with HTTP 200,
+# manufacturing soft 404s at scale (209 URLs were sitemap'd; they are now
+# removed from the sitemap too). Return a true 404 with the shell instead:
+# browsers still load the document and React renders the profile client-side
+# for signed-in members (the same pattern blog-ssr.php uses for unknown blog
+# slugs), while crawlers see the honest status. The browse page itself
+# (/profiles, /profiles/) has no second segment and is untouched.
+RewriteRule ^profiles/[^/]+/?$ - [R=404,L]
 
 # 3) ShiaRishta SPA — Apache fallback for client-side routes.
 #    Every non-file request serves index.html so React Router can take over.

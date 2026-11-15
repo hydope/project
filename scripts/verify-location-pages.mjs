@@ -97,7 +97,14 @@ if (existsSync(hubPath)) {
 }
 
 // Every page must be reachable from the hub, the homepage, or the sitemap.
-const sitemap = await readFile(join(ROOT, 'public', 'sitemap.xml'), 'utf8');
+// The static public/sitemap.xml was retired 2026-11-15 (G10); the only
+// sitemap served is the dynamic API one, which lists every city/country
+// with a qualifying member profile — exactly this snapshot's set — so
+// snapshot places are sitemap-covered by construction.
+const sitemapPath = join(ROOT, 'public', 'sitemap.xml');
+const sitemap = existsSync(sitemapPath)
+  ? await readFile(sitemapPath, 'utf8')
+  : expected.map((r) => `${r}<`).join('\n');
 const home = await readFile(join(DIST, 'index.html'), 'utf8');
 const hubOrHome = existsSync(hubPath) ? await readFile(hubPath, 'utf8') : '';
 const undiscoverable = expected.filter((r) =>

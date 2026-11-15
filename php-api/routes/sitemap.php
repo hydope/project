@@ -151,27 +151,16 @@ function sitemapXml(): void
         }
     } catch (Throwable $e) { /* skip */ }
 
-    // Public, finished, non-blocked member profiles. QA/test accounts are
-    // excluded — their city slugs ("testville",
-    // "test-profile-for-qa-please-ignore") were leaking into the public
-    // sitemap. Private-visibility and unfinished profiles are excluded too
-    // (2026-11-09, Syed's call): they are thin pages Google crawls instead
-    // of real ones, wasting crawl budget. The conditions match the browse
-    // list in routes/profiles.php exactly (same unfinished definition,
-    // same visibility rule), so a profile enters the sitemap the moment it
-    // becomes browsable.
+    // Individual member profiles are deliberately NOT in the sitemap
+    // (2026-11-15, G1). A /profiles/<user-id> URL cannot serve unique static
+    // content — the Apache fallback served it the homepage shell with HTTP
+    // 200, so 209 sitemap'd profile URLs were judged soft 404s and burned
+    // crawl budget. The URLs now return a true 404 with the SPA shell (see
+    // public/.htaccess), and the browse page (/profiles) above stays listed
+    // as the single crawlable entry to the directory. Profiles remain fully
+    // browsable in the app; nothing about member privacy changes.
     $noTest = 'user_id NOT IN (SELECT id FROM users WHERE is_test = 1)';
     $unfinished = "(TRIM(COALESCE(city, '')) = '' AND TRIM(COALESCE(country, '')) = '' AND TRIM(COALESCE(bio, '')) = '' AND TRIM(COALESCE(about_family, '')) = '')";
-    try {
-        $stmt = $pdo->query("SELECT user_id, updated_at FROM profiles WHERE is_blocked = 0 AND {$noTest} AND visibility <> 'private' AND NOT {$unfinished} ORDER BY updated_at DESC LIMIT 5000");
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $urls[] = [
-                'loc' => $base . '/profiles/' . rawurlencode((string)$row['user_id']),
-                'lastmod' => substr((string)($row['updated_at'] ?? date('Y-m-d')), 0, 10),
-                'priority' => '0.6',
-            ];
-        }
-    } catch (Throwable $e) { /* skip */ }
 
     // City + country pages — the CURATED list from src/data/locationSeo.js.
     // Keep in sync with CITIES/COUNTRIES there. Curated pages are emitted
@@ -207,20 +196,36 @@ function sitemapXml(): void
     // that place, so Google sees real change.
     $liveCitySlugs = [];
     $liveCountrySlugs = [];
+    // Non-place strings that leak in from raw member-entered locations
+    // (2026-11-15, G4): a city literally named "Kapk", a country of "Other",
+    // and "D.i.khan" are data noise, not places with pages — publishing them
+    // as locations feeds garbage entities to crawlers and AI engines.
+    $nonPlaceSlugs = ['kapk', 'other', 'd-i-khan'];
+    // Country slug canonicalisation (2026-11-15, G4): members enter both
+    // "UK" and "United Kingdom"; /country/uk/ 301s to /country/united-kingdom/
+    // in .htaccess, so the sitemap must emit only the canonical slug, merged.
+    $countrySlugAliases = ['uk' => 'united-kingdom'];
     try {
         $stmt = $pdo->query("SELECT city, MAX(updated_at) AS lm FROM profiles WHERE is_blocked = 0 AND {$noTest} AND visibility <> 'private' AND NOT {$unfinished} AND TRIM(COALESCE(city, '')) <> '' GROUP BY city");
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $slug = slugifyLocation(trim((string)$row['city']));
-            if ($slug === '') continue;
-            $liveCitySlugs[$slug] = substr((string)($row['lm'] ?? $templateLastmod), 0, 10);
+            if ($slug === '' || in_array($slug, $nonPlaceSlugs, true)) continue;
+            $lm = substr((string)($row['lm'] ?? $templateLastmod), 0, 10);
+            if (!isset($liveCitySlugs[$slug]) || $lm > $liveCitySlugs[$slug]) {
+                $liveCitySlugs[$slug] = $lm;
+            }
         }
     } catch (Throwable $e) { /* skip */ }
     try {
         $stmt = $pdo->query("SELECT country, MAX(updated_at) AS lm FROM profiles WHERE is_blocked = 0 AND {$noTest} AND visibility <> 'private' AND NOT {$unfinished} AND TRIM(COALESCE(country, '')) <> '' GROUP BY country");
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $slug = slugifyLocation(trim((string)$row['country']));
-            if ($slug === '') continue;
-            $liveCountrySlugs[$slug] = substr((string)($row['lm'] ?? $templateLastmod), 0, 10);
+            if ($slug === '' || in_array($slug, $nonPlaceSlugs, true)) continue;
+            $slug = $countrySlugAliases[$slug] ?? $slug;
+            $lm = substr((string)($row['lm'] ?? $templateLastmod), 0, 10);
+            if (!isset($liveCountrySlugs[$slug]) || $lm > $liveCountrySlugs[$slug]) {
+                $liveCountrySlugs[$slug] = $lm;
+            }
         }
     } catch (Throwable $e) { /* skip */ }
 

@@ -1,4 +1,3 @@
-import { usePageTitle } from '../lib/usePageTitle';
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import Layout from '../layouts/LandingLayout';
@@ -8,7 +7,6 @@ import { MessageCircle, Heart, Plus, Search, X, ChevronRight } from 'lucide-reac
 import { createCommunity, createPost, listCommunities, listPosts, postPath } from '../lib/communityData';
 
 export default function Community() {
-  usePageTitle('Community');
   const { isLoggedIn, user } = useAuth();
   const [activeSub, setActiveSub] = useState('all');
   const [showLoginGate, setShowLoginGate] = useState(false);

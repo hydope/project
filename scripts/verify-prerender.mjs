@@ -78,7 +78,11 @@ if (existsSync(sitemapPath)) {
   check('every prerendered route is in the sitemap', notListed.length === 0,
     `missing: ${notListed.join(', ')}`);
 } else {
-  check('public/sitemap.xml exists', false, 'file not found');
+  // No static sitemap — by design since 2026-11-15 (G10). The only sitemap
+  // served is the dynamic one from the PHP API (.htaccess rewrites
+  // /sitemap.xml to it unconditionally). A second, build-time sitemap was a
+  // drift hazard: two URL sets that could disagree about what exists.
+  check('no static sitemap.xml (dynamic API sitemap is the only sitemap)', true);
 }
 
 // Load every document once; several checks below reuse them.
@@ -396,8 +400,10 @@ if (llmsExists) {
 }
 
 // ── Freshness ────────────────────────────────────────────────────────────────
-// Sitemap <lastmod> was hardcoded to 2026-09-26 and silently drifting. It is now
-// derived from git, so it is a measurement rather than a claim.
+// The static sitemap was retired 2026-11-15 (G10): the only sitemap served is
+// the dynamic API one, whose <lastmod> values come from the database at
+// request time. What the build must guarantee is that no stale static copy
+// ships alongside it.
 const sitemapOut = join(DIST, 'sitemap.xml');
 if (existsSync(sitemapOut)) {
   const sm = await readFile(sitemapOut, 'utf8');
@@ -410,7 +416,7 @@ if (existsSync(sitemapOut)) {
   check('no sitemap lastmod is older than 120 days', stale.length === 0,
     `stale: ${stale.join(', ')} — a hardcoded date drifts and nothing fails`);
 } else {
-  check('sitemap.xml ships in the build output', false, 'missing');
+  check('no static sitemap.xml in the build output (dynamic API sitemap only)', true);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

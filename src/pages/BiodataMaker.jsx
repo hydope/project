@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, forwardRef } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '../layouts/LandingLayout';
-import { usePageTitle } from '../lib/usePageTitle';
 import { useAuth } from '../lib/auth/AuthContext';
 import { Download, ImagePlus, Save, Sparkles, ZoomIn, ZoomOut, Maximize2, Upload, Share2 } from 'lucide-react';
 import { http } from '../lib/api/transport';
@@ -149,7 +148,6 @@ const SECTIONS = [
 const DRAFT_KEY = 'shiarishta_biodata_draft_v1';
 
 export default function BiodataMaker() {
-  usePageTitle('Marriage Biodata Maker');
   const { isLoggedIn } = useAuth();
   const [template, setTemplate] = useState('essential');
   const [lang, setLang] = useState('en');

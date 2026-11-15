@@ -220,9 +220,10 @@ const router = createBrowserRouter([
   // Renamed 2026-11-10 (external-audit fixes): the page IS "How Shia Rishta
   // works" (H1 + title) and explicitly says it invents no testimonials,
   // so /success-stories was the lie, not the label. /success-stories 301s
-  // to /how-it-works in .htaccess; the SPA redirect below covers dev builds.
+  // to /how-it-works in .htaccess. The SPA redirect entry was removed
+  // 2026-11-15 (G5): the route and its references are gone; the server 301
+  // is the single handler for the old URL.
   { path: '/how-it-works', element: <LazyRoute component={SuccessStories} /> },
-  { path: '/success-stories', element: <Navigate to="/how-it-works" replace /> },
   { path: '/about', element: <LazyRoute component={About} /> },
   { path: '/profile-guide', element: <LazyRoute component={ProfileGuide} /> },
   { path: '/safety', element: <LazyRoute component={Safety} /> },

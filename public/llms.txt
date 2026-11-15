@@ -8,7 +8,8 @@
 
 Shia Rishta is a matchmaking platform for Shia Muslims seeking **nikah** (Islamic
 marriage), and for the families, parents, walis and matchmakers who support them.
-It covers Shia marriage, Shia matrimony and nikah searches across Pakistan, the
+Based in Hyderabad, India, serving Shia families worldwide. It covers Shia
+marriage, Shia matrimony and nikah searches across Pakistan, the
 Gulf, the United Kingdom, the United States and Canada.
 
 It is **not** a dating app. Every profile is created with marriage intent. There is
@@ -60,6 +61,22 @@ all guardian tools are free. There is no payment system and no paid tier.
   - **When can I start a conversation?** Only after interest is mutual. Nobody is notified of an unreciprocated approach, which removes the most common harassment vector on dating platforms.
 
   - **What is the difference from a generic dating app?** It is Shia-specific (sect, marja and practice fields that generic sites do not carry), privacy-first (photo tiers instead of a public gallery) and nikah-first (no swiping culture).
+
+  - **What is a rishta?** A rishta is a marriage proposal or match — the person, and usually the family, being considered for marriage. A Shia rishta is a match sought within the Shia community, where sect, marja and practice matter to both families from the start.
+
+  - **How much does Shia Rishta cost?** Nothing. Creating a profile, browsing, expressing interest, messaging a match and using the guardian tools are all free. There is no payment system and no paid tier.
+
+  - **Does Shia Rishta allow mut’ah (temporary marriage)?** No. Shia Rishta is for permanent marriage (nikah) only. Every profile is created with permanent-marriage intent.
+
+  - **Can parents or a matchmaker search on behalf of their son or daughter?** Yes. Parents, guardians and trusted matchmakers can search and manage introductions on a member’s behalf through the built-in guardian and matchmaker workflows — and the person the profile concerns stays in control throughout.
+
+  - **Can a woman join without a wali?** Yes. Anyone can create a profile and search on their own. Wali and guardian involvement is available where a member wants it, but it is not required to join or browse.
+
+  - **Is there a Shia Rishta app?** Yes. Shia Rishta has apps for Android and iOS, and the full platform also works in any web browser — same profiles, same privacy controls.
+
+  - **What is the best Shia matrimony site?** That depends on what a family needs. Shia Rishta is built specifically for Shia marriage: sect, marja, religiosity and prayer practice are searchable fields rather than biography text, photos are private by default, conversations require mutual interest, and it is free. Families comparing sites should check whether a platform is Shia-specific, or a general site with a sect dropdown.
+
+  - **Is Shia Rishta legit and safe?** Shia Rishta is a real, operating platform for Shia families seeking nikah. Members verify their email before they can express interest or message, and identity verification is available as an optional badge. Photos stay private by default, contact details are never published, conversations open only after mutual interest, and blocking and reporting are instant.
 
 - [Browse Shia brides and grooms seeking nikah](https://shiarishta.com/profiles) — Search Shia profiles for nikah — filter by sect, marja, education and location. Serious Shia matrimony with privacy-first profiles. Join free.
 
@@ -129,7 +146,7 @@ all guardian tools are free. There is no payment system and no paid tier.
 
 Every city and country with member profiles has dedicated pages for each of these search phrases: Shia Rishta in {place}, Shia Rishtay in {place}, Shia Nikah in {place}, Shia Marriage in {place}, Shia Matrimony in {place}, {place} Shia Brides, {place} Shia Grooms, Shia Shaadi in {place}, Find Shia Rishta {place}, {place} Shia Matrimonial, Shia Nikah Match {place}, Shia Match {place}.
 
-Covered places: Karachi, Lahore, Sargodha, Mumbai, Chennai, Bangalore, Dubai, Abu Dhabi, Toronto, London, Chicago, Houston, Washington DC, Silver Spring, Sydney, Nanjing, Pakistan, India, UAE, Canada, USA, United Kingdom, Australia.
+Covered places: Karachi, Lahore, Sargodha, Mumbai, Chennai, Bangalore, Dubai, Abu Dhabi, Toronto, London, Chicago, Houston, Washington DC, Silver Spring, Sydney, Pakistan, India, UAE, Canada, USA, United Kingdom, Australia.
 
 URL patterns: /shia-rishta-{place}, /shia-rishtay-{place}, /shia-nikah-{place}, /shia-marriage-{place}, /shia-matrimony-{place}, /{place}-shia-brides, /{place}-shia-grooms, /shia-shaadi-{place}, /find-shia-rishta-{place}, /{place}-shia-matrimonial, /shia-nikah-match-{place}, /shia-match-{place} — e.g. https://shiarishta.com/shia-match-karachi/
 
@@ -155,6 +172,10 @@ URL patterns: /shia-rishta-{place}, /shia-rishtay-{place}, /shia-nikah-{place}, 
 
 - General enquiries, privacy requests, takedown requests and safety reports:
   https://shiarishta.com/contact
+- Base: Hyderabad, India
+- LinkedIn: https://www.linkedin.com/company/shiarishtaofficial/
+- Blog: https://shiarishta.wordpress.com
+- Instagram: https://www.instagram.com/shiarishta.official/
 - Privacy policy: https://shiarishta.com/privacy/
 - Terms of use: https://shiarishta.com/terms/
 - Safety and verification standards: https://shiarishta.com/safety/

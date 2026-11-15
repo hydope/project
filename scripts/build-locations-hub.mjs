@@ -69,7 +69,7 @@ const html = `<div class="seo-static">
         <li><a href="${SITE_URL}/profiles">Browse profiles</a></li>
         <li><a href="${SITE_URL}/about">About</a></li>
         <li><a href="${SITE_URL}/safety">Safety</a></li>
-        <li><a href="${SITE_URL}/success-stories">How it works</a></li>
+        <li><a href="${SITE_URL}/how-it-works">How it works</a></li>
         <li><a href="${SITE_URL}/contact">Contact</a></li>
         <li><a href="${SITE_URL}/privacy">Privacy</a></li>
         <li><a href="${SITE_URL}/terms">Terms</a></li>

@@ -4,7 +4,6 @@ import Layout from '../layouts/MainLayout';
 import { http } from '../lib/api/transport';
 import { useAuthedImage } from '../lib/api/useAuthedImage';
 import { useAuth } from '../lib/auth/AuthContext';
-import { usePageTitle } from '../lib/usePageTitle';
 import { HeartHandshake, Send, Clock, CheckCircle, XCircle, Upload, Loader2, X } from 'lucide-react';
 
 const MAX_BYTES = 5_000_000;
@@ -40,7 +39,6 @@ const FIELDS = [
 ];
 
 export default function Matchmaker() {
-  usePageTitle('Matchmaker');
   const { isLoggedIn, user } = useAuth();
   const location = useLocation();
   const [form, setForm] = useState({});
