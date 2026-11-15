@@ -401,6 +401,40 @@ function organizationJsonLd() {
       'A nikah-first Shia matrimony platform for serious families, with privacy-protected profiles and wali-supported introductions.',
     areaServed: 'Worldwide',
     knowsAbout: ['Shia Islam', 'Nikah', 'Islamic marriage', 'Wali', 'Matrimony'],
+    // Entity links for search/AI disambiguation (2026-11-15, G7): the
+    // verified official profiles only. Address-free by policy — the
+    // contactPoint is the contact page URL, never a postal address.
+    sameAs: [
+      'https://www.linkedin.com/company/shiarishtaofficial/',
+      'https://shiarishta.wordpress.com',
+      'https://www.instagram.com/shiarishta.official/',
+    ],
+    contactPoint: {
+      '@type': 'ContactPoint',
+      url: `${SITE_URL}/contact`,
+      contactType: 'customer support',
+    },
+  };
+}
+
+/** The service the Organization provides (2026-11-15, G12). */
+function serviceJsonLd() {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Service',
+    '@id': `${SITE_URL}/#service`,
+    name: 'Shia Rishta',
+    serviceType: 'Shia matrimony / matchmaking',
+    provider: { '@id': `${SITE_URL}/#organization` },
+    url: `${SITE_URL}/`,
+    description:
+      'Nikah-first Shia matrimony and matchmaking: browse Shia brides and grooms, keep photos private, and involve family through wali and guardian workflows.',
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'USD',
+      url: `${SITE_URL}/`,
+    },
   };
 }
 
@@ -694,6 +728,7 @@ async function buildRouteHtml(route, meta, baseHtml) {
   const nodes = [
     organizationJsonLd(),
     websiteNode(),
+    serviceJsonLd(),
     breadcrumbJsonLd(route),
     faqJsonLd(route),
   ].filter(Boolean);

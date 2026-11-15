@@ -14,7 +14,6 @@ import { buildTagLandingPages } from '../data/tagLandingPages.js';
 import { ARTICLE_META } from '../data/articleMeta.js';
 import { CITIES, COUNTRIES, locationMetaDesc } from '../data/locationSeo.js';
 import { ROUTE_SEO, SITE_URL } from '../data/routeSeo.js';
-import { SOCIAL_LINKS } from '../data/socialLinks.js';
 
 // SITE comes from routeSeo.js so the prerenderer and the runtime agree on the host.
 const SITE = SITE_URL;
@@ -221,7 +220,39 @@ function organizationNode() {
     description: 'A nikah-first Shia matrimony platform for serious families, with privacy-protected profiles and wali-supported introductions.',
     areaServed: 'Worldwide',
     knowsAbout: ['Shia Islam', 'Nikah', 'Islamic marriage', 'Wali', 'Matrimony'],
-    sameAs: SOCIAL_LINKS.filter(s => s.url).map(s => s.url),
+    // Entity links for search/AI disambiguation (2026-11-15, G7): the
+    // verified official profiles only — NOT the SOCIAL_LINKS UI list, which
+    // includes placeholder/unverified accounts. Address-free by policy:
+    // the contactPoint is the contact page URL, never a postal address.
+    sameAs: [
+      'https://www.linkedin.com/company/shiarishtaofficial/',
+      'https://shiarishta.wordpress.com',
+      'https://www.instagram.com/shiarishta.official/',
+    ],
+    contactPoint: {
+      '@type': 'ContactPoint',
+      url: `${SITE}/contact`,
+      contactType: 'customer support',
+    },
+  };
+}
+
+/** The service the Organization provides (2026-11-15, G12). */
+function serviceNode() {
+  return {
+    '@type': 'Service',
+    '@id': `${SITE}/#service`,
+    name: 'Shia Rishta',
+    serviceType: 'Shia matrimony / matchmaking',
+    provider: { '@id': `${SITE}/#organization` },
+    url: SITE,
+    description: 'Nikah-first Shia matrimony and matchmaking: browse Shia brides and grooms, keep photos private, and involve family through wali and guardian workflows.',
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'USD',
+      url: SITE,
+    },
   };
 }
 
@@ -311,7 +342,7 @@ function canonicalFor(pathname) {
 
 /** All JSON-LD nodes for a route (Seo.jsx upserts them into the head). */
 export function buildJsonLd(pathname) {
-  return [organizationNode(), websiteNode(), breadcrumbNode(pathname), faqNode(pathname)];
+  return [organizationNode(), websiteNode(), serviceNode(), breadcrumbNode(pathname), faqNode(pathname)];
 }
 
 export { resolveMeta, canonicalFor };
