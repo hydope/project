@@ -15,6 +15,7 @@ for (const [src, out] of [
   ['src/lib/dobParts.js', 'dobParts.mjs'],
   ['src/lib/height.js', 'height.mjs'],
   ['src/lib/citizenship.js', 'citizenship.mjs'],
+  ['src/lib/locationQuery.js', 'locationQuery.mjs'],
 ]) {
   fs.copyFileSync(path.join(root, src), path.join(tmp, out));
 }
@@ -190,6 +191,31 @@ fs.writeFileSync(path.join(seoTmp, 'package.json'), JSON.stringify({ type: 'modu
   assert.deepEqual(addCitizenship(['Pakistan'], 'PAKISTAN', ['Pakistan']), null);
   assert.deepEqual(addCitizenship(['India'], 'Kashmiri', ['Pakistan']), ['India', 'Kashmiri']);
   pass('citizenship: typed values normalize, listed spelling wins, junk rejected');
+
+  // Location page queries: a curated city+country slug (hyderabad-india)
+  // must query the API by its real stored fields — the slug-derived
+  // display name ("Hyderabad India") matched zero members live and the
+  // page stamped itself "Page Not Found". Regression guard (2026-11-16).
+  const { locationQueryParams } = await import('file:///' + path.join(tmp, 'locationQuery.mjs').replace(/\\/g, '/'));
+  assert.deepEqual(
+    locationQueryParams({ isCountry: false, curatedEntry: { slug: 'hyderabad-india', name: 'Hyderabad', country: 'India' }, displayName: 'Hyderabad India' }),
+    { city: 'Hyderabad', country: 'India' });
+  assert.deepEqual(
+    locationQueryParams({ isCountry: false, curatedEntry: { slug: 'hyderabad-pakistan', name: 'Hyderabad', country: 'Pakistan' }, displayName: 'Hyderabad Pakistan' }),
+    { city: 'Hyderabad', country: 'Pakistan' });
+  assert.deepEqual(
+    locationQueryParams({ isCountry: false, curatedEntry: { slug: 'karachi', name: 'Karachi', country: 'Pakistan' }, displayName: 'Karachi' }),
+    { city: 'Karachi', country: 'Pakistan' });
+  assert.deepEqual(
+    locationQueryParams({ isCountry: true, curatedEntry: { slug: 'usa', name: 'United States' }, displayName: 'Usa' }),
+    { country: 'United States' });
+  assert.deepEqual(
+    locationQueryParams({ isCountry: false, curatedEntry: null, displayName: 'D I Khan' }),
+    { city: 'D I Khan' });
+  assert.deepEqual(
+    locationQueryParams({ isCountry: true, curatedEntry: null, displayName: 'Canada' }),
+    { country: 'Canada' });
+  pass('locationQuery: curated city+country slugs query by stored fields, dynamic slugs by display name');
 
   fs.mkdirSync('C:/Users/Mitchell/AppData/Local/Temp/member-audit', { recursive: true });
   fs.writeFileSync('C:/Users/Mitchell/AppData/Local/Temp/member-audit/unit-tests.json',

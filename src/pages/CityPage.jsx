@@ -10,6 +10,7 @@ import LeadCapture from '../components/LeadCapture.jsx';
 import { useAuth } from '../lib/auth/AuthContext';
 import { countryAliases } from '../data/countryAliases';
 import { CITIES, COUNTRIES, buildLocationSections, buildLocationFaq } from '../data/locationSeo';
+import { locationQueryParams } from '../lib/locationQuery';
 import { tagPagesForPlace } from '../data/tagLandingPages';
 import NotFound from './NotFound';
 
@@ -69,7 +70,14 @@ export default function CityPage() {
 
   useEffect(() => {
     setLoading(true);
-    http.get(`/api/profiles?${kind}=${encodeURIComponent(displayName)}&limit=24`)
+    // Curated entries query by their real stored fields (name + country):
+    // disambiguated slugs like hyderabad-india encode city+country, and
+    // the display-name query matched nobody. See lib/locationQuery.js.
+    const q = new URLSearchParams({
+      ...locationQueryParams({ isCountry, curatedEntry: curated, displayName }),
+      limit: '24',
+    });
+    http.get(`/api/profiles?${q.toString()}`)
       .then(r => {
         const list = Array.isArray(r) ? r : (r.profiles || r.data || []);
         setProfiles(list);
@@ -77,7 +85,7 @@ export default function CityPage() {
       })
       .catch(() => setProfiles([]))
       .finally(() => setLoading(false));
-  }, [slug, displayName, kind]);
+  }, [slug, displayName, kind, isCountry, curated]);
 
   // Empty place → noindex (2026-11-10, external-audit fixes): a city/country
   // page with zero members is a thin page that wastes crawl budget. Seo
@@ -92,7 +100,10 @@ export default function CityPage() {
     if (!meta) return;
     if (profiles.length === 0) {
       meta.setAttribute('content', 'noindex, nofollow');
-      document.title = 'Page Not Found | Shia Rishta';
+      // The title is NOT touched here: an empty-but-real location page is
+      // a thin page, not a 404. Stamping "Page Not Found" (the old line)
+      // leaked into the tab of every empty city page and was never
+      // restored — title ownership stays with Seo/usePageTitle.
     } else {
       meta.setAttribute('content', 'index, follow');
     }
