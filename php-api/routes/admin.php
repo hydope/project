@@ -992,7 +992,7 @@ function adminAnalytics(): void
         'timezone' => 'America/New_York',
         'headline' => [
             'signupsToday' => $signupsToday,
-            'signupTarget' => 5,
+            'signupTarget' => 10, // Syed raised the target to 10 real signups/day on 2026-11-14; the dashboard still said 5 until 2026-11-15.
             'signupsYesterday' => $signupsYesterday,
             'realMembers' => $realMembers,
             'visitorsToday' => $visitorsToday,
