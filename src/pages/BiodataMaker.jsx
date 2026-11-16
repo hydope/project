@@ -7,7 +7,7 @@ import { http } from '../lib/api/transport';
 import { logSubmit } from '../lib/eventLog';
 import LeadCapture from '../components/LeadCapture.jsx';
 import { parseHeightToCm } from '../lib/height.js';
-import { jsPDF } from 'jspdf';
+import { downloadCanvasPdf } from '../lib/miniPdf.js';
 
 const TEMPLATES = [
   {
@@ -423,7 +423,7 @@ export default function BiodataMaker() {
 
   const downloadPdf = async () => {
     // Real PDF download: render the preview to a high-res canvas, embed it
-    // in an A4 PDF via jsPDF, and trigger a download. The old window.print()
+    // in an A4 PDF (lib/miniPdf.js), and trigger a download. The old window.print()
     // approach opened a print dialog (or nothing at all in headless/in-app
     // browsers) — a button labeled "Save as PDF" must save a PDF.
     setPdfState('working');
@@ -432,11 +432,13 @@ export default function BiodataMaker() {
       logCreation();
       const canvas = await renderCanvas();
       if (!canvas) throw new Error('preview');
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-      const pageW = 210, pageH = 297;
-      pdf.addImage(imgData, 'PNG', 0, 0, pageW, pageH);
-      pdf.save(`${fileSlug()}.pdf`);
+      // Minimal in-house PDF writer (lib/miniPdf.js): jsPDF cost ~180 KB
+      // gzip of bundle (with its html2canvas/canvg/dompurify satellites)
+      // for this one addImage call — the diet the bundle budget owed
+      // since 2026-11-10, done 2026-11-15. Same canvas, same A4 page,
+      // same filename; the biodata preview (watermark included) is
+      // rendered into the canvas before this point, unchanged.
+      downloadCanvasPdf(canvas, `${fileSlug()}.pdf`);
       setPdfState('done');
       setTimeout(() => setPdfState('idle'), 3000);
     } catch {

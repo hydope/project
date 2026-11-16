@@ -4,7 +4,7 @@
 // Run after `vite build`: node scripts/check-bundle-budget.mjs
 //
 // Budgets (gzipped):
-//   Total JS:  728 KB  (every KB here delays first interaction;
+//   Total JS:  520 KB  (every KB here delays first interaction;
 //                       recalibrated 2026-11-09 from 700 KB: the app grew
 //                       674 KB (Oct 18) -> 699.6 KB (Nov 9, guardian +
 //                       hide-any-field + citizenships + looking-for) -> 701.4 KB
@@ -49,7 +49,16 @@ import { join } from 'path';
 import { gzipSync } from 'zlib';
 
 const DIST = new URL('../dist/assets/', import.meta.url).pathname;
-const BUDGETS = { totalJS: 728 * 1024, totalCSS: 50 * 1024, maxChunk: 150 * 1024 };
+//   Recalibrated DOWN 2026-11-15 (fix-everything Batch D): 728 -> 520 KB.
+//   The owed diet was finally done: jsPDF + html2canvas + canvg +
+//   dompurify (~234 KB gzip) were removed — the Biodata Maker's single
+//   addImage call now uses a ~100-line in-house image-PDF writer
+//   (src/lib/miniPdf.js, xref-validated + pdfinfo-verified). Measured
+//   total after the diet AND the Batch A-C features: 504.7 KB. The new
+//   budget locks the diet in; raising it again requires a shipped
+//   feature, never slack. Remaining diet candidate: framer-motion
+//   (~43 KB gzip, CSS-replaceable) — still owed before any future raise.
+const BUDGETS = { totalJS: 520 * 1024, totalCSS: 50 * 1024, maxChunk: 150 * 1024 };
 
 let totalJS = 0, totalCSS = 0, maxChunk = 0, maxChunkName = '';
 const violations = [];
