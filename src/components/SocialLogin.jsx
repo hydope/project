@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../lib/api/client';
+import { http } from '../lib/api/transport';
 
 // Social sign-in: Google + Facebook (Meta). Instagram sign-in is handled
 // through the Facebook button — Meta consolidated Instagram login into
@@ -52,9 +52,14 @@ export default function SocialLogin({ mode = 'signin' }) {
     setBusy(true);
     setError('');
     try {
-      const res = await api.post('/auth/social', { provider, token });
+      // NOTE: the api facade (lib/api/client) has no generic .post — this
+      // call must go through the transport, like authService does. The
+      // original code called api.post here; it never executed while the
+      // One Tap button was dead, and threw "api.post is not a function"
+      // the first time the fixed button actually returned a credential
+      // (proven in the 2026-11-16 end-to-end test).
+      const res = await http.post('/api/auth/social', { provider, token });
       // Store the session exactly like a normal login does.
-      const { http } = await import('../lib/api/transport');
       if (res.token) http.setToken(res.token);
       if (res.user) localStorage.setItem('session', JSON.stringify(res.user));
       if (res.user?.needsDob) {

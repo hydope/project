@@ -4,7 +4,7 @@ import { CalendarCheck } from 'lucide-react';
 import Layout from '../../layouts/MainLayout';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { usePageTitle } from '../../lib/usePageTitle';
-import { api } from '../../lib/api/client';
+import { http } from '../../lib/api/transport';
 import { daysInMonth, applyDobPart, dobIso, emptyDobParts } from '../../lib/dobParts';
 
 // The post-social-sign-in DOB step (2026-11-16). A Google/Meta signup
@@ -58,7 +58,7 @@ export default function AuthDob() {
     setBusy(true);
     setError('');
     try {
-      await api.post('/auth/dob', { dateOfBirth: iso });
+      await http.post('/api/auth/dob', { dateOfBirth: iso });
       await refreshUser();
       navigate('/onboard', { replace: true });
     } catch (err) {

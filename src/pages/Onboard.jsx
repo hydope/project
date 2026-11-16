@@ -551,7 +551,7 @@ export default function Onboard() {
     setRole(r);
     setRoleSaving(true);
     try {
-      await api.post('/users/me/role', { role: r });
+      await http.post('/api/users/me/role', { role: r });
     } catch {
       // Non-fatal — the role defaults to member server-side; the user can
       // change it later in Settings.
