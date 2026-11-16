@@ -131,6 +131,8 @@ function fmtJoined(iso) {
 
 export default function AdminAnalytics() {
   const [range, setRange] = useState('7d');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const [data, setData] = useState(null);
   const [seo, setSeo] = useState(null);
   const [leads, setLeads] = useState(null);
@@ -141,9 +143,11 @@ export default function AdminAnalytics() {
     setLoading(true);
     setError('');
     try {
+      const customQs = range === 'custom' && customFrom && customTo ? `&from=${customFrom}&to=${customTo}` : '';
+      const seoRange = ['7d', '30d', '90d', 'all'].includes(range) ? range : '7d';
       const [a, s, l] = await Promise.all([
-        http.get(`/api/admin/analytics?range=${range}`),
-        http.get(`/api/admin/seo?range=${range}`).catch(() => null),
+        http.get(`/api/admin/analytics?range=${range}${customQs}`),
+        http.get(`/api/admin/seo?range=${seoRange}`).catch(() => null),
         http.get('/api/admin/leads?limit=8').catch(() => null),
       ]);
       setData(a);
@@ -154,9 +158,17 @@ export default function AdminAnalytics() {
     } finally {
       setLoading(false);
     }
-  }, [range]);
+  }, [range, customFrom, customTo]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Realtime polling (2026-11-15, Batch B): refresh every 30s so the
+  // "right now" panel and its no-traffic alert stay honest while the
+  // page is open.
+  useEffect(() => {
+    const t = setInterval(() => { load(); }, 30000);
+    return () => clearInterval(t);
+  }, [load]);
 
   const headline = data?.headline || {};
   const insight = data?.insight || '';
@@ -167,6 +179,11 @@ export default function AdminAnalytics() {
   const charts = data?.charts || [];
   const chartByKey = (k) => charts.find((c) => c.key === k);
 
+  const realtime = seo?.realtime || null;
+  const channels = seo?.channels || [];
+  const AI_CHANNELS = ['chatgpt', 'perplexity', 'gemini', 'copilot'];
+  const aiViews = channels.filter((c) => AI_CHANNELS.includes(c.channel)).reduce((a, c) => a + c.views, 0);
+  const channelTotal = channels.reduce((a, c) => a + c.views, 0);
   const traffic = seo?.traffic || { labels: [], pageviews: [], visitors: [] };
   const topPages = seo?.topPages || [];
   const referrers = seo?.referrers || [];
@@ -196,13 +213,21 @@ export default function AdminAnalytics() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {['7d', '30d'].map((r) => (
+            {[['24h', 'Last 24h'], ['7d', '7 days'], ['30d', '30 days'], ['90d', '90 days'], ['all', 'All time'], ['custom', 'Custom']].map(([r, label]) => (
               <button key={r} onClick={() => setRange(r)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   range === r ? 'bg-primary text-white' : 'bg-elevated text-muted border border-line/20 hover:border-line/40'}`}>
-                {r === '7d' ? '7 days' : '30 days'}
+                {label}
               </button>
             ))}
+            {range === 'custom' && (
+              <span className="inline-flex items-center gap-1.5">
+                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
+                  className="px-2 py-1.5 rounded-lg text-xs bg-elevated text-ink border border-line/20" aria-label="From date" />
+                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
+                  className="px-2 py-1.5 rounded-lg text-xs bg-elevated text-ink border border-line/20" aria-label="To date" />
+              </span>
+            )}
             <button onClick={load} disabled={loading}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-elevated text-muted border border-line/20 hover:border-line/40 disabled:opacity-50">
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
@@ -229,7 +254,7 @@ export default function AdminAnalytics() {
         <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
           <HeadlineCard label="Joined today" Icon={UserPlus} loading={loading}
             value={headline.signupsToday}
-            sub={`of ${headline.signupTarget ?? 5} target · yesterday ${headline.signupsYesterday ?? 0}`} />
+            sub={`of ${headline.signupTarget ?? 10} target · yesterday ${headline.signupsYesterday ?? 0}`} />
           <HeadlineCard label="Real members" Icon={Users} loading={loading}
             value={headline.realMembers}
             sub="people, not profiles" />
@@ -310,7 +335,7 @@ export default function AdminAnalytics() {
             <h3 className="text-sm font-bold text-ink mb-4 inline-flex items-center gap-2">
               <UserPlus className="w-4 h-4 text-muted" /> Real signups per day
             </h3>
-            <MiniBars chart={chartByKey('memberGrowth')} target={headline.signupTarget ?? 5} loading={loading} />
+            <MiniBars chart={chartByKey('memberGrowth')} target={headline.signupTarget ?? 10} loading={loading} />
           </section>
         </div>
 
@@ -413,6 +438,60 @@ Joined, but invisible in browse — email not confirmed, or profile unfinished. 
           )}
         </section>
 
+        {/* Realtime + alerting (2026-11-15, Batch B #4) */}
+        {realtime && (
+          <section className="rounded-xl border border-line/20 bg-elevated p-5 mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-sm font-bold text-ink">Right now</h3>
+              <span className="text-xs text-muted">Auto-refreshes every 30 seconds · last pageview {realtime.lastPageviewAt ? String(realtime.lastPageviewAt).replace('T', ' ').slice(0, 16) + ' UTC' : 'never recorded'}</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-center">
+              <div><div className="text-xl font-bold text-ink">{(realtime.visitors15m ?? 0).toLocaleString()}</div><div className="text-[11px] text-muted">Visitors (15 min)</div></div>
+              <div><div className="text-xl font-bold text-ink">{(realtime.pageviews15m ?? 0).toLocaleString()}</div><div className="text-[11px] text-muted">Pageviews (15 min)</div></div>
+              <div><div className="text-xl font-bold text-ink">{(realtime.pageviews60m ?? 0).toLocaleString()}</div><div className="text-[11px] text-muted">Pageviews (1 hour)</div></div>
+              <div><div className="text-xl font-bold text-ink">{(realtime.signups60m ?? 0).toLocaleString()}</div><div className="text-[11px] text-muted">Signups (1 hour)</div></div>
+            </div>
+            {(realtime.pageviews60m ?? 0) === 0 && (
+              <p className="mt-3 rounded-lg bg-danger/10 text-danger text-xs font-semibold px-3 py-2">
+                Alert: no pageviews in the last hour. If the site should be receiving visitors, check https://shiarishta.com is up — do not assume this panel is wrong.
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* Channels — AI assistants are their own channel (2026-11-15, Batch B #2) */}
+        {channels.length > 0 && (
+          <section className="rounded-xl border border-line/20 bg-elevated p-5 mb-6">
+            <h3 className="text-sm font-bold text-ink mb-1">Where visitors come from</h3>
+            <p className="text-xs text-muted mb-3">
+              AI assistants total: <strong className="text-ink">{aiViews.toLocaleString()}</strong> views ({channelTotal > 0 ? Math.round((aiViews * 100) / channelTotal) : 0}% of traffic).
+              Google includes AI Overview clicks — they carry the same referrer as Search and cannot be separated without Search Console.
+            </p>
+            <ul className="space-y-2">
+              {channels.map((c) => (
+                <li key={c.channel} className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-ink capitalize">{c.channel}{AI_CHANNELS.includes(c.channel) ? ' · AI' : ''}</span>
+                  <span className="text-muted">{c.views.toLocaleString()} views · {c.visitors.toLocaleString()} visitors</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Search Console (2026-11-15, Batch B #3): honest blocked state.
+            No data is shown until Syed connects it — nothing is faked. */}
+        <section className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-5 mb-6">
+          <h3 className="text-sm font-bold text-ink mb-1">Google Search Console — not connected yet</h3>
+          <p className="text-xs text-muted mb-3">
+            Blocked on Syed: sign in to Search Console as alisyedmohd51@gmail.com and add/verify shiarishta.com, then this panel can show
+            real search queries, positions and AI Overview clicks. Until then there is no Search Console data — and none is estimated here.
+          </p>
+          <a href="https://search.google.com/search-console" target="_blank" rel="noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:opacity-90">
+            Open Search Console <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </section>
+
         <h2 className="text-base font-bold text-ink mb-3">SEO &amp; traffic</h2>
 
         {/* Google Analytics 4 connection status */}
@@ -473,7 +552,7 @@ Joined, but invisible in browse — email not confirmed, or profile unfinished. 
               <ul className="space-y-2.5">
                 {referrers.slice(0, 8).map((r) => (
                   <li key={r.host} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="font-mono text-ink truncate" title={r.host}>{r.host}</span>
+                    <span className="font-mono text-ink truncate" title={r.host + (r.path || '')}>{r.host}{r.path || ''}</span>
                     <span className="text-muted whitespace-nowrap">{r.views.toLocaleString()}</span>
                   </li>
                 ))}

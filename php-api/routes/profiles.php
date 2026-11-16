@@ -44,9 +44,14 @@ function routeProfiles(string $method, array $segments): void
     // they were a saved result. The comment here previously claimed the ordering
     // was safe; it was not.
     if ($method === 'GET' && $id === 'me' && $sub === 'favourites') { favouritesList(); return; }
+    // Muted members (2026-11-15, Batch A): literal sub-path before /me, same
+    // ordering reason as favourites above.
+    if ($method === 'GET' && $id === 'me' && $sub === 'mutes') { mutesList(); return; }
     if ($method === 'GET' && $id === 'me') { profileMe(); return; }
     if ($method === 'POST' && $id !== null && $sub === 'favourite') { favouriteAdd($id); return; }
     if ($method === 'DELETE' && $id !== null && $sub === 'favourite') { favouriteRemove($id); return; }
+    if ($method === 'POST' && $id !== null && $sub === 'mute') { profileMute($id); return; }
+    if ($method === 'DELETE' && $id !== null && $sub === 'mute') { profileUnmute($id); return; }
     // POST is accepted as an alias for PUT. Only PUT was ever routed, so a
     // client sending POST got a 404 and every profile save silently failed --
     // while writeRateCheck() had already charged the request against the
@@ -996,6 +1001,17 @@ function profilesList(): void
         $where[] = 'NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?))';
         $params[] = $viewer['uid'];
         $params[] = $viewer['uid'];
+        // Mutes (2026-11-15, Batch A): members I muted never appear in MY
+        // browse. One-way only — a muted member still sees me. SQL-side so
+        // the paged total stays honest, guarded so an unmigrated DB (no
+        // mutes table yet) degrades to no filtering instead of a 500.
+        try {
+            $mutedIds = mutedIdsFor((string)$viewer['uid']);
+            foreach ($mutedIds as $mid) {
+                $where[] = 'p.user_id <> ?';
+                $params[] = $mid;
+            }
+        } catch (Throwable) { /* mute filtering is best-effort */ }
         // "Block unverified members": an unverified viewer never sees those
         // profiles. One lookup here; visibleProfile() re-checks per row for
         // the single-profile and favourites paths.
@@ -1450,6 +1466,84 @@ function favouriteRemove(string $id): void
     json(['ok' => true, 'favourited' => false]);
 }
 
+// ─── Mute (2026-11-15, Batch A P1) ──────────────────────────────────────────
+// One-way and silent, unlike block: muting hides the member from YOUR
+// browse and stops their notifications reaching you. They are never told,
+// keep full access of their own, and can still be blocked separately.
+
+/** POST /api/profiles/:id/mute — idempotent. */
+function profileMute(string $id): void
+{
+    $user = requireAuthUser();
+    if ((string)$id === (string)$user['uid']) {
+        je('You cannot mute yourself.', 400);
+    }
+    $probe = db()->prepare('SELECT user_id FROM profiles WHERE user_id = ? LIMIT 1');
+    $probe->execute([$id]);
+    if (!$probe->fetch()) {
+        je('Profile not found.', 404);
+    }
+    try {
+        db()->prepare('INSERT IGNORE INTO mutes (muter_id, muted_id) VALUES (?, ?)')
+            ->execute([$user['uid'], $id]);
+    } catch (Throwable $e) {
+        error_log('[api] mute failed: ' . substr($e->getMessage(), 0, 120));
+        je('Mute is not available right now.', 500);
+    }
+    json(['ok' => true, 'muted' => true]);
+}
+
+/** DELETE /api/profiles/:id/mute — idempotent. */
+function profileUnmute(string $id): void
+{
+    $user = requireAuthUser();
+    try {
+        db()->prepare('DELETE FROM mutes WHERE muter_id = ? AND muted_id = ?')
+            ->execute([$user['uid'], $id]);
+    } catch (Throwable $e) {
+        error_log('[api] unmute failed: ' . substr($e->getMessage(), 0, 120));
+        je('Mute is not available right now.', 500);
+    }
+    json(['ok' => true, 'muted' => false]);
+}
+
+/** GET /api/profiles/me/mutes — the members I have muted (for Settings). */
+function mutesList(): void
+{
+    $user = requireAuthUser();
+    try {
+        $rows = db()->prepare(
+            'SELECT p.*, ' . lastActiveSql() . ' AS last_active_at, m.created_at AS muted_at
+               FROM mutes m
+               JOIN profiles p ON p.user_id = m.muted_id
+               LEFT JOIN users u ON u.id = p.user_id
+              WHERE m.muter_id = ?
+              ORDER BY m.created_at DESC
+              LIMIT 200'
+        );
+        $rows->execute([$user['uid']]);
+        $muted = $rows->fetchAll();
+    } catch (Throwable $e) {
+        error_log('[api] mutes list: ' . substr($e->getMessage(), 0, 120));
+        json(['rows' => [], 'available' => false]);
+    }
+    $out = [];
+    foreach ($muted as $m) {
+        // Owner-view of the muted row: visibleProfile() with the MUTOR as
+        // viewer would hide nothing here (mute is not a visibility rule),
+        // so render the plain public shape directly.
+        $out[] = [
+            'id' => (string)$m['user_id'],
+            'displayName' => $m['display_name'] ?? null,
+            'city' => $m['city'] ?? null,
+            'country' => $m['country'] ?? null,
+            'mutedAt' => $m['muted_at'] ?? null,
+            'muted' => true,
+        ];
+    }
+    json(['rows' => $out, 'available' => true]);
+}
+
 function profileById(string $id): void
 {
     $stmt = db()->prepare('SELECT p.*, ' . lastActiveSql() . ' AS last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE p.user_id = ? LIMIT 1');
@@ -1503,6 +1597,17 @@ function profileUpdate(): void
     // Moderation-blocked members cannot publish changes (2026-11-11).
     requireNotBlocked($user);
     $b = requestJson();
+
+    // Duplicate display name guard (2026-11-15, Batch A): a profile save
+    // may not rename the member onto another account's exact name.
+    // displayNameTaken excludes the member's own account row, so keeping
+    // or re-casing their own name is never a conflict.
+    $newName = null;
+    if (array_key_exists('displayName', $b)) $newName = trim((string)$b['displayName']);
+    elseif (array_key_exists('display_name', $b)) $newName = trim((string)$b['display_name']);
+    if ($newName !== null && $newName !== '' && displayNameTaken($newName, (string)$user['uid'])) {
+        je('That display name is already in use. Please choose a slightly different name so members are not confused with someone else.', 409);
+    }
 
     // Guardian-managed profiles (2026-11-09): what is already stored, so a
     // partial save can be validated against it and an invite is only sent
@@ -2170,6 +2275,14 @@ function interestsReceived(): void
 // Create a notification. Idempotent on (user_id, type, ref_id) to avoid dupes.
 function notifyUser(string $userId, string $type, string $title, ?string $body = null, ?string $refId = null): void
 {
+    // Mute (2026-11-15, Batch A): if the recipient muted the actor
+    // ($refId carries the sender for interest/match/message events), the
+    // notification — in-app row AND email mirror — is silently dropped.
+    // The underlying interest/message itself still exists; only the
+    // nudge is muted, which is exactly what mute promises.
+    if ($refId !== null && $refId !== '' && in_array($type, ['interest', 'match', 'message'], true) && isMutedBy($userId, $refId)) {
+        return;
+    }
     try {
         $id = uuid();
         $stmt = db()->prepare('INSERT INTO notifications (id, user_id, type, title, body, ref_id) VALUES (?, ?, ?, ?, ?, ?)');

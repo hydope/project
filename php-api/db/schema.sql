@@ -298,6 +298,21 @@ CREATE TABLE IF NOT EXISTS blocks (
   PRIMARY KEY (blocker_id, blocked_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Mute (2026-11-15, fix-everything Batch A): ONE-WAY and silent, unlike
+-- blocks (which hide both sides from each other and stop contact). A mute
+-- only affects the muter: the muted member disappears from the muter's
+-- browse and stops generating notifications for them. The muted member is
+-- never told and can still see/contact the muter unless separately blocked.
+-- Marker bump 2026-11-15b: this table + pageviews attribution columns
+-- (referrer_path, channel, utm_*) below force migrateSchema() to re-run.
+CREATE TABLE IF NOT EXISTS mutes (
+  muter_id CHAR(36) NOT NULL,
+  muted_id CHAR(36) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (muter_id, muted_id),
+  KEY idx_mutes_muted (muted_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS verifications (
   id           CHAR(36)     NOT NULL PRIMARY KEY,
   user_id      CHAR(36)     NOT NULL,
@@ -529,12 +544,24 @@ CREATE TABLE IF NOT EXISTS pageviews (
   id            BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
   path          VARCHAR(255) NOT NULL,
   referrer_host VARCHAR(255) DEFAULT NULL,
+  -- Attribution (2026-11-15, Batch B): referrer PATH only (query string is
+  -- never stored — it can carry tokens/PII), the server-classified channel
+  -- (google/chatgpt/perplexity/direct/social/…), and first-touch UTM.
+  -- visitor_hash is now PERSISTENT (sha256 of ip+ua, no date) so a visitor
+  -- can be followed across days for page-to-signup attribution; per-day
+  -- uniques are still exact because rows are filtered by day window.
+  referrer_path VARCHAR(255) DEFAULT NULL,
+  channel       VARCHAR(32)  DEFAULT NULL,
+  utm_source    VARCHAR(120) DEFAULT NULL,
+  utm_medium    VARCHAR(120) DEFAULT NULL,
+  utm_campaign  VARCHAR(160) DEFAULT NULL,
   device        VARCHAR(16)  NOT NULL DEFAULT 'desktop',
   visitor_hash  CHAR(64)     NOT NULL,
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_pv_created (created_at),
   KEY idx_pv_path (path, created_at),
-  KEY idx_pv_ref (referrer_host, created_at)
+  KEY idx_pv_ref (referrer_host, created_at),
+  KEY idx_pv_channel (channel, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Client event log (2026-11-15): form submits, validation failures and

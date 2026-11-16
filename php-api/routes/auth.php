@@ -65,6 +65,15 @@ function authRegister(): void
     // (30/15 min) remains the raw-abuse guard for all attempts.
     rateCheck('register:ip', cip(), 10, 3600, 'Too many accounts created from your network. Try again in an hour.');
 
+    // Duplicate display name guard (2026-11-15, Batch A): only for a name
+    // the registrant actually chose — the email-prefix fallback name is
+    // derived, not chosen, and must never block a signup over a collision
+    // the member did not create (they can rename afterwards, where the
+    // same guard applies in userUpdateMe/profileUpdate).
+    if (isset($payload['displayName']) && trim((string)$payload['displayName']) !== '' && displayNameTaken($displayName)) {
+        je('That display name is already in use. Please choose a slightly different name so members are not confused with someone else.', 409);
+    }
+
     // ADMIN_EMAILS drives is_admin on register — the first-admin bootstrap.
     $adminEmails = adminEmails();
     $isAdmin = in_array($email, $adminEmails, true);

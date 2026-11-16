@@ -173,9 +173,11 @@ export default function Settings() {
         }
       } catch { /* leave blank — a missing handle is not an error */ }
       try {
-        const { listBlocks, listMyReports } = await import('../lib/api/safety');
+        const { listBlocks, listMyReports, listMutes } = await import('../lib/api/safety');
         const list = await listBlocks().catch(() => []);
         if (!cancelled && Array.isArray(list)) setBlocks(list);
+        const muteList = await listMutes().catch(() => []);
+        if (!cancelled && Array.isArray(muteList)) setMutes(muteList);
         const reports = await listMyReports().catch(() => []);
         if (!cancelled && Array.isArray(reports)) setMyReports(reports);
       } catch { /* blocked list is best-effort on load */ }
@@ -394,6 +396,7 @@ export default function Settings() {
     setHiddenFields(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
   };
   const [blocks, setBlocks] = useState([]);
+  const [mutes, setMutes] = useState([]);
   const [blocking, setBlocking] = useState('');
   const [blockError, setBlockError] = useState('');
   const [blockSuccess, setBlockSuccess] = useState('');
@@ -873,6 +876,33 @@ export default function Settings() {
                           </li>
                         );
                       })}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="pt-2">
+                  <h3 className="font-semibold text-ink mb-2">Muted members</h3>
+                  <p className="text-sm text-muted mb-3">Muting is one-way and silent: they leave your browse and stop notifying you, and they are never told. Unmute to see them again.</p>
+                  {mutes.length === 0 ? (
+                    <p className="text-sm text-muted">You have not muted anyone. Mute from a member's profile page.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {mutes.map(m => (
+                        <li key={m.id} className="flex items-center justify-between text-sm p-2 rounded-lg" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                          <span style={{ color: 'var(--color-ink-secondary)' }}>{m.displayName || 'Member'}{m.city ? ` · ${m.city}` : ''}</span>
+                          <button
+                            onClick={async () => {
+                              const { unmuteMember, listMutes } = await import('../lib/api/safety');
+                              await unmuteMember(m.id);
+                              setMutes(await listMutes().catch(() => []));
+                            }}
+                            className="text-xs hover:underline"
+                            style={{ color: 'var(--color-primary)' }}
+                          >
+                            Unmute
+                          </button>
+                        </li>
+                      ))}
                     </ul>
                   )}
                 </div>

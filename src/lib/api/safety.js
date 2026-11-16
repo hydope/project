@@ -25,6 +25,30 @@ export async function unblockMember(userId) {
   return { ok: true };
 }
 
+// Mute (2026-11-15, Batch A): one-way and silent — the muted member
+// disappears from MY browse and stops notifying me; they are never told.
+// Server endpoints: POST/DELETE /api/profiles/:id/mute, GET /me/mutes.
+export async function muteMember(userId) {
+  if (useRemote) return http.post(`/api/profiles/${encodeURIComponent(userId)}/mute`, {});
+  const list = read('mutes', []);
+  if (!list.includes(userId)) write('mutes', [...list, userId]);
+  return { ok: true };
+}
+
+export async function unmuteMember(userId) {
+  if (useRemote) return http.del(`/api/profiles/${encodeURIComponent(userId)}/mute`);
+  write('mutes', read('mutes', []).filter(id => id !== userId));
+  return { ok: true };
+}
+
+export async function listMutes() {
+  if (useRemote) {
+    const res = await http.get('/api/profiles/me/mutes');
+    return Array.isArray(res?.rows) ? res.rows : [];
+  }
+  return read('mutes', []).map(id => ({ id, displayName: null }));
+}
+
 export async function listBlocks() {
   if (useRemote) {
     const res = await http.get('/api/reports/blocks');

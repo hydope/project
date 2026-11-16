@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useReducedMotion } from 'framer-motion';
 import Reveal from '../components/Reveal';
@@ -80,6 +81,11 @@ export default function Home() {
   // nothing rather than a placeholder number — a wrong figure on a marriage
   // site is worse than an absent one, and the endpoint is a single cheap query.
   const { data: stats } = useStats();
+  // Sticky mobile CTA dismissal (2026-11-15, Batch C): session-only, so a
+  // guest who closes it is not nagged again on every page of the visit.
+  const [ctaDismissed, setCtaDismissed] = useState(() => {
+    try { return sessionStorage.getItem('sr_sticky_cta_closed') === '1'; } catch { return false; }
+  });
   // One true total (2026-11-09, P0 batch): `browsable` is the count a visitor
   // actually sees in /profiles. `members` counts private and unfinished
   // profiles too, and the featured line used to count the loaded page
@@ -325,6 +331,28 @@ export default function Home() {
           </Reveal>
         </section>
       </main>
+
+      {/* Sticky mobile CTA (2026-11-15, Batch C — homepage→signup funnel):
+          guests on phones are most of the traffic and the register CTA
+          otherwise scrolls away. Mobile-only, guests-only, dismissible. */}
+      {!isLoggedIn && !ctaDismissed && (
+        <div className="sm:hidden" style={{ position: 'fixed', left: 12, right: 12, bottom: 'calc(12px + env(safe-area-inset-bottom))', zIndex: 60 }}>
+          <div className="flex items-center gap-2 rounded-2xl px-3 py-2.5 shadow-2xl" style={{ background: 'var(--color-primary)', color: '#fff' }}>
+            <p className="flex-1 text-[13px] font-semibold leading-tight">Join free — see Shia profiles near you</p>
+            <Link to="/auth/register" className="shrink-0 rounded-xl px-3.5 py-2 text-[13px] font-bold" style={{ background: '#fff', color: 'var(--color-primary)' }}>
+              Create profile
+            </Link>
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={() => { setCtaDismissed(true); try { sessionStorage.setItem('sr_sticky_cta_closed', '1'); } catch { /* private mode */ } }}
+              className="shrink-0 rounded-full px-1.5 py-1 text-white/80"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

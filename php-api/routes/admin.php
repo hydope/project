@@ -723,8 +723,15 @@ function adminHealth(): void
 // test accounts). It now counts real signups only and is titled accordingly.
 function adminAnalytics(): void
 {
-    $range = in_array($_GET['range'] ?? '', ['7d', '30d', '90d'], true) ? (string)$_GET['range'] : '7d';
-    $days = ['7d' => 7, '30d' => 30, '90d' => 90][$range];
+    // Ranges (2026-11-15, Batch B #2): last-24h (hourly buckets), 7d,
+    // 30d, 90d, all (365d chart window; headline/funnel stay all-time),
+    // and custom (?from=YYYY-MM-DD&to=YYYY-MM-DD, New York days).
+    $rangeParam = (string)($_GET['range'] ?? '7d');
+    $customFrom = trim((string)($_GET['from'] ?? ''));
+    $customTo = trim((string)($_GET['to'] ?? ''));
+    $range = in_array($rangeParam, ['24h', '7d', '30d', '90d', 'all', 'custom'], true) ? $rangeParam : '7d';
+    $days = ['24h' => 1, '7d' => 7, '30d' => 30, '90d' => 90, 'all' => 365, 'custom' => 30][$range];
+    $hourly = ($range === '24h');
 
     // Scalar count via fetchAll only (the routing-test stub has no
     // fetchColumn); any failure degrades to 0 instead of 500ing the page.
@@ -921,25 +928,52 @@ function adminAnalytics(): void
     // Day axis is New York days (the response declares America/New_York
     // and the headline uses NY bounds); each point counts events whose UTC
     // timestamp falls inside that NY day.
+    // Custom range anchor (2026-11-15, Batch B): charts end at ?to=
+    // instead of today, and span ?from=..?to= New York days.
+    $anchorNy = $todayNy;
+    if ($range === 'custom'
+        && preg_match('/^\d{4}-\d{2}-\d{2}$/', $customFrom)
+        && preg_match('/^\d{4}-\d{2}-\d{2}$/', $customTo)) {
+        try {
+            $fromD = new DateTimeImmutable($customFrom, $ny);
+            $toD = new DateTimeImmutable($customTo, $ny);
+            if ($fromD <= $toD) {
+                $days = min(365, (int)$fromD->diff($toD)->format('%a'));
+                $anchorNy = $toD->setTime(0, 0, 0);
+            }
+        } catch (Throwable) { /* fall back to the 30d default window */ }
+    }
+    $bucketFmt = $hourly ? 'Y-m-d H' : 'Y-m-d';
     $labels = [];
     $dayKeys = [];
-    for ($i = $days; $i >= 0; $i--) {
-        $d = $todayNy->modify("-{$i} days");
-        $labels[] = $d->format('M d');
-        $dayKeys[] = $d->format('Y-m-d');
+    if ($hourly) {
+        $nowNy = new DateTimeImmutable('now', $ny);
+        for ($i = 23; $i >= 0; $i--) {
+            $h = $nowNy->modify("-{$i} hours");
+            $labels[] = $h->format('ga');
+            $dayKeys[] = $h->format('Y-m-d H');
+        }
+    } else {
+        for ($i = $days; $i >= 0; $i--) {
+            $d = $anchorNy->modify("-{$i} days");
+            $labels[] = $d->format('M d');
+            $dayKeys[] = $d->format('Y-m-d');
+        }
     }
     // Bucket a list of UTC created_at values into New York days. (Done in
     // PHP to avoid CONVERT_TZ, which needs named-timezone tables the server
     // may not have loaded; the window is a few hundred rows at most.)
-    $windowStart = $asUtc($todayNy->modify("-{$days} days"));
-    $windowEnd = $tomorrowStart;
-    $countsByNyDay = function (string $sql, array $params) use ($ny, $utc): array {
+    $windowStart = $hourly
+        ? $asUtc((new DateTimeImmutable('now', $ny))->modify('-24 hours'))
+        : $asUtc($anchorNy->modify("-{$days} days"));
+    $windowEnd = $hourly ? $nowUtc : $asUtc($anchorNy->modify('+1 day'));
+    $countsByNyDay = function (string $sql, array $params) use ($ny, $utc, $bucketFmt): array {
         try {
             $stmt = db()->prepare($sql);
             $stmt->execute($params);
             $map = [];
             foreach ($stmt->fetchAll() as $r) {
-                $d = (new DateTimeImmutable((string)($r['created_at'] ?? ''), $utc))->setTimezone($ny)->format('Y-m-d');
+                $d = (new DateTimeImmutable((string)($r['created_at'] ?? ''), $utc))->setTimezone($ny)->format($bucketFmt);
                 $map[$d] = ($map[$d] ?? 0) + 1;
             }
             return $map;
@@ -977,7 +1011,7 @@ function adminAnalytics(): void
             if (($r['visitor_hash'] ?? null) === null) {
                 continue; // COUNT(DISTINCT …) ignores NULL hashes; match it.
             }
-            $d = (new DateTimeImmutable((string)($r['created_at'] ?? ''), $utc))->setTimezone($ny)->format('Y-m-d');
+            $d = (new DateTimeImmutable((string)($r['created_at'] ?? ''), $utc))->setTimezone($ny)->format($bucketFmt);
             $visitorSets[$d][(string)$r['visitor_hash']] = true;
         }
         foreach ($visitorSets as $d => $set) {
@@ -989,6 +1023,7 @@ function adminAnalytics(): void
 
     json([
         'range' => $range,
+        'granularity' => $hourly ? 'hour' : 'day',
         'timezone' => 'America/New_York',
         'headline' => [
             'signupsToday' => $signupsToday,
@@ -1067,8 +1102,12 @@ function adminAnalytics(): void
 function adminClientEvents(): void
 {
     requireAdminUser();
-    $kind = in_array($_GET['kind'] ?? '', ['error', 'submit', 'validation', 'api'], true) ? (string)$_GET['kind'] : '';
-    $limit = max(1, min(200, (int)($_GET['limit'] ?? 100)));
+    $kind = in_array($_GET['kind'] ?? '', ['error', 'submit', 'validation', 'api', 'search', 'onboarding'], true) ? (string)$_GET['kind'] : '';
+    // Search + wider window (2026-11-15, Batch B #5): the log was capped at
+    // 200 rows with no search, so finding one member's failure meant
+    // scrolling. ?q= matches name/page/detail text; limit now goes to 500.
+    $q = substr(trim((string)($_GET['q'] ?? '')), 0, 120);
+    $limit = max(1, min(500, (int)($_GET['limit'] ?? 100)));
     try {
         clientEventsEnsure();
         // The JOIN carries an explicit COLLATE: client_events was created
@@ -1082,22 +1121,24 @@ function adminClientEvents(): void
         // without emails rather than an empty log.
         $cols = 'e.id, e.kind, e.name, e.page, e.detail, e.user_id, u.email AS user_email, e.created_at';
         $join = 'FROM client_events e LEFT JOIN users u ON u.id = e.user_id COLLATE utf8mb4_unicode_ci';
+        $where = [];
+        $params = [];
+        if ($kind !== '') { $where[] = 'e.kind = ?'; $params[] = $kind; }
+        if ($q !== '') {
+            $where[] = '(e.name LIKE ? OR e.page LIKE ? OR e.detail LIKE ?)';
+            $like = '%' . $q . '%';
+            $params[] = $like; $params[] = $like; $params[] = $like;
+        }
+        $whereSql = $where === [] ? '' : 'WHERE ' . implode(' AND ', $where);
         try {
-            if ($kind !== '') {
-                $stmt = db()->prepare("SELECT $cols $join WHERE e.kind = ? ORDER BY e.id DESC LIMIT " . $limit);
-                $stmt->execute([$kind]);
-            } else {
-                $stmt = db()->query("SELECT $cols $join ORDER BY e.id DESC LIMIT " . $limit);
-            }
+            $stmt = db()->prepare("SELECT $cols $join $whereSql ORDER BY e.id DESC LIMIT " . $limit);
+            $stmt->execute($params);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Throwable $joinError) {
             error_log('[api] admin events join failed, serving without emails: ' . substr($joinError->getMessage(), 0, 120));
-            if ($kind !== '') {
-                $stmt = db()->prepare('SELECT id, kind, name, page, detail, user_id, created_at FROM client_events WHERE kind = ? ORDER BY id DESC LIMIT ' . $limit);
-                $stmt->execute([$kind]);
-            } else {
-                $stmt = db()->query('SELECT id, kind, name, page, detail, user_id, created_at FROM client_events ORDER BY id DESC LIMIT ' . $limit);
-            }
+            $whereSqlPlain = str_replace('e.', '', $whereSql);
+            $stmt = db()->prepare('SELECT id, kind, name, page, detail, user_id, created_at FROM client_events ' . $whereSqlPlain . ' ORDER BY id DESC LIMIT ' . $limit);
+            $stmt->execute($params);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
         foreach ($rows as &$r) {
@@ -1197,55 +1238,35 @@ function adminLeads(): void
 
 function adminSeoAnalytics(): void
 {
-    $range = in_array($_GET['range'] ?? '', ['7d', '30d', '90d'], true) ? (string)$_GET['range'] : '7d';
-    $days = ['7d' => 7, '30d' => 30, '90d' => 90][$range];
+    // Ranges (2026-11-15, Batch B): 24h is served by adminAnalytics'
+    // hourly view; this endpoint serves 7d/30d/90d/all with ONE day
+    // definition — America/New_York — shared with adminAnalytics().
+    // It previously bucketed by UTC DATE()/CURDATE(), so the two admin
+    // screens disagreed about "today" by up to a day.
+    $range = in_array($_GET['range'] ?? '', ['7d', '30d', '90d', 'all'], true) ? (string)$_GET['range'] : '7d';
+    $days = ['7d' => 7, '30d' => 30, '90d' => 90, 'all' => 365][$range];
+
+    $ny = new DateTimeZone('America/New_York');
+    $utc = new DateTimeZone('UTC');
+    $asUtc = fn(DateTimeImmutable $d): string => $d->setTimezone($utc)->format('Y-m-d H:i:s');
+    $todayNy = (new DateTimeImmutable('now', $ny))->setTime(0, 0, 0);
+    $todayStart = $asUtc($todayNy);
+    $tomorrowStart = $asUtc($todayNy->modify('+1 day'));
+    $windowStart = $asUtc($todayNy->modify("-{$days} days"));
+    $windowEnd = $tomorrowStart;
+    $spanDays = $days + 1;
+    $prevStart = $asUtc($todayNy->modify('-' . (2 * $days + 1) . ' days'));
+    $prevEnd = $windowStart;
+    $nowUtc = $asUtc(new DateTimeImmutable('now', $ny));
 
     $labels = [];
     $dayKeys = [];
     for ($i = $days; $i >= 0; $i--) {
-        $ts = time() - ($i * 86400);
-        $labels[] = date('M d', $ts);
-        $dayKeys[] = date('Y-m-d', $ts);
+        $d = $todayNy->modify("-{$i} days");
+        $labels[] = $d->format('M d');
+        $dayKeys[] = $d->format('Y-m-d');
     }
-    $since = date('Y-m-d', time() - ($days * 86400));
-    $prevSince = date('Y-m-d', time() - (2 * $days * 86400));
-    $prevUntil = date('Y-m-d', time() - (($days + 1) * 86400));
-
-    // Day-bucketed traffic. pageviews may not exist yet on old installs —
-    // degrade to zeros rather than 500ing the dashboard.
-    $pvSeries = array_fill_keys($dayKeys, 0);
-    $uvSeries = array_fill_keys($dayKeys, 0);
-    $signupSeries = array_fill_keys($dayKeys, 0);
-    try {
-        $stmt = db()->prepare(
-            "SELECT DATE(created_at) AS d, COUNT(*) AS n, COUNT(DISTINCT visitor_hash) AS u
-             FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)
-             GROUP BY DATE(created_at)"
-        );
-        $stmt->execute();
-        foreach ($stmt->fetchAll() as $r) {
-            $d = (string)$r['d'];
-            if (isset($pvSeries[$d])) {
-                $pvSeries[$d] = (int)$r['n'];
-                $uvSeries[$d] = (int)$r['u'];
-            }
-        }
-    } catch (Throwable) { /* table missing — dashboard shows zeros */ }
-
-    // Per-day real signups (non-seeded, non-admin) for the KPI chart.
-    try {
-        $stmt = db()->prepare(
-            "SELECT DATE(created_at) AS d, COUNT(*) AS n FROM users
-             WHERE email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0 AND is_test = 0
-             AND created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)
-             GROUP BY DATE(created_at)"
-        );
-        $stmt->execute();
-        foreach ($stmt->fetchAll() as $r) {
-            $d = (string)$r['d'];
-            if (isset($signupSeries[$d])) $signupSeries[$d] = (int)$r['n'];
-        }
-    } catch (Throwable) { /* dashboard shows zeros */ }
+    $since = $todayNy->modify("-{$days} days")->format('Y-m-d');
 
     $scalar = function (string $sql, array $params = []): int {
         try {
@@ -1256,114 +1277,161 @@ function adminSeoAnalytics(): void
             return 0;
         }
     };
+    // Bucket UTC created_at rows into New York days in PHP (no CONVERT_TZ —
+    // named-timezone tables may not be loaded on shared hosting).
+    $countsByNyDay = function (string $sql, array $params) use ($ny, $utc): array {
+        try {
+            $stmt = db()->prepare($sql);
+            $stmt->execute($params);
+            $map = [];
+            foreach ($stmt->fetchAll() as $r) {
+                $d = (new DateTimeImmutable((string)($r['created_at'] ?? ''), $utc))->setTimezone($ny)->format('Y-m-d');
+                $map[$d] = ($map[$d] ?? 0) + 1;
+            }
+            return $map;
+        } catch (Throwable) {
+            return [];
+        }
+    };
 
-    // Overview counts: current window vs the previous equal window, for deltas.
-    $visitors = $scalar(
-        "SELECT COUNT(DISTINCT visitor_hash) FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
+    // Traffic series — pageviews may not exist yet on old installs:
+    // degrade to zeros rather than 500ing the dashboard.
+    $pvCounts = $countsByNyDay('SELECT created_at FROM pageviews WHERE created_at >= ? AND created_at < ?', [$windowStart, $windowEnd]);
+    $visitorCounts = [];
+    try {
+        $stmt = db()->prepare('SELECT visitor_hash, created_at FROM pageviews WHERE created_at >= ? AND created_at < ?');
+        $stmt->execute([$windowStart, $windowEnd]);
+        $sets = [];
+        foreach ($stmt->fetchAll() as $r) {
+            if (($r['visitor_hash'] ?? null) === null) continue;
+            $d = (new DateTimeImmutable((string)$r['created_at'], $utc))->setTimezone($ny)->format('Y-m-d');
+            $sets[$d][(string)$r['visitor_hash']] = true;
+        }
+        foreach ($sets as $d => $set) $visitorCounts[$d] = count($set);
+    } catch (Throwable) { $visitorCounts = []; }
+
+    // Per-day real signups (non-seeded, non-admin, non-test) for the KPI chart.
+    $signupCounts = $countsByNyDay(
+        "SELECT created_at FROM users WHERE email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0 AND is_test = 0 AND created_at >= ? AND created_at < ?",
+        [$windowStart, $windowEnd]
     );
-    $prevVisitors = $scalar(
-        "SELECT COUNT(DISTINCT visitor_hash) FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
-         AND created_at < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
-    );
-    $pageviews = $scalar(
-        "SELECT COUNT(*) FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
-    );
-    $prevPageviews = $scalar(
-        "SELECT COUNT(*) FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
-         AND created_at < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
-    );
-    $members = $scalar(
-        "SELECT COUNT(*) FROM users WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
-    );
-    $prevMembers = $scalar(
-        "SELECT COUNT(*) FROM users WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
-         AND created_at < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
-    );
-    // Real signups: exclude seeded synthetic profiles, admin accounts and QA/test accounts.
-    // This is the KPI series (Syed's 10/day target).
+
+    // Overview counts: current NY window vs the previous equal window.
+    $visitors = $scalar('SELECT COUNT(DISTINCT visitor_hash) FROM pageviews WHERE created_at >= ? AND created_at < ?', [$windowStart, $windowEnd]);
+    $prevVisitors = $scalar('SELECT COUNT(DISTINCT visitor_hash) FROM pageviews WHERE created_at >= ? AND created_at < ?', [$prevStart, $prevEnd]);
+    $pageviews = $scalar('SELECT COUNT(*) FROM pageviews WHERE created_at >= ? AND created_at < ?', [$windowStart, $windowEnd]);
+    $prevPageviews = $scalar('SELECT COUNT(*) FROM pageviews WHERE created_at >= ? AND created_at < ?', [$prevStart, $prevEnd]);
+    $members = $scalar('SELECT COUNT(*) FROM users WHERE created_at >= ? AND created_at < ?', [$windowStart, $windowEnd]);
+    $prevMembers = $scalar('SELECT COUNT(*) FROM users WHERE created_at >= ? AND created_at < ?', [$prevStart, $prevEnd]);
     $realWhere = "email NOT LIKE 'seeded-%@shiarishta.com' AND is_admin = 0 AND is_test = 0";
-    $realMembers = $scalar(
-        "SELECT COUNT(*) FROM users WHERE {$realWhere} AND created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
-    );
-    $prevRealMembers = $scalar(
-        "SELECT COUNT(*) FROM users WHERE {$realWhere} AND created_at >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
-         AND created_at < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
-    );
-    $realToday = $scalar(
-        "SELECT COUNT(*) FROM users WHERE {$realWhere} AND created_at >= CURDATE()"
-    );
-    $biodatas = $scalar(
-        "SELECT COUNT(*) FROM admin_audit WHERE action = 'biodata.created'
-         AND created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
-    );
-    $prevBiodatas = $scalar(
-        "SELECT COUNT(*) FROM admin_audit WHERE action = 'biodata.created'
-         AND created_at >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
-         AND created_at < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
-    );
-    $messages = $scalar(
-        "SELECT COUNT(*) FROM messages WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
-    );
-    $prevMessages = $scalar(
-        "SELECT COUNT(*) FROM messages WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
-         AND created_at < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
-    );
-    $posts = $scalar(
-        "SELECT COUNT(*) FROM blog_posts WHERE status = 'published'
-         AND COALESCE(published_at, created_at) >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
-    );
-    $prevPosts = $scalar(
-        "SELECT COUNT(*) FROM blog_posts WHERE status = 'published'
-         AND COALESCE(published_at, created_at) >= DATE_SUB(CURDATE(), INTERVAL " . (2 * $days) . " DAY)
-         AND COALESCE(published_at, created_at) < DATE_SUB(CURDATE(), INTERVAL {$days} DAY)"
-    );
+    $realMembers = $scalar("SELECT COUNT(*) FROM users WHERE {$realWhere} AND created_at >= ? AND created_at < ?", [$windowStart, $windowEnd]);
+    $prevRealMembers = $scalar("SELECT COUNT(*) FROM users WHERE {$realWhere} AND created_at >= ? AND created_at < ?", [$prevStart, $prevEnd]);
+    $realToday = $scalar("SELECT COUNT(*) FROM users WHERE {$realWhere} AND created_at >= ? AND created_at < ?", [$todayStart, $tomorrowStart]);
+    $biodatas = $scalar("SELECT COUNT(*) FROM admin_audit WHERE action = 'biodata.created' AND created_at >= ? AND created_at < ?", [$windowStart, $windowEnd]);
+    $prevBiodatas = $scalar("SELECT COUNT(*) FROM admin_audit WHERE action = 'biodata.created' AND created_at >= ? AND created_at < ?", [$prevStart, $prevEnd]);
+    $messages = $scalar('SELECT COUNT(*) FROM messages WHERE created_at >= ? AND created_at < ?', [$windowStart, $windowEnd]);
+    $prevMessages = $scalar('SELECT COUNT(*) FROM messages WHERE created_at >= ? AND created_at < ?', [$prevStart, $prevEnd]);
+    $posts = $scalar("SELECT COUNT(*) FROM blog_posts WHERE status = 'published' AND COALESCE(published_at, created_at) >= ? AND COALESCE(published_at, created_at) < ?", [$windowStart, $windowEnd]);
+    $prevPosts = $scalar("SELECT COUNT(*) FROM blog_posts WHERE status = 'published' AND COALESCE(published_at, created_at) >= ? AND COALESCE(published_at, created_at) < ?", [$prevStart, $prevEnd]);
 
     $delta = fn(int $cur, int $prev): ?float =>
         $prev > 0 ? round((($cur - $prev) / $prev) * 100, 1) : ($cur > 0 ? 100.0 : null);
 
-    // Top pages, top referrers, device split — current window only.
+    // Top pages, top referrers (host + path), channels, device split —
+    // current NY window only.
     $topPages = [];
     $referrers = [];
+    $channels = [];
     $devices = [];
     try {
         $stmt = db()->prepare(
-            "SELECT path, COUNT(*) AS views, COUNT(DISTINCT visitor_hash) AS visitors
-             FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)
-             GROUP BY path ORDER BY views DESC LIMIT 12"
+            'SELECT path, COUNT(*) AS views, COUNT(DISTINCT visitor_hash) AS visitors
+             FROM pageviews WHERE created_at >= ? AND created_at < ?
+             GROUP BY path ORDER BY views DESC LIMIT 12'
         );
-        $stmt->execute();
+        $stmt->execute([$windowStart, $windowEnd]);
         $topPages = array_map(fn($r) => [
             'path' => (string)$r['path'],
             'views' => (int)$r['views'],
             'visitors' => (int)$r['visitors'],
         ], $stmt->fetchAll());
 
-        $stmt = db()->prepare(
-            "SELECT referrer_host, COUNT(*) AS views
-             FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)
-             AND referrer_host IS NOT NULL
-             GROUP BY referrer_host ORDER BY views DESC LIMIT 10"
-        );
-        $stmt->execute();
-        $referrers = array_map(fn($r) => [
-            'host' => (string)$r['referrer_host'],
-            'views' => (int)$r['views'],
-        ], $stmt->fetchAll());
+        try {
+            $stmt = db()->prepare(
+                'SELECT referrer_host, referrer_path, COUNT(*) AS views
+                 FROM pageviews WHERE created_at >= ? AND created_at < ?
+                 AND referrer_host IS NOT NULL
+                 GROUP BY referrer_host, referrer_path ORDER BY views DESC LIMIT 10'
+            );
+            $stmt->execute([$windowStart, $windowEnd]);
+            $referrers = array_map(fn($r) => [
+                'host' => (string)$r['referrer_host'],
+                'path' => (string)($r['referrer_path'] ?? ''),
+                'views' => (int)$r['views'],
+            ], $stmt->fetchAll());
+        } catch (Throwable) {
+            // Pre-migration DB without referrer_path: host-only fallback.
+            $stmt = db()->prepare(
+                'SELECT referrer_host, COUNT(*) AS views
+                 FROM pageviews WHERE created_at >= ? AND created_at < ?
+                 AND referrer_host IS NOT NULL
+                 GROUP BY referrer_host ORDER BY views DESC LIMIT 10'
+            );
+            $stmt->execute([$windowStart, $windowEnd]);
+            $referrers = array_map(fn($r) => [
+                'host' => (string)$r['referrer_host'],
+                'path' => '',
+                'views' => (int)$r['views'],
+            ], $stmt->fetchAll());
+        }
+
+        try {
+            $stmt = db()->prepare(
+                'SELECT channel, COUNT(*) AS views, COUNT(DISTINCT visitor_hash) AS visitors
+                 FROM pageviews WHERE created_at >= ? AND created_at < ?
+                 GROUP BY channel ORDER BY views DESC'
+            );
+            $stmt->execute([$windowStart, $windowEnd]);
+            $channels = array_map(fn($r) => [
+                'channel' => (string)($r['channel'] ?? 'direct'),
+                'views' => (int)$r['views'],
+                'visitors' => (int)$r['visitors'],
+            ], $stmt->fetchAll());
+        } catch (Throwable) { $channels = []; }
 
         $stmt = db()->prepare(
-            "SELECT device, COUNT(*) AS views
-             FROM pageviews WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$days} DAY)
-             GROUP BY device ORDER BY views DESC"
+            'SELECT device, COUNT(*) AS views
+             FROM pageviews WHERE created_at >= ? AND created_at < ?
+             GROUP BY device ORDER BY views DESC'
         );
-        $stmt->execute();
+        $stmt->execute([$windowStart, $windowEnd]);
         $devices = array_map(fn($r) => [
             'device' => (string)$r['device'],
             'views' => (int)$r['views'],
         ], $stmt->fetchAll());
     } catch (Throwable) { /* table missing — sections render empty */ }
 
+    // Realtime (2026-11-15, Batch B #4): what is happening right now,
+    // from the same first-party log. The admin page polls this endpoint;
+    // zero pageviews in the last hour raises its alert banner (the
+    // 2026-11-14 suspension was found by Syed, not by any system).
+    $realtime = [
+        'pageviews15m' => $scalar('SELECT COUNT(*) FROM pageviews WHERE created_at >= DATE_SUB(?, INTERVAL 15 MINUTE)', [$nowUtc]),
+        'visitors15m' => $scalar('SELECT COUNT(DISTINCT visitor_hash) FROM pageviews WHERE created_at >= DATE_SUB(?, INTERVAL 15 MINUTE)', [$nowUtc]),
+        'pageviews60m' => $scalar('SELECT COUNT(*) FROM pageviews WHERE created_at >= DATE_SUB(?, INTERVAL 60 MINUTE)', [$nowUtc]),
+        'signups60m' => $scalar("SELECT COUNT(*) FROM users WHERE {$realWhere} AND created_at >= DATE_SUB(?, INTERVAL 60 MINUTE)", [$nowUtc]),
+        'lastPageviewAt' => null,
+    ];
+    try {
+        $stmt = db()->prepare('SELECT MAX(created_at) AS t FROM pageviews');
+        $stmt->execute();
+        $t = $stmt->fetchColumn();
+        $realtime['lastPageviewAt'] = $t ? (string)$t : null;
+    } catch (Throwable) { /* stays null */ }
+
     json([
         'range' => $range,
+        'timezone' => 'America/New_York',
         'since' => $since,
         'ga' => [
             'measurementId' => 'G-KNR7541E3G',
@@ -1383,20 +1451,21 @@ function adminSeoAnalytics(): void
         ],
         'traffic' => [
             'labels' => $labels,
-            'pageviews' => array_values($pvSeries),
-            'visitors' => array_values($uvSeries),
+            'pageviews' => array_map(fn($d) => $pvCounts[$d] ?? 0, $dayKeys),
+            'visitors' => array_map(fn($d) => $visitorCounts[$d] ?? 0, $dayKeys),
         ],
         'signups' => [
             'labels' => $labels,
             'real_today' => $realToday,
-            'daily' => array_values($signupSeries),
+            'daily' => array_map(fn($d) => $signupCounts[$d] ?? 0, $dayKeys),
         ],
         'topPages' => $topPages,
         'referrers' => $referrers,
+        'channels' => $channels,
         'devices' => $devices,
+        'realtime' => $realtime,
     ]);
 }
-
 function adminReports(): void
 {
     $status = in_array($_GET['status'] ?? '', ['open', 'actioned', 'dismissed'], true) ? $_GET['status'] : 'open';

@@ -19,6 +19,8 @@ const KIND_FILTERS = [
   { key: 'submit', label: 'Form submits' },
   { key: 'validation', label: 'Validation failures' },
   { key: 'api', label: 'API failures' },
+  { key: 'search', label: 'Zero-result searches' },
+  { key: 'onboarding', label: 'Onboarding steps' },
 ];
 
 const KIND_BADGE = {
@@ -26,6 +28,8 @@ const KIND_BADGE = {
   submit: 'bg-emerald-100 text-emerald-800',
   validation: 'bg-amber-100 text-amber-800',
   api: 'bg-sky-100 text-sky-800',
+  search: 'bg-violet-100 text-violet-800',
+  onboarding: 'bg-teal-100 text-teal-800',
 };
 
 function fmtTime(ts) {
@@ -39,20 +43,24 @@ export default function AdminEvents() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [kind, setKind] = useState('');
+  const [query, setQuery] = useState('');
+  const [limit, setLimit] = useState(200);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const qs = kind ? `?kind=${kind}&limit=200` : '?limit=200';
-      const data = await http.get(`/api/admin/events${qs}`);
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (kind) params.set('kind', kind);
+      if (query.trim()) params.set('q', query.trim());
+      const data = await http.get(`/api/admin/events?${params.toString()}`);
       setRows(Array.isArray(data?.rows) ? data.rows : []);
     } catch (e) {
       setError(e?.message || 'Could not load the user logs.');
     } finally {
       setLoading(false);
     }
-  }, [kind]);
+  }, [kind, query, limit]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -72,6 +80,24 @@ export default function AdminEvents() {
           failures, and crashes — newest first. For privacy, typed values are never logged:
           you see the form, the field name, and the message the member saw.
         </p>
+
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search logs — form, page, message…"
+            className="px-3 py-1.5 rounded-full text-sm border border-current/20 bg-transparent min-w-[240px]"
+            aria-label="Search user logs"
+          />
+          <select value={limit} onChange={(e) => setLimit(Number(e.target.value))}
+            className="px-3 py-1.5 rounded-full text-sm border border-current/20 bg-transparent" aria-label="Rows to show">
+            <option value={100}>100 rows</option>
+            <option value={200}>200 rows</option>
+            <option value={500}>500 rows</option>
+          </select>
+          <span className="text-xs opacity-60">Logs are kept for 90 days.</span>
+        </div>
 
         <div className="flex flex-wrap gap-2 mb-6">
           {KIND_FILTERS.map((f) => (

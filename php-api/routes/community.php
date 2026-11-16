@@ -104,6 +104,9 @@ function communityList(): void
 function communityCreate(): void
 {
     $user = requireAuthUser();
+    // Email-verification gate (2026-11-15, Batch A): creating a room is a
+    // public write — same gate as messaging/interest (requireVerifiedEmail).
+    requireVerifiedEmail((string)$user['uid']);
     $payload = requestJson();
     $name = trim((string)($payload['name'] ?? ''));
     if ($name === '') {
@@ -151,6 +154,9 @@ function communityCreatePost(string $slug): void
     $user = requireAuthUser();
     // Moderation-blocked members cannot post (2026-11-11).
     requireNotBlocked($user);
+    // Email-verification gate (2026-11-15, Batch A): public writes require
+    // a verified email, same as messaging and interest.
+    requireVerifiedEmail((string)$user['uid']);
     $payload = requestJson();
     $title = trim((string)($payload['title'] ?? ''));
     $body = mb_substr(trim((string)($payload['body'] ?? '')), 0, 10000);
@@ -206,6 +212,8 @@ function postReply(string $postId): void
     $user = requireAuthUser();
     // Moderation-blocked members cannot post (2026-11-11).
     requireNotBlocked($user);
+    // Email-verification gate (2026-11-15, Batch A): see communityCreatePost.
+    requireVerifiedEmail((string)$user['uid']);
     $payload = requestJson();
     $body = trim((string)($payload['body'] ?? ''));
 

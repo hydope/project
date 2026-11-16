@@ -11,7 +11,7 @@ import { ArrowLeft, ShieldCheck, MapPin, Heart, MessageCircle, Bookmark, Lock, U
 import VerifiedBadge from '../components/VerifiedBadge';
 import CompatibilityIndex from '../components/CompatibilityIndex';
 import { ReportFlag } from '../components/ReportFlag';
-import { blockMember, unblockMember } from '../lib/api/safety';
+import { blockMember, unblockMember, muteMember, unmuteMember, listMutes } from '../lib/api/safety';
 import { computeCompatibility } from '../lib/compatibility';
 import { apiUrl, http } from '../lib/api/transport';
 import SampleProfileBadge from '../components/SampleProfileBadge';
@@ -69,6 +69,8 @@ export default function Profile() {
   const [verifyUrl, setVerifyUrl] = useState('');
   const [verifySending, setVerifySending] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [muteBusy, setMuteBusy] = useState(false);
   const [blockBusy, setBlockBusy] = useState(false);
   // In-app block confirmation replaces window.confirm() (auto-dismissed by
   // automated browsers, silently cancelling the block).
@@ -150,6 +152,28 @@ export default function Profile() {
     }
   };
 
+  // Mute toggle (2026-11-15, Batch A): silent and one-way — no confirm
+  // (it harms nobody), immediate effect on my browse + notifications.
+  const handleMuteToggle = async () => {
+    if (muteBusy) return;
+    setMuteBusy(true);
+    try {
+      if (muted) {
+        await unmuteMember(String(profile.id || id));
+        setMuted(false);
+        setActionNote({ ok: true, text: `You unmuted ${profile.displayName}. They will appear in your browse again.` });
+      } else {
+        await muteMember(String(profile.id || id));
+        setMuted(true);
+        setActionNote({ ok: true, text: `${profile.displayName} is muted — they will no longer appear in your browse or notify you. They are not told.` });
+      }
+    } catch (e) {
+      setActionNote({ ok: false, text: e.message || 'Could not update the mute.' });
+    } finally {
+      setMuteBusy(false);
+    }
+  };
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
@@ -166,6 +190,10 @@ export default function Profile() {
         setProfile({ ...p, lookingFor: p.expectations ?? p.lookingFor, gallery });
         // Restore interest state from the server so it survives reloads.
         setInterestSent(!!p.interestSent);
+        // Mute state (2026-11-15, Batch A): restore from my muted list.
+        listMutes().then((rows) => {
+          if (rows.some((r) => String(r.id) === String(p.id || id))) setMuted(true);
+        }).catch(() => { /* mute state is best-effort */ });
         analytics.track('profile_viewed', { id });
       })
       .catch((e) => {
@@ -609,11 +637,25 @@ export default function Profile() {
               >
                 {blockBusy ? 'Working…' : blocked ? 'Unblock this member' : 'Block this member'}
               </button>
+              <button
+                onClick={handleMuteToggle}
+                disabled={muteBusy}
+                className="text-xs font-semibold px-4 py-2 rounded-lg"
+                style={{
+                  background: 'var(--color-elevated)',
+                  color: 'var(--color-ink)',
+                  border: '1px solid var(--color-border)',
+                  opacity: muteBusy ? 0.6 : 1,
+                }}
+              >
+                {muteBusy ? 'Working…' : muted ? 'Unmute this member' : 'Mute this member'}
+              </button>
               <ReportFlag targetType="profile" targetId={String(profile.id || id)} onDone={null} />
             </div>
             <p className="text-[11px] mt-2" style={{ color: 'var(--color-ink-faint)' }}>
               Reports go to our safety team and are reviewed by a person. Blocking hides you
-              from each other and disables messaging both ways.
+              from each other and disables messaging both ways. Muting is one-way and silent:
+              they leave your browse and stop notifying you, and they are never told.
             </p>
           </section>
         )}

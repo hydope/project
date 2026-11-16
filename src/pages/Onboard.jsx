@@ -14,7 +14,7 @@ import { apiUrl, http } from '../lib/api/transport';
 import { saveMyProfile } from '../lib/storage';
 import { cmToFeetInches, cmToHeightParts, heightPartsToCm, heightStringToParts } from '../lib/height';
 import { addCitizenship, normalizeCitizenship, MAX_CITIZENSHIPS } from '../lib/citizenship';
-import { logSubmit, logValidation } from '../lib/eventLog';
+import { logSubmit, logValidation, logEvent } from '../lib/eventLog';
 import HeightChooser from '../components/HeightChooser';
 import {
   SECTS, MARJA_OPTIONS, RELIGIOSITY_LEVELS, PRAYER_OPTIONS,
@@ -460,6 +460,15 @@ export default function Onboard() {
     if (Object.keys(clean).length === 0) return;
     api.updateProfile(user?.uid || 'me', clean).catch(() => {});
   };
+
+  // Onboarding step instrumentation (2026-11-15, Batch B #5): each step
+  // the member REACHES is logged (kind 'onboarding'), so the funnel in
+  // User Logs shows exactly where people stop — previously only
+  // validation failures were visible, never successful progress.
+  useEffect(() => {
+    logEvent('onboarding', `step_${step}`, { form: 'onboarding', message: `reached step ${step} of ${totalSteps}` });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   const goNext = () => {
     const e = validateStep(step, data);

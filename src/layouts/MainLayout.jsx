@@ -14,6 +14,7 @@ import { http } from '../lib/api/transport';
 const AIAssistant = lazy(() => import('../components/AIAssistant'));
 const FeedbackWidget = lazy(() => import('../components/FeedbackWidget'));
 import BrandLockup from '../components/BrandLockup';
+import VerifyEmailBanner from '../components/VerifyEmailBanner';
 import NotificationsMenu from '../components/NotificationsMenu';
 
 // ── Command Palette — Full-text search across navigation + actions ───────────
@@ -543,6 +544,17 @@ export default function MainLayout({ children }) {
           </button>
         </div>
       </div>
+
+      {/* Global verify banner (2026-11-15, Batch C): every member page
+          except the ones with their own richer banner (Dashboard,
+          Onboard), the verify flow itself, and admin screens. */}
+      {isLoggedIn && user && user.emailVerified === false
+        && !inAdmin
+        && location.pathname !== '/dashboard'
+        && location.pathname !== '/onboard'
+        && location.pathname !== '/verify-pending' && (
+        <VerifyEmailBanner />
+      )}
 
       {/* Main content */}
       <div className="app-content">

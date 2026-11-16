@@ -312,6 +312,63 @@ function didBlock(string $blocker, string $blocked): bool
     return (bool)$stmt->fetch();
 }
 
+// Duplicate display names (2026-11-15, Batch A P1): two members sharing
+// one exact display name is an impersonation vector — a member can dress
+// up as another member (same name, similar photo) and be
+// indistinguishable in browse, interests and messages. Registration,
+// account rename and profile save all reject a name another account
+// already uses (case-insensitive, trimmed). The member's own current
+// name is never a conflict ($excludeUid). Usernames stay the unique
+// handle; this guards the human-visible name too.
+function displayNameTaken(string $name, ?string $excludeUid = null): bool
+{
+    $name = trim($name);
+    if ($name === '') return false;
+    try {
+        if ($excludeUid !== null && $excludeUid !== '') {
+            $stmt = db()->prepare('SELECT 1 FROM users WHERE LOWER(TRIM(display_name)) = LOWER(?) AND id <> ? LIMIT 1');
+            $stmt->execute([$name, $excludeUid]);
+        } else {
+            $stmt = db()->prepare('SELECT 1 FROM users WHERE LOWER(TRIM(display_name)) = LOWER(?) LIMIT 1');
+            $stmt->execute([$name]);
+        }
+        return (bool)$stmt->fetch();
+    } catch (Throwable) {
+        return false; // a lookup failure must never block a signup
+    }
+}
+
+// Mute (2026-11-15, Batch A P1): ONE-WAY and silent, unlike blocks. The
+// muter stops seeing the muted member in browse and stops receiving
+// notifications from them; the muted member is never told and loses no
+// access of their own. Failure-tolerant like the block helpers: a missing
+// mutes table (unmigrated DB) reads as "not muted", never a 500.
+function isMutedBy(string $muter, string $muted): bool
+{
+    if ($muter === '' || $muted === '' || $muter === $muted) return false;
+    try {
+        $stmt = db()->prepare('SELECT 1 FROM mutes WHERE muter_id = ? AND muted_id = ? LIMIT 1');
+        $stmt->execute([$muter, $muted]);
+        return (bool)$stmt->fetch();
+    } catch (Throwable) {
+        return false;
+    }
+}
+
+// The full muted-id set for a viewer (browse filtering runs once per list,
+// not once per row). Returns [] on any failure.
+function mutedIdsFor(string $muter): array
+{
+    if ($muter === '') return [];
+    try {
+        $stmt = db()->prepare('SELECT muted_id FROM mutes WHERE muter_id = ?');
+        $stmt->execute([$muter]);
+        return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    } catch (Throwable) {
+        return [];
+    }
+}
+
 // Whether a signed-in viewer's email is verified. The JWT carries no
 // emailVerified claim, so this reads users once per request (static cache —
 // visibleProfile() runs once per row in a list, and must not N+1 the query).

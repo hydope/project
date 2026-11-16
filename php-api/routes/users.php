@@ -104,6 +104,12 @@ function userUpdateMe(): void
         if ($len < 2 || $len > 60) {
             je('Display name must be 2–60 characters.', 400);
         }
+        // Duplicate display name guard (2026-11-15, Batch A): renaming
+        // onto another member's exact name is impersonation — reject it.
+        // Keeping your own name (any case) is never a conflict.
+        if (strtolower($displayName) !== strtolower((string)$row['display_name']) && displayNameTaken($displayName, $uid)) {
+            je('That display name is already in use. Please choose a slightly different name so members are not confused with someone else.', 409);
+        }
         $updates[] = 'display_name = ?';
         $params[] = $displayName;
     }

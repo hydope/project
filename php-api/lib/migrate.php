@@ -78,6 +78,8 @@ function migrateSchema(): void
     migrateRepairSeededPhotoPaths();
     migrateAddProfileDepthColumns();
     migrateAddOpenToIntrosColumn();
+    migrateAddMutesTable();
+    migrateAddPageviewAttributionColumns();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -1673,5 +1675,53 @@ function migrateAddOpenToIntrosColumn(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (open_to_intros) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Mute table (2026-11-15, Batch A): one-way silent muting, distinct from
+ * blocks. Also declared in db/schema.sql (marker digest bump 2026-11-15b).
+ */
+function migrateAddMutesTable(): void
+{
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS mutes (
+          muter_id CHAR(36) NOT NULL,
+          muted_id CHAR(36) NOT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (muter_id, muted_id),
+          KEY idx_mutes_muted (muted_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Throwable $e) {
+        error_log('[api] migration (mutes) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Pageview attribution columns (2026-11-15, Batch B): referrer_path,
+ * channel, utm_source/medium/campaign on pageviews. Also declared in
+ * db/schema.sql (marker digest bump 2026-11-15b).
+ */
+function migrateAddPageviewAttributionColumns(): void
+{
+    try {
+        $have = [];
+        foreach (db()->query("SHOW COLUMNS FROM pageviews")->fetchAll() as $c) {
+            $have[(string)$c['Field']] = true;
+        }
+        $add = [
+            'referrer_path' => "VARCHAR(255) DEFAULT NULL AFTER referrer_host",
+            'channel'       => "VARCHAR(32) DEFAULT NULL AFTER referrer_path",
+            'utm_source'    => "VARCHAR(120) DEFAULT NULL AFTER channel",
+            'utm_medium'    => "VARCHAR(120) DEFAULT NULL AFTER utm_source",
+            'utm_campaign'  => "VARCHAR(160) DEFAULT NULL AFTER utm_medium",
+        ];
+        foreach ($add as $col => $def) {
+            if (!isset($have[$col])) {
+                db()->exec("ALTER TABLE pageviews ADD COLUMN {$col} {$def}");
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (pageview attribution) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }

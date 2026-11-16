@@ -7,7 +7,8 @@ import LeadCapture from '../components/LeadCapture.jsx';
 import LoginGate from '../components/LoginGate';
 import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { logEvent } from '../lib/eventLog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cmToFeetInches, heightPartsToCm } from '../lib/height';
 import HeightChooser from '../components/HeightChooser';
@@ -305,6 +306,23 @@ export function BrowseProfiles() {
   }, [serverFilterKey]);
 
   useEffect(() => { setVisibleCount(9); setServerHasMore(false); }, [filters]);
+
+  // Zero-result search instrumentation (2026-11-15, Batch B #5): when a
+  // filter combination returns nobody, log it ONCE per combination so
+  // the admin User Logs show which searches dead-end (kind 'search').
+  // Only the filter KEYS are sent — never a typed search value.
+  const zeroLoggedRef = useRef(new Set());
+  useEffect(() => {
+    if (loading || error) return;
+    if (filtered.length !== 0) return;
+    const activeKeys = Object.entries(filters || {})
+      .filter(([, v]) => v !== '' && v !== null && v !== undefined && v !== 'all')
+      .map(([k]) => k).sort().join(',');
+    if (!activeKeys) return; // an empty directory is not a failed search
+    if (zeroLoggedRef.current.has(activeKeys)) return;
+    zeroLoggedRef.current.add(activeKeys);
+    logEvent('search', 'zero_results', { form: 'browse', message: `filters: ${activeKeys}`.slice(0, 300) });
+  }, [loading, error, filtered.length, filters]);
 
   const filtered = useMemo(() => {
     // Filtering is server-side now. Only the sort stays local, plus a guard that

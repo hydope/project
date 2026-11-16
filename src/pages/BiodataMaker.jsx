@@ -6,6 +6,7 @@ import { Download, ImagePlus, Save, Sparkles, ZoomIn, ZoomOut, Maximize2, Upload
 import { http } from '../lib/api/transport';
 import { logSubmit } from '../lib/eventLog';
 import LeadCapture from '../components/LeadCapture.jsx';
+import { parseHeightToCm } from '../lib/height.js';
 import { jsPDF } from 'jspdf';
 
 const TEMPLATES = [
@@ -267,6 +268,51 @@ export default function BiodataMaker() {
     setSaved(true);
   };
 
+  // One-click biodata -> profile import (2026-11-15, Batch C wedge):
+  // the maker brings visitors in; until now the biodata was a dead end
+  // and the member retyped everything into onboarding. Only fields with
+  // an honest profile equivalent are mapped — the free-text address is
+  // NOT parsed into city/country (that would be a guess); onboarding
+  // still asks for location, gender and sect.
+  const [importState, setImportState] = useState('idle');
+  const [importMsg, setImportMsg] = useState('');
+  const importAsProfile = async () => {
+    setImportState('working');
+    setImportMsg('');
+    try {
+      const payload = {};
+      if (data.name) payload.displayName = String(data.name).slice(0, 60);
+      const age = parseInt(data.age, 10);
+      if (Number.isFinite(age) && age >= 18 && age <= 100) payload.age = age;
+      if (data.profession) payload.profession = String(data.profession).slice(0, 160);
+      if (data.education) payload.educationField = String(data.education).slice(0, 120);
+      if (data.marital) payload.maritalStatus = String(data.marital).slice(0, 60);
+      if (data.preference) payload.expectations = String(data.preference).slice(0, 2000);
+      if (data.phone) payload.contactPhone = String(data.phone).slice(0, 40);
+      const heightCm = data.height ? parseHeightToCm(String(data.height)) : null;
+      if (heightCm) payload.heightCm = heightCm;
+      const family = [
+        data.father ? `Father: ${data.father}${data.fatherOcc ? ` (${data.fatherOcc})` : ''}` : null,
+        data.mother ? `Mother: ${data.mother}${data.motherOcc ? ` (${data.motherOcc})` : ''}` : null,
+        data.siblings ? `Siblings: ${data.siblings}` : null,
+      ].filter(Boolean);
+      if (family.length) payload.aboutFamily = family.join('\n').slice(0, 2000);
+      if (Object.keys(payload).length === 0) {
+        setImportState('error');
+        setImportMsg('Fill in at least your name, age or profession first — there is nothing to import yet.');
+        return;
+      }
+      await http.put('/api/profiles/me', payload);
+      logSubmit('biodata_import', true);
+      setImportState('done');
+      setImportMsg('Your biodata is now your ShiaRishta profile. Add your city, country and a photo in onboarding to start appearing in browse.');
+    } catch (err) {
+      logSubmit('biodata_import', false, err?.message);
+      setImportState('error');
+      setImportMsg((err && err.message) || 'Could not create your profile from this biodata. Your biodata draft is safe — try again.');
+    }
+  };
+
   // Filesystem-safe download name from the biodata name (was missing entirely
   // — every export button threw a ReferenceError on click).
   const fileSlug = () => {
@@ -522,6 +568,11 @@ export default function BiodataMaker() {
               {saveError && (
                 <p className="text-xs mt-2" role="alert" style={{ color: 'var(--color-danger, #c0392b)' }}>{saveError}</p>
               )}
+              {isLoggedIn && (
+                <button onClick={importAsProfile} disabled={importState === 'working'} className="btn btn-primary flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" /> {importState === 'working' ? 'Creating profile…' : importState === 'done' ? 'Profile created ✓' : 'Use as my ShiaRishta profile'}
+                </button>
+              )}
               <button onClick={downloadImage} disabled={imgState === 'working'} className="btn btn-secondary flex items-center gap-2">
                 <Download className="w-4 h-4" /> {imgState === 'working' ? 'Preparing…' : imgState === 'done' ? 'Image saved ✓' : 'Save as Image'}
               </button>
@@ -534,6 +585,12 @@ export default function BiodataMaker() {
             </div>
             {exportError && (
               <p role="alert" className="text-sm mt-2" style={{ color: '#b3261e' }}>{exportError}</p>
+            )}
+            {importMsg && (
+              <p role={importState === 'error' ? 'alert' : 'status'} className="text-sm mt-2" style={{ color: importState === 'error' ? '#b3261e' : 'var(--color-primary)' }}>
+                {importMsg}{' '}
+                {importState === 'done' && <Link to="/onboard" className="font-semibold underline">Finish your profile →</Link>}
+              </p>
             )}
             {isLoggedIn && (
               <p className="text-[11px] mt-2" style={{ color: 'var(--color-ink-tertiary)' }}>

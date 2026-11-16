@@ -4,10 +4,11 @@
 // 1. Google Analytics 4 (gtag.js, measurement ID G-KNR7541E3G) — loaded via the
 //    snippet in index.html. trackPageView() fires manual page_view events on
 //    SPA route changes; the initial page_view per full load is automatic.
-// 2. First-party pageview beacon — beaconPageView() POSTs {path, referrer} to
-//    /api/analytics/collect (fire-and-forget via sendBeacon). Powers the admin
-//    SEO & Growth dashboard. The server stores NO ip, NO user agent, NO full
-//    referrer URL — only a day-scoped anonymous visitor hash.
+// 2. First-party pageview beacon — beaconPageView() POSTs {path, referrer,
+//    utm} to /api/analytics/collect (fire-and-forget via sendBeacon). Powers
+//    the admin SEO & Growth dashboard. The server stores NO ip, NO user
+//    agent, NO referrer query string — only a one-way persistent visitor
+//    hash (ip+ua), referrer host+path, a classified channel, and UTM.
 //
 // The event queue below is the legacy in-browser funnel recorder (local only).
 // Storage is injectable so unit tests can run in plain Node without a DOM.
@@ -32,13 +33,47 @@ export function trackPageView(path, title) {
   }
 }
 
+const UTM_KEY = 'shiarishta_utm_v1';
+
+/**
+ * First-touch UTM capture (2026-11-15, Batch B): the campaign params on
+ * the FIRST landing URL of the session are kept and attached to every
+ * beacon, so a signup can be attributed to the outreach that brought the
+ * visitor (page-to-signup attribution). Session-scoped on purpose.
+ */
+export function captureUtm() {
+  try {
+    if (typeof window === 'undefined') return null;
+    const stored = window.sessionStorage.getItem(UTM_KEY);
+    if (stored) return JSON.parse(stored);
+    const q = new URLSearchParams(window.location.search);
+    const utm = {
+      utm_source: q.get('utm_source') || '',
+      utm_medium: q.get('utm_medium') || '',
+      utm_campaign: q.get('utm_campaign') || '',
+    };
+    if (utm.utm_source || utm.utm_medium || utm.utm_campaign) {
+      window.sessionStorage.setItem(UTM_KEY, JSON.stringify(utm));
+      return utm;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** First-party pageview beacon. Fire-and-forget — never blocks rendering. */
 export function beaconPageView(path) {
   try {
     if (typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function') return false;
+    // Internal traffic (2026-11-15, Batch B): admin screens are never
+    // visitor traffic. The server drops these too — belt and braces.
+    if (typeof path === 'string' && path.startsWith('/admin')) return false;
+    const utm = captureUtm() || {};
     const payload = JSON.stringify({
       path,
       referrer: typeof document !== 'undefined' ? document.referrer || '' : '',
+      ...utm,
     });
     return navigator.sendBeacon(
       '/api/analytics/collect',
