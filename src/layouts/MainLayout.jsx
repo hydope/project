@@ -7,7 +7,7 @@ import {
   Moon, Search, Command, X, LayoutDashboard, Users, MessageCircle,
   BookOpen, LifeBuoy, Settings, LogOut, Home, Menu,
   Shield, ShieldAlert, BarChart3, History, HandHeart, BadgeCheck, KeyRound, UserCheck, Bookmark,
-  HeartHandshake, FileText, ListChecks, ScrollText
+  HeartHandshake, FileText, ListChecks, ScrollText, Mail
 } from 'lucide-react';
 import { http } from '../lib/api/transport';
 // Lazy: the assistant widget + brain load on demand, not in the entry chunk.
@@ -230,6 +230,7 @@ const ADMIN_NAV_ITEMS = [
   { path: '/admin/roles', label: 'Roles', icon: KeyRound, section: 'Admin' },
   { path: '/admin/audit', label: 'Audit Trail', icon: History, section: 'Admin' },
   { path: '/admin/events', label: 'User Logs', icon: ScrollText, section: 'Admin' },
+  { path: '/admin/mail', label: 'Mail', icon: Mail, section: 'Admin' },
   { path: '/admin/content', label: 'Content', icon: BookOpen, section: 'Admin' },
   { path: '/admin/analytics', label: 'Analytics', icon: BarChart3, section: 'Admin' },
 ];

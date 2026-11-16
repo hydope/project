@@ -30,6 +30,7 @@ require __DIR__ . '/routes/verifications.php';
 require __DIR__ . '/routes/wali.php';
 require __DIR__ . '/routes/drafts.php';
 require __DIR__ . '/routes/admin.php';
+require __DIR__ . '/routes/admin_mail.php';
 require __DIR__ . '/routes/analytics.php';
 require __DIR__ . '/routes/compatibility.php';
 require __DIR__ . '/routes/contact.php';

@@ -297,6 +297,13 @@ function routeAdmin(string $method, array $segments): void
         return;
     }
 
+    // Admin webmail — read-only mailbox reader (routes/admin_mail.php).
+    if ($action === 'mail') {
+        array_shift($segments);
+        routeAdminMail($method, $segments);
+        return;
+    }
+
     // Member search with pagination. The old adminUsers() returned a flat
     // LIMIT 100 list with no way to find anybody and no way to page.
     if ($method === 'GET' && $action === 'users') { adminUsers(); return; }
