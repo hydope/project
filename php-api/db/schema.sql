@@ -581,3 +581,20 @@ CREATE TABLE IF NOT EXISTS account_deletion_feedback (
   KEY idx_adf_created (created_at),
   KEY idx_adf_reason (reason)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Guest lead capture (2026-11-15): visitors not ready to register can
+-- subscribe to new-profile alerts. Runtime also lazy-creates this table
+-- in php-api/routes/leads.php; it lives here so the migration digest
+-- covers it and fresh installs match production.
+CREATE TABLE IF NOT EXISTS guest_leads (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  email VARCHAR(190) NOT NULL,
+  source VARCHAR(24) NOT NULL DEFAULT 'site',
+  city VARCHAR(80) NULL,
+  unsub_token CHAR(32) NOT NULL,
+  unsubscribed TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_sent_at DATETIME NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_guest_leads_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

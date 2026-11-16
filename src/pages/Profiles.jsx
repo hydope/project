@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import Layout from '../layouts/LandingLayout';
 import ProfileCard from '../components/ProfileCard.jsx';
 import CuratedMatchFeed from '../components/CuratedMatchFeed.jsx';
+import LeadCapture from '../components/LeadCapture.jsx';
 import LoginGate from '../components/LoginGate';
 import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
@@ -722,6 +723,11 @@ export function BrowseProfiles() {
               </div>
             )}
           </>
+        )}
+        {!isLoggedIn && (
+          <div className="mt-10 max-w-2xl mx-auto">
+            <LeadCapture source="browse" />
+          </div>
         )}
       </main>
     </Layout>

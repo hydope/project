@@ -6,6 +6,8 @@ import Seo from '../components/Seo';
 import { http } from '../lib/api/transport';
 import { MapPin, Users, Heart, ShieldCheck } from 'lucide-react';
 import ProfileCard from '../components/ProfileCard';
+import LeadCapture from '../components/LeadCapture.jsx';
+import { useAuth } from '../lib/auth/AuthContext';
 import { countryAliases } from '../data/countryAliases';
 import { CITIES, COUNTRIES, buildLocationSections, buildLocationFaq } from '../data/locationSeo';
 import { tagPagesForPlace } from '../data/tagLandingPages';
@@ -49,6 +51,7 @@ export default function CityPage() {
   // Curated-list validation: an unknown slug is NotFound, not a template page.
   // This is what stops a spammer manufacturing a page by typing a city.
   const curated = (isCountry ? COUNTRIES : CITIES).find((x) => x.slug === slug);
+  const { isLoggedIn } = useAuth();
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [locationName, setLocationName] = useState('');
@@ -216,6 +219,18 @@ export default function CityPage() {
               {profiles.map(p => <ProfileCard key={p.id} profile={p} />)}
             </div>
           </>
+        )}
+
+        {/* Guest lead capture, city prefilled (2026-11-15 conversion pass) */}
+        {!isLoggedIn && (
+          <div className="mt-10">
+            <LeadCapture
+              source="city"
+              city={name}
+              heading={`New Shia profiles in ${name}, by email`}
+              blurb={`Members join every week. Leave your email and we'll send you new ${name} profiles each Sunday — only in weeks when someone new actually joins.`}
+            />
+          </div>
         )}
 
         {/* SEO content — keyword variations + country aliases */}

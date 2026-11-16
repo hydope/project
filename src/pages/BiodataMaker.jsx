@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth/AuthContext';
 import { Download, ImagePlus, Save, Sparkles, ZoomIn, ZoomOut, Maximize2, Upload, Share2 } from 'lucide-react';
 import { http } from '../lib/api/transport';
 import { logSubmit } from '../lib/eventLog';
+import LeadCapture from '../components/LeadCapture.jsx';
 import { jsPDF } from 'jspdf';
 
 const TEMPLATES = [
@@ -538,6 +539,15 @@ export default function BiodataMaker() {
               <p className="text-[11px] mt-2" style={{ color: 'var(--color-ink-tertiary)' }}>
                 Drafts save securely to your account (encrypted) and sync across your devices.
               </p>
+            )}
+            {!isLoggedIn && (
+              <div className="mt-5">
+                <LeadCapture
+                  source="biodata"
+                  heading="Looking for a match? Get new Shia profiles by email"
+                  blurb="You made a biodata — now let matches come to you. One email each Sunday with new profiles, only in weeks when new members join."
+                />
+              </div>
             )}
           </div>
 

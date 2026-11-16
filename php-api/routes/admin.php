@@ -339,6 +339,7 @@ function routeAdmin(string $method, array $segments): void
     if ($method === 'GET' && $action === 'photo-lift') { adminPhotoLift(); return; }
     if ($method === 'GET' && $action === 'seo') { adminSeoAnalytics(); return; }
     if ($method === 'GET' && $action === 'events') { adminClientEvents(); return; }
+    if ($method === 'GET' && $action === 'leads') { adminLeads(); return; }
     if ($method === 'GET' && $action === 'queue') { adminModerationQueue(); return; }
     if ($method === 'GET' && $action === 'verification-queue') { adminVerificationQueue(); return; }
     // POST /verify/bulk — segments are ['verify', 'bulk'], so the verb is at
@@ -1170,6 +1171,30 @@ function adminPhotoLift(): void
 // database — no sample data, no estimates. Google Analytics 4 runs in parallel
 // via the gtag snippet (measurement ID G-KNR7541E3G); its own numbers live in
 // the GA console, linked from the dashboard.
+/**
+ * Guest leads (routes/leads.php) — newest first, with the total count.
+ * Read-only: leads are managed by the capture form and the unsubscribe
+ * link, never edited from the admin portal.
+ */
+function adminLeads(): void
+{
+    $limit = max(1, min(200, (int)($_GET['limit'] ?? 50)));
+    try {
+        leadsEnsureTable();
+        $total = (int)db()->query('SELECT COUNT(*) FROM guest_leads')->fetchColumn();
+        $active = (int)db()->query('SELECT COUNT(*) FROM guest_leads WHERE unsubscribed = 0')->fetchColumn();
+        $stmt = db()->prepare(
+            'SELECT email, source, city, unsubscribed, created_at, last_sent_at
+               FROM guest_leads ORDER BY created_at DESC LIMIT ' . $limit
+        );
+        $stmt->execute();
+        json(['total' => $total, 'active' => $active, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    } catch (Throwable $e) {
+        error_log('[admin] leads failed: ' . $e->getMessage());
+        json(['total' => 0, 'active' => 0, 'rows' => [], 'error' => 'leads unavailable']);
+    }
+}
+
 function adminSeoAnalytics(): void
 {
     $range = in_array($_GET['range'] ?? '', ['7d', '30d', '90d'], true) ? (string)$_GET['range'] : '7d';

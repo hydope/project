@@ -33,6 +33,7 @@ require __DIR__ . '/routes/admin.php';
 require __DIR__ . '/routes/analytics.php';
 require __DIR__ . '/routes/compatibility.php';
 require __DIR__ . '/routes/contact.php';
+require __DIR__ . '/routes/leads.php';
 require __DIR__ . '/routes/matchmaker.php';
 require __DIR__ . '/routes/biodata.php';
 require __DIR__ . '/routes/sitemap.php';
@@ -214,6 +215,9 @@ try {
             break;
         case 'matchmaker':
             routeMatchmaker($method, $rest);
+            break;
+        case 'leads':
+            routeLeads($method, $rest);
             break;
         case 'biodata':
             routeBiodata($method, $rest);

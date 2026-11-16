@@ -8,6 +8,7 @@ import {
 import Layout from '../layouts/LandingLayout';
 import ProfileCard from '../components/ProfileCard.jsx';
 import FaqSection from '../components/FaqSection.jsx';
+import LeadCapture from '../components/LeadCapture.jsx';
 import { useAuth } from '../lib/auth/AuthContext';
 import { useProfiles, useStats } from '../lib/api/client';
 
@@ -270,6 +271,14 @@ export default function Home() {
             <span>{profilesLoading ? 'Finding members…' : `${memberCount > 0 ? memberCount : (data || []).length} curated members`} · {isLoggedIn ? "welcome back" : "free to join"}</span>
           </div>
         </section>
+
+        {/* ── Guest lead capture: the smaller yes for visitors not ready
+            to register (2026-11-15 conversion pass). ── */}
+        {!isLoggedIn && (
+          <section className="hp-section">
+            <LeadCapture source="home" />
+          </section>
+        )}
 
         {/* ── Premium experience ── */}
         <section className="hp-section">

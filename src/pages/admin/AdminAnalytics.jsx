@@ -133,6 +133,7 @@ export default function AdminAnalytics() {
   const [range, setRange] = useState('7d');
   const [data, setData] = useState(null);
   const [seo, setSeo] = useState(null);
+  const [leads, setLeads] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -140,12 +141,14 @@ export default function AdminAnalytics() {
     setLoading(true);
     setError('');
     try {
-      const [a, s] = await Promise.all([
+      const [a, s, l] = await Promise.all([
         http.get(`/api/admin/analytics?range=${range}`),
         http.get(`/api/admin/seo?range=${range}`).catch(() => null),
+        http.get('/api/admin/leads?limit=8').catch(() => null),
       ]);
       setData(a);
       setSeo(s);
+      setLeads(l);
     } catch (e) {
       setError(e?.message || 'Could not load analytics.');
     } finally {
@@ -240,6 +243,30 @@ export default function AdminAnalytics() {
             value={headline.messagesToday}
             sub="sent today" />
         </section>
+
+        {/* Guest leads — visitors who left an email instead of registering */}
+        {leads && (
+          <section className="rounded-xl border border-line/20 bg-elevated p-5 mb-6">
+            <h3 className="text-sm font-bold text-ink mb-1">
+              Guest leads — {leads.active ?? 0} subscribed ({leads.total ?? 0} all time)
+            </h3>
+            <p className="text-xs text-muted mb-3">
+              Visitors who asked for new-profile alerts instead of registering. They get one email each Sunday, only in weeks when new members joined.
+            </p>
+            {(leads.rows || []).length === 0 ? (
+              <p className="text-sm text-muted">No leads captured yet.</p>
+            ) : (
+              <ul className="text-sm space-y-1">
+                {leads.rows.map((r) => (
+                  <li key={r.email} className="flex flex-wrap gap-x-3">
+                    <span className="font-medium text-ink">{r.email}</span>
+                    <span className="text-muted">{r.city || 'anywhere'} · via {r.source} · {String(r.created_at || '').slice(0, 10)}{r.unsubscribed ? ' · unsubscribed' : ''}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         {/* The funnel — where people drop off (all time) */}
         <section className="mb-6">
