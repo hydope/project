@@ -119,6 +119,10 @@ function makeMemberSession(array $row): array
         'displayName' => (string)($row['display_name'] ?? ''),
         'isAdmin' => (bool)($row['is_admin'] ?? false),
         'emailVerified' => (bool)($row['email_verified'] ?? false),
+        // Social signups created before their DOB step carry a NULL
+        // date_of_birth (2026-11-16: DOB moved to right after sign-in).
+        // The client locks such members to /auth/dob until it is set.
+        'needsDob' => array_key_exists('date_of_birth', $row) ? empty($row['date_of_birth']) : false,
         'role' => (string)($row['role'] ?? 'member'),
     ];
 }

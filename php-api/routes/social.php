@@ -24,6 +24,10 @@ function routeSocial(string $method, array $segments): void
         socialLogin();
         return;
     }
+    if ($method === 'POST' && ($segments[0] ?? '') === 'dob') {
+        authSetDob();
+        return;
+    }
     json(['error' => 'Not found'], 404);
 }
 
@@ -65,18 +69,30 @@ function socialLogin(): void
         // login form can never match).
         //
         // 18+ enforcement (2026-11-10, external-audit fixes): same age gate
-        // as email registration — a new social account needs a date of
-        // birth, and under-18 is rejected. The client collects the DOB
-        // before launching the provider flow and retries with it.
-        $dobRaw = validateDateOfBirth((string)($body['dateOfBirth'] ?? ''));
+        // as email registration. DOB used to be collected BEFORE the
+        // provider popup; since 2026-11-16 it is collected right AFTER
+        // sign-in (Syed's call — one tap first, form second). A new social
+        // account may therefore be created with date_of_birth NULL: the
+        // session carries needsDob, the client locks the member to the
+        // DOB step, profile saves refuse until it is set (profileUpdate),
+        // and an under-18 DOB deletes the account on the spot (authSetDob).
+        // A DOB sent anyway is still validated and stored as before.
+        $dobProvided = trim((string)($body['dateOfBirth'] ?? ''));
+        $dobRaw = $dobProvided !== '' ? validateDateOfBirth($dobProvided) : null;
         $userId = uuid();
         $adminEmails = adminEmails();
         $isAdmin = in_array($email, $adminEmails, true);
         $pdo->beginTransaction();
         try {
-            $pdo->prepare(
-                'INSERT INTO users (id, email, password_hash, display_name, is_admin, email_verified, date_of_birth) VALUES (?, ?, ?, ?, ?, 1, ?)'
-            )->execute([$userId, $email, 'social:' . $provider, $name, $isAdmin ? 1 : 0, $dobRaw]);
+            if ($dobRaw === null) {
+                $pdo->prepare(
+                    'INSERT INTO users (id, email, password_hash, display_name, is_admin, email_verified, date_of_birth) VALUES (?, ?, ?, ?, ?, 1, NULL)'
+                )->execute([$userId, $email, 'social:' . $provider, $name, $isAdmin ? 1 : 0]);
+            } else {
+                $pdo->prepare(
+                    'INSERT INTO users (id, email, password_hash, display_name, is_admin, email_verified, date_of_birth) VALUES (?, ?, ?, ?, ?, 1, ?)'
+                )->execute([$userId, $email, 'social:' . $provider, $name, $isAdmin ? 1 : 0, $dobRaw]);
+            }
             $pdo->prepare(
                 'INSERT INTO profiles (user_id, display_name, sect) VALUES (?, ?, ?)'
             )->execute([$userId, $name, 'Ithna Ashari (Twelver)']);
@@ -117,6 +133,55 @@ function socialLogin(): void
         'token' => signSession($user),
         'isNew' => empty($user['created_at']) ? false : (strtotime((string)$user['created_at']) > time() - 60),
     ]);
+}
+
+/**
+ * POST /api/auth/dob — the post-sign-in DOB step (2026-11-16).
+ *
+ * A social account is created with date_of_birth NULL and its session
+ * carries needsDob; this endpoint is how the member completes the 18+
+ * gate. Rules:
+ *   - Only fills an EMPTY date_of_birth. An account that already has one
+ *     gets its session back unchanged (DOB is not editable after signup,
+ *     here or anywhere else).
+ *   - Malformed/future dates are a plain 400 — the account stays.
+ *   - An under-18 date removes the just-created account outright (it was
+ *     made minutes ago by the social flow and holds nothing) and 403s.
+ */
+function authSetDob(): void
+{
+    $user = requireAuthUser();
+    $uid = (string)$user['uid'];
+    $pdo = db();
+
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE id = ? LIMIT 1');
+    $stmt->execute([$uid]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) je('Account not found.', 404);
+    if (!empty($row['date_of_birth'])) {
+        json(['ok' => true, 'user' => makeMemberSession($row)]);
+    }
+
+    $body = requestJson();
+    $raw = trim((string)($body['dateOfBirth'] ?? ''));
+    $dob = DateTimeImmutable::createFromFormat('Y-m-d', $raw);
+    if ($raw === '' || $dob === false || $dob->format('Y-m-d') !== $raw) {
+        je('Enter your date of birth as YYYY-MM-DD.', 400);
+    }
+    $today = new DateTimeImmutable('today', new DateTimeZone('UTC'));
+    if ($dob > $today) {
+        je('Your date of birth cannot be in the future.', 400);
+    }
+    if ($today->diff($dob)->y < 18) {
+        $pdo->prepare('DELETE FROM profiles WHERE user_id = ?')->execute([$uid]);
+        $pdo->prepare('DELETE FROM sessions WHERE user_id = ?')->execute([$uid]);
+        $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$uid]);
+        je('You must be 18 or older to create an account on Shia Rishta. Your account has been removed.', 403);
+    }
+
+    $pdo->prepare('UPDATE users SET date_of_birth = ? WHERE id = ?')->execute([$raw, $uid]);
+    $stmt->execute([$uid]);
+    json(['ok' => true, 'user' => makeMemberSession($stmt->fetch(PDO::FETCH_ASSOC))]);
 }
 
 /** Create the session row for a social login. */

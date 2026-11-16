@@ -1596,6 +1596,15 @@ function profileUpdate(): void
     $user = requireAuthUser();
     // Moderation-blocked members cannot publish changes (2026-11-11).
     requireNotBlocked($user);
+    // 18+ gate backstop (2026-11-16): a social account created before its
+    // DOB step (date_of_birth NULL) cannot save a profile until the DOB
+    // is on file. The client locks such members to /auth/dob; this is the
+    // server-side half of the same gate.
+    $dobStmt = db()->prepare('SELECT date_of_birth FROM users WHERE id = ? LIMIT 1');
+    $dobStmt->execute([(string)$user['uid']]);
+    if (empty($dobStmt->fetchColumn())) {
+        je('Please confirm your date of birth before setting up your profile.', 403);
+    }
     $b = requestJson();
 
     // Duplicate display name guard (2026-11-15, Batch A): a profile save

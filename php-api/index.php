@@ -193,8 +193,9 @@ header('X-Request-Id: ' . $requestId);
 try {
     switch ($resource) {
         case 'auth':
-            // Social login lives under /api/auth/social.
-            if ($method === 'POST' && ($rest[0] ?? '') === 'social') {
+            // Social login lives under /api/auth/social; the post-sign-in
+            // DOB step is /api/auth/dob (both handled by routes/social.php).
+            if ($method === 'POST' && in_array($rest[0] ?? '', ['social', 'dob'], true)) {
                 routeSocial($method, $rest);
                 break;
             }

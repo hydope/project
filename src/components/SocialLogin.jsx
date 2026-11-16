@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../lib/auth/AuthContext';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api/client';
 
 // Social sign-in: Google + Facebook (Meta). Instagram sign-in is handled
@@ -14,6 +12,16 @@ import { api } from '../lib/api/client';
 //   Facebook: developers.facebook.com → create app → Facebook Login →
 //             Valid OAuth redirect: https://shiarishta.com/auth/social-callback
 //             → put the App ID in VITE_FACEBOOK_APP_ID.
+//
+// Flow notes (2026-11-16):
+//   - Google uses the OFFICIAL rendered GIS button (renderButton). The
+//     earlier custom button called accounts.id.prompt() (One Tap), which
+//     browsers suppress silently — no popup, no error, a dead click for
+//     real visitors (proven in the 2026-11-16 end-to-end test).
+//   - No DOB form in front of the buttons. Sign-in completes first; a new
+//     account lands on /auth/dob for the one mandatory 18+ step before
+//     anything else unlocks (Syed's call). The server creates social
+//     accounts with date_of_birth NULL + needsDob until that step is done.
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '';
@@ -33,32 +41,66 @@ function loadScript(src, id) {
 }
 
 export default function SocialLogin({ mode = 'signin' }) {
-  const { login } = useAuth();
-  const navigate = useNavigate();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  // 18+ enforcement (2026-11-10): social signup needs a date of birth
-  // too — the server rejects a new social account without one. Collected
-  // before the provider popup opens, so the OAuth flow never completes
-  // for an under-18 or missing DOB.
-  const [dob, setDob] = useState('');
-
-  const requireDob = () => {
-    if (mode !== 'signup') return true;
-    if (!dob) {
-      setError('Please enter your date of birth first — you must be 18 or older to join.');
-      return false;
-    }
-    return true;
-  };
+  const googleBtnRef = useRef(null);
 
   const googleReady = !!GOOGLE_CLIENT_ID;
   const fbReady = !!FACEBOOK_APP_ID;
 
-  useEffect(() => {
-    if (googleReady) {
-      loadScript('https://accounts.google.com/gsi/client', 'google-gsi').catch(() => {});
+  const exchange = async (provider, token) => {
+    setBusy(true);
+    setError('');
+    try {
+      const res = await api.post('/auth/social', { provider, token });
+      // Store the session exactly like a normal login does.
+      const { http } = await import('../lib/api/transport');
+      if (res.token) http.setToken(res.token);
+      if (res.user) localStorage.setItem('session', JSON.stringify(res.user));
+      if (res.user?.needsDob) {
+        window.location.href = '/auth/dob';
+      } else {
+        window.location.href = res.isNew ? '/onboard' : '/dashboard';
+      }
+    } catch (e) {
+      setError(e.message || 'Social sign-in failed. Please try again.');
+    } finally {
+      setBusy(false);
     }
+  };
+
+  // Google: load GIS, initialize once, render the official button. The
+  // credential callback fires only after the visitor picks an account in
+  // Google's own chooser — the account is created at exchange time, so
+  // nothing exists before that click.
+  useEffect(() => {
+    if (!googleReady || !googleBtnRef.current) return;
+    let cancelled = false;
+    loadScript('https://accounts.google.com/gsi/client', 'google-gsi')
+      .then(() => {
+        if (cancelled || !window.google?.accounts?.id || !googleBtnRef.current) return;
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: (resp) => {
+            if (resp?.credential) exchange('google', resp.credential);
+            else setError('Google sign-in was cancelled.');
+          },
+        });
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: 'outline',
+          size: 'large',
+          text: mode === 'signup' ? 'signup_with' : 'continue_with',
+          shape: 'rectangular',
+          width: 320,
+        });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+    // exchange is stable enough for this one-shot render; mode changes
+    // remount the component on the auth pages.
+  }, [googleReady, mode]);
+
+  useEffect(() => {
     if (fbReady) {
       loadScript('https://connect.facebook.net/en_US/sdk.js', 'facebook-jssdk')
         .then(() => {
@@ -67,45 +109,9 @@ export default function SocialLogin({ mode = 'signin' }) {
         })
         .catch(() => {});
     }
-  }, [googleReady, fbReady]);
-
-  const exchange = async (provider, token) => {
-    setBusy(true);
-    setError('');
-    try {
-      const body = { provider, token };
-      if (mode === 'signup' && dob) body.dateOfBirth = dob;
-      const res = await api.post('/auth/social', body);
-      // Store the session exactly like a normal login does.
-      const { http } = await import('../lib/api/transport');
-      if (res.token) http.setToken(res.token);
-      if (res.user) localStorage.setItem('session', JSON.stringify(res.user));
-      window.location.href = res.isNew ? '/onboard' : '/dashboard';
-    } catch (e) {
-      setError(e.message || 'Social sign-in failed. Please try again.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const signInWithGoogle = () => {
-    if (!requireDob()) return;
-    if (!window.google?.accounts?.id) {
-      setError('Google sign-in is still loading. Please wait a moment and try again.');
-      return;
-    }
-    window.google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: (resp) => {
-        if (resp?.credential) exchange('google', resp.credential);
-        else setError('Google sign-in was cancelled.');
-      },
-    });
-    window.google.accounts.id.prompt();
-  };
+  }, [fbReady]);
 
   const signInWithFacebook = () => {
-    if (!requireDob()) return;
     if (!window.FB) {
       setError('Facebook sign-in is still loading. Please wait a moment and try again.');
       return;
@@ -131,32 +137,10 @@ export default function SocialLogin({ mode = 'signin' }) {
         <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
       </div>
 
-      {mode === 'signup' && (
-        <div>
-          <label htmlFor="social-dob" className="block mb-1.5 text-sm font-medium" style={{ color: 'var(--color-ink-secondary)' }}>Date of Birth</label>
-          <input type="date" id="social-dob" value={dob} onChange={e => setDob(e.target.value)} max={new Date().toISOString().slice(0, 10)} className="input w-full" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
-          <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-faint)' }}>
-            You must be 18 or older to join. Required before signing up with Google or Facebook.
-          </p>
-        </div>
-      )}
-
       {googleReady && (
-        <button
-          type="button"
-          onClick={signInWithGoogle}
-          disabled={busy}
-          className="btn w-full flex items-center justify-center gap-3"
-          style={{ background: '#fff', color: '#1a1a1a', border: '1px solid var(--color-border)' }}
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="#4285F4" d="M23.5 12.3c0-.9-.1-1.5-.3-2.3H12v4.5h6.5c-.1 1.1-.8 2.7-2.4 3.8l-.1.7 3.5 2.7.2.1c2.2-2 3.6-5 3.6-9.5z" />
-            <path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.8-2.9c-1 .7-2.4 1.2-4.1 1.2-3.1 0-5.8-2.1-6.8-5l-.7.1-3.6 2.8v.7C2.9 21.3 7.1 24 12 24z" />
-            <path fill="#FBBC05" d="M5.2 14.4c-.2-.7-.4-1.5-.4-2.4s.1-1.7.4-2.4l-.1-.7-3.6-2.8-.5.2C.4 7.6 0 9.7 0 12s.4 4.4 1 6.4l4.2-4z" />
-            <path fill="#EA4335" d="M12 4.7c1.8 0 3 .8 3.7 1.4l3.3-3.2C17.9 1.1 15.2 0 12 0 7.1 0 2.9 2.7 1 6.4l4.2 3.3c1-2.9 3.7-5 6.8-5z" />
-          </svg>
-          {label} with Google
-        </button>
+        <div className="flex justify-center" aria-busy={busy}>
+          <div ref={googleBtnRef} />
+        </div>
       )}
 
       {fbReady && (
@@ -178,9 +162,11 @@ export default function SocialLogin({ mode = 'signin' }) {
         <p className="text-sm text-center" style={{ color: 'var(--color-danger)' }}>{error}</p>
       )}
 
-      <p className="text-[11px] text-center" style={{ color: 'var(--color-ink-faint)' }}>
-        Facebook login also works with your Instagram-linked Meta account.
-      </p>
+      {fbReady && (
+        <p className="text-[11px] text-center" style={{ color: 'var(--color-ink-faint)' }}>
+          Facebook login also works with your Instagram-linked Meta account.
+        </p>
+      )}
     </div>
   );
 }

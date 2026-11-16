@@ -26,6 +26,7 @@ const Register = lazy(() => import('./pages/auth/Register'));
 const VerifyEmail = lazy(() => import('./pages/auth/VerifyEmail'));
 const VerifyToken = lazy(() => import('./pages/auth/VerifyToken'));
 const VerifyPending = lazy(() => import('./pages/auth/VerifyPending'));
+const AuthDob = lazy(() => import('./pages/auth/AuthDob'));
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'));
 const WaliView = lazy(() => import('./pages/WaliView'));
@@ -263,6 +264,9 @@ const router = createBrowserRouter([
       // verify step is visible before onboarding. Inside RequireAuth — the
       // fresh session from Register exists by the time we land here.
       { path: '/verify-pending', element: <LazyRoute component={VerifyPending} /> },
+      // Post-social-sign-in DOB step (2026-11-16): RequireAuth redirects
+      // needsDob members here and lets nothing else render until it is done.
+      { path: '/auth/dob', element: <LazyRoute component={AuthDob} /> },
       { path: '/profile', element: <LazyRoute component={Onboard} /> },
       { path: '/settings', element: <LazyRoute component={Settings} /> },
       { path: '/drafts', element: <LazyRoute component={Drafts} /> },

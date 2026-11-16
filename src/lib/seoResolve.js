@@ -45,6 +45,7 @@ const PRIVATE_TITLES = {
   // fell through to the NotFound meta and its tab read "Page Not Found"
   // (found in real-user testing, fixed 2026-11-13). Transactional page:
   // noindex like the other auth routes above.
+  '/auth/dob': 'Date of Birth | Shia Rishta',
   '/verify-pending': {
     title: 'Check Your Email | Shia Rishta',
     desc: 'We sent a verification link to your email address. One tap verifies your Shia Rishta account and unlocks your profile and messaging.',

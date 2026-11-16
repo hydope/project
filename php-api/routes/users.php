@@ -77,6 +77,7 @@ function userMeShape(array $row): array
         'email' => (string)$row['email'],
         'displayName' => (string)$row['display_name'],
         'emailVerified' => (bool)$row['email_verified'],
+        'needsDob' => array_key_exists('date_of_birth', $row) ? empty($row['date_of_birth']) : false,
     ];
 }
 
@@ -87,7 +88,7 @@ function userUpdateMe(): void
     $b = requestJson();
     $pdo = db();
 
-    $stmt = $pdo->prepare('SELECT id, email, display_name, email_verified FROM users WHERE id = ? LIMIT 1');
+    $stmt = $pdo->prepare('SELECT id, email, display_name, email_verified, date_of_birth FROM users WHERE id = ? LIMIT 1');
     $stmt->execute([$uid]);
     $row = $stmt->fetch();
     if (!$row) {
