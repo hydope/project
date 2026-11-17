@@ -24,8 +24,22 @@ const CLEAR_AFTER_MS = 10_000;
 // Chrome's MIME rejection — the shape a missing chunk takes on this host,
 // where the SPA fallback answers the dead URL with index.html instead of
 // JavaScript.
+//
+// The last three patterns are the stale-mix shapes that are NOT fetch
+// failures: when an edge cache serves one build's chunk against another
+// build's importers (proven on this host, 2026-11-12), the module system
+// itself throws — a missing-export link error, or a temporal-dead-zone
+// ReferenceError when the mixed copy evaluates a binding before its
+// declaration runs. On 2026-11-16 a real member hit the TDZ shape
+// ("Cannot access 'M' before initialization") on /profiles ~18 times in
+// 15 minutes: the boundary logged it, showed the crash screen, and every
+// manual refresh re-served the same poisoned mix, until he deleted his
+// account. A genuine code bug in these shapes would crash every visitor
+// on the route; a single visitor crashing repeatedly is a poisoned
+// cache, and one guarded hard reload is the cure — the same guard below
+// keeps a genuine bug from looping (second crash shows the manual UI).
 const CHUNK_ERROR_RE =
-  /chunkloaderror|loading chunk \d+ failed|failed to fetch dynamically imported module|failed to load module script|importing a module script failed|unable to preload css|error loading dynamically imported module/i;
+  /chunkloaderror|loading chunk \d+ failed|failed to fetch dynamically imported module|failed to load module script|importing a module script failed|unable to preload css|error loading dynamically imported module|does not provide an export|before initialization|uninitialized variable/i;
 
 export function isChunkLoadError(error) {
   if (!error) return false;
