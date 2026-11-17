@@ -142,6 +142,49 @@ function sha256Hex(string $s): string { return hash('sha256', (string)$s); }
 // foreign key to users by design: the row must survive the deletion.
 // Never throws: if the table is not migrated yet, log and let the deletion
 // proceed — losing a reason is bad, blocking a deletion is worse.
+// Syed's rule (2026-11-17): a deletion by the test bot must always be
+// marked as a test deletion, so the admin Deleted Profiles list shows real
+// member churn, not QA debris. The feedback table predates the rule, so
+// the is_test column is ensured lazily here (the migrate.php marker trap
+// means a migrate-only change would never run on production). The first
+// call after the column appears also backfills history: rows whose email
+// is one of the operator's own test addresses, or whose exit note starts
+// with TEST, were test deletions by construction — no genuine member
+// registers with the operator's personal inboxes.
+function deletionFeedbackEnsureTest(PDO $pdo): void
+{
+    try {
+        $cols = $pdo->query("SHOW COLUMNS FROM account_deletion_feedback LIKE 'is_test'")->fetchAll();
+        if ($cols) {
+            return;
+        }
+        $pdo->exec("ALTER TABLE account_deletion_feedback ADD COLUMN is_test TINYINT(1) NOT NULL DEFAULT 0 AFTER detail");
+        $pdo->exec("UPDATE account_deletion_feedback SET is_test = 1
+            WHERE email LIKE 'syedmohammedali1512+%@gmail.com'
+               OR email = 'alisyedmohd51@gmail.com'
+               OR email LIKE '%@example.com'
+               OR detail LIKE 'TEST%'");
+    } catch (Throwable $e) {
+        error_log('[api] deletion-feedback is_test ensure: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+// Was this account one of the operator's test accounts? The users.is_test
+// flag is the primary signal; the operator's own email addresses and a
+// TEST-prefixed exit note are the fallbacks, because several historical
+// test accounts were created before the flag's patterns covered them.
+function deletionLooksTest(array $user, string $detail): bool
+{
+    if (!empty($user['is_test'])) {
+        return true;
+    }
+    $email = strtolower((string)($user['email'] ?? ''));
+    if (str_starts_with($email, 'syedmohammedali1512+') || $email === 'alisyedmohd51@gmail.com' || str_ends_with($email, '@example.com')) {
+        return true;
+    }
+    return stripos($detail, 'TEST') === 0;
+}
+
 function recordDeletionFeedback(PDO $pdo, string $uid, array $body): void
 {
     $validReasons = ['found_match_elsewhere', 'no_suitable_matches', 'too_few_members', 'nobody_replies', 'privacy', 'too_complicated', 'other', 'prefer_not_to_say'];
@@ -154,13 +197,14 @@ function recordDeletionFeedback(PDO $pdo, string $uid, array $body): void
         $detail = mb_substr($detail, 0, 1000);
     }
     try {
-        $u = $pdo->prepare('SELECT display_name, email, created_at FROM users WHERE id = ? LIMIT 1');
+        deletionFeedbackEnsureTest($pdo);
+        $u = $pdo->prepare('SELECT display_name, email, created_at, is_test FROM users WHERE id = ? LIMIT 1');
         $u->execute([$uid]);
         $user = $u->fetch() ?: [];
         $p = $pdo->prepare('SELECT city, country FROM profiles WHERE user_id = ? LIMIT 1');
         $p->execute([$uid]);
         $prof = $p->fetch() ?: [];
-        $pdo->prepare('INSERT INTO account_deletion_feedback (id, user_id, display_name, email, city, country, joined_at, reason, detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        $pdo->prepare('INSERT INTO account_deletion_feedback (id, user_id, display_name, email, city, country, joined_at, reason, detail, is_test) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
             ->execute([
                 uuid(),
                 $uid,
@@ -171,6 +215,7 @@ function recordDeletionFeedback(PDO $pdo, string $uid, array $body): void
                 $user['created_at'] ?? null,
                 $reason === '' ? null : $reason,
                 $detail === '' ? null : $detail,
+                deletionLooksTest($user, $detail) ? 1 : 0,
             ]);
     } catch (Throwable $e) {
         error_log('[api] deletion feedback not recorded: ' . substr($e->getMessage(), 0, 120));

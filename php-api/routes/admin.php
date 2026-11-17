@@ -1643,8 +1643,21 @@ function adminDeletedProfiles(): void
     // name, email and what they said.
     $reason = trim((string)($_GET['reason'] ?? ''));
     $q = trim((string)($_GET['q'] ?? ''));
+    // Test deletions (Syed's rule, 2026-11-17): the bot's QA deletions are
+    // marked is_test at delete time. test=exclude hides them (the admin
+    // page's default, so the list reads as real member churn), test=only
+    // shows just them, anything else includes them.
+    $testMode = trim((string)($_GET['test'] ?? ''));
+    try {
+        deletionFeedbackEnsureTest(db());
+    } catch (Throwable) { /* the reads below tolerate a missing table */ }
     $where = [];
     $params = [];
+    if ($testMode === 'exclude') {
+        $where[] = 'is_test = 0';
+    } elseif ($testMode === 'only') {
+        $where[] = 'is_test = 1';
+    }
     if ($reason !== '') {
         if ($reason === 'none') {
             $where[] = '(reason IS NULL OR reason = \'\')';
@@ -1670,17 +1683,20 @@ function adminDeletedProfiles(): void
         json(['rows' => [], 'total' => 0, 'hasMore' => false, 'byReason' => []]);
     }
 
-    // Reason breakdown across ALL leavers (not the filtered page): the
-    // distribution is the answer, and filtering by one reason must not
-    // hide the size of the others.
+    // Reason breakdown across ALL leavers in the current test scope (not
+    // the filtered page): the distribution is the answer, and filtering
+    // by one reason must not hide the size of the others. The test scope
+    // DOES apply — otherwise the chip counts would include hidden test
+    // deletions and disagree with the visible rows.
     $byReason = [];
     try {
-        foreach (db()->query("SELECT reason, COUNT(*) AS n FROM account_deletion_feedback GROUP BY reason")->fetchAll() as $r) {
+        $scopeSql = $testMode === 'exclude' ? ' WHERE is_test = 0' : ($testMode === 'only' ? ' WHERE is_test = 1' : '');
+        foreach (db()->query("SELECT reason, COUNT(*) AS n FROM account_deletion_feedback{$scopeSql} GROUP BY reason")->fetchAll() as $r) {
             $byReason[($r['reason'] ?? '') === '' ? 'none' : (string)$r['reason']] = (int)$r['n'];
         }
     } catch (Throwable) { /* breakdown is advisory; the rows still load */ }
 
-    $stmt = db()->prepare("SELECT id, user_id, display_name, email, city, country, joined_at, reason, detail, created_at FROM account_deletion_feedback {$whereSql} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?");
+    $stmt = db()->prepare("SELECT id, user_id, display_name, email, city, country, joined_at, reason, detail, is_test, created_at FROM account_deletion_feedback {$whereSql} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?");
     foreach ($params as $i => $p) {
         $stmt->bindValue($i + 1, $p);
     }
@@ -1689,7 +1705,15 @@ function adminDeletedProfiles(): void
     $stmt->execute();
     $rows = $stmt->fetchAll();
 
-    json(['rows' => $rows, 'total' => $total, 'hasMore' => ($offset + $limit < $total), 'byReason' => $byReason]);
+    // How many test deletions exist in total — the page shows this as
+    // "N test deletions hidden" while they are excluded, so the operator
+    // knows the filter is doing something.
+    $testTotal = 0;
+    try {
+        $testTotal = (int)(db()->query('SELECT COUNT(*) AS n FROM account_deletion_feedback WHERE is_test = 1')->fetch()['n'] ?? 0);
+    } catch (Throwable) { /* advisory only */ }
+
+    json(['rows' => $rows, 'total' => $total, 'hasMore' => ($offset + $limit < $total), 'byReason' => $byReason, 'testTotal' => $testTotal]);
 }
 
 // GET /api/admin/queue — one ranked moderation worklist.

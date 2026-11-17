@@ -23,6 +23,11 @@ export default function AdminDeletedProfiles() {
   const [error, setError] = useState('');
   const [reasonFilter, setReasonFilter] = useState('');
   const [query, setQuery] = useState('');
+  // Test deletions are hidden by default (Syed's rule, 2026-11-17): this
+  // list is for real member churn; the bot's QA deletions carry a TEST
+  // badge and live behind this toggle.
+  const [showTest, setShowTest] = useState(false);
+  const [testTotal, setTestTotal] = useState(0);
 
   const LIMIT = 25;
 
@@ -36,10 +41,12 @@ export default function AdminDeletedProfiles() {
       params.set('offset', String(nextOffset));
       if (reasonFilter) params.set('reason', reasonFilter);
       if (query.trim()) params.set('q', query.trim());
+      params.set('test', showTest ? 'include' : 'exclude');
       const result = await http.get(`/api/admin/deleted-profiles?${params}`);
       if (append) setRows((prev) => [...prev, ...(result.rows || [])]);
       else setRows(result.rows || []);
       setTotal(result.total || 0);
+      setTestTotal(result.testTotal || 0);
       setByReason(result.byReason || {});
       setHasMore(!!result.hasMore);
       setOffset(nextOffset);
@@ -49,7 +56,7 @@ export default function AdminDeletedProfiles() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [reasonFilter, query]);
+  }, [reasonFilter, query, showTest]);
 
   useEffect(() => {
     // Filter/search changes re-run from the top, debounced like AdminSupport.
@@ -74,6 +81,7 @@ export default function AdminDeletedProfiles() {
             <p className="text-sm text-muted mt-1 flex items-center gap-1.5">
               <UserX className="w-3.5 h-3.5" />
               {total === 0 ? 'Why members leave, when they tell us.' : `${total} member${total === 1 ? '' : 's'} left — newest first.`}
+              {!showTest && testTotal > 0 ? ` ${testTotal} test deletion${testTotal === 1 ? '' : 's'} hidden.` : ''}
             </p>
           </div>
           <button onClick={() => load(0, false)} disabled={loading}
@@ -116,6 +124,11 @@ export default function AdminDeletedProfiles() {
             {DELETION_REASONS.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
             <option value="none">No reason given</option>
           </select>
+          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-line/20 text-xs font-semibold text-muted cursor-pointer select-none">
+            <input type="checkbox" checked={showTest} onChange={(e) => setShowTest(e.target.checked)}
+              aria-label="Show test deletions" className="accent-primary" />
+            Show test deletions{testTotal > 0 ? ` (${testTotal})` : ''}
+          </label>
         </div>
 
         {loading && !rows.length ? (
@@ -125,8 +138,9 @@ export default function AdminDeletedProfiles() {
             <div className="text-muted mb-3 flex justify-center"><UserX className="w-12 h-12" /></div>
             <h2 className="empty-state-title">Nobody has left yet</h2>
             <p className="empty-state-text">
-              When a member deletes their account, they are asked why — their
-              answer shows up here with the date they joined and the date they left.
+              {!showTest && testTotal > 0
+                ? `No member deletions — the ${testTotal} deletion${testTotal === 1 ? '' : 's'} on record ${testTotal === 1 ? 'is a test' : 'are tests'} by the QA bot. Turn on "Show test deletions" above to see ${testTotal === 1 ? 'it' : 'them'}.`
+                : 'When a member deletes their account, they are asked why — their answer shows up here with the date they joined and the date they left.'}
             </p>
           </div>
         ) : (
@@ -146,7 +160,12 @@ export default function AdminDeletedProfiles() {
                 <tbody>
                   {rows.map((r) => (
                     <tr key={r.id} className="border-t border-line/15 align-top">
-                      <td className="px-4 py-3 text-xs text-ink font-medium">{r.display_name || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-ink font-medium">
+                        {r.display_name || '—'}
+                        {!!Number(r.is_test) && (
+                          <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 align-middle">TEST</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">{location(r)}</td>
                       <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">{formatDate(r.joined_at)}</td>
                       <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">{formatDate(r.created_at)}</td>
