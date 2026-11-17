@@ -58,7 +58,10 @@ for (const route of ROUTES) {
       console.log(`FAIL ${route.label} ${route.path} — crash screen shown`);
       failures++;
     } else if (route.needsProfileLinks) {
-      const links = await page.evaluate(() => document.querySelectorAll('a[href*="/profile/"]').length);
+      // Profile cards link to /profiles/<id> (the detail route) — count
+      // anchors whose href has a real id segment after /profiles/.
+      const links = await page.evaluate(() => [...document.querySelectorAll('a')]
+        .filter((a) => /\/profiles\/[^/?#]+/.test(a.getAttribute('href') || '')).length);
       if (links === 0) {
         console.log(`FAIL ${route.label} ${route.path} — no crash screen, but zero profile links rendered (empty/broken grid)`);
         failures++;
