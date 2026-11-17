@@ -11,6 +11,14 @@ module.exports = {
     'react/no-unescaped-entities': 'off',
     // Named-import cleanups are tracked as warnings, not build-breakers.
     'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    // Declaration order is load-bearing in components: a hook dependency
+    // array is evaluated during render, so reading a const above its
+    // declaration throws a TDZ error on EVERY render. That exact shape
+    // shipped 2026-11-16 in Profiles.jsx (an effect above the `filtered`
+    // useMemo it depended on) and crashed /profiles for every visitor
+    // for a day — a real member deleted his account over it. This rule
+    // flags that shape at lint time; the codebase is clean under it.
+    'no-use-before-define': ['error', { variables: true, functions: false, classes: true }],
   },
   settings: { react: { version: 'detect' } },
 };

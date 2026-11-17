@@ -604,6 +604,7 @@ CREATE TABLE IF NOT EXISTS account_deletion_feedback (
   joined_at     DATETIME     DEFAULT NULL,
   reason        VARCHAR(64)  DEFAULT NULL,
   detail        TEXT         DEFAULT NULL,
+  is_test       TINYINT(1)   NOT NULL DEFAULT 0,
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_adf_created (created_at),
   KEY idx_adf_reason (reason)

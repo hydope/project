@@ -307,23 +307,6 @@ export function BrowseProfiles() {
 
   useEffect(() => { setVisibleCount(9); setServerHasMore(false); }, [filters]);
 
-  // Zero-result search instrumentation (2026-11-15, Batch B #5): when a
-  // filter combination returns nobody, log it ONCE per combination so
-  // the admin User Logs show which searches dead-end (kind 'search').
-  // Only the filter KEYS are sent — never a typed search value.
-  const zeroLoggedRef = useRef(new Set());
-  useEffect(() => {
-    if (loading || error) return;
-    if (filtered.length !== 0) return;
-    const activeKeys = Object.entries(filters || {})
-      .filter(([, v]) => v !== '' && v !== null && v !== undefined && v !== 'all')
-      .map(([k]) => k).sort().join(',');
-    if (!activeKeys) return; // an empty directory is not a failed search
-    if (zeroLoggedRef.current.has(activeKeys)) return;
-    zeroLoggedRef.current.add(activeKeys);
-    logEvent('search', 'zero_results', { form: 'browse', message: `filters: ${activeKeys}`.slice(0, 300) });
-  }, [loading, error, filtered.length, filters]);
-
   const filtered = useMemo(() => {
     // Filtering is server-side now. Only the sort stays local, plus a guard that
     // never lets a private row reach the grid even if the server were to change.
@@ -348,6 +331,32 @@ export function BrowseProfiles() {
     }
     return list;
   }, [profiles, filters]);
+
+  // Zero-result search instrumentation (2026-11-15, Batch B #5): when a
+  // filter combination returns nobody, log it ONCE per combination so
+  // the admin User Logs show which searches dead-end (kind 'search').
+  // Only the filter KEYS are sent — never a typed search value.
+  //
+  // ORDER IS LOAD-BEARING: this effect reads `filtered`, so it must sit
+  // AFTER the useMemo above. A dependency array is evaluated during
+  // render, at the call site — when this block sat above the declaration
+  // (as shipped 2026-11-16), every render of this page threw
+  // "Cannot access 'filtered' before initialization" and /profiles
+  // crashed for every visitor until the member who reported it had
+  // already deleted his account. The eslint no-use-before-define gate
+  // and the post-deploy smoke test now both guard this spot.
+  const zeroLoggedRef = useRef(new Set());
+  useEffect(() => {
+    if (loading || error) return;
+    if (filtered.length !== 0) return;
+    const activeKeys = Object.entries(filters || {})
+      .filter(([, v]) => v !== '' && v !== null && v !== undefined && v !== 'all')
+      .map(([k]) => k).sort().join(',');
+    if (!activeKeys) return; // an empty directory is not a failed search
+    if (zeroLoggedRef.current.has(activeKeys)) return;
+    zeroLoggedRef.current.add(activeKeys);
+    logEvent('search', 'zero_results', { form: 'browse', message: `filters: ${activeKeys}`.slice(0, 300) });
+  }, [loading, error, filtered.length, filters]);
 
   const visible = filtered.slice(0, visibleCount);
   // Reveal already-fetched rows first; when those run out, fetch the next
