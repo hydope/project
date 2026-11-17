@@ -277,3 +277,27 @@ jobs:
             fi
           done
           echo "OK: internal sources blocked"
+
+  # Post-deploy smoke test (2026-11-17): load the top public routes in a
+  # real browser and fail the run if any shows the crash screen. The
+  # /profiles TDZ bug shipped green through every gate above — build,
+  # lint, API health, bundle-hash check — and cost a real member before
+  # anyone noticed. Only a rendered page tells the truth. This job never
+  # blocks the deploy itself (it runs after); it makes a broken page
+  # LOUD in the run list instead of silent in production.
+  smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install smoke-test dependencies
+        run: |
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
+      - name: Smoke test live site
+        run: node scripts/smoke-live.mjs https://shiarishta.com

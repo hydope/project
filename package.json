@@ -38,7 +38,6 @@
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^1.39.0",
     "pg": "^8.12.0",
-    "playwright": "^1.63.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "react-router-dom": "^7.0.0",
@@ -56,6 +55,7 @@
     "embedded-postgres": "^18.4.0-beta.17",
     "eslint": "^8.57.0",
     "eslint-plugin-react": "^7.34.0",
+    "playwright": "^1.65.1",
     "postcss": "^8.5.26",
     "typescript": "^7.0.2",
     "vite": "^5.3.0"
