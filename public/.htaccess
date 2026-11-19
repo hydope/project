@@ -113,6 +113,12 @@ RewriteRule ^terms-and-conditions /terms [R=301,L]
 # /country/uk is an alias with no page of its own — send it to the canonical
 # country page instead of serving a 200 with the homepage's meta.
 RewriteRule ^country/uk/?$ /country/united-kingdom/ [R=301,L]
+# /city/bengaluru is the same city as /city/bangalore. Members store
+# "Bangalore", so bangalore is the slug with real profiles behind it; the
+# curated locations data used the "bengaluru" spelling, so the hub linked
+# an empty duplicate page while the sitemap listed bangalore (2026-11-19
+# indexing audit). One city = one canonical URL, same pattern as /country/uk.
+RewriteRule ^city/bengaluru/?$ /city/bangalore/ [R=301,L]
 RewriteRule ^members/ /profiles [R=301,L]
 RewriteRule ^profile/ /profiles [R=301,L]
 RewriteRule ^20[0-9]{2}/[0-9]{2}/ /blog [R=301,L]

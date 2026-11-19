@@ -72,7 +72,7 @@ export const CITIES = [
   { slug: 'srinagar', name: 'Srinagar', country: 'India', countrySlug: 'india', note: 'The capital of Kashmir, home to a significant Shia minority with distinct traditions.' },
   { slug: 'kargil', name: 'Kargil', country: 'India', countrySlug: 'india', note: 'A Ladakh town that is overwhelmingly Shia, with deep religious and cultural traditions.' },
   { slug: 'chennai', name: 'Chennai', country: 'India', countrySlug: 'india', note: 'Tamil Nadu\u2019s capital, home to a longstanding Shia community.' },
-  { slug: 'bengaluru', name: 'Bengaluru', country: 'India', countrySlug: 'india', note: 'Karnataka\u2019s tech capital, with a growing Shia professional community.' },
+  { slug: 'bangalore', name: 'Bangalore', country: 'India', countrySlug: 'india', note: 'Karnataka\u2019s tech capital, with a growing Shia professional community.' },
   { slug: 'kolkata', name: 'Kolkata', country: 'India', countrySlug: 'india', note: 'West Bengal\u2019s capital, with a historic Shia community dating to the Nawabi era.' },
   { slug: 'patna', name: 'Patna', country: 'India', countrySlug: 'india', note: 'Bihar\u2019s capital, with a notable Shia community.' },
   { slug: 'amroha', name: 'Amroha', country: 'India', countrySlug: 'india', note: 'A western UP town known for its Shia scholarly tradition and sayyid families.' },

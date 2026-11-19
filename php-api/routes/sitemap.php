@@ -1,6 +1,7 @@
 <?php
-// Dynamic XML sitemap — every public page, blog post, community post, and
-// public profile gets a crawlable URL so Google can index the whole site.
+// Dynamic XML sitemap — every public page and blog post gets a crawlable
+// URL so Google can index the whole site. (Community posts and individual
+// profiles are deliberately excluded — see the notes at their sections.)
 //
 // GET /api/sitemap.xml
 declare(strict_types=1);
@@ -138,18 +139,16 @@ function sitemapXml(): void
         }
     } catch (Throwable $e) { /* table missing — skip */ }
 
-    // Public community posts. The post route is /community/:slug/post/:postId —
-    // emitting /community/:postId alone 404s as "community not found".
-    try {
-        $stmt = $pdo->query("SELECT id, community_id, created_at FROM posts WHERE is_hidden = 0 AND community_id <> 'qatestcommunity07' ORDER BY created_at DESC LIMIT 2000");
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $urls[] = [
-                'loc' => $base . '/community/' . rawurlencode((string)$row['community_id']) . '/post/' . rawurlencode((string)$row['id']),
-                'lastmod' => substr((string)$row['created_at'], 0, 10),
-                'priority' => '0.6',
-            ];
-        }
-    } catch (Throwable $e) { /* skip */ }
+    // Community posts are deliberately NOT in the sitemap (2026-11-19,
+    // indexing audit). Unlike blog posts (routes/blog-ssr.php), a community
+    // post URL has no server-side render: the Apache fallback serves it the
+    // PRERENDERED HOMEPAGE document — homepage title, homepage canonical —
+    // with HTTP 200. Listing 77 such URLs told Google they were important
+    // pages while their own HTML declared the homepage as canonical, the
+    // same conflicting-signal pattern as the G1 profile URLs below. The
+    // /community index above stays listed and links to every room and post
+    // for human visitors; if community posts ever get an SSR route like
+    // blog-ssr.php, they can be re-added here.
 
     // Individual member profiles are deliberately NOT in the sitemap
     // (2026-11-15, G1). A /profiles/<user-id> URL cannot serve unique static
@@ -174,7 +173,7 @@ function sitemapXml(): void
         'karbala', 'baghdad', 'basra', 'kufa', 'hillah', 'kirkuk', 'multan', 'faisalabad',
         'hyderabad-pakistan', 'quetta', 'peshawar', 'gilgit', 'skardu', 'sialkot', 'gujranwala', 'jhang',
         'parachinar', 'lucknow', 'hyderabad-india', 'mumbai', 'delhi', 'srinagar', 'kargil', 'chennai',
-        'bengaluru', 'kolkata', 'patna', 'amroha', 'bhopal', 'manama', 'sitra', 'muharraq',
+        'bangalore', 'kolkata', 'patna', 'amroha', 'bhopal', 'manama', 'sitra', 'muharraq',
         'beirut', 'baalbek', 'tyre', 'nabatiyeh', 'baku', 'ganja', 'sanaa', 'saada',
         'qatif', 'al-ahsa', 'dammam', 'medina', 'kuwait-city', 'salmiya', 'abu-dhabi', 'sharjah',
         'doha', 'muscat', 'damascus', 'aleppo', 'istanbul', 'ankara', 'izmir', 'kabul',
