@@ -40,6 +40,7 @@ require __DIR__ . '/routes/biodata.php';
 require __DIR__ . '/routes/sitemap.php';
 require __DIR__ . '/routes/llms.php';
 require __DIR__ . '/routes/blog-ssr.php';
+require __DIR__ . '/routes/profiles-ssr.php';
 require __DIR__ . '/routes/social.php';
 require __DIR__ . '/lib/ai.php';
 require __DIR__ . '/routes/ai.php';
@@ -122,7 +123,12 @@ if ($segments === [] || $segments === ['health'] || $segments === ['api', 'healt
     }
 }
 
-if (($segments[0] ?? '') === 'api') {
+// Remember whether the caller used the /api prefix BEFORE shifting it
+// off: the public browse page (/profiles, no prefix) is rewritten to this
+// front controller by .htaccess for server-side rendering, and it must
+// not be mistaken for an API call (see the 'profiles' dispatch case).
+$isApiRequest = ($segments[0] ?? '') === 'api';
+if ($isApiRequest) {
     array_shift($segments);
 }
 // ── API versioning ────────────────────────────────────────────────────────────
@@ -203,6 +209,15 @@ try {
             routeAuth($method, $rest);
             break;
         case 'profiles':
+            // Public browse PAGE: a bare GET /profiles (no /api prefix, no
+            // sub-path) reaches this controller only via the .htaccess SSR
+            // rewrite — serve the server-rendered document
+            // (routes/profiles-ssr.php). Real API calls always carry the
+            // /api prefix and land in routeProfiles() exactly as before.
+            if ($method === 'GET' && !$isApiRequest && $rest === []) {
+                profilesSsr();
+                break;
+            }
             routeProfiles($method, $rest);
             break;
         case 'compatibility':

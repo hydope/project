@@ -201,6 +201,17 @@ RewriteRule ^blog/?$ blog/index.html [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^blog/([a-z0-9-]+)/?$ api/blog-ssr/$1 [L]
 
+# Browse SSR — /profiles serves a server-rendered document
+# (routes/profiles-ssr.php) with the real member grid in the first
+# response, so crawlers do not depend on the client-side API fetch.
+# Search Console's live test judged the JS-only version a soft 404
+# (2026-11-19) — the same failure blog-ssr fixed for posts. Only the
+# bare browse path matches: /profiles/<id> keeps its true-404 rule
+# above, and /api/profiles is a different path entirely. The front
+# controller tells the page apart from the API by the missing /api
+# prefix in REQUEST_URI (internal rewrites preserve it).
+RewriteRule ^profiles/?$ api/profiles-ssr [QSA,L]
+
 # 4) Prerendered routes.
 #    scripts/prerender-routes.mjs writes a real directory per public route
 #    (dist/privacy/index.html and so on), so a crawler that never executes JS
