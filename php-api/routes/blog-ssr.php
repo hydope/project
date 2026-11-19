@@ -98,6 +98,110 @@ function blogSsrBodyHtml(array $body): string
     return $out;
 }
 
+/** Crawlable cross-links between posts (2026-11-19, indexing audit).
+ * Posts were discoverable ONLY via the sitemap — the /blog index renders
+ * its list client-side and a post's SSR HTML linked nowhere but the
+ * register page — and Search Console filed 193 URLs as "Discovered –
+ * currently not indexed", the classic sitemap-only signature on a
+ * low-authority domain. Every post now links to the latest dozen others,
+ * and blogIndexSsr() below puts the full list on /blog itself. Returns
+ * '' on any failure: a missing nav must never break the article. */
+function blogSsrRelatedNav(string $excludeSlug, int $limit = 12): string
+{
+    try {
+        $st = db()->prepare(
+            "SELECT slug, title FROM blog_posts
+              WHERE status = 'published'
+                AND (scheduled_for IS NULL OR scheduled_for <= UTC_TIMESTAMP())
+                AND slug <> ?
+              ORDER BY published_at DESC
+              LIMIT " . (int)$limit
+        );
+        $st->execute([$excludeSlug]);
+        $rows = $st->fetchAll();
+    } catch (Throwable $e) {
+        return '';
+    }
+    if ($rows === []) {
+        return '';
+    }
+    $esc = static fn($s): string => htmlspecialchars((string)($s ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $items = '';
+    foreach ($rows as $r) {
+        $items .= '<li><a href="/blog/' . $esc($r['slug']) . '">' . $esc($r['title']) . '</a></li>';
+    }
+    return '<nav aria-label="More guidance"><h2>More guidance</h2><ul>' . $items . '</ul></nav>';
+}
+
+/** Server-side render for the /blog index: the prerendered blog shell
+ * with a crawlable list of every published post injected (see
+ * blogSsrRelatedNav for why). 5-minute file cache, sitemap pattern;
+ * any failure serves the plain shell, exactly what /blog served before. */
+function blogIndexSsr(): void
+{
+    $root = dirname(__DIR__, 2);
+    $shellPath = $root . '/blog/index.html';
+    if (!is_readable($shellPath)) {
+        $shellPath = $root . '/index.html';
+    }
+    $shell = is_readable($shellPath) ? file_get_contents($shellPath) : false;
+    if ($shell === false) {
+        json(['error' => 'Service unavailable'], 503);
+    }
+
+    $cacheFile = __DIR__ . '/../storage/blog-index-ssr-cache.html';
+    $html = null;
+    if (is_file($cacheFile) && filemtime($cacheFile) > time() - 300) {
+        $cached = @file_get_contents($cacheFile);
+        if ($cached !== false && $cached !== '') {
+            $html = $cached;
+        }
+    }
+    if ($html === null) {
+        $html = $shell;
+        try {
+            $rows = db()->query(
+                "SELECT slug, title FROM blog_posts
+                  WHERE status = 'published'
+                    AND (scheduled_for IS NULL OR scheduled_for <= UTC_TIMESTAMP())
+                  ORDER BY published_at DESC
+                  LIMIT 500"
+            )->fetchAll();
+        } catch (Throwable $e) {
+            $rows = [];
+        }
+        if ($rows !== []) {
+            $esc = static fn($s): string => htmlspecialchars((string)($s ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $items = '';
+            foreach ($rows as $r) {
+                $items .= '<li><a href="/blog/' . $esc($r['slug']) . '">' . $esc($r['title']) . '</a></li>';
+            }
+            $section = '<section aria-label="All guidance articles"><h2>All guidance articles</h2><ul>' . $items . '</ul></section>';
+            $injected = preg_replace(
+                '/<\/div>\s*<\/body>/',
+                $section . '</div></body>',
+                $shell,
+                1
+            );
+            if (is_string($injected) && $injected !== $shell) {
+                $html = $injected;
+                $cacheDir = dirname($cacheFile);
+                if (!is_dir($cacheDir)) {
+                    @mkdir($cacheDir, 0775, true);
+                }
+                $tmp = $cacheFile . '.' . getmypid() . '.tmp';
+                if (@file_put_contents($tmp, $html) !== false) {
+                    @rename($tmp, $cacheFile);
+                }
+            }
+        }
+    }
+
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    echo $html;
+}
+
 function blogSsr(string $slug): void
 {
     // Shell lives two levels above this file on the deployed host:
@@ -209,7 +313,8 @@ function blogSsr(string $slug): void
         . '<img src="' . $esc($image) . '" alt="' . $esc($title) . '" />'
         . blogSsrBodyHtml($post['body'])
         . '<p><a href="/auth/register">Start your journey — it&rsquo;s free</a></p>'
-        . '</article>';
+        . '</article>'
+        . blogSsrRelatedNav($slug);
     // #root's closing tag is the last </div> before </body> (the boot loader
     // markup ships inside #root and is replaced by React on hydration anyway).
     $html = preg_replace(

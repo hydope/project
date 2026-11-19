@@ -292,6 +292,13 @@ try {
             // /blog/:slug via the .htaccess SSR rewrite above: REQUEST_URI
             // still holds the original /blog/:slug path. (Like 'sitemap.xml',
             // the case name matches the public URL, not the rewrite target.)
+            // The bare /blog index (no /api prefix, no slug) gets its own
+            // SSR — a crawlable list of every published post injected into
+            // the blog shell (blogIndexSsr in routes/blog-ssr.php).
+            if ($method === 'GET' && $rest === [] && !$isApiRequest) {
+                blogIndexSsr();
+                break;
+            }
             if ($method === 'GET' && isset($rest[0]) && preg_match('/^[a-z0-9-]+$/', $rest[0])) {
                 blogSsr($rest[0]);
                 break;

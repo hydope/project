@@ -187,9 +187,14 @@ RewriteRule ^profiles/[^/]+/?$ - [R=404,L]
 #    Every non-file request serves index.html so React Router can take over.
 #    /blog/ is a real directory on disk (article images), so the !-d guard
 #    would skip the fallback and expose the folder — route it explicitly.
-#    NOTE: this must point at the PRERENDERED blog/index.html. Pointing it at
-#    the root index.html (as it briefly did) made /blog serve the homepage.
-RewriteRule ^blog/?$ blog/index.html [L]
+#    NOTE: the target must render the PRERENDERED blog/index.html shell.
+#    Pointing it at the root index.html (as it briefly did) made /blog
+#    serve the homepage. blogIndexSsr() uses blog/index.html as its shell
+#    and falls back to serving it untouched on any failure — it only adds
+#    a crawlable list of every published post, because the client-rendered
+#    index left posts discoverable via the sitemap alone ("Discovered –
+#    currently not indexed", 2026-11-19).
+RewriteRule ^blog/?$ api/blog-ssr [L]
 
 # Blog post SSR — /blog/:slug serves a server-rendered article document
 # (routes/blog-ssr.php) so crawlers receive the full article HTML in the
