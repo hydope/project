@@ -25,6 +25,7 @@ import {
   EDUCATION_OPTIONS, LANGUAGES, ETHNICITIES, SUB_ETHNICITIES, COUNTRIES,
   BUILD_OPTIONS, RESIDENCY_OPTIONS, CONVERT_OPTIONS, HOBBIES,
   PREF_EDUCATION_OPTIONS,
+  INCOME_CURRENCIES, incomeBandsFor, defaultIncomeCurrency,
   computeProfileCompleteness, ONBOARDING_STEPS
 } from '../lib/onboardingData';
 
@@ -62,7 +63,7 @@ const EMPTY_FORM = {
   // Step 3 — Background & lineage
   syedStatus: '', ethnicity: '', subEthnicity: '', languages: [], citizenships: [], residencyStatus: '', hobbies: [], hobbiesOther: '',
   // Step 4 — Education & career
-  educationLevel: '', educationField: '', educationInstitution: '', profession: '', employer: '', incomeRange: '',
+  educationLevel: '', educationField: '', educationInstitution: '', profession: '', employer: '', incomeRange: '', incomeCurrency: '',
   // Step 5 — Marriage intentions
   timeline: '', relocation: '', familyInvolvement: '', childrenStatus: '', childrenPlans: '',
   prefAgeMin: '', prefAgeMax: '', prefHeightMinParts: { feet: '', inches: '' }, prefHeightMaxParts: { feet: '', inches: '' }, prefEducation: '', prefLocation: '', prefMustHaves: '',
@@ -312,7 +313,7 @@ export default function Onboard() {
           religiosity: p.religiosity, prayer: p.prayer, marja: p.marja,
           modesty: p.modesty, diet: p.diet, ethnicity: p.ethnicity, subEthnicity: p.subEthnicity,
           educationLevel: p.educationLevel, profession: p.profession,
-          incomeRange: p.incomeRange, timeline: p.timeline, relocation: p.relocation,
+          incomeRange: p.incomeRange, incomeCurrency: p.incomeCurrency || '', timeline: p.timeline, relocation: p.relocation,
           familyInvolvement: p.familyInvolvement, bio: p.bio, lookingFor: p.expectations,
           // Profile depth (2026-11-10).
           build: p.build, convertStatus: p.convertStatus, residencyStatus: p.residencyStatus,
@@ -410,6 +411,7 @@ export default function Onboard() {
       profession: d.profession,
       employer: d.employer,
       incomeRange: d.incomeRange,
+      incomeCurrency: d.incomeCurrency || defaultIncomeCurrency(d.country),
       build: d.build,
       convertStatus: d.convertStatus,
       residencyStatus: d.residencyStatus,
@@ -947,9 +949,21 @@ function StepCareer({ data, update, errors }) {
       <Field label="Employer / company" hint="Optional — where you work now">
         <TextInput value={data.employer} onChange={e => update('employer', e.target.value)} placeholder="e.g. Johns Hopkins Hospital" ariaLabel="Employer" maxLength={160} />
       </Field>
+      <Field label="Income currency" hint="Pick your own currency — the income bands below are shown in it.">
+          <SelectInput value={data.incomeCurrency || defaultIncomeCurrency(data.country)} onChange={e => {
+            const next = e.target.value;
+            update('incomeCurrency', next);
+            // Bands differ per currency: a band picked in the old currency
+            // would be meaningless in the new one, so it is re-picked —
+            // except 'Prefer not to say', which means the same everywhere.
+            if (data.incomeRange && data.incomeRange !== 'Prefer not to say') update('incomeRange', '');
+          }}
+           options={INCOME_CURRENCIES.map(c => ({ value: c.code, label: c.label }))}
+           ariaLabel="Income currency" />
+      </Field>
       <Field label="Income range" hint="Optional — some families ask, others prefer it stays private. You control visibility.">
           <SelectInput value={data.incomeRange} onChange={e => update('incomeRange', e.target.value)}
-           options={['Prefer not to say', 'Under $40k', '$40k – $75k', '$75k – $120k', '$120k – $200k', '$200k+']}
+           options={incomeBandsFor(data.incomeCurrency || defaultIncomeCurrency(data.country))}
            placeholder="Optional" ariaLabel="Income range" />
       </Field>
     </div>

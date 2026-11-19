@@ -1845,7 +1845,7 @@ function profileUpdate(): void
         // migrateAddProfileColumns(); without this mapping the answers were
         // accepted by the form and silently thrown away on save.
         'religiosity', 'educationLevel', 'marja', 'prayer', 'modesty', 'diet',
-        'languages', 'citizenships', 'ethnicity', 'sub_ethnicity', 'subEthnicity', 'incomeRange', 'maritalStatus', 'children',
+        'languages', 'citizenships', 'ethnicity', 'sub_ethnicity', 'subEthnicity', 'incomeRange', 'incomeCurrency', 'income_currency', 'maritalStatus', 'children',
         'childrenPlans', 'relocation', 'familyInvolvement', 'heightCm', 'timeline',
         'photoUrl', 'syedStatus', 'username',
         // Profile depth (2026-11-10): education detail, employer, residency,
@@ -1885,6 +1885,7 @@ function profileUpdate(): void
         'children_plans'     => 'childrenPlans',
         'marital_status'     => 'maritalStatus',
         'income_range'       => 'incomeRange',
+        'income_currency'    => 'incomeCurrency',
         'height_cm'          => 'heightCm',
         'photo_url'          => 'photoUrl',
         'phone'              => 'contactPhone',
@@ -1927,6 +1928,7 @@ function profileUpdate(): void
             'contactVisibility' => 'contact_visibility',
             'educationLevel' => 'education_level',
             'incomeRange' => 'income_range',
+            'incomeCurrency' => 'income_currency',
             'maritalStatus' => 'marital_status',
             'childrenPlans' => 'children_plans',
             'familyInvolvement' => 'family_involvement',

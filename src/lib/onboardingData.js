@@ -29,7 +29,8 @@ export const RELIGIOSITY_LEVELS = [
   { value: 'practicing', label: 'Practicing', desc: 'Consistent prayers and an actively faith-led lifestyle' },
   { value: 'moderately', label: 'Moderately practicing', desc: 'Faith matters — I am growing steadily' },
   { value: 'learning', label: 'Reconnecting / learning', desc: 'Rebuilding my relationship with the deen' },
-  { value: 'cultural', label: 'Culturally connected', desc: 'Identity & heritage are my focus right now' }
+  { value: 'cultural', label: 'Culturally connected', desc: 'Identity & heritage are my focus right now' },
+  { value: 'prefer-not-to-say', label: 'Prefer not to say', desc: 'I would rather keep this private' }
 ];
 
 export const PRAYER_OPTIONS = [
@@ -59,7 +60,8 @@ export const DIET_OPTIONS = [
   'Halal & Kitab',
   'Vegetarian',
   'Vegan',
-  'No restrictions'
+  'No restrictions',
+  'Prefer not to say'
 ];
 
 export const SYED_OPTIONS = [
@@ -135,7 +137,7 @@ export const MANAGEMENT_MODES = [
   { value: 'guardian', label: 'Parent / Guardian-managed', desc: 'A wali or family member reviews and approves activity', icon: 'shield' }
 ];
 
-export const EDUCATION_OPTIONS = [
+const EDUCATION_LEVELS_BASE = [
   'High school',
   'Some college',
   "Bachelor's degree",
@@ -144,6 +146,74 @@ export const EDUCATION_OPTIONS = [
   'Islamic seminary (Hawza)',
   'Vocational / Trade'
 ];
+
+// A member may keep their own education private; a partner PREFERENCE of
+// "Prefer not to say" would be meaningless, so the preference list below
+// is built from the base list without it.
+export const EDUCATION_OPTIONS = [...EDUCATION_LEVELS_BASE, 'Prefer not to say'];
+
+// ── Income: the member picks their own currency (Syed's order, 2026-11-19)
+// and then a yearly band in THAT currency. Bands are self-declared ranges,
+// roughly equivalent across currencies at typical exchange rates — they are
+// not converted or compared across currencies. The chosen band's LABEL is
+// what gets stored in income_range (it carries its own currency symbol);
+// income_currency stores the code alongside. 'Prefer not to say' is always
+// the first band, in every currency.
+export const INCOME_CURRENCIES = [
+  { code: 'USD', symbol: '$', label: 'US Dollar (USD)' },
+  { code: 'GBP', symbol: '£', label: 'British Pound (GBP)' },
+  { code: 'EUR', symbol: '€', label: 'Euro (EUR)' },
+  { code: 'CAD', symbol: '$', label: 'Canadian Dollar (CAD)' },
+  { code: 'AUD', symbol: '$', label: 'Australian Dollar (AUD)' },
+  { code: 'AED', symbol: 'AED ', label: 'UAE Dirham (AED)' },
+  { code: 'SAR', symbol: 'SAR ', label: 'Saudi Riyal (SAR)' },
+  { code: 'QAR', symbol: 'QAR ', label: 'Qatari Riyal (QAR)' },
+  { code: 'KWD', symbol: 'KD ', label: 'Kuwaiti Dinar (KWD)' },
+  { code: 'INR', symbol: '₹', label: 'Indian Rupee (INR)' },
+  { code: 'PKR', symbol: 'Rs ', label: 'Pakistani Rupee (PKR)' },
+  { code: 'BDT', symbol: '৳', label: 'Bangladeshi Taka (BDT)' },
+  { code: 'LKR', symbol: 'Rs ', label: 'Sri Lankan Rupee (LKR)' },
+  { code: 'MYR', symbol: 'RM ', label: 'Malaysian Ringgit (MYR)' },
+  { code: 'ZAR', symbol: 'R ', label: 'South African Rand (ZAR)' },
+  { code: 'KES', symbol: 'KSh ', label: 'Kenyan Shilling (KES)' },
+  { code: 'TZS', symbol: 'TSh ', label: 'Tanzanian Shilling (TZS)' },
+  { code: 'NGN', symbol: '₦', label: 'Nigerian Naira (NGN)' },
+];
+
+const INCOME_BAND_SETS = {
+  _western: (s) => [`Under ${s}40k`, `${s}40k – ${s}75k`, `${s}75k – ${s}120k`, `${s}120k – ${s}200k`, `${s}200k+`],
+  _gulf: (s) => [`Under ${s}150k`, `${s}150k – ${s}275k`, `${s}275k – ${s}450k`, `${s}450k – ${s}750k`, `${s}750k+`],
+  KWD: (s) => [`Under ${s}15k`, `${s}15k – ${s}25k`, `${s}25k – ${s}40k`, `${s}40k – ${s}65k`, `${s}65k+`],
+  INR: (s) => [`Under ${s}5 lakh`, `${s}5–10 lakh`, `${s}10–20 lakh`, `${s}20–35 lakh`, `${s}35 lakh+`],
+  PKR: (s) => [`Under ${s}15 lakh`, `${s}15–30 lakh`, `${s}30–60 lakh`, `${s}60 lakh – 1 crore`, `${s}1 crore+`],
+  BDT: (s) => [`Under ${s}6 lakh`, `${s}6–12 lakh`, `${s}12–24 lakh`, `${s}24–40 lakh`, `${s}40 lakh+`],
+  LKR: (s) => [`Under ${s}3m`, `${s}3–6m`, `${s}6–10m`, `${s}10–18m`, `${s}18m+`],
+  MYR: (s) => [`Under ${s}50k`, `${s}50–90k`, `${s}90–150k`, `${s}150–250k`, `${s}250k+`],
+  ZAR: (s) => [`Under ${s}300k`, `${s}300–550k`, `${s}550–900k`, `${s}900k – 1.5m`, `${s}1.5m+`],
+  KES: (s) => [`Under ${s}500k`, `${s}500–900k`, `${s}900k – 1.5m`, `${s}1.5–2.5m`, `${s}2.5m+`],
+  TZS: (s) => [`Under ${s}10m`, `${s}10–20m`, `${s}20–35m`, `${s}35–60m`, `${s}60m+`],
+  NGN: (s) => [`Under ${s}3m`, `${s}3–6m`, `${s}6–10m`, `${s}10–18m`, `${s}18m+`],
+};
+
+export function incomeBandsFor(currencyCode) {
+  const entry = INCOME_CURRENCIES.find(c => c.code === currencyCode) || INCOME_CURRENCIES[0];
+  const make = INCOME_BAND_SETS[entry.code]
+    || (['AED', 'SAR', 'QAR'].includes(entry.code) ? INCOME_BAND_SETS._gulf : INCOME_BAND_SETS._western);
+  return ['Prefer not to say', ...make(entry.symbol)];
+}
+
+// Sensible starting currency from the member's country; the member can
+// always change it. Countries without a supported currency fall back to USD.
+export const COUNTRY_CURRENCY = {
+  'USA': 'USD', 'Canada': 'CAD', 'United Kingdom': 'GBP', 'Germany': 'EUR',
+  'France': 'EUR', 'Netherlands': 'EUR', 'Australia': 'AUD', 'UAE': 'AED',
+  'Saudi Arabia': 'SAR', 'Qatar': 'QAR', 'Kuwait': 'KWD', 'Pakistan': 'PKR',
+  'India': 'INR', 'Tanzania': 'TZS', 'Kenya': 'KES',
+};
+
+export function defaultIncomeCurrency(country) {
+  return COUNTRY_CURRENCY[country] || 'USD';
+}
 
 export const BUILD_OPTIONS = ['Slim', 'Athletic', 'Average build', 'Heavyset', 'Prefer not to say'];
 
@@ -164,7 +234,7 @@ export const HOBBIES = [
 // Partner preferences (2026-11-10): structured, stored on the profile and
 // editable in Settings. These are the viewer's own criteria — they power
 // the match sort, they are never browse filters on other people.
-export const PREF_EDUCATION_OPTIONS = ['Any', ...EDUCATION_OPTIONS];
+export const PREF_EDUCATION_OPTIONS = ['Any', ...EDUCATION_LEVELS_BASE];
 
 export const LANGUAGES = [
   'English', 'Arabic', 'Urdu', 'Hindi', 'Farsi / Persian', 'Turkish',

@@ -148,6 +148,7 @@ function migrateAddProfileColumns(): void
         'languages'        => "VARCHAR(255) DEFAULT NULL",
         'ethnicity'        => "VARCHAR(120) DEFAULT NULL",
         'income_range'     => "VARCHAR(80) DEFAULT NULL",
+        'income_currency'  => "VARCHAR(10) DEFAULT 'USD'",
         'marital_status'   => "VARCHAR(60) DEFAULT NULL",
         'children'         => "VARCHAR(60) DEFAULT NULL",
         'children_plans'   => "VARCHAR(80) DEFAULT NULL",
