@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   -- migrateAddOpenToIntrosColumn() (marker digest).
   open_to_intros     TINYINT(1)   NOT NULL DEFAULT 0,
   income_range       VARCHAR(80)  DEFAULT NULL,
-  income_currency    VARCHAR(10)  DEFAULT 'USD',
+  income_currency    VARCHAR(10)  DEFAULT NULL,
   marital_status     VARCHAR(60)  DEFAULT NULL,
   children           VARCHAR(60)  DEFAULT NULL,
   children_plans     VARCHAR(80)  DEFAULT NULL,

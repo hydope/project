@@ -148,7 +148,7 @@ function migrateAddProfileColumns(): void
         'languages'        => "VARCHAR(255) DEFAULT NULL",
         'ethnicity'        => "VARCHAR(120) DEFAULT NULL",
         'income_range'     => "VARCHAR(80) DEFAULT NULL",
-        'income_currency'  => "VARCHAR(10) DEFAULT 'USD'",
+        'income_currency'  => "VARCHAR(10) DEFAULT NULL",
         'marital_status'   => "VARCHAR(60) DEFAULT NULL",
         'children'         => "VARCHAR(60) DEFAULT NULL",
         'children_plans'   => "VARCHAR(80) DEFAULT NULL",
@@ -202,6 +202,19 @@ function migrateAddProfileColumns(): void
                 error_log("[api] migration: added profiles.$col");
             } catch (Throwable $e) {
                 error_log("[api] migration: could not add $col — " . substr($e->getMessage(), 0, 120));
+            }
+        }
+        // income_currency shipped for a few hours with DEFAULT 'USD', which
+        // made "never chose a currency" indistinguishable from "chose USD"
+        // and broke the country-based default in the forms. Null means
+        // unchosen; every 'USD' row from that window got it from the column
+        // default, not from a member's pick, so it is reset too.
+        if (isset($existing['income_currency'])) {
+            try {
+                db()->exec("UPDATE profiles SET income_currency = NULL WHERE income_currency = 'USD'");
+                db()->exec("ALTER TABLE profiles MODIFY income_currency VARCHAR(10) DEFAULT NULL");
+            } catch (Throwable $e) {
+                error_log('[api] migration: income_currency default fix — ' . substr($e->getMessage(), 0, 120));
             }
         }
     } catch (Throwable $e) {

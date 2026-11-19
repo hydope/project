@@ -1317,7 +1317,7 @@ const REVIEW_SECTIONS = [
 const FIELD_LABELS = {
   female: 'Woman', male: 'Man',
   'sadat-both': 'Syed — both sides', 'syed-paternal': 'Syed — paternal', 'non-syed': 'No', prefer: 'Private',
-  'very-practicing': 'Very practicing', practicing: 'Practicing', moderately: 'Moderately practicing', learning: 'Reconnecting', cultural: 'Culturally connected',
+  'very-practicing': 'Very practicing', practicing: 'Practicing', moderately: 'Moderately practicing', learning: 'Reconnecting', cultural: 'Culturally connected', 'prefer-not-to-say': 'Prefer not to say',
   now: 'Ready for nikah now', '6m': 'Within 6 months', '1y': 'Within 6–12 months', '2y': 'Within 1–2 years', exploring: 'Exploring openly',
   anywhere: 'Anywhere', 'same-country': 'Same country', 'same-city': 'Same city', discuss: 'Open to discuss',
   'from-start': 'From the start', 'after-match': 'After compatibility', 'wali-required': 'Wali in all talks', 'couple-first': 'Couple first',
