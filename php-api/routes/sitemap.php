@@ -151,13 +151,16 @@ function sitemapXml(): void
     // blog-ssr.php, they can be re-added here.
 
     // Individual member profiles are deliberately NOT in the sitemap
-    // (2026-11-15, G1). A /profiles/<user-id> URL cannot serve unique static
-    // content — the Apache fallback served it the homepage shell with HTTP
-    // 200, so 209 sitemap'd profile URLs were judged soft 404s and burned
-    // crawl budget. The URLs now return a true 404 with the SPA shell (see
-    // public/.htaccess), and the browse page (/profiles) above stays listed
-    // as the single crawlable entry to the directory. Profiles remain fully
-    // browsable in the app; nothing about member privacy changes.
+    // (2026-11-15, G1). A /profiles/<user-id> URL used to serve the
+    // homepage shell with HTTP 200, so 209 sitemap'd profile URLs were
+    // judged soft 404s and burned crawl budget. Since 2026-11-19 the
+    // profile SSR (routes/profile-ssr.php) serves real content for
+    // genuinely public profiles and a true 404 for the rest — but the
+    // URLs STAY out of the sitemap: membership is volatile, and a
+    // deleted or privatised profile would turn its sitemap entry into a
+    // fresh 404. Discovery runs through the browse page (/profiles)
+    // above, whose grid links to every public profile. Profiles remain
+    // fully browsable in the app; nothing about member privacy changes.
     $noTest = 'user_id NOT IN (SELECT id FROM users WHERE is_test = 1)';
     $unfinished = "(TRIM(COALESCE(city, '')) = '' AND TRIM(COALESCE(country, '')) = '' AND TRIM(COALESCE(bio, '')) = '' AND TRIM(COALESCE(about_family, '')) = '')";
 

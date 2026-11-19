@@ -91,7 +91,8 @@ function profilesSsrSection(): ?string
         if ($place !== '') {
             $meta[] = $place;
         }
-        $cards .= '<article><h3>' . $esc($v['displayName'] ?? 'Member') . '</h3>';
+        $cards .= '<article><h3><a href="/profiles/' . $esc($v['id'] ?? '') . '">'
+            . $esc($v['displayName'] ?? 'Member') . '</a></h3>';
         if ($meta !== []) {
             $cards .= '<p>' . implode(' · ', $meta) . '</p>';
         }

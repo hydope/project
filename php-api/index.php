@@ -41,6 +41,7 @@ require __DIR__ . '/routes/sitemap.php';
 require __DIR__ . '/routes/llms.php';
 require __DIR__ . '/routes/blog-ssr.php';
 require __DIR__ . '/routes/profiles-ssr.php';
+require __DIR__ . '/routes/profile-ssr.php';
 require __DIR__ . '/routes/social.php';
 require __DIR__ . '/lib/ai.php';
 require __DIR__ . '/routes/ai.php';
@@ -216,6 +217,17 @@ try {
             // /api prefix and land in routeProfiles() exactly as before.
             if ($method === 'GET' && !$isApiRequest && $rest === []) {
                 profilesSsr();
+                break;
+            }
+            // Public profile PAGE: /profiles/<id> without the /api prefix
+            // (again, only reachable via the .htaccess rewrite) serves the
+            // server-rendered profile document — 200 with real content
+            // for a genuinely public profile, a true 404 for anything
+            // else (routes/profile-ssr.php). /api/profiles/<id> stays the
+            // JSON endpoint it has always been.
+            if ($method === 'GET' && !$isApiRequest && count($rest) === 1
+                && preg_match('/^[A-Za-z0-9-]{8,64}$/', $rest[0])) {
+                profileSsr($rest[0]);
                 break;
             }
             routeProfiles($method, $rest);
