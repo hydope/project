@@ -8,6 +8,10 @@
 -- counts instead of the stored '5 min' default.
 -- Marker bump 2026-11-20b: also flag the qaverify* QA accounts
 -- (QA Verify C and QA Verify 99 were still unflagged).
+-- Marker bump 2026-11-20c: the 20b pass never ran — a request that
+-- landed mid-upload sealed the 20b digest marker while the old
+-- migrate.php was still in place, so the gate never reopened.
+-- This bump reopens it with the current migrate.php already live.
 -- Marker bump 2026-10-12: re-run migrations to apply the broadened
 -- users.is_test backfill (QA emails + test-shell profile patterns).
 -- Marker bump 2026-10-13: re-run migrations to seed blog_queue batch 7
