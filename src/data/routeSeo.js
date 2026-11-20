@@ -37,7 +37,7 @@ export const SHARED_NAV = [
 
 export const ROUTE_SEO = {
   '/': {
-    title: 'Shia Matrimony | Find Shia Rishta for Nikah – Shia Rishta',
+    title: 'Shia Rishta — Free Online Shia Rishtay & Nikah Matchmaking',
     desc: 'Nikah-first Shia matrimony. Browse profiles, keep photos private, involve family with wali and guardian tools. Free to join.',
     h1: 'Shia Rishta — nikah-first Shia matrimony',
     // Emitted as FAQPage structured data by the prerenderer.
