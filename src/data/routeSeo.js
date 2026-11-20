@@ -280,7 +280,7 @@ export const ROUTE_SEO = {
 
   '/biodata-maker': {
     title: 'Free Shia Marriage Biodata Maker | Shia Rishta',
-    desc: 'Create a beautiful Shia marriage biodata online — no account needed. Add photo and details, pick a design, download with watermark.',
+    desc: 'Create a beautiful Shia marriage biodata online — free, no account needed. Add photo and details, pick an elegant design, download in minutes.',
     h1: 'Marriage biodata maker',
     lede: 'Make a stunning marriage biodata in minutes. Free, no sign-up, download as an image.',
     sections: [
