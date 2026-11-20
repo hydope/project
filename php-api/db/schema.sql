@@ -2,6 +2,10 @@
 -- Port of server/schema.sql: UUID -> CHAR(36) app-generated, CITEXT -> TEXT with
 -- lowercased values + unique index, TIMESTAMPTZ -> DATETIME (UTC session set by
 -- db.php), gen_random_uuid() -> uuid() in PHP.
+-- Marker bump 2026-11-20: re-run migrations to flag the three remaining
+-- agent-created test accounts (Builder Three Alpha/Beta, Mahnoor Asif
+-- retest) as is_test, and to recompute blog read_time from real word
+-- counts instead of the stored '5 min' default.
 -- Marker bump 2026-10-12: re-run migrations to apply the broadened
 -- users.is_test backfill (QA emails + test-shell profile patterns).
 -- Marker bump 2026-10-13: re-run migrations to seed blog_queue batch 7

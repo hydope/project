@@ -144,7 +144,10 @@ export default function Home() {
               <div className="hp-float-card">
                 <span className="hp-float-icon" aria-hidden="true"><Heart className="w-4 h-4" /></span>
                 <div>
-                  <strong>{memberCount} {memberCount === 1 ? 'member' : 'members'}</strong>
+                  {/* Never print a count that has not loaded: until the stats
+                      arrive this card said "0 members and growing" on every
+                      first paint (external audit, 2026-11-20). */}
+                  <strong>{hasStats ? `${memberCount} ${memberCount === 1 ? 'member' : 'members'}` : 'Members'}</strong>
                   <span>{cityCount > 0 ? `across ${cityCount} ${cityCount === 1 ? 'city' : 'cities'}` : 'and growing'}</span>
                 </div>
               </div>
@@ -274,7 +277,7 @@ export default function Home() {
           </div>
           <div className="hp-featured-cta">
             {isLoggedIn ? (<Link to="/dashboard" className="hp-btn-primary">Go to your dashboard <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>) : (<Link to="/profiles/" className="hp-btn-primary">Browse all profiles <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>)}
-            <span>{profilesLoading ? 'Finding members…' : `${memberCount > 0 ? memberCount : (data || []).length} curated members`} · {isLoggedIn ? "welcome back" : "free to join"}</span>
+            <span>{profilesLoading || !hasStats ? 'Finding members…' : `${memberCount} curated members`} · {isLoggedIn ? "welcome back" : "free to join"}</span>
           </div>
         </section>
 

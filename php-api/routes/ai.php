@@ -338,6 +338,27 @@ function aiGeneratePost(): void
  * parse/save path uses this — the old per-site allowlist coerced lists
  * and quotes to paragraphs, so they never survived create → save → render.
  */
+/**
+ * Honest read time, computed from the post's actual words (200 wpm,
+ * minimum 1). The AI queue and the column default both claim '5 min'
+ * regardless of length — a 110-word post carried a "5 min read" label
+ * until an external audit flagged it (2026-11-20). Every save path
+ * recomputes from the blocks being stored; the claimed value is never
+ * trusted.
+ */
+function aiComputeReadTime(array $blocks): string
+{
+    $text = '';
+    $walk = function ($v) use (&$walk, &$text) {
+        if (is_string($v)) { $text .= ' ' . $v; return; }
+        if (is_array($v)) { foreach ($v as $vv) $walk($vv); }
+    };
+    $walk($blocks);
+    $words = str_word_count(strip_tags($text));
+    $mins = max(1, (int)round($words / 200));
+    return $mins . ' min';
+}
+
 function aiNormalizeBlock(array $b): ?array
 {
     $t = (string)($b['t'] ?? 'p');
@@ -623,7 +644,7 @@ function aiCreatePost(): void
              published_at, author_email, created_at, updated_at)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP())'
     )->execute([
-        $id, $slug, $title, $excerpt, $imageUrl, $category, $readTime,
+        $id, $slug, $title, $excerpt, $imageUrl, $category, aiComputeReadTime($blocks),
         json_encode($blocks, JSON_UNESCAPED_UNICODE),
         $status,
         $status === 'scheduled' ? $schedule : null,
@@ -687,6 +708,13 @@ function aiUpdatePost(string $id): void
         }
         $sets[] = 'body = ?';
         $args[] = json_encode($blocks, JSON_UNESCAPED_UNICODE);
+        // A body edit invalidates any claimed read time — recompute it
+        // from the new blocks. If this same request also sent a
+        // readTime, replace its binding ($sets/$args are paired).
+        $computedRt = aiComputeReadTime($blocks);
+        $rtIdx = array_search('read_time = ?', $sets, true);
+        if ($rtIdx !== false) { $args[$rtIdx] = $computedRt; }
+        else { $sets[] = 'read_time = ?'; $args[] = $computedRt; }
     }
 
     $status = $post['status'];
@@ -938,7 +966,7 @@ function aiQueueRun(): void
              published_at, author_email, image_url, created_at, updated_at)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP())'
     )->execute([
-        $id, $slug, $title, $excerpt, $category, $readTime,
+        $id, $slug, $title, $excerpt, $category, aiComputeReadTime($blocks),
         json_encode($blocks, JSON_UNESCAPED_UNICODE),
         'scheduled', $slot, null, 'queue@shiarishta.com',
         isset($post['image_url']) ? sanitizeText((string)$post['image_url'], 500) : null,
@@ -1117,7 +1145,7 @@ function aiQueueSave(): void
              published_at, author_email, image_url, created_at, updated_at)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP())'
     )->execute([
-        $id, $slug, $title, $excerpt, $category, $readTime,
+        $id, $slug, $title, $excerpt, $category, aiComputeReadTime($blocks),
         json_encode($blocks, JSON_UNESCAPED_UNICODE),
         'scheduled', $slot, null, 'queue@shiarishta.com',
         isset($post['image_url']) ? sanitizeText((string)$post['image_url'], 500) : null,

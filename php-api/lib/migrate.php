@@ -63,6 +63,7 @@ function migrateSchema(): void
     migrateAddPageviewsTable();
     migrateAddSeededFlag();
     migrateAddTestFlag();
+    migrateBlogReadTimes();
     migrateAddRecoveryEmailsTable();
     migrateAddOnboardingDraftColumn();
     migrateAddSubEthnicityColumn();
@@ -1316,6 +1317,9 @@ function migrateAddTestFlag(): void
                  u.email LIKE '%qatest%@example.com'
                  OR u.email LIKE 'syedmohammedali1512+e2e%@gmail.com'
                  OR u.email LIKE 'syedmohammedali1512+critic%@gmail.com'
+                 OR u.email = 'syedmohammedali1512+b3aafm8hb@gmail.com'
+                 OR u.email = 'syedmohammedali1512+b3bafm8hb@gmail.com'
+                 OR u.email = 'syedmohammedali1512+retest1111a@gmail.com'
                  OR p.display_name LIKE 'TEST PROFILE%'
                  OR p.display_name LIKE 'QA Test%'
                  OR p.display_name LIKE 'QATest%'
@@ -1328,6 +1332,34 @@ function migrateAddTestFlag(): void
         );
     } catch (Throwable $e) {
         error_log('[api] migration: users.is_test — ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+// Blog read_time honesty (2026-11-20): the column default and the AI
+// queue both store '5 min' regardless of length, so short posts carried
+// inflated "5 min read" labels. Recompute every post's read_time from
+// its stored body (200 wpm, minimum 1) — same rule the save paths now
+// apply (aiComputeReadTime in routes/ai.php). Idempotent.
+function migrateBlogReadTimes(): void
+{
+    try {
+        $rows = db()->query('SELECT id, body, read_time FROM blog_posts')->fetchAll();
+        $upd = db()->prepare('UPDATE blog_posts SET read_time = ? WHERE id = ?');
+        foreach ($rows as $r) {
+            $blocks = json_decode((string)($r['body'] ?? ''), true);
+            if (!is_array($blocks)) continue;
+            $text = '';
+            $walk = function ($v) use (&$walk, &$text) {
+                if (is_string($v)) { $text .= ' ' . $v; return; }
+                if (is_array($v)) { foreach ($v as $vv) $walk($vv); }
+            };
+            $walk($blocks);
+            $mins = max(1, (int)round(str_word_count(strip_tags($text)) / 200));
+            $label = $mins . ' min';
+            if ((string)$r['read_time'] !== $label) $upd->execute([$label, $r['id']]);
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration: blog read_time — ' . substr($e->getMessage(), 0, 120));
     }
 }
 
