@@ -1315,6 +1315,7 @@ function migrateAddTestFlag(): void
              SET u.is_test = 1
              WHERE u.is_test = 0 AND u.is_admin = 0 AND (
                  u.email LIKE '%qatest%@example.com'
+                 OR u.email LIKE '%qaverify%@%'
                  OR u.email LIKE 'syedmohammedali1512+e2e%@gmail.com'
                  OR u.email LIKE 'syedmohammedali1512+critic%@gmail.com'
                  OR u.email = 'syedmohammedali1512+b3aafm8hb@gmail.com'

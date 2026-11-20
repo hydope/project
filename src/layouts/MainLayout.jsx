@@ -505,8 +505,12 @@ export default function MainLayout({ children }) {
                 {(user.displayName || user.email || 'U')[0].toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold truncate flex items-center gap-1.5" style={{ color: 'var(--color-ink)' }}>
-                  {user.displayName || user.email}
+                <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: 'var(--color-ink)' }}>
+                  {/* The name must be the truncating element: as a bare
+                      flex child it refused to shrink and pushed the
+                      ADMIN badge out of the sidebar (external audit,
+                      2026-11-20). */}
+                  <span className="truncate min-w-0">{user.displayName || user.email}</span>
                   {isAdmin && (
                     <span
                       className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full"

@@ -88,7 +88,7 @@ export default function AuthDob() {
           <button
             type="button"
             onClick={() => navigate('/', { replace: true })}
-            className="btn mt-6 px-5 py-2.5 text-sm font-semibold"
+            className="btn btn-secondary mt-6 px-5 py-2.5 text-sm font-semibold"
           >
             Back to home
           </button>
@@ -157,7 +157,7 @@ export default function AuthDob() {
           <button
             type="submit"
             disabled={busy}
-            className="btn w-full mt-5 py-3 text-sm font-semibold"
+            className="btn btn-primary w-full mt-5 py-3 text-sm font-semibold"
           >
             {busy ? 'Saving…' : 'Continue to profile setup'}
           </button>

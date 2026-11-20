@@ -6,6 +6,8 @@
 -- agent-created test accounts (Builder Three Alpha/Beta, Mahnoor Asif
 -- retest) as is_test, and to recompute blog read_time from real word
 -- counts instead of the stored '5 min' default.
+-- Marker bump 2026-11-20b: also flag the qaverify* QA accounts
+-- (QA Verify C and QA Verify 99 were still unflagged).
 -- Marker bump 2026-10-12: re-run migrations to apply the broadened
 -- users.is_test backfill (QA emails + test-shell profile patterns).
 -- Marker bump 2026-10-13: re-run migrations to seed blog_queue batch 7

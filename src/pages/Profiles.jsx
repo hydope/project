@@ -400,7 +400,7 @@ export function BrowseProfiles() {
 
   return (
     <Layout>
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-8 sm:pt-10 pb-28">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-display-lg font-bold" style={{ color: 'var(--color-ink)' }}>

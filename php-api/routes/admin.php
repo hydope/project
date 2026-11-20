@@ -1983,6 +1983,7 @@ function adminWaliLinks(): void
                FROM wali_links w
                LEFT JOIN users u ON u.id = w.user_id
                LEFT JOIN profiles p ON p.user_id = w.user_id
+              WHERE COALESCE(u.is_test, 1) = 0
               ORDER BY w.created_at DESC
               LIMIT 200'
         )->fetchAll();
