@@ -93,7 +93,7 @@ export default function SiteFooter({ compact = false }) {
           {/* Brand */}
           <div className="site-footer-brand">
             <Link to="/" className="site-footer-logo" aria-label="Shia Rishta — home">
-              <BrandLockup iconSize={40} />
+              <BrandLockup iconSize={40} tone="light" />
             </Link>
             <p className="site-footer-tagline">
               Privacy-first Shia matchmaking where intention meets introduction.

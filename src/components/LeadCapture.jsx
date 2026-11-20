@@ -60,14 +60,14 @@ export default function LeadCapture({ source = 'site', city = '', heading, blurb
           </p>
         </div>
       </div>
-      <form onSubmit={submit} className="flex flex-col sm:flex-row gap-3">
+      <form onSubmit={submit} className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Your email address"
           aria-label="Email address"
-          className="input flex-1"
+          className="input flex-1 min-w-[180px]"
           autoComplete="email"
         />
         <input

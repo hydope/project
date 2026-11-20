@@ -44,7 +44,7 @@ const STEPS = [
   {
     icon: UserCheck,
     title: 'When family goes first, that is supported',
-    body: 'A family member or approved matchmaker can create a private introduction on someone else`s behalf and share it by secure link. It carries no photos, expires after 45 days, and the person it concerns stays in control throughout.',
+    body: 'A family member or approved matchmaker can create a private introduction on someone else’s behalf and share it by secure link. It carries no photos, expires after 45 days, and the person it concerns stays in control throughout.',
     points: ['No photos are ever attached to an introduction', '45-day expiry, plus a short code', 'Claim it, decline it, or have it withdrawn -- their call, always'],
   },
   {

@@ -10,6 +10,31 @@ import { http, useRemote } from '../lib/api/transport';
 // (and the assistant brain) into the shared entry chunk.
 export { AI_OPEN_EVENT, openAIAssistant } from '../lib/aiAssistant';
 
+// Assistant answers arrive as markdown-flavoured text; rendering them
+// raw showed literal **asterisks** to members (external audit,
+// 2026-11-20). This tiny renderer covers the subset the answers
+// actually use — **bold**, *italic*, `code`, line breaks — and builds
+// React nodes only, so answer text is never injected as HTML.
+function renderInline(line, keyPrefix) {
+  const parts = line.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g);
+  return parts.map((part, i) => {
+    const key = `${keyPrefix}-${i}`;
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) return <strong key={key}>{part.slice(2, -2)}</strong>;
+    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) return <em key={key}>{part.slice(1, -1)}</em>;
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) return <code key={key}>{part.slice(1, -1)}</code>;
+    return part;
+  });
+}
+
+function renderRichText(text) {
+  return String(text ?? '').split('\n').map((line, li) => (
+    <span key={li}>
+      {li > 0 && <br />}
+      {renderInline(line, li)}
+    </span>
+  ));
+}
+
 export default function AIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -147,7 +172,7 @@ export default function AIAssistant() {
           <div className="ai-drawer-body">
             <div className="ai-msg ai-msg-bot">
               <div className="ai-msg-avatar"><Bot className="w-3.5 h-3.5" /></div>
-              <div className="ai-bubble">{WELCOME}</div>
+              <div className="ai-bubble">{renderRichText(WELCOME)}</div>
             </div>
 
             {messages.length === 0 && (
@@ -161,7 +186,7 @@ export default function AIAssistant() {
             {messages.map((m, i) => (
               <div key={i} className={m.role === 'user' ? 'ai-msg ai-msg-user' : 'ai-msg ai-msg-bot'}>
                 {m.role === 'assistant' && <div className="ai-msg-avatar"><Bot className="w-3.5 h-3.5" /></div>}
-                <div className="ai-bubble">{m.content}</div>
+                <div className="ai-bubble">{m.role === 'assistant' ? renderRichText(m.content) : m.content}</div>
               </div>
             ))}
 
@@ -196,6 +221,7 @@ export default function AIAssistant() {
               type="text"
               value={input}
               onChange={e => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send(e); } }}
               placeholder="Ask about verification, wali, privacy, halal rizz…"
               aria-label="Ask the assistant"
             />

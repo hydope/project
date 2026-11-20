@@ -274,10 +274,6 @@ export default function Register() {
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: 'var(--color-ink-faint)' }} />
                 <input type={showPassword ? 'text' : 'password'} id="password" name="password" value={formData.password} onChange={handleChange} required minLength={8} placeholder="Min 8 characters" className={`${inputClass} input-with-action`} style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
-              <p className="mt-1 text-xs" style={{ color: passwordChecks.length ? 'var(--color-success, #1a7f4e)' : 'var(--color-ink-faint)' }}>
-                {passwordChecks.length ? '✓ At least 8 characters' : 'At least 8 characters'}
-              </p>
-              {fieldErrors.password && <p role="alert" className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{fieldErrors.password}</p>}
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -288,6 +284,14 @@ export default function Register() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
+              {/* Hint/error text lives OUTSIDE the relative wrapper: inside
+                  it, the absolutely-positioned lock/eye icons centered on
+                  the whole group (input + text) and drifted onto the
+                  input's bottom border (external audit, 2026-11-20). */}
+              <p className="mt-1 text-xs" style={{ color: passwordChecks.length ? 'var(--color-success, #1a7f4e)' : 'var(--color-ink-faint)' }}>
+                {passwordChecks.length ? '✓ At least 8 characters' : 'At least 8 characters'}
+              </p>
+              {fieldErrors.password && <p role="alert" className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{fieldErrors.password}</p>}
             </div>
 
             <div>
@@ -295,13 +299,13 @@ export default function Register() {
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: 'var(--color-ink-faint)' }} />
                 <input type={showPassword ? 'text' : 'password'} id="confirmPassword" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required minLength={8} placeholder="Repeat password" className={inputClass} style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }} />
+              </div>
               {formData.confirmPassword && (
                 <p className="mt-1 text-xs" style={{ color: passwordChecks.match ? 'var(--color-success, #1a7f4e)' : 'var(--color-danger)' }}>
                   {passwordChecks.match ? '✓ Passwords match' : 'Passwords do not match yet'}
                 </p>
               )}
               {fieldErrors.confirmPassword && <p role="alert" className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{fieldErrors.confirmPassword}</p>}
-              </div>
             </div>
 
             <div>

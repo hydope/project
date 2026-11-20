@@ -150,6 +150,21 @@ const SECTIONS = [
 
 const DRAFT_KEY = 'shiarishta_biodata_draft_v1';
 
+// Script webfonts for the non-Latin biodata languages. The preview and
+// its PNG/PDF export previously relied on whatever fonts the visitor's
+// OS happened to ship — on systems without Urdu/Arabic/Devanagari
+// fonts the text rendered as tofu boxes (external audit, 2026-11-20).
+// Loaded only on this page so the rest of the site pays nothing.
+const SCRIPT_FONT_HREF = 'https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;600&family=Noto+Nastaliq+Urdu:wght@400;600&family=Noto+Sans+Devanagari:wght@400;600&display=swap';
+const SCRIPT_FONT_STACK = "'Noto Nastaliq Urdu', 'Noto Naskh Arabic', 'Noto Sans Devanagari', sans-serif";
+
+function scriptFontFor(lang) {
+  if (lang === 'ur') return "'Noto Nastaliq Urdu'";
+  if (lang === 'ar') return "'Noto Naskh Arabic'";
+  if (lang === 'hi') return "'Noto Sans Devanagari'";
+  return null;
+}
+
 export default function BiodataMaker() {
   const { isLoggedIn } = useAuth();
   const [template, setTemplate] = useState('essential');
@@ -188,6 +203,16 @@ export default function BiodataMaker() {
     const ro = new ResizeObserver(es => setWrapWidth(es[0].contentRect.width));
     ro.observe(el);
     return () => ro.disconnect();
+  }, []);
+
+  // Load the script webfonts once (see SCRIPT_FONT_HREF above).
+  useEffect(() => {
+    if (document.getElementById('biodata-script-fonts')) return;
+    const link = document.createElement('link');
+    link.id = 'biodata-script-fonts';
+    link.rel = 'stylesheet';
+    link.href = SCRIPT_FONT_HREF;
+    document.head.appendChild(link);
   }, []);
 
   // Measure the actual rendered preview height for the scaled wrapper.
@@ -501,7 +526,7 @@ export default function BiodataMaker() {
             value={lang}
             onChange={e => { setLang(e.target.value); setSaved(false); }}
             className="input px-4 py-2.5 rounded-xl text-sm w-full sm:w-auto"
-            style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', minWidth: 180 }}
+            style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', minWidth: 180, fontFamily: SCRIPT_FONT_STACK }}
           >
             {LANGUAGES.map(l => (
               <option key={l.code} value={l.code}>{l.name}</option>
@@ -716,8 +741,11 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
     rows: s.fields.filter(f => data[f.key]).map(f => ({ ...f, label: tr.fields[f.key] })),
   })).filter(s => s.rows.length > 0);
 
+  const scriptFont = scriptFontFor(lang);
+  const withScript = (base) => (scriptFont ? `${scriptFont}, ${base}` : base);
+
   const bismillah = (
-    <p style={{ fontSize: 20, margin: '0 0 6px', color: t.accent, fontFamily: 'Georgia, serif' }}>
+    <p style={{ fontSize: 20, margin: '0 0 6px', color: t.accent, fontFamily: "'Noto Naskh Arabic', Georgia, serif" }}>
       بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
     </p>
   );
@@ -727,7 +755,7 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
   // under the title, a thin frame on the photo, and a touch more air.
   if (t.id === 'essential') {
     return (
-      <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, padding: '64px 72px 90px', position: 'relative', fontFamily: '-apple-system, "Segoe UI", sans-serif' }}>
+      <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, padding: '64px 72px 90px', position: 'relative', fontFamily: withScript('-apple-system, "Segoe UI", sans-serif') }}>
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           {bismillah}
           <p style={{ fontSize: 28, fontWeight: 300, letterSpacing: 8, textTransform: 'uppercase', margin: '8px 0 0', color: t.ink }}>{tr.biodata}</p>
@@ -758,7 +786,7 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
   // and a refined emerald — no more boxed header or plain rectangle photo.
   if (t.id === 'noor') {
     return (
-      <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
+      <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: withScript('Georgia, serif') }}>
         <div style={{ height: 10, background: `linear-gradient(90deg, ${t.accent}, #1a7a52, ${t.accent})` }} />
         <div style={{ padding: '48px 64px 90px' }}>
           <div style={{ textAlign: 'center', marginBottom: 30 }}>
@@ -802,7 +830,7 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
   // rule and circle photo are gone; the label-over-value grid stays, refined.
   if (t.id === 'sahara') {
     return (
-      <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
+      <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: withScript('Georgia, serif') }}>
         <div style={{ padding: '56px 64px 90px' }}>
           <p style={{ fontSize: 11, letterSpacing: 4, textTransform: 'uppercase', color: t.muted, margin: '0 0 8px' }}>Marriage Biodata</p>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -838,7 +866,7 @@ const BiodataPreview = forwardRef(function BiodataPreview({ template: t, data, p
   // sections are divided by hairlines now, so the page breathes — and the
   // photo is arched to match Noor and Sahara.
   return (
-    <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: 'Georgia, serif' }}>
+    <div ref={ref} dir={dir} style={{ width: 794, minHeight: 1123, background: t.bg, color: t.ink, position: 'relative', fontFamily: withScript('Georgia, serif') }}>
       {/* Corner invocations */}
       <div style={{ position: 'absolute', top: 28, left: 36, textAlign: 'center', pointerEvents: 'none' }}>
         <p style={{ fontSize: 19, color: t.accent, margin: 0, fontWeight: 600 }}>یَا عَلِي</p>

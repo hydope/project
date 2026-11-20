@@ -11,7 +11,14 @@ export default function BrandLockup({
   tagline = true,
   className = '',
   style = {},
+  // 'dark' = dark text for light surfaces (headers). 'light' = light
+  // text for dark surfaces — the footer band is near-black, and the
+  // default ink wordmark rendered almost invisible on it (external
+  // audit, 2026-11-20).
+  tone = 'dark',
 }) {
+  const wordColor = tone === 'light' ? '#f3ece2' : 'var(--color-ink)';
+  const tagColor = tone === 'light' ? 'rgba(243, 236, 226, 0.6)' : 'var(--color-ink-tertiary)';
   const wordSize = Math.round(iconSize * 0.58);
   const tagSize = Math.max(8, Math.round(iconSize * 0.21));
   return (
@@ -27,7 +34,7 @@ export default function BrandLockup({
             fontWeight: 700,
             fontSize: wordSize,
             letterSpacing: '-0.03em',
-            color: 'var(--color-ink)',
+            color: wordColor,
             whiteSpace: 'nowrap',
           }}
         >
@@ -42,7 +49,7 @@ export default function BrandLockup({
               fontWeight: 600,
               letterSpacing: '0.22em',
               textTransform: 'uppercase',
-              color: 'var(--color-ink-tertiary)',
+              color: tagColor,
               whiteSpace: 'nowrap',
               marginTop: 3,
             }}
