@@ -312,7 +312,16 @@ function aiGeneratePost(): void
         // could never finish here regardless of model: the large MoE models in
         // this catalogue all take 80s+ for a 1000-word piece, and
         // `reasoning_effort` produced empty content outright.
-        ['temperature' => 0.9, 'max_tokens' => 1200, 'timeout' => 45]
+        //
+        // Streaming (2026-11-21): upstream latency grew past the point where
+        // the buffered call fits the 45s cap — five live draft attempts in a
+        // row died at the cap while the short test completion succeeded.
+        // Raising the timeout is not an option (the host kills long
+        // requests), so the draft streams: deltas accumulate as they land,
+        // and if the cap still cuts the call, parseGeneratedPost's existing
+        // salvage recovers the complete paragraphs from the partial JSON
+        // instead of the draft failing outright.
+        ['temperature' => 0.9, 'max_tokens' => 1200, 'timeout' => 45, 'stream' => true]
     );
 
     if ($raw === null) {

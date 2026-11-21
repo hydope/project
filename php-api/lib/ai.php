@@ -375,6 +375,16 @@ function aiComplete(array $messages, array $opts = []): ?string
     if (isset($opts['reasoning_effort']) && $opts['reasoning_effort'] !== '') {
         $payload['reasoning_effort'] = (string)$opts['reasoning_effort'];
     }
+    // Streaming is opt-in (the article draft path passes it). A buffered
+    // call is all-or-nothing: when the per-call timeout cuts it, every
+    // token already generated is lost. Streamed deltas are accumulated as
+    // they land (see the write callback below), so a cut-short call still
+    // returns the text received and the caller's truncated-output salvage
+    // can recover the complete paragraphs from it.
+    $stream = !empty($opts['stream']);
+    if ($stream) {
+        $payload['stream'] = true;
+    }
     $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE);
 
     // Retry on a 200-with-no-text.
@@ -389,9 +399,9 @@ function aiComplete(array $messages, array $opts = []): ?string
     // failure worth reporting.
     for ($attempt = 1; $attempt <= 2; $attempt++) {
         $ch = curl_init($base . '/chat/completions');
-        curl_setopt_array($ch, [
+        $streamText = '';
+        $curlOpts = [
             CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
             // Per-call timeout, clamped well under the host's own request limit.
             // If the upstream is going to miss the deadline, failing here returns
             // clean JSON that the client can display; letting it run until the
@@ -401,15 +411,50 @@ function aiComplete(array $messages, array $opts = []): ?string
             CURLOPT_HTTPHEADER => [
                 'Authorization: Bearer ' . $key,
                 'Content-Type: application/json',
-                'Accept: ' . ((string)($opts['accept'] ?? 'application/json')),
+                'Accept: ' . ($stream ? 'text/event-stream' : ((string)($opts['accept'] ?? 'application/json'))),
             ],
             CURLOPT_POSTFIELDS => $encoded,
-        ]);
+        ];
+        if ($stream) {
+            // Accumulate SSE deltas as they arrive. $sseBuffer keeps the
+            // partial line between chunks; only complete lines are parsed.
+            $sseBuffer = '';
+            $curlOpts[CURLOPT_WRITEFUNCTION] = function ($ch, $chunk) use (&$sseBuffer, &$streamText) {
+                $sseBuffer .= $chunk;
+                while (($nl = strpos($sseBuffer, "\n")) !== false) {
+                    $line = trim(substr($sseBuffer, 0, $nl));
+                    $sseBuffer = substr($sseBuffer, $nl + 1);
+                    if (!str_starts_with($line, 'data:')) {
+                        continue;
+                    }
+                    $data = trim(substr($line, 5));
+                    if ($data === '' || $data === '[DONE]') {
+                        continue;
+                    }
+                    $j = json_decode($data, true);
+                    $delta = $j['choices'][0]['delta']['content'] ?? null;
+                    if (is_string($delta)) {
+                        $streamText .= $delta;
+                    }
+                }
+                return strlen($chunk);
+            };
+        } else {
+            $curlOpts[CURLOPT_RETURNTRANSFER] = true;
+        }
+        curl_setopt_array($ch, $curlOpts);
 
         $body = curl_exec($ch);
         $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $err = curl_error($ch);
         curl_close($ch);
+
+        if ($stream && $status >= 200 && $status < 300 && trim($streamText) !== '') {
+            // A timeout mid-stream lands here too: curl reports an error,
+            // but the text received before the cut is real model output —
+            // return it and let the caller salvage complete paragraphs.
+            return trim($streamText);
+        }
 
         if ($body === false || $err !== '' || $status < 200 || $status >= 300) {
             error_log('[ai] NVIDIA call failed: attempt=' . $attempt . ' status=' . $status
@@ -425,15 +470,17 @@ function aiComplete(array $messages, array $opts = []): ?string
             return null;
         }
 
-        $decoded = json_decode((string)$body, true);
-        $text = $decoded['choices'][0]['message']['content'] ?? null;
+        $decoded = $stream ? null : json_decode((string)$body, true);
+        $text = $stream
+            ? ($streamText !== '' ? $streamText : null)
+            : ($decoded['choices'][0]['message']['content'] ?? null);
 
         if (is_string($text) && trim($text) !== '') {
             return trim($text);
         }
 
-        $finish = (string)($decoded['choices'][0]['finish_reason'] ?? '?');
-        $reasoning = (int)($decoded['usage']['completion_tokens_details']['reasoning_tokens'] ?? 0);
+        $finish = $stream ? 'stream' : (string)($decoded['choices'][0]['finish_reason'] ?? '?');
+        $reasoning = $stream ? 0 : (int)($decoded['usage']['completion_tokens_details']['reasoning_tokens'] ?? 0);
         error_log('[ai] NVIDIA returned empty content: attempt=' . $attempt
             . ' finish=' . $finish . ' reasoning_tokens=' . $reasoning
             . ' max_tokens=' . (int)($opts['max_tokens'] ?? 16000));
