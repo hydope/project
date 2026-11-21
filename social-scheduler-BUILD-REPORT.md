@@ -274,3 +274,88 @@ for business_management (because it is newly requested). Expected:
 Facebook card = Shia Rishta Page connected, Instagram card =
 @shiarishta.official connected. If it still fails, the red banner now
 shows the per-route diagnostic above — quote it verbatim.
+
+## Storage lifecycle implementation (2026-11-21)
+
+Implements the approved plan
+`Social-Storage-World-Class-Plan.md` server-side. Syed's hard rule
+holds throughout: **no external storage** — no Cloudflare/R2/Drive;
+every file lives and dies on this server, under budget.
+
+New library `php-api/lib/SocialStorage.php` (loaded by index.php and
+both social crons):
+
+- **Purge decision** `socialPurgeDecision()` — pure function of
+  (post row, target rows, now, emergency):
+  all targets published *with live URLs* (skipped counts as settled) →
+  purge 72h after the last publish (`published_grace_72h`); any target
+  failed and none open → purge 7 days after the *failed targets'* last
+  attempt (`failed_retention_7d` — a healthy target's recent update
+  does not extend the window; this exact bug was caught by the test);
+  cancelled → 24h after cancellation (`cancelled_24h`); emergency →
+  `emergency_storage_95`. No media / already purged / work in flight →
+  keep.
+- **Purge sweep** `socialPurgeSweep()` runs in
+  `social-publish-cron.php` after publishing (every 5 min) and logs
+  into the cron JSON: `purge.purged[]` / `purge.wouldPurge[]` entries
+  `{post, file, bytes, reason}`, plus `bytesFreed`. On a real purge it
+  unlinks the file (unless another unpurged post still references it —
+  possible via ingest `mediaRef`; then only the row's reference is
+  cleared and the last referrer removes the file), sets
+  `media_path=NULL`, `media_purged_at`, and a human-readable
+  `media_purge_note`. Idempotent: purged rows are never re-selected.
+  If the migration columns aren't in yet (migration runs on the next
+  web request, crons don't run it), the sweep skips with a logged
+  `skipped` reason instead of failing the cron.
+- **DRY-RUN gate**: purges delete nothing for the first 48h of
+  wall-clock time. Resolution order: env `SOCIAL_PURGE_DRYRUN_UNTIL`
+  wins ('0'/'off'/'false' disables at once; a timestamp is the
+  deadline); with no env, a first-run anchor is recorded in
+  `app_settings` (`social_purge_dryrun_anchor`) and dry-run lasts
+  anchor+48h; no env + no DB → dry-run ON (fail safe). Emergency
+  (≥95%) purges override dry-run — protecting the website's disk
+  outranks the observation window — and log `emergency: true`.
+- **Directory budget**: `socialDirSizeBytes()` (recursive) +
+  `socialMediaBudgetBytes()` (env `SOCIAL_MEDIA_BUDGET_BYTES`,
+  default 2 GiB). Enforced in `socialStoreUpload()` — the single store
+  path shared by the admin media upload and the reel ingest — which
+  refuses new video at/over the cap with HTTP 507 and a plain-English
+  message before anything is written.
+- **Account watchdog** `socialStorageWatchdogEvaluate()` runs at the
+  top of `social-autopilot-cron.php` (hourly), before generation.
+  Usage % method: **recursive sum of the account home directory**
+  (HOME env; fallback: parent of the uploads root) vs quota
+  (`SOCIAL_ACCOUNT_QUOTA_MB`, default 10000 MB). `disk_free_space()`/
+  `disk_total_space()` were rejected on purpose: on shared cPanel
+  hosting they report the whole server partition, not the account
+  quota; the home-dir sum is the figure that tracks cPanel's Disk
+  Usage page. Tiers: ≥70% `watch` (warning line in cron output),
+  ≥85% `block` (persists `ingestBlocked` in app_settings
+  `social_storage_watchdog`; ingest returns 503 and autopilot
+  generation skips — publishing continues), ≥95% `emergency`
+  (watchdog state + an immediate grace-skipping purge sweep in the
+  same cron output).
+- **Admin status**: `GET /api/admin/social/accounts` now carries a
+  `storage` block — media dir bytes, budget bytes + % used, account
+  usage % / tier / warning, watchdog evaluation time, ingest-blocked
+  flag, and the purge dry-run state — for the panel to display.
+
+Schema: `social_posts.media_purged_at` + `media_purge_note` added to
+BOTH `php-api/db/schema.sql` (digest change reopens the migration
+pass) and the `migrateAddSocialSchedulerTables()` CREATE, plus a new
+idempotent `migrateAddSocialStorageColumns()` ALTER for existing
+installs. Schema-conformance suite stays green (113/113).
+
+Tests: new offline `php-api/tests/social-storage-test.php` — 26/26
+pass (purge rules incl. grace/retry/cancelled/emergency edges,
+dry-run resolution, budget/quota env config, recursive dir size).
+`php -l` clean on all touched PHP; discovery test still ALL PASS;
+`npm run build` passes.
+
+Dry-run behaviour to expect after this deploy: the publish cron's
+JSON gains a `purge` block with `dryRun: true`, `dryRunUntil` =
+first-cron-run + 48h, and `wouldPurge` entries for any post whose
+lifecycle has already ended — nothing is deleted and no rows change
+until the window closes; from then on the same entries appear under
+`purged` with real `bytesFreed`. (At deploy time there are no
+published posts yet, so early outputs will simply show empty lists.)

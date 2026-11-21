@@ -45,6 +45,7 @@ require __DIR__ . '/routes/profile-ssr.php';
 require __DIR__ . '/routes/social.php';
 require __DIR__ . '/lib/SocialPublisher.php';
 require __DIR__ . '/lib/SocialAutopilot.php';
+require __DIR__ . '/lib/SocialStorage.php';
 require __DIR__ . '/routes/social_scheduler.php';
 require __DIR__ . '/lib/ai.php';
 require __DIR__ . '/routes/ai.php';

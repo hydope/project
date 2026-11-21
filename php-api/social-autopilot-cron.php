@@ -23,6 +23,7 @@ require __DIR__ . '/lib/photos.php';
 require __DIR__ . '/lib/ai.php';
 require __DIR__ . '/lib/SocialPublisher.php';
 require __DIR__ . '/lib/SocialAutopilot.php';
+require __DIR__ . '/lib/SocialStorage.php';
 
 $expected = getenv('SEEDER_CRON_KEY');
 if (!is_string($expected) || $expected === '') {
@@ -38,7 +39,29 @@ if (!hash_equals($expected, (string)$provided)) {
 }
 
 try {
-    echo json_encode(socialAutopilotRun());
+    // Storage watchdog FIRST (Social-Storage plan §3.4), so this run's
+    // generation respects the fresh tier: ≥70% warn, ≥85% block new
+    // renders/ingest (flag persisted; publishing continues), ≥95%
+    // emergency-purge published media regardless of the 72h grace.
+    $watchdog = socialStorageWatchdogEvaluate();
+    $out = socialAutopilotRun();
+    $out['storageWatchdog'] = [
+        'tier' => $watchdog['tier'],
+        'pct' => $watchdog['pct'],
+        'usedBytes' => $watchdog['usedBytes'],
+        'quotaBytes' => $watchdog['quotaBytes'],
+        'ingestBlocked' => $watchdog['ingestBlocked'],
+    ];
+    if (!empty($watchdog['warning'])) $out['warning'] = $watchdog['warning'];
+    if ($watchdog['tier'] === 'emergency') {
+        try {
+            $out['emergencyPurge'] = socialPurgeSweep(true);
+        } catch (Throwable $e) {
+            error_log('[social-autopilot-cron] emergency purge failed: ' . substr($e->getMessage(), 0, 160));
+            $out['emergencyPurge'] = ['error' => 'emergency purge failed'];
+        }
+    }
+    echo json_encode($out);
 } catch (Throwable $e) {
     error_log('[social-autopilot-cron] ' . $e->getMessage());
     http_response_code(500);

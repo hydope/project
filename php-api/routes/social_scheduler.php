@@ -119,6 +119,13 @@ function socialStoreUpload(array $file, string $kind): array
     if ((int)$file['size'] > $max) {
         je($kind === 'video' ? 'Video must be under 200 MB.' : 'Image must be under 15 MB.', 400);
     }
+    // Directory budget (Social-Storage plan §3.4): the social media dir
+    // has a hard cap (default 2 GB, env SOCIAL_MEDIA_BUDGET_BYTES). New
+    // video is refused at/over the cap — this one check covers BOTH the
+    // admin upload and the reel ingest, which share this store path.
+    if ($kind === 'video' && function_exists('socialMediaBudgetExceeded') && socialMediaBudgetExceeded((int)$file['size'])) {
+        je(socialMediaBudgetError(), 507);
+    }
     $bytes = (string)file_get_contents($file['tmp_name']);
     $mime = class_exists('finfo') ? (new finfo(FILEINFO_MIME_TYPE))->buffer($bytes) : null;
     $allowed = $kind === 'video'
@@ -211,6 +218,10 @@ function socialAccountsList(): void
             'googleConfigured' => socialGoogleConfigured(),
             'ingestConfigured' => socialConfig()['ingestKey'] !== '',
         ],
+        // Storage lifecycle status (Social-Storage plan §3.4): media dir
+        // vs its 2 GB budget + the hourly watchdog's account tier, so the
+        // admin panel can show "storage watch/block" before it's a fire.
+        'storage' => function_exists('socialStorageStatus') ? socialStorageStatus() : null,
         'accounts' => array_map('socialAccountPayload', $rows),
     ]);
 }
@@ -822,6 +833,11 @@ function routeSocialIngest(): void
     $settings = socialAutopilotSettings();
     if (empty($settings['enabled'])) {
         json(['error' => 'Autopilot is OFF — ingest is paused by the kill switch.'], 409);
+    }
+    // Storage watchdog (≥85% of account quota): new renders/ingest pause
+    // until space frees up; publishing of queued posts continues.
+    if (function_exists('socialStorageIngestBlocked') && socialStorageIngestBlocked()) {
+        json(['error' => 'Storage watchdog: account disk usage is at or over 85% of quota — new reel ingest is paused until space frees up. Publishing continues.'], 503);
     }
 
     $caption = trim((string)($_POST['caption'] ?? ''));

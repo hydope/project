@@ -16,6 +16,7 @@ require __DIR__ . '/lib/jwt.php';
 require __DIR__ . '/lib/util.php';
 require __DIR__ . '/lib/photos.php';
 require __DIR__ . '/lib/SocialPublisher.php';
+require __DIR__ . '/lib/SocialStorage.php';
 
 $expected = getenv('SEEDER_CRON_KEY');
 if (!is_string($expected) || $expected === '') {
@@ -42,7 +43,17 @@ try {
         $result = socialPublishPost((string)$row['id']);
         $summary[] = ['post' => (string)$row['id'], 'status' => $result['status']];
     }
-    echo json_encode(['ok' => true, 'processed' => count($summary), 'posts' => $summary]);
+    // Storage lifecycle sweep (Social-Storage plan §3.3): purge server
+    // media whose lifecycle ended — published >72h, failed >7d,
+    // cancelled >24h. Dry-run for the first 48h (see SocialStorage.php).
+    // A purge failure must never fail the publishing output.
+    try {
+        $purge = socialPurgeSweep(false);
+    } catch (Throwable $e) {
+        error_log('[social-publish-cron] purge sweep failed: ' . substr($e->getMessage(), 0, 160));
+        $purge = ['error' => 'purge sweep failed'];
+    }
+    echo json_encode(['ok' => true, 'processed' => count($summary), 'posts' => $summary, 'purge' => $purge]);
 } catch (Throwable $e) {
     error_log('[social-publish-cron] ' . $e->getMessage());
     http_response_code(500);

@@ -252,6 +252,13 @@ function socialAutopilotRun(): array
         return ['ok' => true, 'skipped' => 'autopilot is OFF'];
     }
 
+    // Storage watchdog (≥85% of account quota): generation pauses so the
+    // scheduler can never fill the disk; publishing of what's already
+    // queued continues via the publish cron, which ignores this flag.
+    if (function_exists('socialStorageIngestBlocked') && socialStorageIngestBlocked()) {
+        return ['ok' => true, 'skipped' => 'storage watchdog: account usage at/over 85% of quota — generation paused, publishing continues'];
+    }
+
     // Next hour boundary (UTC) is the slot we fill.
     $slotTs = (int)(floor(time() / 3600) * 3600) + 3600;
     $slot = gmdate('Y-m-d H:i:s', $slotTs);

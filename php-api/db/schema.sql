@@ -684,6 +684,11 @@ CREATE TABLE IF NOT EXISTS social_posts (
   media_type   VARCHAR(16)  DEFAULT NULL,
   -- media_url: externally hosted media URL, if any
   media_url    VARCHAR(1000) DEFAULT NULL,
+  -- Storage lifecycle (2026-11-21): when the publish cron purged the
+  -- server copy of the media, and why. The platforms keep the content;
+  -- platform URLs stay on social_post_targets.
+  media_purged_at DATETIME     DEFAULT NULL,
+  media_purge_note VARCHAR(255) DEFAULT NULL,
   scheduled_at DATETIME     DEFAULT NULL,
   -- status: draft | scheduled | publishing | published | partial | failed
   status       VARCHAR(16)  NOT NULL DEFAULT 'draft',

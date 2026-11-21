@@ -82,6 +82,7 @@ function migrateSchema(): void
     migrateAddMutesTable();
     migrateAddPageviewAttributionColumns();
     migrateAddSocialSchedulerTables();
+    migrateAddSocialStorageColumns();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -1811,6 +1812,8 @@ function migrateAddSocialSchedulerTables(): void
                 media_path        VARCHAR(500) DEFAULT NULL,
                 media_type        VARCHAR(16)  DEFAULT NULL,
                 media_url         VARCHAR(1000) DEFAULT NULL,
+                media_purged_at   DATETIME     DEFAULT NULL,
+                media_purge_note  VARCHAR(255) DEFAULT NULL,
                 scheduled_at      DATETIME     DEFAULT NULL,
                 status            VARCHAR(16)  NOT NULL DEFAULT 'draft',
                 source            VARCHAR(16)  NOT NULL DEFAULT 'manual',
@@ -1869,5 +1872,27 @@ function migrateAddSocialSchedulerTables(): void
         );
     } catch (Throwable $e) {
         error_log('[api] migration (social scheduler tables) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Storage lifecycle columns on social_posts (2026-11-21): the publish
+ * cron's purge sweep records when/why the server copy of a post's media
+ * was deleted (media_purged_at / media_purge_note). Also declared in
+ * db/schema.sql, whose digest change reopens the migration pass.
+ */
+function migrateAddSocialStorageColumns(): void
+{
+    try {
+        $cols = db()->query("SHOW COLUMNS FROM social_posts LIKE 'media_purged_at'")->fetchAll();
+        if (!$cols) {
+            db()->exec("ALTER TABLE social_posts ADD COLUMN media_purged_at DATETIME DEFAULT NULL AFTER media_url");
+        }
+        $cols = db()->query("SHOW COLUMNS FROM social_posts LIKE 'media_purge_note'")->fetchAll();
+        if (!$cols) {
+            db()->exec("ALTER TABLE social_posts ADD COLUMN media_purge_note VARCHAR(255) DEFAULT NULL AFTER media_purged_at");
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (social storage columns) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }
