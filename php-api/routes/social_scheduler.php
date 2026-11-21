@@ -7,6 +7,7 @@
 //   DELETE /accounts/:id             disconnect (tokens wiped)
 //   POST   /accounts/:id/reactivate  clear needs_attention after a check
 //   GET    /connect/meta             -> {url} Meta OAuth start
+//   GET    /connect/facebook         -> alias of /connect/meta
 //   GET    /connect/youtube          -> {url} Google OAuth start
 //   POST   /media                    multipart upload -> {mediaPath,...}
 //   GET    /posts                    queue list with per-target status
@@ -168,7 +169,10 @@ function routeAdminSocial(string $method, array $segments): void
         if ($method === 'POST' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === 'reactivate') { socialAccountReactivate((string)$segments[1]); return; }
     }
     if ($sub === 'connect' && $method === 'GET') {
-        if (($segments[1] ?? null) === 'meta') { socialConnectMeta(); return; }
+        // 'facebook' accepted as an alias for 'meta' — the admin UI's
+        // Facebook card originally sent 'facebook' verbatim and 404'd,
+        // because only 'meta'/'youtube' were registered here.
+        if (in_array($segments[1] ?? null, ['meta', 'facebook'], true)) { socialConnectMeta(); return; }
         if (($segments[1] ?? null) === 'youtube') { socialConnectYouTube(); return; }
     }
     if ($sub === 'media' && $method === 'POST') { socialMediaUpload(); return; }
@@ -271,6 +275,92 @@ function socialConnectYouTube(): void
     json(['ok' => true, 'url' => $url]);
 }
 
+// ── Meta page discovery ─────────────────────────────────────────────────
+
+/**
+ * GET a Graph list endpoint and follow paging.next (bounded to 5 pages).
+ * Returns the merged `data` rows; a failed/permission-denied call yields
+ * [] so callers can fall back to another route instead of dying.
+ */
+function socialGraphListAll(string $url, string $accessToken): array
+{
+    $rows = [];
+    $next = $url;
+    for ($i = 0; $i < 5 && $next !== ''; $i++) {
+        $sep = str_contains($next, '?') ? '&' : '?';
+        $full = str_contains($next, 'access_token=') ? $next : $next . $sep . 'access_token=' . urlencode($accessToken);
+        $res = socialHttp('GET', $full);
+        $data = $res['json']['data'] ?? null;
+        if (!is_array($data)) break;
+        foreach ($data as $row) {
+            if (is_array($row)) $rows[] = $row;
+        }
+        $next = (string)($res['json']['paging']['next'] ?? '');
+    }
+    return $rows;
+}
+
+/**
+ * Discover every Facebook Page the connecting user can act on.
+ *
+ * Primary route: /me/accounts. Fallback (when it returns nothing, or
+ * returns pages but none carries a linked Instagram account — both seen
+ * with Facebook Login for Business asset-scoped grants): enumerate the
+ * user's businesses and merge their owned_pages + client_pages
+ * (business_management covers this on the scheduler app). The Shia
+ * Rishta Page is owned by business portfolio 2222291815376368, so it
+ * only shows up reliably through this second route.
+ *
+ * Pages are deduped by id (fields merged so a later route can fill a
+ * missing access_token / IG link) and sorted with IG-linked pages first,
+ * so the earliest-stored facebook account — the one autopilot/ingest
+ * pick by default — is a page that has an Instagram account.
+ *
+ * @return array<int,array<string,mixed>>
+ */
+function socialDiscoverMetaPages(string $userToken, string $version): array
+{
+    $fields = 'id,name,access_token,instagram_business_account{id,username}';
+    $base = 'https://graph.facebook.com/' . $version;
+    $byId = [];
+    $add = static function (array $rows) use (&$byId): void {
+        foreach ($rows as $row) {
+            $id = (string)($row['id'] ?? '');
+            if ($id === '') continue;
+            if (!isset($byId[$id])) { $byId[$id] = $row; continue; }
+            foreach (['name', 'access_token', 'instagram_business_account'] as $k) {
+                if (empty($byId[$id][$k]) && !empty($row[$k])) $byId[$id][$k] = $row[$k];
+            }
+        }
+    };
+    $hasIg = static function (array $pages): bool {
+        foreach ($pages as $p) {
+            if (!empty($p['instagram_business_account']['id'])) return true;
+        }
+        return false;
+    };
+
+    $add(socialGraphListAll($base . '/me/accounts?fields=' . $fields, $userToken));
+
+    if ($byId === [] || !$hasIg($byId)) {
+        $businesses = socialGraphListAll($base . '/me/businesses?fields=id,name', $userToken);
+        foreach ($businesses as $biz) {
+            $bid = (string)($biz['id'] ?? '');
+            if ($bid === '') continue;
+            $add(socialGraphListAll($base . '/' . $bid . '/owned_pages?fields=' . $fields, $userToken));
+            $add(socialGraphListAll($base . '/' . $bid . '/client_pages?fields=' . $fields, $userToken));
+        }
+    }
+
+    $pages = array_values($byId);
+    usort($pages, static function (array $a, array $b): int {
+        $ai = !empty($a['instagram_business_account']['id']) ? 0 : 1;
+        $bi = !empty($b['instagram_business_account']['id']) ? 0 : 1;
+        return $ai <=> $bi;
+    });
+    return $pages;
+}
+
 // ── OAuth callbacks (public — state is HMAC-signed) ─────────────────────
 
 function routeSocialOAuth(string $provider, string $action): void
@@ -303,19 +393,41 @@ function routeSocialOAuth(string $provider, string $action): void
             'client_secret' => $cfg['metaAppSecret'], 'fb_exchange_token' => $short,
         ]));
         $userToken = (string)($long['json']['access_token'] ?? $short);
-        $pages = socialHttp('GET', 'https://graph.facebook.com/' . $cfg['metaGraphVersion'] . '/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&access_token=' . urlencode($userToken));
-        $list = $pages['json']['data'] ?? [];
-        if (!is_array($list) || $list === []) $fail('No Facebook Page was found on that Meta account. The account must manage a Page.');
+        // Page discovery must survive Facebook Login for Business
+        // asset-scoped grants: /me/accounts can come back EMPTY when the
+        // user granted specific assets instead of "all Pages", and its
+        // nested instagram_business_account expansion can be missing even
+        // when pages are returned. socialDiscoverMetaPages() falls back
+        // to the business route (owned + client pages) in both cases.
+        $list = socialDiscoverMetaPages($userToken, $cfg['metaGraphVersion']);
+        if ($list === []) $fail('No Facebook Page was found on that Meta account. The account must manage a Page.');
         $scopes = 'pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish';
+        $base = 'https://graph.facebook.com/' . $cfg['metaGraphVersion'];
+        $stored = 0;
         foreach ($list as $page) {
             $pageToken = (string)($page['access_token'] ?? '');
             if ($pageToken === '' || empty($page['id'])) continue;
-            socialUpsertAccount('facebook', (string)$page['id'], (string)($page['name'] ?? 'Facebook Page'), $pageToken, null, null, $scopes);
+            $pageId = (string)$page['id'];
+            socialUpsertAccount('facebook', $pageId, (string)($page['name'] ?? 'Facebook Page'), $pageToken, null, null, $scopes);
+            $stored++;
+            // Instagram discovery: use the list payload when present,
+            // otherwise ask the Page directly — the nested field is not
+            // reliably expanded on list responses for business logins.
             $ig = $page['instagram_business_account'] ?? null;
+            if (!is_array($ig) || empty($ig['id'])) {
+                $one = socialHttp('GET', $base . '/' . $pageId . '?fields=instagram_business_account{id,username}&access_token=' . urlencode($pageToken));
+                $ig = $one['json']['instagram_business_account'] ?? null;
+            }
             if (is_array($ig) && !empty($ig['id'])) {
-                socialUpsertAccount('instagram', (string)$ig['id'], (string)($ig['username'] ?? 'Instagram'), $pageToken, null, null, $scopes);
+                $igName = (string)($ig['username'] ?? '');
+                if ($igName === '') {
+                    $igRes = socialHttp('GET', $base . '/' . (string)$ig['id'] . '?fields=username&access_token=' . urlencode($pageToken));
+                    $igName = (string)($igRes['json']['username'] ?? '');
+                }
+                socialUpsertAccount('instagram', (string)$ig['id'], $igName !== '' ? $igName : 'Instagram', $pageToken, null, null, $scopes);
             }
         }
+        if ($stored === 0) $fail('Facebook Pages were visible but none returned a Page access token. Please grant Page access for the app and try again.');
         header('Location: ' . $back . '?social_connected=meta');
         exit;
     }

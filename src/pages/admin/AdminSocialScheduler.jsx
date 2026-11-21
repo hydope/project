@@ -216,7 +216,7 @@ export default function AdminSocialScheduler() {
                     <p className="text-xs mt-2" style={{ color: 'var(--color-ink-secondary)' }}>
                       {configured ? 'Not connected yet.' : 'Not configured on the server yet — see the build report for the owner steps.'}
                     </p>
-                    <button type="button" disabled={!configured} onClick={() => connect(platform === 'instagram' ? 'meta' : platform)}
+                    <button type="button" disabled={!configured} onClick={() => connect(platform === 'youtube' ? 'youtube' : 'meta')}
                       className="btn px-3 py-1.5 text-sm mt-2 flex items-center gap-2 disabled:opacity-40">
                       <Plug className="w-4 h-4" /> Connect
                     </button>
