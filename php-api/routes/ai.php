@@ -313,16 +313,24 @@ function aiGeneratePost(): void
         // this catalogue all take 80s+ for a 1000-word piece, and
         // `reasoning_effort` produced empty content outright.
         //
-        // Streaming (2026-11-21): upstream latency grew past the point where
-        // the buffered call fits the 45s cap — five live draft attempts in a
-        // row died at the cap while the short test completion succeeded.
-        // Raising the timeout is not an option (the host kills long
-        // requests), so the draft streams: deltas accumulate as they land,
-        // and if the cap still cuts the call, parseGeneratedPost's existing
-        // salvage recovers the complete paragraphs from the partial JSON
-        // instead of the draft failing outright.
-        ['temperature' => 0.9, 'max_tokens' => 1200, 'timeout' => 45, 'stream' => true]
+        // Streaming was tried first (2026-11-21) and reverted the same day:
+        // in production the streamed call returned null twice — no usable
+        // bytes arrived through the host proxy within the cap — while the
+        // admin panel's short buffered test completion (max_tokens ~400)
+        // succeeded. Buffered at a smaller budget is the proven path here:
+        // 800 tokens at the 45s cap, and on a null result one retry at the
+        // proven-working size (400 tokens, 30s), whose truncated output
+        // parseGeneratedPost's existing salvage can still recover a draft
+        // from.
+        ['temperature' => 0.9, 'max_tokens' => 800, 'timeout' => 45, 'stream' => false]
     );
+
+    if ($raw === null) {
+        $raw = aiComplete(
+            [['role' => 'system', 'content' => $system]],
+            ['temperature' => 0.9, 'max_tokens' => 400, 'timeout' => 30, 'stream' => false]
+        );
+    }
 
     if ($raw === null) {
         je('The writing assistant is unavailable right now. Try again shortly.', 503);
