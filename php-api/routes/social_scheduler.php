@@ -248,7 +248,11 @@ function socialConnectMeta(): void
         'client_id' => $cfg['metaAppId'],
         'redirect_uri' => $redirect,
         'state' => $state,
-        'scope' => 'pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish',
+        // business_management is REQUIRED for the callback's business
+        // discovery route (/me/businesses -> owned_pages/client_pages).
+        // Round 1 shipped without it in this list, so that route could
+        // never return the portfolio-owned Shia Rishta Page.
+        'scope' => 'pages_show_list,pages_read_engagement,pages_manage_posts,business_management,instagram_basic,instagram_content_publish',
         'response_type' => 'code',
     ]);
     json(['ok' => true, 'url' => $url]);
@@ -278,11 +282,37 @@ function socialConnectYouTube(): void
 // ── Meta page discovery ─────────────────────────────────────────────────
 
 /**
+ * Format a Graph error from a socialHttp() response for diagnostics:
+ * "error <code>/<subcode>: <message>" (message clipped). Returns null
+ * when the response carries no error. Never includes the access token
+ * or the request URL — only Meta's own error fields.
+ */
+function socialGraphErrorDiag(array $res): ?string
+{
+    $err = $res['json']['error'] ?? null;
+    if (is_array($err)) {
+        $code = (string)($err['code'] ?? '?');
+        $sub = isset($err['error_subcode']) ? '/' . (string)$err['error_subcode'] : '';
+        $msg = trim((string)($err['message'] ?? 'unknown Graph error'));
+        return 'error ' . $code . $sub . ': ' . substr($msg, 0, 140);
+    }
+    if (!empty($res['error'])) return 'transport: ' . substr((string)$res['error'], 0, 140);
+    if (($res['json'] ?? null) === null && (int)($res['status'] ?? 0) >= 400) {
+        return 'HTTP ' . (int)$res['status'] . ' with no Graph error body';
+    }
+    return null;
+}
+
+/**
  * GET a Graph list endpoint and follow paging.next (bounded to 5 pages).
  * Returns the merged `data` rows; a failed/permission-denied call yields
- * [] so callers can fall back to another route instead of dying.
+ * [] so callers can fall back to another route instead of dying — but
+ * the first failure's Graph error is written to $firstError (when the
+ * caller passes it) so an empty result is never again indistinguishable
+ * from a permission error (the round-1/round-2 connect bug: every route
+ * silently "empty", zero signal about why).
  */
-function socialGraphListAll(string $url, string $accessToken): array
+function socialGraphListAll(string $url, string $accessToken, ?string &$firstError = null): array
 {
     $rows = [];
     $next = $url;
@@ -291,7 +321,10 @@ function socialGraphListAll(string $url, string $accessToken): array
         $full = str_contains($next, 'access_token=') ? $next : $next . $sep . 'access_token=' . urlencode($accessToken);
         $res = socialHttp('GET', $full);
         $data = $res['json']['data'] ?? null;
-        if (!is_array($data)) break;
+        if (!is_array($data)) {
+            if ($firstError === null) $firstError = socialGraphErrorDiag($res) ?? 'no data in response';
+            break;
+        }
         foreach ($data as $row) {
             if (is_array($row)) $rows[] = $row;
         }
@@ -301,27 +334,61 @@ function socialGraphListAll(string $url, string $accessToken): array
 }
 
 /**
+ * Build the admin-facing error for a zero-page discovery: one entry per
+ * route with its outcome (row count, "empty", or the Graph error), plus
+ * any key permissions that were declined / not granted. One failed
+ * connect attempt must be enough to diagnose the cause. Contains no
+ * tokens — only Meta's own error text and route tallies.
+ *
+ * @param array<string,string> $diag        route => outcome
+ * @param array<int,string>    $missingPerms permission names
+ */
+function socialMetaNoPagesMessage(array $diag, array $missingPerms): string
+{
+    $parts = [];
+    foreach ($diag as $route => $outcome) $parts[] = $route . ': ' . $outcome;
+    $msg = 'No Facebook Page was found on that Meta account. Discovery — '
+        . ($parts ? implode('; ', $parts) : 'no routes ran') . '.';
+    if ($missingPerms !== []) {
+        $msg .= ' Permissions declined or not granted: ' . implode(', ', $missingPerms) . '.';
+    }
+    return substr($msg, 0, 600);
+}
+
+/**
  * Discover every Facebook Page the connecting user can act on.
  *
- * Primary route: /me/accounts. Fallback (when it returns nothing, or
- * returns pages but none carries a linked Instagram account — both seen
- * with Facebook Login for Business asset-scoped grants): enumerate the
- * user's businesses and merge their owned_pages + client_pages
- * (business_management covers this on the scheduler app). The Shia
- * Rishta Page is owned by business portfolio 2222291815376368, so it
- * only shows up reliably through this second route.
+ * Routes, in order (results merged):
+ *   1. /me/accounts?limit=100 — the classic edge; the raised limit
+ *      matters for users who manage many Pages.
+ *   2. /me?fields=accounts{...} — the same connection nested under /me;
+ *      under Facebook Login for Business this can return the granted
+ *      assets even when the top-level edge comes back empty.
+ *   3. Business route (only when routes 1–2 found nothing, or found
+ *      pages but none carries a linked Instagram account): enumerate
+ *      the user's businesses and merge their owned_pages + client_pages.
+ *      Requires business_management — requested at connect since round
+ *      2; round 1 never asked for it, so this route silently errored.
+ *      The Shia Rishta Page is owned by business portfolio
+ *      2222291815376368, so it only shows up reliably through here.
+ *
+ * Every route's outcome (row count / "empty" / first Graph error) is
+ * recorded into $diag when the caller passes it, so a zero-page result
+ * carries its own diagnosis instead of a bare "no Page found".
  *
  * Pages are deduped by id (fields merged so a later route can fill a
  * missing access_token / IG link) and sorted with IG-linked pages first,
  * so the earliest-stored facebook account — the one autopilot/ingest
  * pick by default — is a page that has an Instagram account.
  *
+ * @param array<string,string>|null $diag route => outcome, filled when passed
  * @return array<int,array<string,mixed>>
  */
-function socialDiscoverMetaPages(string $userToken, string $version): array
+function socialDiscoverMetaPages(string $userToken, string $version, ?array &$diag = null): array
 {
     $fields = 'id,name,access_token,instagram_business_account{id,username}';
     $base = 'https://graph.facebook.com/' . $version;
+    $diag = [];
     $byId = [];
     $add = static function (array $rows) use (&$byId): void {
         foreach ($rows as $row) {
@@ -339,16 +406,47 @@ function socialDiscoverMetaPages(string $userToken, string $version): array
         }
         return false;
     };
+    $tally = static fn(array $rows, ?string $err): string => $err ?? ($rows === [] ? 'empty' : count($rows) . ' row(s)');
 
-    $add(socialGraphListAll($base . '/me/accounts?fields=' . $fields, $userToken));
+    // Route 1: /me/accounts.
+    $err = null;
+    $rows = socialGraphListAll($base . '/me/accounts?fields=' . $fields . '&limit=100', $userToken, $err);
+    $diag['accounts'] = $tally($rows, $err);
+    $add($rows);
 
+    // Route 2: accounts connection nested under /me.
+    $res = socialHttp('GET', $base . '/me?fields=accounts{' . $fields . '}&access_token=' . urlencode($userToken));
+    $nested = $res['json']['accounts']['data'] ?? null;
+    if (is_array($nested)) {
+        $diag['me.accounts-field'] = $nested === [] ? 'empty' : count($nested) . ' row(s)';
+        $add($nested);
+        $next = (string)($res['json']['accounts']['paging']['next'] ?? '');
+        if ($next !== '') $add(socialGraphListAll($next, $userToken));
+    } else {
+        $diag['me.accounts-field'] = socialGraphErrorDiag($res) ?? 'empty';
+    }
+
+    // Route 3: businesses -> owned/client pages.
     if ($byId === [] || !$hasIg($byId)) {
-        $businesses = socialGraphListAll($base . '/me/businesses?fields=id,name', $userToken);
-        foreach ($businesses as $biz) {
-            $bid = (string)($biz['id'] ?? '');
-            if ($bid === '') continue;
-            $add(socialGraphListAll($base . '/' . $bid . '/owned_pages?fields=' . $fields, $userToken));
-            $add(socialGraphListAll($base . '/' . $bid . '/client_pages?fields=' . $fields, $userToken));
+        $errB = null;
+        $businesses = socialGraphListAll($base . '/me/businesses?fields=id,name', $userToken, $errB);
+        $diag['businesses'] = $tally($businesses, $errB);
+        if ($businesses !== []) {
+            $pageRows = 0;
+            $errP = null;
+            foreach ($businesses as $biz) {
+                $bid = (string)($biz['id'] ?? '');
+                if ($bid === '') continue;
+                $e1 = null;
+                $e2 = null;
+                $owned = socialGraphListAll($base . '/' . $bid . '/owned_pages?fields=' . $fields, $userToken, $e1);
+                $client = socialGraphListAll($base . '/' . $bid . '/client_pages?fields=' . $fields, $userToken, $e2);
+                $pageRows += count($owned) + count($client);
+                if ($errP === null) $errP = $e1 ?? $e2;
+                $add($owned);
+                $add($client);
+            }
+            $diag['business-pages'] = $errP ?? ($pageRows === 0 ? 'empty' : $pageRows . ' row(s)');
         }
     }
 
@@ -397,12 +495,29 @@ function routeSocialOAuth(string $provider, string $action): void
         // asset-scoped grants: /me/accounts can come back EMPTY when the
         // user granted specific assets instead of "all Pages", and its
         // nested instagram_business_account expansion can be missing even
-        // when pages are returned. socialDiscoverMetaPages() falls back
-        // to the business route (owned + client pages) in both cases.
-        $list = socialDiscoverMetaPages($userToken, $cfg['metaGraphVersion']);
-        if ($list === []) $fail('No Facebook Page was found on that Meta account. The account must manage a Page.');
-        $scopes = 'pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish';
+        // when pages are returned. socialDiscoverMetaPages() tries the
+        // /me/accounts edge, the accounts connection nested under /me,
+        // and the business route (owned + client pages), and reports
+        // each route's outcome in $diag.
         $base = 'https://graph.facebook.com/' . $cfg['metaGraphVersion'];
+        $diag = [];
+        $list = socialDiscoverMetaPages($userToken, $cfg['metaGraphVersion'], $diag);
+        if ($list === []) {
+            // Distinguish "permission declined / never granted" (fix:
+            // re-grant in the OAuth dialog) from "granted but empty"
+            // (fix: asset assignment). /me/permissions is only read on
+            // this failure path, so a successful connect pays nothing.
+            $permStatus = [];
+            foreach (socialGraphListAll($base . '/me/permissions', $userToken) as $pr) {
+                if (!empty($pr['permission'])) $permStatus[(string)$pr['permission']] = (string)($pr['status'] ?? '');
+            }
+            $missing = [];
+            foreach (['pages_show_list', 'pages_manage_posts', 'business_management', 'instagram_basic'] as $key) {
+                if (($permStatus[$key] ?? '') !== 'granted') $missing[] = $key;
+            }
+            $fail(socialMetaNoPagesMessage($diag, $missing));
+        }
+        $scopes = 'pages_show_list,pages_read_engagement,pages_manage_posts,business_management,instagram_basic,instagram_content_publish';
         $stored = 0;
         foreach ($list as $page) {
             $pageToken = (string)($page['access_token'] ?? '');

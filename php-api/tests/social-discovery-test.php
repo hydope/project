@@ -96,5 +96,46 @@ $GLOBALS['stubCalls'] = [];
 $pagesE = socialGraphListAll('https://graph.facebook.com/' . $V . '/me/accounts?fields=id', 'UT');
 check('E: unstubbed/error response yields [] without throwing', $pagesE === []);
 
+// ── Scenario F: Graph ERROR on /me/accounts falls through to business ───
+// Round-2 root cause shape: without business_management in the requested
+// scopes the business route errored; with any route erroring, discovery
+// must record the error in $diag (not swallow it as "empty") and still
+// fall through to the routes that work.
+stub([
+    '/me/accounts' => ['error' => ['code' => 200, 'error_subcode' => 0, 'message' => '(#200) Requires business_management permission']],
+    '/me/businesses' => ['data' => [['id' => '2222291815376368', 'name' => 'Shia Rishta']]],
+    '/owned_pages' => ['data' => [$shiaPage]],
+    '/client_pages' => ['data' => []],
+]);
+$diagF = null;
+$pages = socialDiscoverMetaPages('UT', $V, $diagF);
+check('F: graph error on /me/accounts falls through to business route', count($pages) === 1 && $pages[0]['id'] === '222');
+check('F: diag records the accounts-route Graph error, not "empty"', str_contains((string)($diagF['accounts'] ?? ''), 'error 200'));
+
+// ── Scenario G: accounts routes empty, business route returns the page ──
+stub([
+    '/me/accounts' => ['data' => []],
+    'fields=accounts' => ['accounts' => ['data' => []]],
+    '/me/businesses' => ['data' => [['id' => '2222291815376368', 'name' => 'Shia Rishta']]],
+    '/owned_pages' => ['data' => [$shiaPage]],
+    '/client_pages' => ['data' => []],
+]);
+$diagG = null;
+$pages = socialDiscoverMetaPages('UT', $V, $diagG);
+check('G: business route returns the page when accounts routes are empty', count($pages) === 1 && $pages[0]['id'] === '222');
+check('G: diag shows the businesses route succeeded', str_contains((string)($diagG['businesses'] ?? ''), '1 row'));
+
+// ── Scenario H: no-pages diagnostic message ─────────────────────────────
+// The callback builds its failure redirect from socialMetaNoPagesMessage
+// + the /me/permissions declined list; the message must name the route
+// error AND the declined permission, and must never carry token material.
+$msgH = socialMetaNoPagesMessage(
+    ['accounts' => 'error 200: (#200) Requires business_management permission', 'businesses' => 'empty'],
+    ['business_management']
+);
+check('H: message names the route error', str_contains($msgH, 'accounts: error 200'));
+check('H: message names the declined permission', str_contains($msgH, 'Permissions declined or not granted: business_management'));
+check('H: message carries no token material', !str_contains($msgH, 'access_token') && !str_contains($msgH, 'UT'));
+
 echo $failures === 0 ? "ALL PASS\n" : "$failures FAILURE(S)\n";
 exit($failures === 0 ? 0 : 1);

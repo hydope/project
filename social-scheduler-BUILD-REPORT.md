@@ -202,3 +202,75 @@ Live connect attempt (admin as Syed Ali, app "Shia Rishta Scheduler"
    access token returned".
    Regression test: `php-api/tests/social-discovery-test.php` (offline,
    stubbed Graph transport; scenarios A-E all pass).
+
+## Meta connect fix round 2 (2026-11-21)
+
+Round 1's fix deployed and the Connect button worked (OAuth opened, no
+404), but a connect attempt granting ONLY the Shia Rishta Page +
+@shiarishta.official (Facebook Login for Business, app 1854748145546859)
+STILL failed with "No Facebook Page was found on that Meta account."
+Root causes confirmed in code this round:
+
+1. **Scope gap — the business route could never work.** The connect
+   start (`socialConnectMeta()` in php-api/routes/social_scheduler.php)
+   requested scopes
+   `pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish`
+   — `business_management` was NOT in the list, even though round 1's
+   discovery depended on it for `/me/businesses` -> `owned_pages` /
+   `client_pages`. Without the user granting it, those calls fail with a
+   Graph permission error, so the portfolio-owned Shia Rishta Page was
+   unreachable. Fix: `business_management` added to the connect-start
+   scope list and to the scopes string stored on connected accounts.
+2. **Silent Graph errors made every failure look identical.**
+   `socialGraphListAll()` treated any response without a `data` array
+   (including permission errors) as an empty list and discarded the
+   error, so round 1 shipped with zero diagnostic signal. Fix: it now
+   writes the first Graph error per call to an optional by-ref
+   `$firstError` (formatted by new `socialGraphErrorDiag()` as
+   `error <code>/<subcode>: <message>`, message clipped, no token/URL),
+   and `socialDiscoverMetaPages()` records every route's outcome into a
+   `$diag` map.
+3. **Token handling — checked, was already correct.** The callback
+   exchanges the code for a short-lived token, immediately exchanges it
+   via `fb_exchange_token` for the long-lived user token, and discovery
+   runs with that long-lived USER token. No change needed; the failure
+   was permissions + silence, not token type or exchange order.
+
+Additional discovery route + diagnostics added:
+
+- Route 2: `GET /me?fields=accounts{id,name,access_token,instagram_business_account{id,username}}`
+  (accounts connection nested under /me) is now tried between
+  `/me/accounts` and the business route; `/me/accounts` is also called
+  with `limit=100`. IG-linked-first ordering and per-page IG resolution
+  from round 1 are unchanged.
+- On a zero-page result the callback now reads `GET /me/permissions`
+  and the admin redirect error is built by `socialMetaNoPagesMessage()`.
+
+New diagnostic error format (shown in the admin via `?social_error=`):
+
+```
+No Facebook Page was found on that Meta account. Discovery — accounts: <outcome>; me.accounts-field: <outcome>; businesses: <outcome>; business-pages: <outcome>. Permissions declined or not granted: <names>.
+```
+
+where each `<outcome>` is `N row(s)`, `empty`, or
+`error <code>/<subcode>: <Meta's message>`; the permissions sentence
+appears only when one of pages_show_list / pages_manage_posts /
+business_management / instagram_basic is not `granted` in
+`/me/permissions`, and names exactly those. The message contains no
+tokens. One failed attempt now identifies the failing route and whether
+it is a declined permission (fix: re-grant) vs an empty asset list
+(fix: asset assignment).
+
+Regression test extended: `php-api/tests/social-discovery-test.php`
+scenarios F (Graph error on /me/accounts falls through to business
+route + diag records `error 200`), G (accounts routes empty, business
+route returns the page), H (diagnostic message names the route error
+and the declined permission, carries no token material) — 16/16 checks
+pass. `php -l` clean; `npm run build` passes (506 routes).
+
+Retry expectation: reconnect from the admin and grant only the Shia
+Rishta Page + @shiarishta.official. The OAuth dialog will now also ask
+for business_management (because it is newly requested). Expected:
+Facebook card = Shia Rishta Page connected, Instagram card =
+@shiarishta.official connected. If it still fails, the red banner now
+shows the per-route diagnostic above — quote it verbatim.
