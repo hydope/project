@@ -651,14 +651,16 @@ CREATE TABLE IF NOT EXISTS guest_leads (
 -- Also created by migrateAddSocialSchedulerTables() in lib/migrate.php.
 CREATE TABLE IF NOT EXISTS social_accounts (
   id                  CHAR(36)     NOT NULL PRIMARY KEY,
-  platform            VARCHAR(16)  NOT NULL, -- facebook | instagram | youtube
+  -- platform: facebook | instagram | youtube
+  platform            VARCHAR(16)  NOT NULL,
   platform_account_id VARCHAR(128) NOT NULL,
   account_name        VARCHAR(255) DEFAULT NULL,
   access_token_enc    TEXT         DEFAULT NULL,
   refresh_token_enc   TEXT         DEFAULT NULL,
   token_expires_at    DATETIME     DEFAULT NULL,
   scopes              VARCHAR(500) DEFAULT NULL,
-  status              VARCHAR(16)  NOT NULL DEFAULT 'connected', -- connected | disconnected | needs_attention | error
+  -- status: connected | disconnected | needs_attention | error
+  status              VARCHAR(16)  NOT NULL DEFAULT 'connected',
   -- Autopilot safety rail: bumped on every failed publish, reset on
   -- success; at 3 the account flips to needs_attention and autopilot
   -- stops generating for it until an admin reconnects/checks it.
@@ -672,18 +674,21 @@ CREATE TABLE IF NOT EXISTS social_accounts (
 CREATE TABLE IF NOT EXISTS social_posts (
   id           CHAR(36)     NOT NULL PRIMARY KEY,
   caption      TEXT         NOT NULL,
-  -- JSON object of optional per-platform caption overrides, e.g.
-  -- {"youtube": "Title\n\nLonger description"}.
+  -- JSON object of optional per-platform caption overrides.
   caption_overrides TEXT    DEFAULT NULL,
   -- Server-side path under the photo storage root (social/<file>) plus
   -- its media kind. NULL media = text-only post (Facebook/YouTube rules
   -- apply per platform at publish time).
   media_path   VARCHAR(500) DEFAULT NULL,
-  media_type   VARCHAR(16)  DEFAULT NULL, -- image | video
-  media_url    VARCHAR(1000) DEFAULT NULL, -- externally hosted media URL, if any
+  -- media_type: image | video
+  media_type   VARCHAR(16)  DEFAULT NULL,
+  -- media_url: externally hosted media URL, if any
+  media_url    VARCHAR(1000) DEFAULT NULL,
   scheduled_at DATETIME     DEFAULT NULL,
-  status       VARCHAR(16)  NOT NULL DEFAULT 'draft', -- draft | scheduled | publishing | published | partial | failed
-  source       VARCHAR(16)  NOT NULL DEFAULT 'manual', -- manual | autopilot | autopilot_reel
+  -- status: draft | scheduled | publishing | published | partial | failed
+  status       VARCHAR(16)  NOT NULL DEFAULT 'draft',
+  -- source: manual | autopilot | autopilot_reel
+  source       VARCHAR(16)  NOT NULL DEFAULT 'manual',
   -- sha256 of the normalized caption; autopilot rejects any caption
   -- whose hash already exists so a caption is never posted twice.
   caption_hash CHAR(64)     DEFAULT NULL,
@@ -698,8 +703,10 @@ CREATE TABLE IF NOT EXISTS social_post_targets (
   id                CHAR(36)     NOT NULL PRIMARY KEY,
   post_id           CHAR(36)     NOT NULL,
   social_account_id CHAR(36)     NOT NULL,
-  platform          VARCHAR(16)  NOT NULL, -- facebook | instagram | youtube
-  status            VARCHAR(16)  NOT NULL DEFAULT 'pending', -- pending | publishing | published | failed | skipped
+  -- platform: facebook | instagram | youtube
+  platform          VARCHAR(16)  NOT NULL,
+  -- status: pending | publishing | published | failed | skipped
+  status            VARCHAR(16)  NOT NULL DEFAULT 'pending',
   platform_post_id  VARCHAR(255) DEFAULT NULL,
   platform_url      VARCHAR(1000) DEFAULT NULL,
   error             TEXT         DEFAULT NULL,
