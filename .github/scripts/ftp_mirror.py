@@ -56,14 +56,53 @@ def ensure_dir(ftps, remote_dir):
             pass  # already exists
 
 
+def upload(ftps, local_path, remote_path, remote_dir, label):
+    """Upload one file with the standard retry/reconnect policy.
+
+    Returns the (possibly reconnected) ftps handle."""
+    for attempt in range(1, MAX_FILE_ATTEMPTS + 1):
+        try:
+            with open(local_path, "rb") as f:
+                ftps.storbinary("STOR " + remote_path, f)
+            return ftps
+        except Exception as e:  # noqa: BLE001 - retry any transfer error
+            print(f"  retry {attempt}/{MAX_FILE_ATTEMPTS} {label}: "
+                  f"{type(e).__name__}: {e}", flush=True)
+            if attempt == MAX_FILE_ATTEMPTS:
+                raise
+            time.sleep(RETRY_SLEEP)
+            ftps = connect()  # fresh control connection for the retry
+            ensure_dir(ftps, remote_dir)
+    return ftps
+
+
+def upload_priority(rel):
+    """Upload order that keeps every live page servable mid-deploy.
+
+    0 = the build's asset chunks (assets/…): every HTML page references
+        them, so they land first.
+    2 = any index.html (root AND per-route prerendered pages): a route's
+        HTML must only go live after the chunks it references exist —
+        uploading one early creates the broken window behind errors like
+        "Importing binding name 'X' is not found" and the lazy-chunk
+        'default' crashes logged 2026-11-20. The old code deferred only
+        the ROOT index.html; prerendered route pages slipped through in
+        walk order.
+    1 = everything else.
+    """
+    parts = rel.split(os.sep)
+    if parts[0] == "assets":
+        return 0
+    if parts[-1] == "index.html":
+        return 2
+    return 1
+
+
 def main():
     ftps = connect()
     ensure_dir(ftps, REMOTE_ROOT)
-    count = 0
-    # Collect index.html uploads to do LAST: uploading it first creates a
-    # broken window where the new page references JS chunks that haven't
-    # been uploaded yet ("Importing binding name 'X' is not found").
-    deferred = []
+    # Collect first, upload in priority order (see upload_priority).
+    files = []
     for dirpath, dirnames, filenames in os.walk(LOCAL_ROOT):
         dirnames[:] = [
             d for d in dirnames
@@ -72,51 +111,22 @@ def main():
         rel_dir = os.path.relpath(dirpath, LOCAL_ROOT)
         remote_dir = (REMOTE_ROOT if rel_dir == "."
                       else REMOTE_ROOT + "/" + rel_dir.replace(os.sep, "/"))
-        ensure_dir(ftps, remote_dir)
         for fn in sorted(filenames):
             rel = fn if rel_dir == "." else rel_dir + os.sep + fn
             if excluded(rel):
                 continue
-            # Defer index.html to the very end (see above).
-            if fn == "index.html" and rel_dir == ".":
-                deferred.append((dirpath, fn, remote_dir))
-                continue
-            local_path = os.path.join(dirpath, fn)
-            remote_path = remote_dir + "/" + fn
-            for attempt in range(1, MAX_FILE_ATTEMPTS + 1):
-                try:
-                    with open(local_path, "rb") as f:
-                        ftps.storbinary("STOR " + remote_path, f)
-                    count += 1
-                    break
-                except Exception as e:  # noqa: BLE001 - retry any transfer error
-                    print(f"  retry {attempt}/{MAX_FILE_ATTEMPTS} {rel}: "
-                          f"{type(e).__name__}: {e}", flush=True)
-                    if attempt == MAX_FILE_ATTEMPTS:
-                        raise
-                    time.sleep(RETRY_SLEEP)
-                    ftps = connect()  # fresh control connection for the retry
-                    ensure_dir(ftps, remote_dir)
-    # Now upload index.html last, so it only goes live after all its
-    # referenced assets are in place.
-    for dirpath, fn, remote_dir in deferred:
-        local_path = os.path.join(dirpath, fn)
-        remote_path = remote_dir + "/" + fn
-        for attempt in range(1, MAX_FILE_ATTEMPTS + 1):
-            try:
-                with open(local_path, "rb") as f:
-                    ftps.storbinary("STOR " + remote_path, f)
-                count += 1
-                print(f"  index.html uploaded last ({count} files total)", flush=True)
-                break
-            except Exception as e:  # noqa: BLE001 - retry any transfer error
-                print(f"  retry {attempt}/{MAX_FILE_ATTEMPTS} index.html: "
-                      f"{type(e).__name__}: {e}", flush=True)
-                if attempt == MAX_FILE_ATTEMPTS:
-                    raise
-                time.sleep(RETRY_SLEEP)
-                ftps = connect()
-                ensure_dir(ftps, remote_dir)
+            files.append((upload_priority(rel), rel,
+                          os.path.join(dirpath, fn),
+                          remote_dir + "/" + fn, remote_dir))
+    files.sort(key=lambda t: (t[0], t[1]))
+    ensured = set()
+    count = 0
+    for _prio, rel, local_path, remote_path, remote_dir in files:
+        if remote_dir not in ensured:
+            ensure_dir(ftps, remote_dir)
+            ensured.add(remote_dir)
+        ftps = upload(ftps, local_path, remote_path, remote_dir, rel)
+        count += 1
     try:
         ftps.quit()
     except Exception:  # noqa: BLE001 - best effort close

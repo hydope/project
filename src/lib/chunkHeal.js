@@ -38,8 +38,17 @@ const CLEAR_AFTER_MS = 10_000;
 // on the route; a single visitor crashing repeatedly is a poisoned
 // cache, and one guarded hard reload is the cure — the same guard below
 // keeps a genuine bug from looping (second crash shows the manual UI).
+//
+// The 'default' shapes (added 2026-11-20) are the same failure one step
+// later: when the dead chunk URL is answered by the SPA fallback, some
+// browsers resolve the import with a non-module instead of rejecting,
+// and React.lazy throws reading `.default` off it — V8: "Cannot read
+// properties of undefined (reading 'default')", Safari: "undefined is
+// not an object (evaluating 'e._result.default')". The event log showed
+// a guest on /shia-nikah-united-kingdom hitting the boundary four times
+// in eight seconds because the heal did not recognize either shape.
 const CHUNK_ERROR_RE =
-  /chunkloaderror|loading chunk \d+ failed|failed to fetch dynamically imported module|failed to load module script|importing a module script failed|unable to preload css|error loading dynamically imported module|does not provide an export|before initialization|uninitialized variable/i;
+  /chunkloaderror|loading chunk \d+ failed|failed to fetch dynamically imported module|failed to load module script|importing a module script failed|unable to preload css|error loading dynamically imported module|does not provide an export|before initialization|uninitialized variable|cannot read properties of undefined \(reading 'default'\)|undefined is not an object \(evaluating '[^']*\.default'\)|can't access property "default"/i;
 
 export function isChunkLoadError(error) {
   if (!error) return false;
