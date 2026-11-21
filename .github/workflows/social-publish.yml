@@ -1,0 +1,40 @@
+name: Social Publish Cron
+
+# Publishes due social posts (manual, autopilot and ingested reels) to
+# Facebook, Instagram and YouTube through their official APIs. Runs every
+# 5 minutes — GitHub Actions' minimum schedule interval — so a scheduled
+# post goes out within minutes of its slot.
+#
+# Fully autonomous: calls the server-side HTTP trigger which runs the
+# publish cron PHP script on the production server (where MySQL and the
+# stored platform tokens are reachable). The script is idempotent: each
+# post target is claimed atomically before publishing, so overlapping
+# runs can never double-post.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger server-side social publish cron
+        env:
+          SEEDER_CRON_KEY: ${{ secrets.SEEDER_CRON_KEY }}
+        run: |
+          echo "Triggering social publish cron on production server..."
+          RESP=$(curl -s --max-time 120 -X POST https://shiarishta.com/api/social-publish-cron.php \
+            -H "X-Seeder-Cron-Key: $SEEDER_CRON_KEY" \
+            -H "Content-Type: application/json")
+
+          echo "Response: $RESP"
+
+          echo "$RESP" | grep -q '"ok":true' && {
+            echo "✓ Social publish cron completed successfully"
+            exit 0
+          }
+
+          echo "✗ Social publish cron failed"
+          exit 1
