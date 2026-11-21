@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/layouts/AdminLayout';
 import { http } from '@/lib/api/transport';
-import { Sparkles, RefreshCw, Calendar, Send, Trash2, FileText, Eye, KeyRound, ShieldCheck, Loader2, Image as ImageIcon } from 'lucide-react';
+import { renderInlineLinks } from '@/lib/inlineLinks';
+import { Sparkles, RefreshCw, Calendar, Send, Trash2, FileText, Eye, KeyRound, ShieldCheck, Loader2, Image as ImageIcon, Pencil } from 'lucide-react';
 
 /**
  * Admin content desk — AI-drafted blog posts with scheduling.
@@ -183,6 +184,9 @@ export default function AdminContent() {
   const [topic, setTopic] = useState('');
   const [angle, setAngle] = useState('');
   const [draft, setDraft] = useState(null);
+  // When set, the editor below is editing this existing post (PUT) instead
+  // of creating a new one (POST). The editor UI is shared on purpose.
+  const [editingId, setEditingId] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [scheduledFor, setScheduledFor] = useState('');
   const [busy, setBusy] = useState(false);
@@ -230,6 +234,7 @@ export default function AdminContent() {
         angle: angle.trim() || undefined,
       }, { timeout: 55000 });
       setDraft(res.draft);
+      setEditingId(null);
       setFlash('Draft ready. Read it, edit anything, then save.');
     } catch (err) {
       setError(err?.message || 'The writer could not draft that.');
@@ -250,18 +255,39 @@ export default function AdminContent() {
     setBusy(true);
     setError('');
     try {
-      await http.post('/api/ai/posts', {
-        draft: { ...draft, status, scheduledFor: scheduledFor || undefined },
-      });
+      if (editingId) {
+        // Edit of an existing post — the update endpoint the status buttons
+        // already use, now with the content fields too. (It does not accept
+        // a cover image, which is why the image field hides in edit mode.)
+        await http.put(`/api/ai/posts/${editingId}`, {
+          title: draft.title,
+          excerpt: draft.excerpt,
+          category: draft.category,
+          readTime: draft.readTime,
+          body: draft.body,
+          status,
+          scheduledFor: status === 'scheduled' ? scheduledFor || undefined : undefined,
+        });
+        setFlash(status === 'published'
+          ? 'Saved — the updated post is live on the blog now.'
+          : status === 'scheduled'
+            ? 'Saved and scheduled. It goes live automatically at that time.'
+            : 'Saved. The post is now a draft and no longer live.');
+      } else {
+        await http.post('/api/ai/posts', {
+          draft: { ...draft, status, scheduledFor: scheduledFor || undefined },
+        });
+        setFlash(status === 'published'
+          ? 'Published — it is live on the blog now.'
+          : status === 'scheduled'
+            ? 'Scheduled. It goes live automatically at that time.'
+            : 'Saved as a draft.');
+      }
       setDraft(null);
+      setEditingId(null);
       setTopic('');
       setAngle('');
       setScheduledFor('');
-      setFlash(status === 'published'
-        ? 'Published — it is live on the blog now.'
-        : status === 'scheduled'
-          ? 'Scheduled. It goes live automatically at that time.'
-          : 'Saved as a draft.');
       await load();
     } catch (err) {
       setError(err?.message || 'Could not save that post.');
@@ -269,6 +295,45 @@ export default function AdminContent() {
       setBusy(false);
     }
   };
+
+  // Load a published post into the shared editor. The list endpoint does
+  // not return bodies; the public single-post endpoint does, and it only
+  // serves published posts — which is why Edit is offered for those.
+  const startEdit = async (p) => {
+    setBusy(true);
+    setError('');
+    setFlash('');
+    try {
+      const res = await http.get(`/api/ai/posts/${encodeURIComponent(p.slug)}`);
+      const full = res?.post || res;
+      if (!full || !Array.isArray(full.body)) {
+        throw new Error('That post could not be loaded for editing.');
+      }
+      setDraft({
+        title: full.title || '',
+        excerpt: full.excerpt || '',
+        category: full.category || 'Guidance',
+        readTime: full.read_time || '5 min',
+        imageUrl: full.image_url || '',
+        body: full.body.map((b) => ({ t: b.t || 'p', x: b.x || '' })),
+      });
+      setEditingId(p.id);
+      setScheduledFor('');
+      setFlash(`Editing “${p.title}”. Saving replaces the live text.`);
+      setTimeout(() => document.getElementById('post-editor')?.scrollIntoView({ behavior: 'smooth' }), 50);
+    } catch (err) {
+      setError(err?.message || 'Could not load that post for editing.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setBlock = (i, patch) =>
+    setDraft((d) => ({ ...d, body: d.body.map((b, j) => (j === i ? { ...b, ...patch } : b)) }));
+  const addBlock = () =>
+    setDraft((d) => ({ ...d, body: [...(d.body || []), { t: 'p', x: '' }] }));
+  const removeBlock = (i) =>
+    setDraft((d) => ({ ...d, body: d.body.filter((_, j) => j !== i) }));
 
   const setStatus = async (id, status) => {
     setBusy(true);
@@ -283,14 +348,6 @@ export default function AdminContent() {
     }
   };
 
-  const runConfirmed = async () => {
-    if (!confirmAction) return;
-    const { kind, id } = confirmAction;
-    setConfirmAction(null);
-    if (kind === 'delete') await remove(id);
-    else await setStatus(id, 'published');
-  };
-
   const remove = async (id) => {
     setBusy(true);
     setError('');
@@ -302,6 +359,14 @@ export default function AdminContent() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const runConfirmed = async () => {
+    if (!confirmAction) return;
+    const { kind, id } = confirmAction;
+    setConfirmAction(null);
+    if (kind === 'delete') await remove(id);
+    else await setStatus(id, 'published');
   };
 
   const autoSchedule = async () => {
@@ -399,8 +464,8 @@ export default function AdminContent() {
           </form>
         </section>
         {draft && (
-          <section className="rounded-xl border border-primary/30 bg-primary/5 p-5 mb-8">
-            <h2 className="text-base font-bold text-ink mb-3">Review the draft</h2>
+          <section id="post-editor" className="rounded-xl border border-primary/30 bg-primary/5 p-5 mb-8">
+            <h2 className="text-base font-bold text-ink mb-3">{editingId ? 'Edit post' : 'Review the draft'}</h2>
             <input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })}
               className="input w-full font-semibold mb-2" aria-label="Draft title" />
             <div className="flex flex-wrap gap-2 mb-3 text-xs">
@@ -415,7 +480,10 @@ export default function AdminContent() {
             <textarea value={draft.excerpt} onChange={(e) => setDraft({ ...draft, excerpt: e.target.value })}
               className="input w-full mb-3" rows={2} aria-label="Excerpt" />
 
-            {/* Cover image: URL or file upload. Shows a live preview. */}
+            {/* Cover image: URL or file upload. Shows a live preview.
+                Hidden in edit mode — the update endpoint cannot change a
+                post's cover, and a field that silently does nothing lies. */}
+            {!editingId && (
             <div className="mb-3">
               <div className="flex flex-wrap gap-2 mb-2">
                 <input value={draft.imageUrl || ''} onChange={(e) => setDraft({ ...draft, imageUrl: e.target.value })}
@@ -435,6 +503,39 @@ export default function AdminContent() {
                 <img src={draft.imageUrl} alt="Cover preview" className="w-full max-h-48 object-cover rounded-lg border border-line/20" />
               )}
             </div>
+            )}
+
+            {/* Body blocks — editable text, one block per row. Links are
+                written [link text](https://example.com) and render as real
+                anchors on the post page (see src/lib/inlineLinks.jsx). */}
+            <div className="space-y-3 mb-3">
+              {draft.body.map((b, i) => (
+                <div key={i} className="rounded-lg border border-line/20 bg-elevated p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <select value={b.t} onChange={(e) => setBlock(i, { t: e.target.value })}
+                      className="input" aria-label={`Block ${i + 1} type`}>
+                      {['p', 'h2', 'ul', 'ol', 'quote'].map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <button type="button" onClick={() => removeBlock(i)}
+                      className="px-2 py-1.5 rounded-lg text-xs font-semibold text-muted hover:text-danger">
+                      Remove block
+                    </button>
+                  </div>
+                  <textarea value={b.x} onChange={(e) => setBlock(i, { x: e.target.value })}
+                    rows={b.t === 'h2' ? 1 : 3} className="input w-full" aria-label={`Block ${i + 1} text`} />
+                </div>
+              ))}
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="button" onClick={addBlock}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-line/30 text-muted">
+                  Add paragraph
+                </button>
+                <p className="text-[11px] text-muted">
+                  Links: [link text](https://example.com) inside a paragraph, quote or list item.
+                  Lists hold one item per line.
+                </p>
+              </div>
+            </div>
 
             <div className="max-h-72 overflow-y-auto rounded-lg border border-line/20 bg-elevated p-4 mb-4 space-y-3">
               {draft.body.map((b, i) => {
@@ -442,10 +543,10 @@ export default function AdminContent() {
                 if (b.t === 'ul' || b.t === 'ol') {
                   const items = String(b.x || '').split('\n').map(s => s.trim()).filter(Boolean);
                   const Tag = b.t === 'ol' ? 'ol' : 'ul';
-                  return <Tag key={i} className="text-sm text-muted leading-relaxed list-inside ml-3" style={{ listStyleType: b.t === 'ol' ? 'decimal' : 'disc' }}>{items.map((it, j) => <li key={j}>{it}</li>)}</Tag>;
+                  return <Tag key={i} className="text-sm text-muted leading-relaxed list-inside ml-3" style={{ listStyleType: b.t === 'ol' ? 'decimal' : 'disc' }}>{items.map((it, j) => <li key={j}>{renderInlineLinks(it)}</li>)}</Tag>;
                 }
-                if (b.t === 'quote') return <blockquote key={i} className="text-sm text-ink leading-relaxed italic border-l-2 border-gold pl-3">{b.x}</blockquote>;
-                return <p key={i} className="text-sm text-muted leading-relaxed">{b.x}</p>;
+                if (b.t === 'quote') return <blockquote key={i} className="text-sm text-ink leading-relaxed italic border-l-2 border-gold pl-3">{renderInlineLinks(b.x)}</blockquote>;
+                return <p key={i} className="text-sm text-muted leading-relaxed">{renderInlineLinks(b.x)}</p>;
               })}
             </div>
 
@@ -460,14 +561,14 @@ export default function AdminContent() {
               </button>
               <button onClick={() => save('published')} disabled={busy}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-primary text-white disabled:opacity-50">
-                <Send className="w-3.5 h-3.5" /> Publish now
+                <Send className="w-3.5 h-3.5" /> {editingId ? 'Save changes' : 'Publish now'}
               </button>
               <button onClick={() => save('draft')} disabled={busy}
                 className="px-3 py-2 rounded-lg text-xs font-semibold border border-line/30 text-muted disabled:opacity-50">
                 Save as draft
               </button>
-              <button onClick={() => setDraft(null)}
-                className="px-3 py-2 rounded-lg text-xs font-semibold text-muted hover:text-ink">Discard</button>
+              <button onClick={() => { setDraft(null); setEditingId(null); }}
+                className="px-3 py-2 rounded-lg text-xs font-semibold text-muted hover:text-ink">{editingId ? 'Cancel edit' : 'Discard'}</button>
             </div>
           </section>
         )}
@@ -526,6 +627,12 @@ export default function AdminContent() {
                     {p.status !== 'published' && (
                       <button onClick={() => setConfirmAction({ kind: 'publish', id: p.id, title: p.title })} disabled={busy}
                         className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white disabled:opacity-50">Publish</button>
+                    )}
+                    {p.status === 'published' && (
+                      <button onClick={() => startEdit(p)} disabled={busy}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-line/30 text-muted disabled:opacity-50">
+                        <Pencil className="w-3.5 h-3.5" /> Edit
+                      </button>
                     )}
                     {p.status === 'published' && (!p.scheduled_for || new Date(p.scheduled_for) <= new Date()) && (
                       <a href={`/blog/${p.slug}`} target="_blank" rel="noreferrer"
