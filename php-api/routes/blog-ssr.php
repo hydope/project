@@ -61,6 +61,43 @@ function blogSsrFetchPost(string $slug): ?array
     return $row;
 }
 
+/** Escape a plain-text fragment of post body. */
+function blogSsrEsc(string $s): string
+{
+    return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+/** Render body text with markdown-style inline links as HTML.
+ *
+ * Authors write [link text](https://example.com); only http/https URLs
+ * become anchors and every other byte stays escaped plain text, exactly
+ * as before this existed. Mirrors src/lib/inlineLinks.jsx so the served
+ * HTML and the SPA render the same post the same way. */
+function blogSsrInlineLinks(string $text): string
+{
+    if (!str_contains($text, '[')) {
+        return blogSsrEsc($text);
+    }
+    $parts = preg_split(
+        '/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/',
+        $text,
+        -1,
+        PREG_SPLIT_DELIM_CAPTURE
+    );
+    if ($parts === false || count($parts) === 1) {
+        return blogSsrEsc($text);
+    }
+    $out = '';
+    // With two capture groups the split yields [text, linkText, url, text, …].
+    for ($i = 0; $i < count($parts); $i += 3) {
+        $out .= blogSsrEsc($parts[$i]);
+        if (isset($parts[$i + 1], $parts[$i + 2])) {
+            $out .= '<a href="' . blogSsrEsc($parts[$i + 2]) . '">' . blogSsrEsc($parts[$i + 1]) . '</a>';
+        }
+    }
+    return $out;
+}
+
 /** Render [{t:'p'|'h2'|'ul'|'ol'|'quote', x:'...'}] body blocks as HTML. List
  * items arrive newline-separated in x (see aiNormalizeBlock). */
 function blogSsrBodyHtml(array $body): string
@@ -83,16 +120,16 @@ function blogSsrBodyHtml(array $body): string
                     static fn($l) => $l !== ''
                 ));
                 $out .= "<{$tag}>" . implode('', array_map(
-                    static fn($i) => '<li>' . htmlspecialchars($i, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</li>',
+                    static fn($i) => '<li>' . blogSsrInlineLinks($i) . '</li>',
                     $items
                 )) . "</{$tag}>";
                 break;
             }
             case 'quote':
-                $out .= "<blockquote>{$text}</blockquote>";
+                $out .= '<blockquote>' . blogSsrInlineLinks((string)($b['x'] ?? '')) . '</blockquote>';
                 break;
             default:
-                $out .= "<p>{$text}</p>";
+                $out .= '<p>' . blogSsrInlineLinks((string)($b['x'] ?? '')) . '</p>';
         }
     }
     return $out;

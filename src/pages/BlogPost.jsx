@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Layout from '../layouts/LandingLayout';
 import { Clock, ArrowLeft } from 'lucide-react';
 import NotFound from './NotFound';
+import { renderInlineLinks } from '../lib/inlineLinks.jsx';
 
 // articles.js holds all eight full-length articles — dynamically imported so
 // it ships as its own async chunk instead of bloating the shared entry chunk.
@@ -164,12 +165,12 @@ export default function BlogPost() {
             if (type === 'ul' || type === 'ol') {
               const items = String(b.x || b.text || '').split('\n').map(s => s.trim()).filter(Boolean);
               const Tag = type === 'ol' ? 'ol' : 'ul';
-              return <Tag key={i} style={{ margin: '0 0 1.25rem 1.25rem', lineHeight: 1.8 }}>{items.map((it, j) => <li key={j}>{it}</li>)}</Tag>;
+              return <Tag key={i} style={{ margin: '0 0 1.25rem 1.25rem', lineHeight: 1.8 }}>{items.map((it, j) => <li key={j}>{renderInlineLinks(it)}</li>)}</Tag>;
             }
             if (type === 'quote') {
-              return <blockquote key={i} style={{ borderLeft: '3px solid var(--color-gold)', paddingLeft: '1rem', margin: '0 0 1.25rem', fontStyle: 'italic', color: 'var(--color-ink)' }}>{b.x || b.text}</blockquote>;
+              return <blockquote key={i} style={{ borderLeft: '3px solid var(--color-gold)', paddingLeft: '1rem', margin: '0 0 1.25rem', fontStyle: 'italic', color: 'var(--color-ink)' }}>{renderInlineLinks(b.x || b.text)}</blockquote>;
             }
-            return <p key={i} style={{ marginBottom: '1.25rem' }}>{b.x || b.text}</p>;
+            return <p key={i} style={{ marginBottom: '1.25rem' }}>{renderInlineLinks(b.x || b.text)}</p>;
           })}
         </div>
         <div className="mt-8 pt-6" style={{ borderTop: '1px solid var(--color-border)' }}>
