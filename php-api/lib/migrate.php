@@ -81,6 +81,7 @@ function migrateSchema(): void
     migrateAddOpenToIntrosColumn();
     migrateAddMutesTable();
     migrateAddPageviewAttributionColumns();
+    migrateAddSocialSchedulerTables();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -1771,5 +1772,102 @@ function migrateAddPageviewAttributionColumns(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (pageview attribution) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Social Scheduler tables (Phase 1, 2026-11-21): connected platform
+ * accounts (tokens encrypted at rest), scheduled posts, and one target
+ * row per post×account. Declared identically in db/schema.sql — the
+ * schema.sql digest change is what makes migrateSchema() run this on
+ * production (see the marker rule at the top of this file).
+ */
+function migrateAddSocialSchedulerTables(): void
+{
+    try {
+        db()->exec(
+            "CREATE TABLE IF NOT EXISTS social_accounts (
+                id                  CHAR(36)     NOT NULL PRIMARY KEY,
+                platform            VARCHAR(16)  NOT NULL,
+                platform_account_id VARCHAR(128) NOT NULL,
+                account_name        VARCHAR(255) DEFAULT NULL,
+                access_token_enc    TEXT         DEFAULT NULL,
+                refresh_token_enc   TEXT         DEFAULT NULL,
+                token_expires_at    DATETIME     DEFAULT NULL,
+                scopes              VARCHAR(500) DEFAULT NULL,
+                status              VARCHAR(16)  NOT NULL DEFAULT 'connected',
+                consecutive_failures INT         NOT NULL DEFAULT 0,
+                created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_social_account (platform, platform_account_id),
+                KEY idx_social_accounts_platform (platform, status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        db()->exec(
+            "CREATE TABLE IF NOT EXISTS social_posts (
+                id                CHAR(36)     NOT NULL PRIMARY KEY,
+                caption           TEXT         NOT NULL,
+                caption_overrides TEXT         DEFAULT NULL,
+                media_path        VARCHAR(500) DEFAULT NULL,
+                media_type        VARCHAR(16)  DEFAULT NULL,
+                media_url         VARCHAR(1000) DEFAULT NULL,
+                scheduled_at      DATETIME     DEFAULT NULL,
+                status            VARCHAR(16)  NOT NULL DEFAULT 'draft',
+                source            VARCHAR(16)  NOT NULL DEFAULT 'manual',
+                caption_hash      CHAR(64)     DEFAULT NULL,
+                created_by        CHAR(36)     DEFAULT NULL,
+                created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                KEY idx_social_posts_due (status, scheduled_at),
+                UNIQUE KEY uq_social_posts_caption_hash (caption_hash)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        // Column ensures for installs where the tables landed before the
+        // autopilot columns were added (CREATE TABLE IF NOT EXISTS cannot
+        // add columns to an existing table).
+        $ensures = [
+            'social_accounts' => ['consecutive_failures' => 'INT NOT NULL DEFAULT 0'],
+            'social_posts' => [
+                'source' => "VARCHAR(16) NOT NULL DEFAULT 'manual'",
+                'caption_hash' => 'CHAR(64) DEFAULT NULL',
+            ],
+        ];
+        foreach ($ensures as $table => $cols) {
+            $have = [];
+            foreach (db()->query("SHOW COLUMNS FROM {$table}")->fetchAll() as $c) {
+                $have[(string)$c['Field']] = true;
+            }
+            foreach ($cols as $col => $def) {
+                if (!isset($have[$col])) {
+                    db()->exec("ALTER TABLE {$table} ADD COLUMN {$col} {$def}");
+                }
+            }
+        }
+        try {
+            db()->exec('ALTER TABLE social_posts ADD UNIQUE KEY uq_social_posts_caption_hash (caption_hash)');
+        } catch (Throwable) {
+            // Index already exists (fresh install path above) — fine.
+        }
+        db()->exec(
+            "CREATE TABLE IF NOT EXISTS social_post_targets (
+                id                CHAR(36)     NOT NULL PRIMARY KEY,
+                post_id           CHAR(36)     NOT NULL,
+                social_account_id CHAR(36)     NOT NULL,
+                platform          VARCHAR(16)  NOT NULL,
+                status            VARCHAR(16)  NOT NULL DEFAULT 'pending',
+                platform_post_id  VARCHAR(255) DEFAULT NULL,
+                platform_url      VARCHAR(1000) DEFAULT NULL,
+                error             TEXT         DEFAULT NULL,
+                attempts          INT          NOT NULL DEFAULT 0,
+                published_at      DATETIME     DEFAULT NULL,
+                created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_social_target (post_id, social_account_id),
+                KEY idx_social_targets_post (post_id),
+                KEY idx_social_targets_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    } catch (Throwable $e) {
+        error_log('[api] migration (social scheduler tables) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }

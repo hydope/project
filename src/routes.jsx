@@ -64,6 +64,7 @@ const AdminRoles = lazy(() => import('./pages/admin/AdminRoles'));
 const AdminGuardians = lazy(() => import('./pages/admin/AdminGuardians'));
 const AdminAnalytics = lazy(() => import('./pages/admin/AdminAnalytics'));
 const AdminMatchmaker = lazy(() => import('./pages/admin/AdminMatchmaker'));
+const AdminSocialScheduler = lazy(() => import('./pages/admin/AdminSocialScheduler'));
 const Matchmaker = lazy(() => import('./pages/Matchmaker'));
 const MatchmakerConfirm = lazy(() => import('./pages/MatchmakerConfirm'));
 const BiodataMaker = lazy(() => import('./pages/BiodataMaker'));
@@ -300,6 +301,7 @@ const router = createBrowserRouter([
           { path: 'guardians', element: <LazyRoute component={AdminGuardians} /> },
           { path: 'analytics', element: <LazyRoute component={AdminAnalytics} /> },
           { path: 'matchmaker', element: <LazyRoute component={AdminMatchmaker} /> },
+          { path: 'social-scheduler', element: <LazyRoute component={AdminSocialScheduler} /> },
         ],
       },
     ],

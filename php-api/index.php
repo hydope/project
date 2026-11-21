@@ -43,6 +43,9 @@ require __DIR__ . '/routes/blog-ssr.php';
 require __DIR__ . '/routes/profiles-ssr.php';
 require __DIR__ . '/routes/profile-ssr.php';
 require __DIR__ . '/routes/social.php';
+require __DIR__ . '/lib/SocialPublisher.php';
+require __DIR__ . '/lib/SocialAutopilot.php';
+require __DIR__ . '/routes/social_scheduler.php';
 require __DIR__ . '/lib/ai.php';
 require __DIR__ . '/routes/ai.php';
 require __DIR__ . '/routes/config.php';
@@ -269,7 +272,42 @@ try {
             routeDrafts($method, $rest);
             break;
         case 'admin':
+            // Social Scheduler lives under /api/admin/social/*.
+            if (($rest[0] ?? '') === 'social') {
+                requireAuthUser();
+                if (empty(currentUser()['isAdmin'])) {
+                    json(['error' => 'Admin access required'], 403);
+                }
+                routeAdminSocial($method, array_slice($rest, 1));
+                break;
+            }
             routeAdmin($method, $rest);
+            break;
+        case 'social-oauth':
+            // OAuth redirect target for Meta/Google connect flows
+            // (public — the HMAC-signed state is the credential).
+            if ($method === 'GET' && in_array($rest[0] ?? '', ['meta', 'google'], true)) {
+                routeSocialOAuth((string)$rest[0], (string)($rest[1] ?? ''));
+                break;
+            }
+            json(['error' => 'Not found'], 404);
+            break;
+        case 'social-media':
+            // Public media serve — platforms (Instagram) fetch media
+            // from these URLs; files are content meant to be posted.
+            if ($method === 'GET' && isset($rest[0])) {
+                routeSocialMediaServe((string)$rest[0]);
+                break;
+            }
+            json(['error' => 'Not found'], 404);
+            break;
+        case 'social-ingest':
+            // Reel ingest from the Muse-side generator (X-Ingest-Key).
+            if ($method === 'POST') {
+                routeSocialIngest();
+                break;
+            }
+            json(['error' => 'Not found'], 404);
             break;
         case 'analytics':
             routeAnalytics($method, $rest);

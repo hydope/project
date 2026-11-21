@@ -107,3 +107,41 @@ function cip():string{
 function isLocalIp(string $ip):bool{
     return in_array($ip,['127.0.0.1','::1','::ffff:127.0.0.1'],true);
 }
+
+// ── Social Scheduler config (Phase 1, 2026-11-21) ───────────────────────────
+// OAuth app credentials for publishing NATIVELY to Facebook/Instagram
+// (Meta) and YouTube (Google). Read from env with EMPTY defaults: when a
+// key is missing the connect endpoints return a clear "not configured"
+// error instead of crashing, and no secret is ever hardcoded or returned
+// to the browser (only *_Configured booleans leave the server).
+function socialConfig(): array
+{
+    return [
+        'metaAppId'       => trim((string)(getenv('META_APP_ID') ?: '')),
+        'metaAppSecret'   => trim((string)(getenv('META_APP_SECRET') ?: '')),
+        'metaGraphVersion'=> trim((string)(getenv('META_GRAPH_VERSION') ?: '')) ?: 'v21.0',
+        'googleClientId'     => trim((string)(getenv('YOUTUBE_GOOGLE_CLIENT_ID') ?: (getenv('GOOGLE_CLIENT_ID') ?: ''))),
+        'googleClientSecret' => trim((string)(getenv('YOUTUBE_GOOGLE_CLIENT_SECRET') ?: (getenv('GOOGLE_CLIENT_SECRET') ?: ''))),
+        // Public base of THIS API, used to build OAuth redirect URIs and
+        // the publicly reachable media URLs Instagram requires.
+        'apiPublicUrl'    => rtrim(trim((string)(getenv('API_PUBLIC_URL') ?: '')), '/') ?: 'https://shiarishta.com/api',
+        // Where the OAuth callback sends the admin's browser afterwards.
+        'adminUrl'        => rtrim(trim((string)(getenv('ADMIN_URL') ?: '')), '/') ?: 'https://shiarishta.com/admin/social-scheduler',
+        // Shared secret for the reel INGEST endpoint (X-Ingest-Key header),
+        // used by the Muse-side ShortSmash generator job to feed finished
+        // 1080x1920 reels into the queue. Empty = ingest disabled.
+        'ingestKey'       => trim((string)(getenv('SOCIAL_INGEST_KEY') ?: '')),
+    ];
+}
+
+function socialMetaConfigured(): bool
+{
+    $c = socialConfig();
+    return $c['metaAppId'] !== '' && $c['metaAppSecret'] !== '';
+}
+
+function socialGoogleConfigured(): bool
+{
+    $c = socialConfig();
+    return $c['googleClientId'] !== '' && $c['googleClientSecret'] !== '';
+}

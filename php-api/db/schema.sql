@@ -19,6 +19,11 @@
 -- Marker bump 2026-11-04: re-run migrations to seed blog_queue batch 8
 -- (30 fresh topics) — topic queue was empty, blocking the daily refill.
 
+-- Marker bump 2026-11-21: social scheduler tables (social_accounts,
+-- social_posts, social_post_targets) + migrateAddSocialSchedulerTables().
+-- This comment alone changes the sha1 digest migrateSchema() keys its
+-- marker on, so the new migration actually runs in production.
+
 SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -636,4 +641,73 @@ CREATE TABLE IF NOT EXISTS guest_leads (
   last_sent_at DATETIME NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_guest_leads_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Social Scheduler (Phase 1, 2026-11-21): the admin portal is ONLY the
+-- control panel — posts are published NATIVELY to Facebook Pages,
+-- Instagram and YouTube via their official APIs; nothing is posted on
+-- shiarishta.com itself. Tokens are stored encAtRest() ciphertext
+-- (AES-256-GCM, lib/util.php) and are never returned by any endpoint.
+-- Also created by migrateAddSocialSchedulerTables() in lib/migrate.php.
+CREATE TABLE IF NOT EXISTS social_accounts (
+  id                  CHAR(36)     NOT NULL PRIMARY KEY,
+  platform            VARCHAR(16)  NOT NULL, -- facebook | instagram | youtube
+  platform_account_id VARCHAR(128) NOT NULL,
+  account_name        VARCHAR(255) DEFAULT NULL,
+  access_token_enc    TEXT         DEFAULT NULL,
+  refresh_token_enc   TEXT         DEFAULT NULL,
+  token_expires_at    DATETIME     DEFAULT NULL,
+  scopes              VARCHAR(500) DEFAULT NULL,
+  status              VARCHAR(16)  NOT NULL DEFAULT 'connected', -- connected | disconnected | needs_attention | error
+  -- Autopilot safety rail: bumped on every failed publish, reset on
+  -- success; at 3 the account flips to needs_attention and autopilot
+  -- stops generating for it until an admin reconnects/checks it.
+  consecutive_failures INT         NOT NULL DEFAULT 0,
+  created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_social_account (platform, platform_account_id),
+  KEY idx_social_accounts_platform (platform, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS social_posts (
+  id           CHAR(36)     NOT NULL PRIMARY KEY,
+  caption      TEXT         NOT NULL,
+  -- JSON object of optional per-platform caption overrides, e.g.
+  -- {"youtube": "Title\n\nLonger description"}.
+  caption_overrides TEXT    DEFAULT NULL,
+  -- Server-side path under the photo storage root (social/<file>) plus
+  -- its media kind. NULL media = text-only post (Facebook/YouTube rules
+  -- apply per platform at publish time).
+  media_path   VARCHAR(500) DEFAULT NULL,
+  media_type   VARCHAR(16)  DEFAULT NULL, -- image | video
+  media_url    VARCHAR(1000) DEFAULT NULL, -- externally hosted media URL, if any
+  scheduled_at DATETIME     DEFAULT NULL,
+  status       VARCHAR(16)  NOT NULL DEFAULT 'draft', -- draft | scheduled | publishing | published | partial | failed
+  source       VARCHAR(16)  NOT NULL DEFAULT 'manual', -- manual | autopilot | autopilot_reel
+  -- sha256 of the normalized caption; autopilot rejects any caption
+  -- whose hash already exists so a caption is never posted twice.
+  caption_hash CHAR(64)     DEFAULT NULL,
+  created_by   CHAR(36)     DEFAULT NULL,
+  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_social_posts_due (status, scheduled_at),
+  UNIQUE KEY uq_social_posts_caption_hash (caption_hash)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS social_post_targets (
+  id                CHAR(36)     NOT NULL PRIMARY KEY,
+  post_id           CHAR(36)     NOT NULL,
+  social_account_id CHAR(36)     NOT NULL,
+  platform          VARCHAR(16)  NOT NULL, -- facebook | instagram | youtube
+  status            VARCHAR(16)  NOT NULL DEFAULT 'pending', -- pending | publishing | published | failed | skipped
+  platform_post_id  VARCHAR(255) DEFAULT NULL,
+  platform_url      VARCHAR(1000) DEFAULT NULL,
+  error             TEXT         DEFAULT NULL,
+  attempts          INT          NOT NULL DEFAULT 0,
+  published_at      DATETIME     DEFAULT NULL,
+  created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_social_target (post_id, social_account_id),
+  KEY idx_social_targets_post (post_id),
+  KEY idx_social_targets_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
