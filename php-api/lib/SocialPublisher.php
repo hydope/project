@@ -501,7 +501,13 @@ function socialPublishPost(string $postId, bool $onlyFailed = false): array
     // Both publish-now and the cron (re)try pending AND failed targets;
     // a plain first run has only pending rows anyway. $onlyFailed is kept
     // for call-site clarity (retry endpoint) — behaviour is identical.
-    $stmt = $pdo->prepare("SELECT * FROM social_post_targets WHERE post_id = ? AND status IN ('pending', 'failed')");
+    // A target stranded in 'publishing' by a run that died mid-publish
+    // (client timeout, worker kill) is retried once its claim is stale
+    // (>20 min): every platform call is time-bounded well under that,
+    // so a fresher 'publishing' row belongs to a live run and is left
+    // alone — this is what keeps a dead run from wedging a target
+    // forever without ever double-posting an active one.
+    $stmt = $pdo->prepare("SELECT * FROM social_post_targets WHERE post_id = ? AND (status IN ('pending', 'failed') OR (status = 'publishing' AND updated_at <= UTC_TIMESTAMP() - INTERVAL 20 MINUTE))");
     $stmt->execute([$postId]);
     $results = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $target) {

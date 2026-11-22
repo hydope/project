@@ -10,6 +10,13 @@ name: Social Publish Cron
 # stored platform tokens are reachable). The script is idempotent: each
 # post target is claimed atomically before publishing, so overlapping
 # runs can never double-post.
+#
+# Reliability notes (2026-11-22): GitHub fires this */5 schedule only
+# sporadically in practice (2 firings in ~19h were observed while a
+# 12-post backlog sat unpublished), and one endpoint call only works
+# through a bounded batch (~120s soft budget server-side). So a single
+# firing now LOOPS the trigger until the endpoint reports an empty
+# queue — one firing drains the whole backlog instead of one slice.
 
 on:
   schedule:
@@ -20,21 +27,28 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger server-side social publish cron
+      - name: Trigger server-side social publish cron until queue drains
         env:
           SEEDER_CRON_KEY: ${{ secrets.SEEDER_CRON_KEY }}
         run: |
-          echo "Triggering social publish cron on production server..."
-          RESP=$(curl -s --max-time 120 -X POST https://shiarishta.com/api/social-publish-cron.php \
-            -H "X-Seeder-Cron-Key: $SEEDER_CRON_KEY" \
-            -H "Content-Type: application/json")
+          for i in $(seq 1 10); do
+            echo "Triggering social publish cron on production server (call $i)..."
+            RESP=$(curl -s --max-time 600 -X POST https://shiarishta.com/api/social-publish-cron.php \
+              -H "X-Seeder-Cron-Key: $SEEDER_CRON_KEY" \
+              -H "Content-Type: application/json")
 
-          echo "Response: $RESP"
+            echo "Response: $RESP"
 
-          echo "$RESP" | grep -q '"ok":true' && {
-            echo "✓ Social publish cron completed successfully"
-            exit 0
-          }
+            echo "$RESP" | grep -q '"ok":true' || {
+              echo "✗ Social publish cron failed"
+              exit 1
+            }
 
-          echo "✗ Social publish cron failed"
-          exit 1
+            PROCESSED=$(echo "$RESP" | grep -o '"processed":[0-9]*' | head -1 | cut -d: -f2)
+            if [ -z "$PROCESSED" ] || [ "$PROCESSED" = "0" ]; then
+              echo "✓ Queue drained — no due posts left"
+              break
+            fi
+            echo "Processed $PROCESSED post(s); checking for more..."
+          done
+          echo "✓ Social publish cron completed successfully"

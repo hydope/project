@@ -31,15 +31,35 @@ if (!hash_equals($expected, (string)$provided)) {
     exit;
 }
 
+// A client-side timeout (the GitHub Actions trigger caps its curl at a
+// few minutes) must never kill this script mid-target: a killed run is
+// what strands targets in 'publishing'. Detach from the client abort
+// and let the batch finish; per-target results are persisted as they
+// complete, so the response is only a summary.
+ignore_user_abort(true);
+set_time_limit(0);
+
 try {
+    // Due = scheduled time reached AND the post still has work: fresh
+    // 'scheduled' posts, 'partial' posts with pending/failed targets
+    // left, and 'publishing' posts whose run died >20 min ago (stale —
+    // every platform call is time-bounded well under that, so a
+    // 'publishing' post older than 20 min is stranded, not active).
     $due = db()->query(
         "SELECT id FROM social_posts
-          WHERE status = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= UTC_TIMESTAMP()
-          ORDER BY scheduled_at ASC LIMIT 20"
+          WHERE scheduled_at IS NOT NULL AND scheduled_at <= UTC_TIMESTAMP()
+            AND (status IN ('scheduled', 'partial')
+                 OR (status = 'publishing' AND updated_at <= UTC_TIMESTAMP() - INTERVAL 20 MINUTE))
+          ORDER BY scheduled_at ASC LIMIT 5"
     )->fetchAll(PDO::FETCH_ASSOC);
 
     $summary = [];
+    $startedAt = time();
     foreach ($due as $row) {
+        // Soft budget: never START another post past ~120s — the next
+        // trigger picks up the rest. A post already started always
+        // finishes (its targets are individually time-bounded).
+        if ($summary !== [] && time() - $startedAt > 120) break;
         $result = socialPublishPost((string)$row['id']);
         $summary[] = ['post' => (string)$row['id'], 'status' => $result['status']];
     }
