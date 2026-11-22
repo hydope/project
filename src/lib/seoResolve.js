@@ -228,7 +228,9 @@ function organizationNode() {
     sameAs: [
       'https://www.linkedin.com/company/shiarishtaofficial/',
       'https://shiarishta.wordpress.com',
+      'https://www.facebook.com/shiarishtaofficial',
       'https://www.instagram.com/shiarishta.official/',
+      'https://www.youtube.com/@shiarishta',
     ],
     contactPoint: {
       '@type': 'ContactPoint',
