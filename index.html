@@ -122,7 +122,9 @@
       /* Scoped to .seo-static so it cannot leak into the React app. */
       .seo-static {
         /* Hidden from real users — crawlers still read the HTML source for SEO.
-           Users see the branded loader below, then the React app. */
+           Users see the branded loader below, then the React app. One
+           exception: the route's hero is emitted a second time with
+           .seo-shell (see below) so first paint shows real content. */
         display: none !important;
         font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
         color: #17130f;
@@ -145,6 +147,17 @@
       .seo-static nav ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 1rem; }
       .seo-static a { color: #416b5b; }
       .seo-static .seo-price { font-weight: 700; color: #17130f; }
+
+      /* The visible slice of the shell (2026-11-22). prerender-routes.mjs
+         emits each route's hero a second time in a .seo-static.seo-shell
+         wrapper so first paint is the headline, the CTAs and the preloaded
+         hero image — not a blank cream screen with a spinner while ~110 KB
+         of JS downloads. Same typography as .seo-static; only the hiding
+         is undone. React's createRoot clears #root on mount and replaces
+         it, so the shell never coexists with the app. */
+      .seo-shell {
+        display: block !important;
+      }
 
       /* Hero in the shell. Two jobs:
          1. LCP. The image is the largest contentful element on the page, and

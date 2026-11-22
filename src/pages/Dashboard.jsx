@@ -10,7 +10,7 @@ import { getMyProfile } from '../lib/storage';
 import { computeCompatibility } from '../lib/compatibility';
 import { formatCity, formatCountry } from '../lib/format';
 import { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from '../lib/motion';
 import {
   User, MessageCircle, Eye, Users, Sparkles, Flame, ArrowRight, Camera, Heart
 } from 'lucide-react';

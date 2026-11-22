@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '../lib/motion';
 import {
   ChevronRight, ChevronLeft, Check, User, Moon, Landmark, GraduationCap,
   Heart, Shield, ClipboardCheck, Globe, Lock, UserRound,

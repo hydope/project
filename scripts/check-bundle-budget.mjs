@@ -58,6 +58,18 @@ const DIST = new URL('../dist/assets/', import.meta.url).pathname;
 //   budget locks the diet in; raising it again requires a shipped
 //   feature, never slack. Remaining diet candidate: framer-motion
 //   (~43 KB gzip, CSS-replaceable) — still owed before any future raise.
+//   Diet completed 2026-11-22 (budget unchanged at 520 KB): framer-motion
+//   was removed entirely and replaced by src/lib/motion.jsx, a ~12 KB
+//   source shim implementing the used surface (opacity/x/y/scale/rotate
+//   entrance tweens via CSS transitions, AnimatePresence as passthrough,
+//   useReducedMotion) — see that file's header for the audit. Feature
+//   growth since 2026-11-15 (social scheduler + per-platform Retry,
+//   SEO batches) had taken the total to 519.97 KB — ~30 bytes under the
+//   budget, which is why CI flipped red on gzip noise between runners.
+//   Measured total after the removal: ~479 KB, restoring ~41 KB of real
+//   headroom. The same pass also fixed manualChunks (function form), so
+//   react-dom/client + scheduler live in vendor-react instead of the
+//   entry chunk.
 const BUDGETS = { totalJS: 520 * 1024, totalCSS: 50 * 1024, maxChunk: 150 * 1024 };
 
 let totalJS = 0, totalCSS = 0, maxChunk = 0, maxChunkName = '';

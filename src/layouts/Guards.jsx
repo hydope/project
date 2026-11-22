@@ -2,7 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { useAuth } from '../lib/auth/AuthContext';
 
-// Lazy: MainLayout pulls in framer-motion. It isn't needed until a guarded
+// Lazy: MainLayout is the member-app shell. It isn't needed until a guarded
 // route actually renders, so keep it out of the entry chunk's static graph.
 const MainLayout = lazy(() => import('./MainLayout'));
 

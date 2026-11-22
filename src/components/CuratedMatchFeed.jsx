@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '../lib/motion';
 import { Heart, Bookmark, MapPin, Shield, Sparkles, Check, Lock } from 'lucide-react';
 import { computeCompatibility, getMyProfile } from '../lib/compatibility';
 import VerifiedBadge from './VerifiedBadge';

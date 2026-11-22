@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from '../../lib/motion';
 import { Link } from 'react-router-dom';
 import {
   Users, UserPlus, MessageCircle, Heart, ShieldCheck, Activity,

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion } from '../lib/motion';
 import { Search, Home, Users, MessageCircle, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../lib/auth/AuthContext';

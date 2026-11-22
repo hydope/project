@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useReducedMotion } from 'framer-motion';
+import { useReducedMotion } from '../lib/motion';
 import Reveal from '../components/Reveal';
 import {
   ArrowRight, BadgeCheck, BookOpen, CheckCircle2, Eye, EyeOff, Heart,

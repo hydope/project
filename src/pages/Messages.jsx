@@ -1,7 +1,7 @@
 import { usePageTitle } from '../lib/usePageTitle';
 import { useState, useRef, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion } from '../lib/motion';
 import Layout from '../layouts/MainLayout';
 import { analytics } from '../lib/analytics';
 import { computeCompatibility } from '../lib/compatibility';

@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion } from '../lib/motion';
 import Layout from '../layouts/LandingLayout';
 import { Lock, Eye, UserCheck, Download, FileText, Users } from 'lucide-react';
 

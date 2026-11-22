@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion } from '../lib/motion';
 import Layout from '../layouts/LandingLayout';
 import { Shield, AlertTriangle, Eye, Lock, UserCheck, CheckCircle, Phone, Mail } from 'lucide-react';
 

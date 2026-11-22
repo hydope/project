@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion } from '../lib/motion';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from 'lucide-react';
 
 const icons = {

@@ -807,12 +807,42 @@ async function buildRouteHtml(route, meta, baseHtml) {
     /<body([^>]*)>([\s\S]*?)<\/body>/,
     (match, bodyAttrs, inner) => {
       const scripts = inner.match(/<script[\s\S]*?<\/script>/g) || [];
-      // Branded loader: visible to users while React boots. The seo-static shell
-      // is display:none (for crawlers only). React replaces #root content on mount.
-      const loader = `<div id="app-loader" style="display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100svh;background:#fffaf4;font-family:Inter,system-ui,sans-serif;"><div style="text-align:center;"><div style="font-weight:700;font-size:1.75rem;letter-spacing:-0.02em;color:#1a2e25;margin-bottom:1rem;">Shia Rishta</div><div style="font-size:0.75rem;letter-spacing:0.18em;text-transform:uppercase;color:#6b7a72;margin-bottom:1.5rem;">Nikah Matchmaking</div><div style="width:36px;height:36px;margin:0 auto;border:3px solid #e8ddd0;border-top-color:#2f5d4d;border-radius:50%;animation:sr-spin 0.8s linear infinite;"></div><style>@keyframes sr-spin{to{transform:rotate(360deg);}}</style></div></div>`;
+      const rendered = renderBody(meta, route);
+      // The hero is the ONE part of the shell real users see (2026-11-22).
+      //
+      // The shell was built so the hero paints at first paint — the image
+      // is preloaded with fetchpriority=high and the box is reserved by
+      // aspect-ratio (see renderBody and the .seo-hero CSS in index.html).
+      // But the whole shell sat inside .seo-static, which is display:none,
+      // so none of it ever painted: users got a blank cream screen with a
+      // spinner until the full JS bundle downloaded and executed, and the
+      // preloaded hero image was fetched for nothing. That is the "blank
+      // first paint" behind the poor mobile Core Web Vitals.
+      //
+      // So: the hero section is lifted out of the crawler copy and emitted
+      // a second time in a visible .seo-shell wrapper (same typography —
+      // it keeps the .seo-static class — minus the display:none), and the
+      // loader shrinks from a full-viewport block to a compact strip under
+      // it. The hidden copy stays FIRST inside #root: verify-prerender.mjs
+      // asserts that exact opening markup, and crawlers read the same
+      // content as before (the hero now appears twice in source — once
+      // hidden with the full shell, once visible; the text is identical).
+      // React's createRoot clears #root on mount, replacing all of it.
+      const heroMatch = rendered.match(/<section class="seo-hero">[\s\S]*?<\/section>/);
+      const hero = heroMatch ? heroMatch[0] : '';
+      const shellBody = hero ? rendered.replace(hero, '') : rendered;
+      const spinner = `<div style="width:36px;height:36px;margin:0 auto;border:3px solid #e8ddd0;border-top-color:#2f5d4d;border-radius:50%;animation:sr-spin 0.8s linear infinite;"></div><style>@keyframes sr-spin{to{transform:rotate(360deg);}}</style>`;
+      const loaderInner = `<div style="text-align:center;"><div style="font-weight:700;font-size:1.75rem;letter-spacing:-0.02em;color:#1a2e25;margin-bottom:1rem;">Shia Rishta</div><div style="font-size:0.75rem;letter-spacing:0.18em;text-transform:uppercase;color:#6b7a72;margin-bottom:1.5rem;">Nikah Matchmaking</div>${spinner}</div>`;
+      // With a visible hero above it, the loader is a compact strip; without
+      // one (should not happen — every route renders a hero) it keeps the
+      // original full-viewport form.
+      const loader = hero
+        ? `<div id="app-loader" style="display:flex;align-items:center;justify-content:center;padding:1rem 1rem 2.5rem;background:#fffaf4;font-family:Inter,system-ui,sans-serif;">${loaderInner}</div>`
+        : `<div id="app-loader" style="display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100svh;background:#fffaf4;font-family:Inter,system-ui,sans-serif;">${loaderInner}</div>`;
+      const shell = hero ? `<div class="seo-static seo-shell">\n${hero}\n    </div>` : '';
       return (
         `<body${bodyAttrs}>\n` +
-        `    <div id="root"><div class="seo-static">\n${renderBody(meta, route)}\n    </div>${loader}</div>\n` +
+        `    <div id="root"><div class="seo-static">\n${shellBody}\n    </div>${shell}${loader}</div>\n` +
         `    ${scripts.join('\n    ')}\n` +
         `  </body>`
       );

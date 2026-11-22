@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from '../lib/motion';
 import { Heart, Bookmark, MapPin, Briefcase, Lock, Sparkles, MessageCircle } from 'lucide-react';
 import { whatsappShareUrl } from '../lib/shareProfile';
 import { cmToFeetInches } from '../lib/height';

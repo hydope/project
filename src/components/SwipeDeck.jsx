@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { motion, useMotionValue, useTransform, animate, AnimatePresence } from 'framer-motion';
+import { motion, useMotionValue, useTransform, animate, AnimatePresence } from '../lib/motion';
 import { Heart, X, Star, Undo2, Lock, MapPin, Sparkles, RotateCcw, Search } from 'lucide-react';
 import VerifiedBadge from './VerifiedBadge';
 import CompatibilityIndex, { CompatibilityRing } from './CompatibilityIndex';

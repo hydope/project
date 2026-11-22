@@ -9,7 +9,7 @@ import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { logEvent } from '../lib/eventLog';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '../lib/motion';
 import { cmToFeetInches, heightPartsToCm } from '../lib/height';
 import HeightChooser from '../components/HeightChooser';
 import {

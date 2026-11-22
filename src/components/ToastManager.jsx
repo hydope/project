@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from '../lib/motion';
 import Toast from './Toast.jsx';
 
 export default function ToastManager() {

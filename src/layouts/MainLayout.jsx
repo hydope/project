@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } fro
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth/AuthContext';
 import { readIsDark, writeIsDark, applyIsDark } from '../lib/theme';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '../lib/motion';
 import {
   Moon, Search, Command, X, LayoutDashboard, Users, MessageCircle,
   BookOpen, LifeBuoy, Settings, LogOut, Home, Menu,

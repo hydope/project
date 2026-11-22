@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '../lib/motion';
 import { useState } from 'react';
 import Layout from '../layouts/LandingLayout';
 import { useToast } from '../lib/useToast';

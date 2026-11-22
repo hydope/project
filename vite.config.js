@@ -71,10 +71,10 @@ export default defineConfig({
     // Object.hasOwn and friends — measured −3.0 KB of total gzip, which
     // is what puts the bundle budget back in the green with headroom.
     target: 'es2022',
-    // Don't preload below-the-fold vendor/layout chunks on first paint.
-    // vendor-motion (framer-motion) and MainLayout are only needed when a
-    // guarded member route renders or a toast fires — both happen after
-    // first paint. They still load on demand via the dynamic-import runtime.
+    // Don't preload below-the-fold layout chunks on first paint.
+    // MainLayout is only needed when a guarded member route renders or a
+    // toast fires — both happen after first paint. It still loads on
+    // demand via the dynamic-import runtime.
     modulePreload: {
       // No preload polyfill (2026-11-12, speed batch): every browser that
       // can run this app (React 19, native ESM) supports modulepreload
@@ -83,16 +83,37 @@ export default defineConfig({
       // cannot run the app anyway.
       polyfill: false,
       resolveDependencies: (filename, deps) =>
-        deps.filter((d) => !d.includes('vendor-motion') && !d.includes('MainLayout')),
+        deps.filter((d) => !d.includes('MainLayout')),
     },
     rollupOptions: {
       output: {
         // Split slow-moving vendor code from the app entry so repeat visits
         // reuse the cached vendor chunk across deploys (immutable headers).
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-motion': ['framer-motion'],
-          'vendor-utils': ['swr'],
+        //
+        // Function form, matched on package name (2026-11-22): the old
+        // array form ('vendor-react': ['react', 'react-dom', ...]) only
+        // captured each package's root entry, so `react-dom/client` — a
+        // subpath import — escaped the chunk and dragged the whole
+        // react-dom-client renderer (~130 KB min) plus scheduler into the
+        // ENTRY chunk. Every deploy therefore changed the bytes of the
+        // entry chunk's copy of React DOM, and returning visitors
+        // re-downloaded it instead of reusing the cached vendor chunk.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          const match = id.match(/node_modules\/((?:@[^/]+\/)?[^/]+)/);
+          if (!match) return undefined;
+          const pkg = match[1];
+          if (
+            pkg === 'react' ||
+            pkg === 'react-dom' ||
+            pkg === 'react-router' ||
+            pkg === 'react-router-dom' ||
+            pkg === 'scheduler'
+          ) {
+            return 'vendor-react';
+          }
+          if (pkg === 'swr') return 'vendor-utils';
+          return undefined;
         },
       },
     }

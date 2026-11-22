@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion } from '../lib/motion';
 import Layout from '../layouts/LandingLayout';
 import SampleProfileBadge from '../components/SampleProfileBadge';
 import { XCircle, Lightbulb, ArrowRight, Quote, Sparkles, ChevronDown } from 'lucide-react';

@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion } from '../lib/motion';
 import { Link } from 'react-router-dom';
 import Layout from '../layouts/LandingLayout';
 import { Heart, Shield, Users, Sparkles, Globe, Eye, ArrowRight } from 'lucide-react';

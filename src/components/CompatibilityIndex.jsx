@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion } from '../lib/motion';
 import { Brain, Check } from 'lucide-react';
 import { computeCompatibility } from '../lib/compatibility';
 

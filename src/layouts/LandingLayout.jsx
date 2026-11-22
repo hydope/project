@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth/AuthContext';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from '../lib/motion';
 import {
   Menu, X, ArrowRight,
   LayoutDashboard,
