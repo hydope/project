@@ -3,9 +3,18 @@
 // (manual, autopilot and autopilot_reel alike; one publishing path for
 // everything, so status/proof rules are identical).
 //
-// Trigger (same SEEDER_CRON_KEY pattern as the other crons):
-//   curl -H "X-Seeder-Cron-Key: <SEEDER_CRON_KEY>" https://shiarishta.com/api/social-publish-cron.php
-// Suggested cadence: every 5 minutes from GitHub Actions or cPanel cron.
+// Trigger:
+//   Preferred — server-local cPanel cron via PHP CLI, every 5 minutes.
+//   No HTTP request is involved, so neither GitHub's scheduler (which
+//   fired a */5 workflow only ~3 times in 19h on 2026-11-22) nor the
+//   web server's ~120s request wall can starve or kill the run:
+//     /usr/local/bin/ea-php82 /home/<user>/public_html/api/social-publish-cron.php >> ~/social-publish-cron.log 2>&1
+//   CLI invocation needs NO key: only someone with server access can
+//   run the script at all, so the SAPI check below IS the credential.
+//   HTTP invocation still requires the key (same SEEDER_CRON_KEY
+//   pattern as the other crons); the GitHub Actions workflows remain
+//   as backup triggers:
+//     curl -H "X-Seeder-Cron-Key: <SEEDER_CRON_KEY>" https://shiarishta.com/api/social-publish-cron.php
 
 declare(strict_types=1);
 
@@ -18,17 +27,29 @@ require __DIR__ . '/lib/photos.php';
 require __DIR__ . '/lib/SocialPublisher.php';
 require __DIR__ . '/lib/SocialStorage.php';
 
-$expected = getenv('SEEDER_CRON_KEY');
-if (!is_string($expected) || $expected === '') {
-    http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => 'cron key not configured']);
-    exit;
-}
-$provided = $_SERVER['HTTP_X_SEEDER_CRON_KEY'] ?? '';
-if (!hash_equals($expected, (string)$provided)) {
-    http_response_code(403);
-    echo json_encode(['ok' => false, 'error' => 'forbidden']);
-    exit;
+// Auth: HTTP callers must present the SEEDER_CRON_KEY header. PHP CLI
+// callers (the server-local cPanel cron) skip the key entirely —
+// reaching this script through the server's shell/cron already proves
+// server access, and a key in the cron line would only leak it into
+// the process list and the cron log.
+$isCli = php_sapi_name() === 'cli';
+if (!$isCli) {
+    $expected = getenv('SEEDER_CRON_KEY');
+    if (!is_string($expected) || $expected === '') {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'cron key not configured']);
+        exit;
+    }
+    $provided = $_SERVER['HTTP_X_SEEDER_CRON_KEY'] ?? '';
+    if (!hash_equals($expected, (string)$provided)) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'forbidden']);
+        exit;
+    }
+} else {
+    // One timestamped line per CLI run, so the cron log itself proves
+    // the 5-minute cadence is firing on the server.
+    echo '[' . gmdate('Y-m-d H:i:s') . " UTC] social-publish-cron (cli)\n";
 }
 
 // A client-side timeout (the GitHub Actions trigger caps its curl at a
@@ -90,9 +111,9 @@ try {
         error_log('[social-publish-cron] purge sweep failed: ' . substr($e->getMessage(), 0, 160));
         $purge = ['error' => 'purge sweep failed'];
     }
-    echo json_encode(['ok' => true, 'processed' => count($summary), 'posts' => $summary, 'purge' => $purge]);
+    echo json_encode(['ok' => true, 'processed' => count($summary), 'posts' => $summary, 'purge' => $purge]) . ($isCli ? "\n" : '');
 } catch (Throwable $e) {
     error_log('[social-publish-cron] ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => 'publish run failed']);
+    echo json_encode(['ok' => false, 'error' => 'publish run failed']) . ($isCli ? "\n" : '');
 }
