@@ -27,6 +27,14 @@
 -- social_post_targets.retry_attempts / next_retry_at (watchdog
 -- backoff + dead-letter) and the social_state table (publisher
 -- heartbeat + reconciliation gate) + migrateAddSocialReliability().
+-- Marker bump 2026-11-22b: the 2026-11-22 reliability pass never ran
+-- in production — the deploy's FTPS upload landed this schema.sql
+-- before the new migrate.php, a request in that window ran the OLD
+-- migration code under the NEW digest and sealed the marker (the
+-- exact 2026-11-20 trap). Production proof: the publish cron's
+-- watchdog + reconcile sweeps failed on the missing columns/table
+-- while the rest of the run was healthy. This comment-only bump
+-- reopens the pass with migrate.php fully live.
 
 SET NAMES utf8mb4;
 
