@@ -166,6 +166,34 @@ export default function AdminSocialScheduler() {
     } catch (e) { setError(e.message || 'Action failed.'); }
   };
 
+  // Per-platform retry: retries ONE target (facebook / instagram /
+  // youtube) without touching the post's other platforms. The server
+  // refuses published targets, so this can never double-post.
+  const [retrying, setRetrying] = useState('');
+  const retryTarget = async (postId, platform) => {
+    const key = `${postId}:${platform}`;
+    setRetrying(key);
+    setError('');
+    setNotice('');
+    try {
+      // A single target's publish can take most of a minute (Instagram
+      // processing polls) — give it more than the 30s default, capped
+      // under the host's ~60s request termination.
+      const res = await http.post(`/api/admin/social/posts/${postId}/targets/${platform}/retry`, {}, { timeout: 55000 });
+      if (res.post) setPosts((ps) => ps.map((p) => (p.id === res.post.id ? res.post : p)));
+      if (res.target?.status === 'published') {
+        setNotice(`${platform}: published.`);
+      } else if (res.target) {
+        setError(`${platform} retry did not publish (${res.target.status})${res.target.error ? `: ${res.target.error}` : ''}`);
+      }
+    } catch (e) {
+      setError(e.message || `${platform} retry failed.`);
+      await load();
+    } finally {
+      setRetrying('');
+    }
+  };
+
   const saveAutopilot = async (next) => {
     setAutopilot(next);
     try {
@@ -400,6 +428,16 @@ export default function AdminSocialScheduler() {
                       <> · <a href={t.platformUrl} target="_blank" rel="noreferrer" className="underline">view live post</a></>
                     )}
                     {t.error && <span style={{ color: 'var(--color-danger)' }}> · {t.error.slice(0, 120)}</span>}
+                    {t.status !== 'published' && (
+                      <button
+                        type="button"
+                        className="underline ml-1 disabled:opacity-40"
+                        disabled={retrying === `${p.id}:${t.platform}`}
+                        onClick={() => retryTarget(p.id, t.platform)}
+                      >
+                        {retrying === `${p.id}:${t.platform}` ? 'Retrying…' : 'Retry'}
+                      </button>
+                    )}
                   </span>
                 ))}
               </div>

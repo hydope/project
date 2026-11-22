@@ -17,6 +17,9 @@
 //   DELETE /posts/:id                cancel/delete an unsent post
 //   POST   /posts/:id/publish-now
 //   POST   /posts/:id/retry          retry failed targets only
+//   POST   /posts/:id/targets/:platform/retry
+//                                    retry ONE platform target only
+//                                    (published targets are refused)
 //   GET    /autopilot                autopilot settings
 //   PUT    /autopilot                save autopilot settings
 //
@@ -276,6 +279,7 @@ function routeAdminSocial(string $method, array $segments): void
             if ($method === 'DELETE' && ($segments[2] ?? null) === null) { socialPostDelete((string)$id); return; }
             if ($method === 'POST' && ($segments[2] ?? null) === 'publish-now') { socialPostPublishNow((string)$id); return; }
             if ($method === 'POST' && ($segments[2] ?? null) === 'retry') { socialPostRetry((string)$id); return; }
+            if ($method === 'POST' && ($segments[2] ?? null) === 'targets' && ($segments[4] ?? null) === 'retry') { socialPostTargetRetry((string)$id, (string)($segments[3] ?? '')); return; }
         }
     }
     json(['error' => 'Not found'], 404);
@@ -856,6 +860,31 @@ function socialPostRetry(string $id): void
     $result = socialPublishPost($id, true);
     auditLog('social.post.retry', 'social_post', $id, ['result' => $result['status']]);
     json(['ok' => true, 'post' => socialLoadPost($id), 'publish' => $result]);
+}
+
+/**
+ * Per-platform retry: POST /posts/:id/targets/:platform/retry.
+ * Resets just that one target (error cleared, stuck 'publishing' claims
+ * force-cleared, Instagram's resumable container id preserved) and
+ * attempts its publish immediately. A published target is refused with
+ * 409 so a retry click can never double-post. The response carries the
+ * refreshed post plus the target's resulting status + error so the UI
+ * can show the outcome in place.
+ */
+function socialPostTargetRetry(string $id, string $platform): void
+{
+    requireAdminUser();
+    if (!in_array($platform, ['facebook', 'instagram', 'youtube'], true)) je('Unknown platform.', 400);
+    $post = socialLoadPost($id);
+    if (!$post) je('Post not found.', 404);
+    $out = socialRetryPostTarget($id, $platform);
+    if (!empty($out['refused'])) je((string)$out['error'], (int)($out['code'] ?? 409));
+    auditLog('social.post.target_retry', 'social_post', $id, [
+        'platform' => $platform,
+        'targetStatus' => $out['target']['status'] ?? null,
+    ]);
+    json(['ok' => true, 'post' => socialLoadPost($id), 'target' => $out['target'],
+          'publish' => ['status' => $out['status'], 'result' => $out['result']]]);
 }
 
 // ── Autopilot settings ──────────────────────────────────────────────────

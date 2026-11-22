@@ -563,3 +563,99 @@ function socialPublishPost(string $postId, bool $onlyFailed = false, ?int $deadl
     $status = socialRecalcPostStatus($postId);
     return ['status' => $status, 'results' => $results];
 }
+
+// ── Per-platform manual retry (admin "Retry" button, 2026-11-22) ────────
+//
+// Syed's ask: retry ONE platform of ONE post (Facebook Page / Instagram /
+// YouTube separately) without touching the others. The whole-post retry
+// above re-runs every unfinished target; this is the scoped version.
+
+/**
+ * Guard for a single-target retry: a published target is NEVER retried
+ * (that would double-post). Returns the refusal message, or null when
+ * the target may be retried (pending / failed / stuck publishing).
+ */
+function socialTargetRetryRefusal(array $target): ?string
+{
+    if ((string)($target['status'] ?? '') === 'published') {
+        return 'Already published on ' . (string)($target['platform'] ?? 'that platform')
+            . ' — a published target is never retried, so it can never be posted twice.';
+    }
+    return null;
+}
+
+/**
+ * The column values a retry reset writes. platform_post_id is carried
+ * through UNCHANGED: for Instagram it holds the resumable Meta container
+ * id a previous run stashed (commit cd1cd2b) — clearing it would restart
+ * Meta's video processing from zero, which is exactly the IG lag that
+ * fix cured. Writing the same value back makes the preservation
+ * structural instead of incidental.
+ */
+function socialTargetRetryResetValues(array $target): array
+{
+    return [
+        'status' => 'pending',
+        'error' => null,
+        'platform_post_id' => $target['platform_post_id'] ?? null,
+    ];
+}
+
+/**
+ * Reset one target to a retryable state: status back to 'pending' (this
+ * also force-clears a stuck 'publishing' claim — the manual escape hatch
+ * for a wedged target) and the error cleared. The IG container id is
+ * preserved via socialTargetRetryResetValues().
+ */
+function socialResetTargetForRetry(PDO $pdo, array $target): void
+{
+    $v = socialTargetRetryResetValues($target);
+    $pdo->prepare('UPDATE social_post_targets SET status = ?, error = ?, platform_post_id = ?, updated_at = ? WHERE id = ?')
+        ->execute([$v['status'], $v['error'], $v['platform_post_id'], gmdate('Y-m-d H:i:s'), $target['id']]);
+}
+
+/**
+ * Retry ONE target of ONE post and attempt the publish immediately (one
+ * target's platform calls are time-bounded well inside the web server's
+ * ~120s request wall — the same budget the cron relies on per target).
+ * Returns ['refused' => true, 'code' => …, 'error' => …] for guard
+ * refusals (unknown target / already published), otherwise
+ * ['refused' => false, 'status' => <post aggregate>, 'target' => […],
+ * 'result' => <publisher result>].
+ */
+function socialRetryPostTarget(string $postId, string $platform): array
+{
+    $pdo = db();
+    $stmt = $pdo->prepare('SELECT * FROM social_post_targets WHERE post_id = ? AND platform = ? LIMIT 1');
+    $stmt->execute([$postId, $platform]);
+    $target = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$target) {
+        return ['refused' => true, 'code' => 404, 'error' => 'This post has no ' . $platform . ' target.'];
+    }
+    $refusal = socialTargetRetryRefusal($target);
+    if ($refusal !== null) {
+        return ['refused' => true, 'code' => 409, 'error' => $refusal];
+    }
+    socialResetTargetForRetry($pdo, $target);
+    // Bring the post into a publishable aggregate state without touching
+    // the other targets (mirrors socialPostPublishNow for drafts).
+    $pdo->prepare("UPDATE social_posts SET status = 'publishing', updated_at = UTC_TIMESTAMP() WHERE id = ? AND status <> 'published'")
+        ->execute([$postId]);
+    $target['status'] = 'pending';
+    $target['error'] = null;
+    $result = socialPublishTarget($target);
+    $status = socialRecalcPostStatus($postId);
+    $stmt = $pdo->prepare('SELECT status, error FROM social_post_targets WHERE id = ?');
+    $stmt->execute([$target['id']]);
+    $after = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    return [
+        'refused' => false,
+        'status' => $status,
+        'target' => [
+            'platform' => $platform,
+            'status' => (string)($after['status'] ?? ''),
+            'error' => $after['error'] ?? null,
+        ],
+        'result' => $result,
+    ];
+}
