@@ -273,6 +273,7 @@ function socialPublishYouTube(array $account, array $post, string $caption): arr
     }
     $meta = json_encode(['snippet' => $snippet, 'status' => $status], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
+    $thumbFile = socialMediaFile($post['thumbnail_path'] ?? null);
     $mime = socialMimeFor($file);
     $size = (int)filesize($file);
     $init = socialHttp('POST', 'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', [
@@ -291,14 +292,14 @@ function socialPublishYouTube(array $account, array $post, string $caption): arr
         if ($init['status'] === 401) {
             // One forced refresh + retry of the initiate step.
             $token = socialYouTubeAccessToken($account, true);
-            if ($token) return socialPublishYouTubeWithToken($token, $file, $meta);
+            if ($token) return socialPublishYouTubeWithToken($token, $file, $meta, $thumbFile);
         }
         return ['ok' => false, 'error' => socialGraphError($init, 'YouTube upload init')];
     }
-    return socialYouTubePut($location, $token, $file);
+    return socialYouTubePut($location, $token, $file, $thumbFile);
 }
 
-function socialPublishYouTubeWithToken(string $token, string $file, string $meta): array
+function socialPublishYouTubeWithToken(string $token, string $file, string $meta, ?string $thumbFile = null): array
 {
     $mime = socialMimeFor($file);
     $init = socialHttp('POST', 'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', [
@@ -312,10 +313,10 @@ function socialPublishYouTubeWithToken(string $token, string $file, string $meta
     ]);
     $location = $init['headers']['location'] ?? '';
     if ($location === '') return ['ok' => false, 'error' => socialGraphError($init, 'YouTube upload init')];
-    return socialYouTubePut($location, $token, $file);
+    return socialYouTubePut($location, $token, $file, $thumbFile);
 }
 
-function socialYouTubePut(string $location, string $token, string $file): array
+function socialYouTubePut(string $location, string $token, string $file, ?string $thumbFile = null): array
 {
     $fh = fopen($file, 'rb');
     if ($fh === false) return ['ok' => false, 'error' => 'Could not read the video file on the server.'];
@@ -335,9 +336,55 @@ function socialYouTubePut(string $location, string $token, string $file): array
     fclose($fh);
     $json = is_string($raw) ? json_decode($raw, true) : null;
     $id = (string)($json['id'] ?? '');
-    if ($id !== '') return ['ok' => true, 'platform_post_id' => $id, 'platform_url' => 'https://www.youtube.com/watch?v=' . $id];
+    if ($id !== '') {
+        $out = ['ok' => true, 'platform_post_id' => $id, 'platform_url' => 'https://www.youtube.com/watch?v=' . $id];
+        // Custom thumbnail (best-effort): the video is already committed
+        // on YouTube at this point, so a thumbnail failure is reported
+        // on the result — never turned into a publish failure.
+        if ($thumbFile !== null) {
+            $thumb = socialYouTubeSetThumbnail($token, $id, $thumbFile);
+            if (!empty($thumb['ok'])) {
+                $out['thumbnail_ok'] = true;
+            } else {
+                $out['thumbnail_error'] = (string)($thumb['error'] ?? 'unknown error');
+            }
+        }
+        return $out;
+    }
     $msg = (string)($json['error']['message'] ?? $err);
     return ['ok' => false, 'error' => 'YouTube upload: ' . substr($msg !== '' ? $msg : ('HTTP ' . $status), 0, 300)];
+}
+
+/**
+ * Apply a custom thumbnail to an uploaded YouTube video
+ * (thumbnails.set). Best-effort by contract: returns a structured
+ * result and never throws; the caller records the outcome without
+ * failing the publish. Note the channel must be eligible for custom
+ * thumbnails (verified channel) or YouTube answers 403 — that failure
+ * is recorded the same way.
+ */
+function socialYouTubeSetThumbnail(string $token, string $videoId, string $thumbFile): array
+{
+    $bytes = @file_get_contents($thumbFile);
+    if ($bytes === false || $bytes === '') {
+        error_log('[social] youtube thumbnail: could not read ' . basename($thumbFile));
+        return ['ok' => false, 'error' => 'thumbnail file unreadable on the server'];
+    }
+    $res = socialHttp('POST', 'https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=' . urlencode($videoId), [
+        'headers' => [
+            'Authorization: Bearer ' . $token,
+            'Content-Type: ' . socialMimeFor($thumbFile),
+        ],
+        'body' => $bytes,
+        'timeout' => 120,
+    ]);
+    if ($res['status'] >= 200 && $res['status'] < 300 && !empty($res['json']['items'])) {
+        error_log('[social] youtube thumbnail set for video ' . $videoId);
+        return ['ok' => true];
+    }
+    $err = socialGraphError($res, 'YouTube thumbnail');
+    error_log('[social] youtube thumbnail failed for video ' . $videoId . ': ' . substr($err, 0, 200));
+    return ['ok' => false, 'error' => $err];
 }
 
 // ── Orchestration (shared by publish-now, retry and the cron worker) ────
@@ -386,8 +433,14 @@ function socialPublishTarget(array $target): array
     }
 
     if (!empty($result['ok'])) {
-        $pdo->prepare("UPDATE social_post_targets SET status = 'published', platform_post_id = ?, platform_url = ?, error = NULL, published_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = ?")
-            ->execute([$result['platform_post_id'] ?? null, $result['platform_url'] ?? null, $target['id']]);
+        // A failed best-effort thumbnail (YouTube) is noted on the
+        // target's error field while the publish itself stays
+        // 'published' — the video is the committed effect.
+        $note = !empty($result['thumbnail_error'])
+            ? substr('Published OK; custom thumbnail not set: ' . (string)$result['thumbnail_error'], 0, 1000)
+            : null;
+        $pdo->prepare("UPDATE social_post_targets SET status = 'published', platform_post_id = ?, platform_url = ?, error = ?, published_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = ?")
+            ->execute([$result['platform_post_id'] ?? null, $result['platform_url'] ?? null, $note, $target['id']]);
         $pdo->prepare("UPDATE social_accounts SET consecutive_failures = 0, status = CASE WHEN status = 'needs_attention' THEN 'connected' ELSE status END, updated_at = UTC_TIMESTAMP() WHERE id = ?")
             ->execute([$target['social_account_id']]);
     } else {

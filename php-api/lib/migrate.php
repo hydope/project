@@ -83,6 +83,7 @@ function migrateSchema(): void
     migrateAddPageviewAttributionColumns();
     migrateAddSocialSchedulerTables();
     migrateAddSocialStorageColumns();
+    migrateAddSocialThumbnailColumn();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -1812,6 +1813,7 @@ function migrateAddSocialSchedulerTables(): void
                 media_path        VARCHAR(500) DEFAULT NULL,
                 media_type        VARCHAR(16)  DEFAULT NULL,
                 media_url         VARCHAR(1000) DEFAULT NULL,
+                thumbnail_path    VARCHAR(500) DEFAULT NULL,
                 media_purged_at   DATETIME     DEFAULT NULL,
                 media_purge_note  VARCHAR(255) DEFAULT NULL,
                 scheduled_at      DATETIME     DEFAULT NULL,
@@ -1894,5 +1896,24 @@ function migrateAddSocialStorageColumns(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (social storage columns) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Custom-thumbnail column on social_posts (2026-11-21): the story loop
+ * ships a viral-moment thumbnail image with each ingested reel; the
+ * path is stored here and the publisher applies it to YouTube via
+ * thumbnails.set after a successful upload (best-effort). Also declared
+ * in db/schema.sql, whose digest change reopens the migration pass.
+ */
+function migrateAddSocialThumbnailColumn(): void
+{
+    try {
+        $cols = db()->query("SHOW COLUMNS FROM social_posts LIKE 'thumbnail_path'")->fetchAll();
+        if (!$cols) {
+            db()->exec("ALTER TABLE social_posts ADD COLUMN thumbnail_path VARCHAR(500) DEFAULT NULL AFTER media_url");
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (social thumbnail column) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }

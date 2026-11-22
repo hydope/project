@@ -684,6 +684,11 @@ CREATE TABLE IF NOT EXISTS social_posts (
   media_type   VARCHAR(16)  DEFAULT NULL,
   -- media_url: externally hosted media URL, if any
   media_url    VARCHAR(1000) DEFAULT NULL,
+  -- thumbnail_path: optional custom thumbnail image (social/<file>),
+  -- uploaded with the video at ingest; applied to YouTube via
+  -- thumbnails.set at publish time (best-effort). NULL = platform
+  -- auto-generated thumbnail.
+  thumbnail_path VARCHAR(500) DEFAULT NULL,
   -- Storage lifecycle (2026-11-21): when the publish cron purged the
   -- server copy of the media, and why. The platforms keep the content;
   -- platform URLs stay on social_post_targets.

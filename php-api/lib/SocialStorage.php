@@ -296,6 +296,11 @@ function socialPurgeSweep(bool $emergency = false): array
     $tgtStmt = db()->prepare('SELECT * FROM social_post_targets WHERE post_id = ?');
     $shareStmt = db()->prepare('SELECT COUNT(*) AS n FROM social_posts WHERE media_path = ? AND id <> ? AND media_purged_at IS NULL');
     $updStmt = db()->prepare('UPDATE social_posts SET media_path = NULL, media_purged_at = UTC_TIMESTAMP(), media_purge_note = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?');
+    // Same update + thumbnail cleanup, prepared lazily inside the row
+    // loop (only when a row actually carries the thumbnail_path key —
+    // SELECT * omits it pre-migration, and preparing against a missing
+    // column here would throw outside the guarded section above).
+    $updThumbStmt = null;
     foreach ($rows as $row) {
         try {
             $tgtStmt->execute([(string)$row['id']]);
@@ -310,10 +315,29 @@ function socialPurgeSweep(bool $emergency = false): array
             $shared = (int)($shareStmt->fetch(PDO::FETCH_ASSOC)['n'] ?? 0) > 0;
             if ($file && !$shared) @unlink($file);
             $note = $decision['note'] . ($shared ? ' (File kept: still referenced by another post.)' : '');
-            $updStmt->execute([$note, (string)$row['id']]);
+            // The custom thumbnail dies with the video: it is unique to
+            // this post (always a fresh upload, never a mediaRef), so it
+            // is unlinked unconditionally and its column cleared in the
+            // same update — otherwise thumbnails would leak ~2 MB per
+            // purged post forever.
+            $thumbFreed = 0;
+            if (array_key_exists('thumbnail_path', $row)) {
+                if (!empty($row['thumbnail_path'])) {
+                    $thumbFile = function_exists('socialMediaFile') ? socialMediaFile((string)$row['thumbnail_path']) : null;
+                    if ($thumbFile) {
+                        $thumbFreed = (int)@filesize($thumbFile);
+                        @unlink($thumbFile);
+                    }
+                }
+                $updThumbStmt ??= db()->prepare('UPDATE social_posts SET media_path = NULL, thumbnail_path = NULL, media_purged_at = UTC_TIMESTAMP(), media_purge_note = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?');
+                $updThumbStmt->execute([$note, (string)$row['id']]);
+            } else {
+                $updStmt->execute([$note, (string)$row['id']]);
+            }
             $entry['sharedFileKept'] = $shared;
             $out['purged'][] = $entry;
             if (!$shared) $out['bytesFreed'] += $bytes;
+            $out['bytesFreed'] += $thumbFreed;
         } catch (Throwable $e) {
             error_log('[social-storage] purge failed for post ' . ($row['id'] ?? '?') . ': ' . substr($e->getMessage(), 0, 160));
         }

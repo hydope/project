@@ -79,6 +79,7 @@ function socialPostPayload(array $row, array $targets): array
         'mediaPath' => $row['media_path'],
         'mediaType' => $row['media_type'],
         'mediaUrl' => $row['media_url'],
+        'thumbnailPath' => $row['thumbnail_path'] ?? null,
         'scheduledAt' => $row['scheduled_at'],
         'status' => (string)$row['status'],
         'source' => (string)($row['source'] ?? 'manual'),
@@ -165,6 +166,52 @@ function socialStoreUpload(array $file, string $kind): array
         je('Could not save the file.', 500);
     }
     return [$rel, $kind];
+}
+
+/**
+ * Store an uploaded custom-thumbnail image (ingest field 'thumbnail').
+ * JPEG/PNG only, hard cap 2 MB (YouTube's own custom-thumbnail limit),
+ * stored beside the video in the social media dir as
+ * social/<uuid>-thumb.<ext>. Counts against the same directory budget
+ * as video (Social-Storage plan §3.4) so thumbnails can never grow the
+ * dir past its cap unnoticed. Returns the relative media path.
+ */
+function socialStoreThumbnail(array $file): string
+{
+    $uploadErr = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($uploadErr !== UPLOAD_ERR_OK) {
+        if ($uploadErr === UPLOAD_ERR_INI_SIZE || $uploadErr === UPLOAD_ERR_FORM_SIZE) {
+            je('The thumbnail is larger than the server upload limit (' . ini_get('upload_max_filesize') . ').', 400);
+        }
+        if ($uploadErr === UPLOAD_ERR_PARTIAL) {
+            je('The thumbnail upload was interrupted — try again.', 400);
+        }
+        je('The thumbnail did not arrive. Check the file and try again.', 400);
+    }
+    if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        je('The thumbnail did not arrive. Check the file and try again.', 400);
+    }
+    if ((int)$file['size'] > 2 * 1024 * 1024) {
+        je('Thumbnail must be under 2 MB.', 400);
+    }
+    if (function_exists('socialMediaBudgetExceeded') && socialMediaBudgetExceeded((int)$file['size'])) {
+        je(socialMediaBudgetError(), 507);
+    }
+    $bytes = (string)file_get_contents($file['tmp_name']);
+    $mime = class_exists('finfo') ? (new finfo(FILEINFO_MIME_TYPE))->buffer($bytes) : null;
+    $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png'];
+    if (!is_string($mime) || !isset($allowed[$mime])) {
+        je('Thumbnail must be a JPEG or PNG image.', 400);
+    }
+    $dir = photoBaseDir() . '/social';
+    if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+        je('Could not save the thumbnail — server storage is not writable.', 500);
+    }
+    $rel = 'social/' . uuid() . '-thumb.' . $allowed[$mime];
+    if (@file_put_contents(photoBaseDir() . '/' . $rel, $bytes) === false) {
+        je('Could not save the thumbnail.', 500);
+    }
+    return $rel;
 }
 
 /** Next free hourly slot (UTC) for autopilot-fed content, honouring caps. */
@@ -833,7 +880,9 @@ function socialAutopilotUpdate(): void
 // Body: multipart with 'video' file OR mediaRef=<basename of a file
 // already in the social media dir>, plus caption, optional
 // captionOverrides (JSON string), optional scheduledAt (ISO; default =
-// next free autopilot slot). Creates source='autopilot_reel' post with
+// next free autopilot slot), optional 'thumbnail' image file (JPEG/PNG,
+// ≤2 MB) stored as the post's custom YouTube thumbnail. Creates
+// source='autopilot_reel' post with
 // targets for every connected, healthy account on FB/IG/YouTube subject
 // to the autopilot platform enables + daily caps. The kill switch applies:
 // when autopilot is OFF the ingest refuses, so stopping autopilot stops
@@ -872,6 +921,15 @@ function routeSocialIngest(): void
         json(['error' => 'a video file (multipart field "video") or mediaRef is required'], 400);
     }
 
+    // Optional custom thumbnail (JPEG/PNG ≤2 MB). An absent field — or a
+    // form that sent the field with no file chosen — simply means the
+    // platforms auto-generate the thumbnail, as before.
+    $thumbnailPath = null;
+    if (!empty($_FILES['thumbnail']) && is_array($_FILES['thumbnail'])
+        && (int)($_FILES['thumbnail']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+        $thumbnailPath = socialStoreThumbnail($_FILES['thumbnail']);
+    }
+
     $scheduledAt = trim((string)($_POST['scheduledAt'] ?? ''));
     if ($scheduledAt !== '') {
         $ts = strtotime($scheduledAt);
@@ -908,9 +966,9 @@ function routeSocialIngest(): void
     $pdo->beginTransaction();
     try {
         $pdo->prepare(
-            "INSERT INTO social_posts (id, caption, caption_overrides, media_path, media_type, media_url, scheduled_at, status, source, caption_hash, created_by)
-             VALUES (?, ?, ?, ?, 'video', NULL, ?, 'scheduled', 'autopilot_reel', ?, NULL)"
-        )->execute([$postId, $caption, $overrides, $mediaPath, $slot, socialCaptionHash($caption)]);
+            "INSERT INTO social_posts (id, caption, caption_overrides, media_path, media_type, media_url, thumbnail_path, scheduled_at, status, source, caption_hash, created_by)
+             VALUES (?, ?, ?, ?, 'video', NULL, ?, ?, 'scheduled', 'autopilot_reel', ?, NULL)"
+        )->execute([$postId, $caption, $overrides, $mediaPath, $thumbnailPath, $slot, socialCaptionHash($caption)]);
         $ins = $pdo->prepare("INSERT INTO social_post_targets (id, post_id, social_account_id, platform, status) VALUES (?, ?, ?, ?, 'pending')");
         foreach ($targets as $platform => $acc) $ins->execute([uuid(), $postId, $acc['id'], $platform]);
         $pdo->commit();
