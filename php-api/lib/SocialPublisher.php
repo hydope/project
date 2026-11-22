@@ -201,7 +201,7 @@ function socialFacebookReel(string $pageId, string $token, array $post, string $
 
 // ── Meta: Instagram ─────────────────────────────────────────────────────
 
-function socialPublishInstagram(array $account, array $post, string $caption): array
+function socialPublishInstagram(array $account, array $post, string $caption, ?string $resumeCreationId = null): array
 {
     $igId = (string)$account['platform_account_id'];
     $token = socialAccountToken($account);
@@ -211,17 +211,34 @@ function socialPublishInstagram(array $account, array $post, string $caption): a
     $v = socialConfig()['metaGraphVersion'];
     $isVideo = ($post['media_type'] ?? '') === 'video';
 
-    $params = ['access_token' => $token, 'caption' => $caption];
-    if ($isVideo) {
-        $params['media_type'] = 'REELS';
-        $params['video_url'] = $url;
-        $params['share_to_feed'] = 'true';
-    } else {
-        $params['image_url'] = $url;
+    // Resume a container a previous run created (its id is stashed on
+    // the target row): Meta keeps processing it server-side between
+    // runs, so by retry time it is usually FINISHED — restarting with
+    // a fresh container every retry was resetting that clock and is
+    // why Instagram lagged hours behind Facebook. A dead container
+    // (ERROR/EXPIRED) falls through to a fresh create.
+    $creationId = '';
+    if ($isVideo && $resumeCreationId !== null && $resumeCreationId !== '') {
+        $st = socialHttp('GET', "https://graph.facebook.com/{$v}/{$resumeCreationId}?fields=status_code&access_token=" . urlencode($token));
+        $code = (string)($st['json']['status_code'] ?? '');
+        if ($code === 'FINISHED' || $code === 'IN_PROGRESS') {
+            $creationId = $resumeCreationId;
+        }
     }
-    $create = socialHttp('POST', "https://graph.facebook.com/{$v}/{$igId}/media", ['body' => $params, 'timeout' => 120]);
-    $creationId = (string)($create['json']['id'] ?? '');
-    if ($creationId === '') return ['ok' => false, 'error' => socialGraphError($create, 'Instagram media container')];
+
+    if ($creationId === '') {
+        $params = ['access_token' => $token, 'caption' => $caption];
+        if ($isVideo) {
+            $params['media_type'] = 'REELS';
+            $params['video_url'] = $url;
+            $params['share_to_feed'] = 'true';
+        } else {
+            $params['image_url'] = $url;
+        }
+        $create = socialHttp('POST', "https://graph.facebook.com/{$v}/{$igId}/media", ['body' => $params, 'timeout' => 120]);
+        $creationId = (string)($create['json']['id'] ?? '');
+        if ($creationId === '') return ['ok' => false, 'error' => socialGraphError($create, 'Instagram media container')];
+    }
 
     // Video containers process asynchronously — poll briefly, then
     // publish. The poll budget is deliberately short (~30s): the whole
@@ -240,7 +257,7 @@ function socialPublishInstagram(array $account, array $post, string $caption): a
                 return ['ok' => false, 'error' => 'Instagram video processing ' . strtolower($code) . '.'];
             }
         }
-        if (!$ready) return ['ok' => false, 'retry' => true, 'error' => 'Instagram video still processing after ~30s — returned to pending for the next publish run.'];
+        if (!$ready) return ['ok' => false, 'retry' => true, 'resume_id' => $creationId, 'error' => 'Instagram video still processing after ~30s — returned to pending for the next publish run.'];
     }
 
     $pub = socialHttp('POST', "https://graph.facebook.com/{$v}/{$igId}/media_publish", [
@@ -428,7 +445,7 @@ function socialPublishTarget(array $target): array
         try {
             $result = match ((string)$target['platform']) {
                 'facebook' => socialPublishFacebook($account, $post, $caption),
-                'instagram' => socialPublishInstagram($account, $post, $caption),
+                'instagram' => socialPublishInstagram($account, $post, $caption, trim((string)($target['platform_post_id'] ?? '')) !== '' ? (string)$target['platform_post_id'] : null),
                 'youtube' => socialPublishYouTube($account, $post, $caption),
                 default => ['ok' => false, 'error' => 'Unknown platform: ' . $target['platform']],
             };
@@ -441,9 +458,18 @@ function socialPublishTarget(array $target): array
         // Not a failure — the platform is just slow (e.g. Instagram is
         // still processing the video). Put the target back to 'pending'
         // so the next publish run retries it, and do NOT touch the
-        // account failure rail.
-        $pdo->prepare("UPDATE social_post_targets SET status = 'pending', error = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?")
-            ->execute([substr((string)($result['error'] ?? 'Will retry.'), 0, 1000), $target['id']]);
+        // account failure rail. When the publisher hands back a
+        // resume_id (the Instagram container it created), stash it in
+        // platform_post_id so the retry resumes THAT container instead
+        // of restarting Meta's processing from zero; a successful
+        // publish overwrites the field with the real media id.
+        if (!empty($result['resume_id'])) {
+            $pdo->prepare("UPDATE social_post_targets SET status = 'pending', platform_post_id = ?, error = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?")
+                ->execute([(string)$result['resume_id'], substr((string)($result['error'] ?? 'Will retry.'), 0, 1000), $target['id']]);
+        } else {
+            $pdo->prepare("UPDATE social_post_targets SET status = 'pending', error = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?")
+                ->execute([substr((string)($result['error'] ?? 'Will retry.'), 0, 1000), $target['id']]);
+        }
         return $result;
     }
 

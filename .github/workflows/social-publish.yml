@@ -22,8 +22,21 @@ name: Social Publish Cron
 
 on:
   schedule:
+    # Three offset lines for the same 5-minute cadence: GitHub drops
+    # most scheduled firings for this repo (2 in ~19h observed on the
+    # single line), so each offset is another lottery ticket. Runs are
+    # serialized by the concurrency group below, and the drain is
+    # idempotent, so extra firings are harmless.
     - cron: '*/5 * * * *'
+    - cron: '2/5 * * * *'
+    - cron: '4/5 * * * *'
   workflow_dispatch: # Allow manual trigger
+
+# Serialize runs of this workflow: a firing that arrives while another
+# is draining queues behind it instead of racing the same targets.
+concurrency:
+  group: social-publish
+  cancel-in-progress: false
 
 jobs:
   publish:

@@ -1,0 +1,31 @@
+name: Social Publish Backup Trigger
+
+# Redundant trigger for the social publish drain (2026-11-22).
+#
+# GitHub's scheduler fires this repo's */5 cron only sporadically
+# (2 firings in ~19h were observed while a 12-post backlog sat
+# unpublished), and a stalled queue has no other recovery path. This
+# backup runs on an offset 20-minute cadence and simply dispatches
+# the primary Social Publish Cron workflow, which does the actual
+# draining (idempotent, serialized by its concurrency group). If
+# GitHub drops this schedule too, nothing is lost — it is a second
+# lottery ticket, not a second publisher.
+
+on:
+  schedule:
+    - cron: '7,27,47 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch the primary social publish workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run social-publish.yml --repo "$GITHUB_REPOSITORY"
+          echo "✓ Dispatched Social Publish Cron"
