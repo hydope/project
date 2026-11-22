@@ -65,7 +65,20 @@ try {
     foreach ($due as $row) {
         if ($summary !== [] && time() >= $deadline) break;
         $result = socialPublishPost((string)$row['id'], false, $deadline);
-        $summary[] = ['post' => (string)$row['id'], 'status' => $result['status']];
+        // Include the post's full target snapshot (status + error) in
+        // the response: the aggregate status alone cannot distinguish
+        // "still working" from "one target failing deterministically",
+        // and the workflow log is the operator's window into this run.
+        $tstmt = db()->prepare('SELECT platform, status, error FROM social_post_targets WHERE post_id = ?');
+        $tstmt->execute([(string)$row['id']]);
+        $targets = [];
+        foreach ($tstmt->fetchAll(PDO::FETCH_ASSOC) as $t) {
+            $targets[(string)$t['platform']] = [
+                'status' => (string)$t['status'],
+                'error' => $t['error'] !== null ? substr((string)$t['error'], 0, 200) : null,
+            ];
+        }
+        $summary[] = ['post' => (string)$row['id'], 'status' => $result['status'], 'targets' => $targets];
     }
     // Storage lifecycle sweep (Social-Storage plan §3.3): purge server
     // media whose lifecycle ended — published >72h, failed >7d,
