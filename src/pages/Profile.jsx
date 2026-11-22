@@ -383,7 +383,7 @@ export default function Profile() {
                             {formatCity(profile.city)}
                           </Link>
                         ) : null}
-                        {profile.city && profile.country ? <span className="mx-1.5" style={{ color: 'var(--color-ink-tertiary)' }}>·</span> : null}
+                        {profile.city && profile.country ? <span style={{ color: 'var(--color-ink-tertiary)' }}>{' · '}</span> : null}
                         {profile.country ? (
                           <Link
                             to={`/country/${profile.country.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`}

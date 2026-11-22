@@ -188,7 +188,7 @@ export default function Home() {
             </dl>
             {stats.topCities?.length > 0 && (
               <p className="hp-stats-cities">
-                Families from {stats.topCities.join(', ')}
+                {`Families from ${stats.topCities.join(', ')}`}
               </p>
             )}
             <p className="hp-stats-note">
