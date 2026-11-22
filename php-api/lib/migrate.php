@@ -84,6 +84,7 @@ function migrateSchema(): void
     migrateAddSocialSchedulerTables();
     migrateAddSocialStorageColumns();
     migrateAddSocialThumbnailColumn();
+    migrateAddSocialReliability();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
     // users.* would skip migration forever after a partial run (a lesson learned
@@ -1915,5 +1916,37 @@ function migrateAddSocialThumbnailColumn(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (social thumbnail column) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * Publishing reliability layer (2026-11-22): watchdog backoff columns
+ * on social_post_targets (retry_attempts / next_retry_at — a target
+ * that keeps failing is retried on an exponential schedule and marked
+ * 'dead' after 6 watchdog attempts instead of rotting silently), plus
+ * the social_state key/value table (publisher heartbeat + the hourly
+ * reconciliation gate). Also declared in db/schema.sql, whose digest
+ * change reopens the migration pass.
+ */
+function migrateAddSocialReliability(): void
+{
+    try {
+        $cols = db()->query("SHOW COLUMNS FROM social_post_targets LIKE 'retry_attempts'")->fetchAll();
+        if (!$cols) {
+            db()->exec("ALTER TABLE social_post_targets ADD COLUMN retry_attempts INT NOT NULL DEFAULT 0 AFTER attempts");
+        }
+        $cols = db()->query("SHOW COLUMNS FROM social_post_targets LIKE 'next_retry_at'")->fetchAll();
+        if (!$cols) {
+            db()->exec("ALTER TABLE social_post_targets ADD COLUMN next_retry_at DATETIME DEFAULT NULL AFTER retry_attempts");
+        }
+        db()->exec(
+            "CREATE TABLE IF NOT EXISTS social_state (
+                state_key   VARCHAR(64) NOT NULL PRIMARY KEY,
+                state_value TEXT        DEFAULT NULL,
+                updated_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    } catch (Throwable $e) {
+        error_log('[api] migration (social reliability) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }

@@ -111,9 +111,36 @@ try {
         error_log('[social-publish-cron] purge sweep failed: ' . substr($e->getMessage(), 0, 160));
         $purge = ['error' => 'purge sweep failed'];
     }
-    echo json_encode(['ok' => true, 'processed' => count($summary), 'posts' => $summary, 'purge' => $purge]) . ($isCli ? "\n" : '');
+    // Watchdog (reliability layer, 2026-11-22): retry past-due targets
+    // the main selection above cannot see — above all, targets of a
+    // post whose aggregate flipped to 'failed' (never re-selected),
+    // which is how the 07:00 Facebook failure sat silent for ~7 hours.
+    // Exponential backoff on the target row; 6 strikes → 'dead' and the
+    // admin Needs Attention banner. CLI runs (no request wall) get a
+    // generous budget; HTTP backup triggers keep the 60s deadline.
+    try {
+        $watchdog = socialWatchdogSweep($isCli ? time() + 600 : $deadline);
+    } catch (Throwable $e) {
+        error_log('[social-publish-cron] watchdog sweep failed: ' . substr($e->getMessage(), 0, 160));
+        $watchdog = ['error' => 'watchdog sweep failed'];
+    }
+    // Reconciliation (hourly, self-gated): a target we call published
+    // whose object the platform says is gone gets requeued — the books
+    // must never claim a dead link is live.
+    try {
+        $reconcile = socialReconcileSweep();
+    } catch (Throwable $e) {
+        error_log('[social-publish-cron] reconcile sweep failed: ' . substr($e->getMessage(), 0, 160));
+        $reconcile = ['error' => 'reconcile sweep failed'];
+    }
+    $processed = count($summary) + (int)($watchdog['retried'] ?? 0);
+    // Heartbeat LAST: the admin's "publisher last ran" reads this row,
+    // so it is written only once the run's real work is done.
+    socialRecordHeartbeat($processed, true, $isCli ? 'cli' : 'http');
+    echo json_encode(['ok' => true, 'processed' => $processed, 'posts' => $summary, 'purge' => $purge, 'watchdog' => $watchdog, 'reconcile' => $reconcile]) . ($isCli ? "\n" : '');
 } catch (Throwable $e) {
     error_log('[social-publish-cron] ' . $e->getMessage());
+    socialRecordHeartbeat(0, false, $isCli ? 'cli' : 'http');
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => 'publish run failed']) . ($isCli ? "\n" : '');
 }

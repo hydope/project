@@ -37,6 +37,7 @@ function fmtDate(s) {
 const STATUS_STYLE = {
   published: { color: 'var(--color-success, #1a7f37)' },
   failed: { color: 'var(--color-danger)' },
+  dead: { color: 'var(--color-danger)', fontWeight: 700 },
   publishing: { color: 'var(--color-warning, #9a6700)' },
   scheduled: {},
   pending: {},
@@ -48,6 +49,8 @@ export default function AdminSocialScheduler() {
   const [accounts, setAccounts] = useState([]);
   const [config, setConfig] = useState({});
   const [posts, setPosts] = useState([]);
+  const [publisher, setPublisher] = useState(null);
+  const [deadTargets, setDeadTargets] = useState([]);
   const [autopilot, setAutopilot] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -72,6 +75,8 @@ export default function AdminSocialScheduler() {
       setAccounts(acc.accounts || []);
       setConfig(acc.config || {});
       setPosts(list.posts || []);
+      setPublisher(list.publisher || null);
+      setDeadTargets(list.deadTargets || []);
       setAutopilot(ap.autopilot || null);
     } catch (e) {
       setError(e.message || 'Could not load the social scheduler.');
@@ -228,6 +233,53 @@ export default function AdminSocialScheduler() {
           <p className="mb-4 text-sm px-3 py-2 rounded" style={{ background: '#e9f7ee', color: 'var(--color-success, #1a7f37)' }}>
             {notice}
           </p>
+        )}
+
+        {/* ── Publisher heartbeat ──────────────────────────────
+            The 2026-11-22 outage was silent for ~19h because nothing
+            showed whether the publisher was even running. This line is
+            that missing instrument: green when fresh, red when the
+            last run is over 15 minutes old. */}
+        {publisher && (
+          publisher.stale ? (
+            <p role="alert" className="mb-4 text-sm px-3 py-2 rounded flex items-center gap-2" style={{ background: '#fdecec', color: 'var(--color-danger)' }}>
+              <AlertTriangle className="w-4 h-4" />
+              Publisher last ran {publisher.ageSeconds == null ? 'never (no heartbeat recorded)' : `${Math.floor(publisher.ageSeconds / 60)} min ago`}
+              {' '}— publishing may be stalled. Posts will not go out until the publisher runs again.
+            </p>
+          ) : (
+            <p className="mb-4 text-xs" style={{ color: 'var(--color-ink-secondary)' }}>
+              Publisher last ran {publisher.ageSeconds < 60 ? 'just now' : `${Math.floor(publisher.ageSeconds / 60)} min ago`}
+              {publisher.ok ? '' : ' (that run reported an error)'} · {publisher.processed} target(s) processed.
+            </p>
+          )
+        )}
+
+        {/* ── Needs attention: watchdog dead-letter ──────────── */}
+        {deadTargets.length > 0 && (
+          <div role="alert" className="mb-4 text-sm px-3 py-2 rounded" style={{ background: '#fdecec', color: 'var(--color-danger)' }}>
+            <p className="font-bold flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              Needs attention: {deadTargets.length} target(s) failed permanently after repeated retries
+            </p>
+            <ul className="mt-1 space-y-1">
+              {deadTargets.map((d) => (
+                <li key={`${d.postId}:${d.platform}`} className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold">{d.platform}</span>
+                  <span>· {d.caption}{d.scheduledAt ? ` · scheduled ${fmtDate(d.scheduledAt)}` : ''}</span>
+                  {d.error && <span>· {String(d.error).slice(0, 160)}</span>}
+                  <button
+                    type="button"
+                    className="underline disabled:opacity-40"
+                    disabled={retrying === `${d.postId}:${d.platform}`}
+                    onClick={() => retryTarget(d.postId, d.platform)}
+                  >
+                    {retrying === `${d.postId}:${d.platform}` ? 'Retrying…' : 'Retry'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {/* ── Connected accounts ─────────────────────────────── */}

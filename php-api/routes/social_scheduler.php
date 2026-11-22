@@ -10,7 +10,12 @@
 //   GET    /connect/facebook         -> alias of /connect/meta
 //   GET    /connect/youtube          -> {url} Google OAuth start
 //   POST   /media                    multipart upload -> {mediaPath,...}
-//   GET    /posts                    queue list with per-target status
+//   GET    /posts                    queue list with per-target status,
+//                                    plus `publisher` (heartbeat of the
+//                                    publish cron — last run/processed/
+//                                    stale flag) and `deadTargets`
+//                                    (watchdog dead-letter list for the
+//                                    Needs Attention banner)
 //   POST   /posts                    create (draft | scheduled | now)
 //   GET    /posts/:id
 //   PUT    /posts/:id                edit an unsent post
@@ -97,6 +102,8 @@ function socialPostPayload(array $row, array $targets): array
             'platformUrl' => $t['platform_url'],
             'error' => $t['error'],
             'attempts' => (int)$t['attempts'],
+            'retryAttempts' => (int)($t['retry_attempts'] ?? 0),
+            'nextRetryAt' => $t['next_retry_at'] ?? null,
             'publishedAt' => $t['published_at'],
         ], $targets),
     ];
@@ -720,7 +727,35 @@ function socialPostsList(): void
         $stmt->execute([$row['id']]);
         $out[] = socialPostPayload($row, $stmt->fetchAll(PDO::FETCH_ASSOC));
     }
-    json(['ok' => true, 'posts' => $out]);
+    // Reliability layer (2026-11-22): the publisher heartbeat (so a
+    // silent publisher is VISIBLE, not discovered hours later by a
+    // human counting posts) and the watchdog dead-letter list.
+    $dead = [];
+    try {
+        $drows = db()->query(
+            "SELECT t.post_id, t.platform, t.error, t.retry_attempts, p.caption, p.scheduled_at
+               FROM social_post_targets t JOIN social_posts p ON p.id = t.post_id
+              WHERE t.status = 'dead' ORDER BY p.scheduled_at ASC LIMIT 50"
+        )->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($drows as $d) {
+            $dead[] = [
+                'postId' => (string)$d['post_id'],
+                'platform' => (string)$d['platform'],
+                'error' => $d['error'],
+                'retryAttempts' => (int)$d['retry_attempts'],
+                'caption' => mb_substr((string)$d['caption'], 0, 140),
+                'scheduledAt' => $d['scheduled_at'],
+            ];
+        }
+    } catch (Throwable $e) {
+        error_log('[social] dead-target list failed: ' . substr($e->getMessage(), 0, 120));
+    }
+    json([
+        'ok' => true,
+        'posts' => $out,
+        'publisher' => socialHeartbeatPayload(socialPublisherHeartbeat(), time()),
+        'deadTargets' => $dead,
+    ]);
 }
 
 /** Validate + resolve the target accounts for a create/update payload. */

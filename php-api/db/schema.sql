@@ -23,6 +23,10 @@
 -- social_posts, social_post_targets) + migrateAddSocialSchedulerTables().
 -- This comment alone changes the sha1 digest migrateSchema() keys its
 -- marker on, so the new migration actually runs in production.
+-- Marker bump 2026-11-22: publishing reliability layer —
+-- social_post_targets.retry_attempts / next_retry_at (watchdog
+-- backoff + dead-letter) and the social_state table (publisher
+-- heartbeat + reconciliation gate) + migrateAddSocialReliability().
 
 SET NAMES utf8mb4;
 
@@ -715,16 +719,33 @@ CREATE TABLE IF NOT EXISTS social_post_targets (
   social_account_id CHAR(36)     NOT NULL,
   -- platform: facebook | instagram | youtube
   platform          VARCHAR(16)  NOT NULL,
-  -- status: pending | publishing | published | failed | skipped
+  -- status: pending | publishing | published | failed | skipped | dead
+  -- ('dead' = the watchdog gave up after 6 backoff retries; the admin
+  -- surfaces it under Needs Attention and a manual Retry revives it)
   status            VARCHAR(16)  NOT NULL DEFAULT 'pending',
   platform_post_id  VARCHAR(255) DEFAULT NULL,
   platform_url      VARCHAR(1000) DEFAULT NULL,
   error             TEXT         DEFAULT NULL,
   attempts          INT          NOT NULL DEFAULT 0,
+  -- Watchdog bookkeeping (2026-11-22): failed watchdog attempts so
+  -- far, and when the next one becomes eligible (exponential backoff).
+  retry_attempts    INT          NOT NULL DEFAULT 0,
+  next_retry_at     DATETIME     DEFAULT NULL,
   published_at      DATETIME     DEFAULT NULL,
   created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_social_target (post_id, social_account_id),
   KEY idx_social_targets_post (post_id),
   KEY idx_social_targets_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Social reliability state (2026-11-22): tiny key/value store for the
+-- publisher heartbeat (publisher_heartbeat → JSON {last_run_at,
+-- processed, ok, source}; the admin goes red when it is >15 min old)
+-- and the hourly reconciliation gate (reconcile_last_run_at). Also
+-- created by migrateAddSocialReliability() in lib/migrate.php.
+CREATE TABLE IF NOT EXISTS social_state (
+  state_key   VARCHAR(64) NOT NULL PRIMARY KEY,
+  state_value TEXT        DEFAULT NULL,
+  updated_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

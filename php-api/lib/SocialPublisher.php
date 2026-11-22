@@ -179,24 +179,97 @@ function socialPublishFacebook(array $account, array $post, string $caption): ar
     return ['ok' => false, 'error' => socialGraphError($res, 'Facebook feed post')];
 }
 
-function socialFacebookReel(string $pageId, string $token, array $post, string $caption, string $v): array
+/**
+ * Is a failed Reel step worth a FRESH upload session? Transient means:
+ * a network error, any HTTP 5xx (Meta's 503s are routine), a known
+ * transient Graph error code, or a phase/session complaint — the
+ * 2026-11-22 failure was "(#100) Param upload_phase must be one of
+ * {START, FINISH…}", i.e. the session/phase state went bad mid-flow;
+ * a brand-new session is exactly the cure. Deterministic errors (bad
+ * token 190, permission 200/10, invalid file) are NOT retried — a new
+ * session would fail identically and only burn time.
+ */
+function socialReelFailureRetryable(array $res): bool
 {
-    $url = socialMediaPublicUrl($post);
-    if (!$url) return ['ok' => false, 'error' => 'Reels need a publicly reachable video URL.'];
+    if (!empty($res['error'])) return true;               // network layer
+    if ((int)($res['status'] ?? 0) >= 500) return true;    // Meta 5xx
+    $code = (int)($res['json']['error']['code'] ?? 0);
+    if (in_array($code, [1, 2, 4, 17, 32, 341, 613], true)) return true;
+    $msg = (string)($res['json']['error']['message'] ?? '');
+    foreach (['upload_phase', 'upload session', 'session', 'temporar'] as $needle) {
+        if (stripos($msg, $needle) !== false) return true;
+    }
+    return false;
+}
+
+/**
+ * ONE Facebook Reel upload session, phases done the way the Graph API
+ * actually defines them:
+ *   START    POST /{page}/video_reels upload_phase=start
+ *            → {video_id, upload_url}
+ *   TRANSFER POST the hosted file to the session's own upload_url
+ *            (rupload host) with the file_url header — there is NO
+ *            'transfer' upload_phase on the video_reels endpoint; the
+ *            old code sent one and Meta answered "(#100) Param
+ *            upload_phase must be one of {START, FINISH…}".
+ *   FINISH   POST /{page}/video_reels upload_phase=finish,
+ *            video_state=PUBLISHED, description=caption.
+ * A session is single-use: any failure poisons it, and the caller
+ * restarts with a FRESH session rather than resuming a dead one.
+ */
+function socialFacebookReelSession(string $pageId, string $token, string $url, string $caption, string $v): array
+{
     $start = socialHttp('POST', "https://graph.facebook.com/{$v}/{$pageId}/video_reels", [
         'body' => ['access_token' => $token, 'upload_phase' => 'start'],
     ]);
     $videoId = (string)($start['json']['video_id'] ?? '');
-    if ($videoId === '') return ['ok' => false, 'error' => socialGraphError($start, 'Facebook Reel start')];
-    $transfer = socialHttp('POST', "https://graph.facebook.com/{$v}/{$pageId}/video_reels", [
-        'body' => ['access_token' => $token, 'upload_phase' => 'transfer', 'video_id' => $videoId, 'file_url' => $url],
+    $uploadUrl = (string)($start['json']['upload_url'] ?? '');
+    if ($videoId === '' || $uploadUrl === '') {
+        return ['ok' => false, 'retryable' => socialReelFailureRetryable($start),
+            'error' => socialGraphError($start, 'Facebook Reel start')];
+    }
+    $transfer = socialHttp('POST', $uploadUrl, [
+        'headers' => ['Authorization: OAuth ' . $token, 'file_url: ' . $url],
+        'timeout' => 300,
     ]);
-    if (empty($transfer['json']['success'])) return ['ok' => false, 'error' => socialGraphError($transfer, 'Facebook Reel transfer')];
+    $transferOk = $transfer['error'] === null
+        && $transfer['status'] >= 200 && $transfer['status'] < 300
+        && empty($transfer['json']['error'])
+        && ($transfer['json'] === null || !empty($transfer['json']['success']));
+    if (!$transferOk) {
+        return ['ok' => false, 'retryable' => socialReelFailureRetryable($transfer),
+            'error' => socialGraphError($transfer, 'Facebook Reel transfer')];
+    }
     $finish = socialHttp('POST', "https://graph.facebook.com/{$v}/{$pageId}/video_reels", [
         'body' => ['access_token' => $token, 'upload_phase' => 'finish', 'video_id' => $videoId, 'video_state' => 'PUBLISHED', 'description' => $caption],
     ]);
-    if (empty($finish['json']['success'])) return ['ok' => false, 'error' => socialGraphError($finish, 'Facebook Reel finish')];
+    if (empty($finish['json']['success'])) {
+        return ['ok' => false, 'retryable' => socialReelFailureRetryable($finish),
+            'error' => socialGraphError($finish, 'Facebook Reel finish')];
+    }
     return ['ok' => true, 'platform_post_id' => $videoId, 'platform_url' => 'https://www.facebook.com/reel/' . $videoId];
+}
+
+function socialFacebookReel(string $pageId, string $token, array $post, string $caption, string $v): array
+{
+    $url = socialMediaPublicUrl($post);
+    if (!$url) return ['ok' => false, 'error' => 'Reels need a publicly reachable video URL.'];
+    // Up to 2 restarts with a FRESH session inside this one publish
+    // attempt (3 sessions total) — a transient Meta 5xx or a poisoned
+    // session must not fail the target when a clean session seconds
+    // later succeeds. If every session fails, the caller falls back
+    // to a plain video post (see socialPublishFacebook).
+    $attempts = 0;
+    $lastError = 'Facebook Reel failed.';
+    while ($attempts < 3) {
+        $attempts++;
+        $r = socialFacebookReelSession($pageId, $token, $url, $caption, $v);
+        if (!empty($r['ok'])) return $r;
+        $lastError = (string)($r['error'] ?? $lastError);
+        if (empty($r['retryable']) || $attempts >= 3) break;
+        sleep(2);
+    }
+    return ['ok' => false, 'error' => $lastError . ($attempts > 1 ? " (failed after {$attempts} fresh upload sessions)" : '')];
 }
 
 // ── Meta: Instagram ─────────────────────────────────────────────────────
@@ -480,7 +553,7 @@ function socialPublishTarget(array $target): array
         $note = !empty($result['thumbnail_error'])
             ? substr('Published OK; custom thumbnail not set: ' . (string)$result['thumbnail_error'], 0, 1000)
             : null;
-        $pdo->prepare("UPDATE social_post_targets SET status = 'published', platform_post_id = ?, platform_url = ?, error = ?, published_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = ?")
+        $pdo->prepare("UPDATE social_post_targets SET status = 'published', platform_post_id = ?, platform_url = ?, error = ?, published_at = UTC_TIMESTAMP(), retry_attempts = 0, next_retry_at = NULL, updated_at = UTC_TIMESTAMP() WHERE id = ?")
             ->execute([$result['platform_post_id'] ?? null, $result['platform_url'] ?? null, $note, $target['id']]);
         $pdo->prepare("UPDATE social_accounts SET consecutive_failures = 0, status = CASE WHEN status = 'needs_attention' THEN 'connected' ELSE status END, updated_at = UTC_TIMESTAMP() WHERE id = ?")
             ->execute([$target['social_account_id']]);
@@ -510,7 +583,9 @@ function socialRecalcPostStatus(string $postId): string
     $statuses = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
     if ($statuses === []) return 'draft';
     $published = count(array_filter($statuses, fn($s) => $s === 'published'));
-    $failed = count(array_filter($statuses, fn($s) => $s === 'failed'));
+    // 'dead' (watchdog gave up after 6 retries) aggregates like 'failed':
+    // the post is finished-with-errors, never silently 'scheduled'.
+    $failed = count(array_filter($statuses, fn($s) => $s === 'failed' || $s === 'dead'));
     $pending = count(array_filter($statuses, fn($s) => in_array($s, ['pending', 'publishing'], true)));
     $status = match (true) {
         $published === count($statuses) => 'published',
@@ -598,6 +673,11 @@ function socialTargetRetryResetValues(array $target): array
         'status' => 'pending',
         'error' => null,
         'platform_post_id' => $target['platform_post_id'] ?? null,
+        // A manual retry REVIVES a watchdog-'dead' target: its backoff
+        // counters reset, so a human saying "try again" always gets a
+        // genuinely fresh attempt cycle.
+        'retry_attempts' => 0,
+        'next_retry_at' => null,
     ];
 }
 
@@ -610,8 +690,8 @@ function socialTargetRetryResetValues(array $target): array
 function socialResetTargetForRetry(PDO $pdo, array $target): void
 {
     $v = socialTargetRetryResetValues($target);
-    $pdo->prepare('UPDATE social_post_targets SET status = ?, error = ?, platform_post_id = ?, updated_at = ? WHERE id = ?')
-        ->execute([$v['status'], $v['error'], $v['platform_post_id'], gmdate('Y-m-d H:i:s'), $target['id']]);
+    $pdo->prepare('UPDATE social_post_targets SET status = ?, error = ?, platform_post_id = ?, retry_attempts = ?, next_retry_at = ?, updated_at = ? WHERE id = ?')
+        ->execute([$v['status'], $v['error'], $v['platform_post_id'], $v['retry_attempts'], $v['next_retry_at'], gmdate('Y-m-d H:i:s'), $target['id']]);
 }
 
 /**
@@ -658,4 +738,310 @@ function socialRetryPostTarget(string $postId, string $platform): array
         ],
         'result' => $result,
     ];
+}
+
+// ── Reliability layer (2026-11-22) ──────────────────────────────────────
+//
+// Built after the 2026-11-22 outage, whose real damage was SILENCE: a
+// Facebook target failed at 07:00 and sat unretried for ~7 hours while
+// every dashboard claimed health. Four mechanisms, all driven from
+// social-publish-cron.php:
+//   · state store      — tiny key/value table (social_state) for the
+//                        heartbeat + the reconciliation gate.
+//   · heartbeat        — every publish run records itself; the admin
+//                        shows "last ran X min ago" and goes red when
+//                        the publisher has been quiet > 15 minutes.
+//   · watchdog         — targets past due > 15 min that fell OUT of
+//                        the main due-post flow (e.g. their post's
+//                        aggregate flipped to 'failed', which the main
+//                        selection never picks up again) are retried
+//                        with exponential backoff; after 6 failed
+//                        watchdog attempts the target is marked 'dead'
+//                        and surfaced in the admin as Needs Attention
+//                        instead of retrying — or rotting — forever.
+//   · reconciliation   — hourly, targets marked published in the last
+//                        48h are checked against the platform; a post
+//                        Meta/YouTube says no longer exists is requeued
+//                        instead of being reported as live forever.
+
+// ── State store ─────────────────────────────────────────────────────────
+
+function socialStateGet(string $key): ?string
+{
+    $stmt = db()->prepare('SELECT state_value FROM social_state WHERE state_key = ? LIMIT 1');
+    $stmt->execute([$key]);
+    $v = $stmt->fetchColumn();
+    return $v === false ? null : (string)$v;
+}
+
+function socialStateSet(string $key, string $value): void
+{
+    db()->prepare(
+        'INSERT INTO social_state (state_key, state_value) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE state_value = VALUES(state_value), updated_at = UTC_TIMESTAMP()'
+    )->execute([$key, $value]);
+}
+
+// ── Publisher heartbeat ─────────────────────────────────────────────────
+
+function socialRecordHeartbeat(int $processed, bool $ok, string $source): void
+{
+    try {
+        socialStateSet('publisher_heartbeat', (string)json_encode([
+            'last_run_at' => gmdate('Y-m-d H:i:s'),
+            'processed' => $processed,
+            'ok' => $ok,
+            'source' => $source,
+        ]));
+    } catch (Throwable $e) {
+        // The heartbeat must never fail the run it describes.
+        error_log('[social] heartbeat write failed: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+function socialPublisherHeartbeat(): ?array
+{
+    try {
+        $raw = socialStateGet('publisher_heartbeat');
+        if ($raw === null || $raw === '') return null;
+        $hb = json_decode($raw, true);
+        return is_array($hb) && !empty($hb['last_run_at']) ? $hb : null;
+    } catch (Throwable $e) {
+        error_log('[social] heartbeat read failed: ' . substr($e->getMessage(), 0, 120));
+        return null;
+    }
+}
+
+/** Shape the heartbeat for the admin API. Stale = no run in 15 min. */
+function socialHeartbeatPayload(?array $hb, int $now): array
+{
+    if ($hb === null || empty($hb['last_run_at'])) {
+        return ['lastRunAt' => null, 'processed' => 0, 'ok' => false, 'ageSeconds' => null, 'stale' => true];
+    }
+    $ts = strtotime((string)$hb['last_run_at'] . ' UTC');
+    $age = $ts === false ? null : max(0, $now - $ts);
+    return [
+        'lastRunAt' => (string)$hb['last_run_at'],
+        'processed' => (int)($hb['processed'] ?? 0),
+        'ok' => !empty($hb['ok']),
+        'ageSeconds' => $age,
+        'stale' => $age === null || $age > 900,
+    ];
+}
+
+// ── Watchdog: self-healing retries with backoff, then dead-letter ───────
+
+const SOCIAL_WATCHDOG_MAX_ATTEMPTS = 6;
+
+/** Delay before watchdog attempt N+1, after N failed attempts (1-based). */
+function socialWatchdogBackoffSeconds(int $failedAttempts): int
+{
+    $table = [1 => 300, 2 => 900, 3 => 1800, 4 => 3600, 5 => 7200];
+    return $table[max(1, min(5, $failedAttempts))] ?? 300;
+}
+
+/**
+ * Bookkeeping after one watchdog publish attempt FAILED: bump the
+ * counter, and either schedule the next attempt (exponential backoff)
+ * or — at the cap — declare the target dead. Pure: unit-tested.
+ */
+function socialWatchdogAfterFailure(int $retryAttempts): array
+{
+    $next = $retryAttempts + 1;
+    if ($next >= SOCIAL_WATCHDOG_MAX_ATTEMPTS) {
+        return ['retry_attempts' => $next, 'dead' => true, 'delay_seconds' => 0];
+    }
+    return ['retry_attempts' => $next, 'dead' => false, 'delay_seconds' => socialWatchdogBackoffSeconds($next)];
+}
+
+/**
+ * May the watchdog touch this target right now? Pure: unit-tested.
+ * $target needs status/retry_attempts/next_retry_at/updated_at;
+ * $post needs scheduled_at/status. All times are unix timestamps
+ * pre-converted by the caller (DB rows arrive as UTC strings).
+ */
+function socialWatchdogTargetEligible(array $target, array $post, int $now): bool
+{
+    if (($post['status'] ?? '') === 'draft') return false;
+    $due = !empty($post['scheduled_at']) ? strtotime((string)$post['scheduled_at'] . ' UTC') : false;
+    if ($due === false || $due > $now - 900) return false;   // past due > 15 min
+    $status = (string)($target['status'] ?? '');
+    if ($status === 'publishing') {
+        // Only a STALE claim (>20 min — every platform call is bounded
+        // well under that) is a stranded run, never a live one.
+        $upd = !empty($target['updated_at']) ? strtotime((string)$target['updated_at'] . ' UTC') : false;
+        if ($upd === false || $upd > $now - 1200) return false;
+    } elseif (!in_array($status, ['pending', 'failed'], true)) {
+        return false;   // published / dead / skipped are not watchdog work
+    }
+    if ((int)($target['retry_attempts'] ?? 0) >= SOCIAL_WATCHDOG_MAX_ATTEMPTS) return false;
+    $next = !empty($target['next_retry_at']) ? strtotime((string)$target['next_retry_at'] . ' UTC') : false;
+    if ($next !== false && $next > $now) return false;       // backoff not yet elapsed
+    return true;
+}
+
+/**
+ * One watchdog pass: find targets that are past due and NOT published
+ * but no longer reached by the main due-post selection, and retry
+ * them under the backoff/dead-letter bookkeeping. Selection is by
+ * TARGET (joined to the post's scheduled time), deliberately NOT by
+ * the post's aggregate status — a post whose targets all failed has
+ * aggregate 'failed' and the main flow never selects it again; that
+ * blind spot is what stranded the 2026-11-22 07:00 Facebook target.
+ */
+function socialWatchdogSweep(?int $deadline = null): array
+{
+    $pdo = db();
+    $stmt = $pdo->query(
+        "SELECT t.*, p.scheduled_at AS post_scheduled_at, p.status AS post_status
+           FROM social_post_targets t
+           JOIN social_posts p ON p.id = t.post_id
+          WHERE p.scheduled_at IS NOT NULL
+            AND p.scheduled_at <= UTC_TIMESTAMP() - INTERVAL 15 MINUTE
+            AND p.status <> 'draft'
+            AND (t.status IN ('pending', 'failed')
+                 OR (t.status = 'publishing' AND t.updated_at <= UTC_TIMESTAMP() - INTERVAL 20 MINUTE))
+            AND (t.next_retry_at IS NULL OR t.next_retry_at <= UTC_TIMESTAMP())
+            AND t.retry_attempts < " . SOCIAL_WATCHDOG_MAX_ATTEMPTS . "
+          ORDER BY p.scheduled_at ASC LIMIT 10"
+    );
+    $out = ['scanned' => 0, 'retried' => 0, 'published' => 0, 'dead' => 0];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $out['scanned']++;
+        if ($deadline !== null && $out['retried'] > 0 && time() >= $deadline) break;
+        $post = ['scheduled_at' => $row['post_scheduled_at'], 'status' => $row['post_status']];
+        if (!socialWatchdogTargetEligible($row, $post, time())) continue;
+        $out['retried']++;
+        $result = socialPublishTarget($row);
+        if (!empty($result['ok'])) {
+            $out['published']++;
+            $pdo->prepare('UPDATE social_post_targets SET retry_attempts = 0, next_retry_at = NULL, updated_at = UTC_TIMESTAMP() WHERE id = ?')
+                ->execute([$row['id']]);
+        } elseif (!empty($result['retry'])) {
+            // Soft outcome (platform still processing, e.g. Instagram):
+            // not a failure — don't burn a watchdog attempt, just rest
+            // the target briefly so the next runs don't hammer it.
+            $pdo->prepare('UPDATE social_post_targets SET next_retry_at = UTC_TIMESTAMP() + INTERVAL 5 MINUTE, updated_at = UTC_TIMESTAMP() WHERE id = ?')
+                ->execute([$row['id']]);
+        } else {
+            $d = socialWatchdogAfterFailure((int)$row['retry_attempts']);
+            if ($d['dead']) {
+                $out['dead']++;
+                $pdo->prepare("UPDATE social_post_targets SET status = 'dead', retry_attempts = ?, next_retry_at = NULL, updated_at = UTC_TIMESTAMP() WHERE id = ?")
+                    ->execute([$d['retry_attempts'], $row['id']]);
+            } else {
+                $pdo->prepare('UPDATE social_post_targets SET retry_attempts = ?, next_retry_at = UTC_TIMESTAMP() + INTERVAL ? SECOND, updated_at = UTC_TIMESTAMP() WHERE id = ?')
+                    ->execute([$d['retry_attempts'], (int)$d['delay_seconds'], $row['id']]);
+            }
+        }
+        socialRecalcPostStatus((string)$row['post_id']);
+    }
+    return $out;
+}
+
+// ── Reconciliation: published on our books = present on the platform ────
+
+/**
+ * Definitive "this object does not exist" from the Graph API: error
+ * 100/33 ("object with ID … does not exist") or 803 (alias missing).
+ * Anything else — token, permission, rate limit — proves nothing and
+ * must never flip a target. Pure: unit-tested.
+ */
+function socialGraphObjectMissing(array $res): bool
+{
+    $code = (int)($res['json']['error']['code'] ?? 0);
+    $sub = (int)($res['json']['error']['error_subcode'] ?? 0);
+    if ($code === 100 && $sub === 33) return true;
+    if ($code === 803) return true;
+    return false;
+}
+
+/**
+ * YouTube videos.list: a 404, or a 200 whose items list is empty,
+ * means the video is gone. Errors (quota/auth) prove nothing.
+ */
+function socialYouTubeObjectMissing(array $res): bool
+{
+    if ((int)($res['status'] ?? 0) === 404) return true;
+    if ((int)($res['status'] ?? 0) === 200 && isset($res['json']['items']) && is_array($res['json']['items']) && $res['json']['items'] === []) return true;
+    return false;
+}
+
+/** Reconciliation runs at most once an hour. Pure: unit-tested. */
+function socialReconcileDue(?string $lastRunAt, int $now): bool
+{
+    if ($lastRunAt === null || $lastRunAt === '') return true;
+    $ts = strtotime($lastRunAt . ' UTC');
+    return $ts === false || ($now - $ts) >= 3300;
+}
+
+/**
+ * Hourly pass over targets marked published in the last 48h: ask the
+ * platform whether the object still exists. If it is definitively
+ * gone (deleted on-platform, removed by a moderator), flip the target
+ * back to pending with a loud error — the watchdog/main flow then
+ * republishes it, and until it does, the admin no longer claims a
+ * dead link is live. Facebook + Instagram share the Graph read;
+ * YouTube uses videos.list (1 quota unit per call).
+ */
+function socialReconcileSweep(): array
+{
+    $out = ['ran' => false, 'checked' => 0, 'missing' => 0];
+    if (!socialReconcileDue(socialStateGet('reconcile_last_run_at'), time())) return $out;
+    socialStateSet('reconcile_last_run_at', gmdate('Y-m-d H:i:s'));
+    $out['ran'] = true;
+    $pdo = db();
+    $rows = $pdo->query(
+        "SELECT * FROM social_post_targets
+          WHERE status = 'published' AND platform_post_id IS NOT NULL AND platform_post_id <> ''
+            AND published_at >= UTC_TIMESTAMP() - INTERVAL 48 HOUR
+          ORDER BY published_at DESC LIMIT 50"
+    )->fetchAll(PDO::FETCH_ASSOC);
+    $accounts = [];
+    $v = socialConfig()['metaGraphVersion'];
+    foreach ($rows as $t) {
+        $aid = (string)$t['social_account_id'];
+        if (!array_key_exists($aid, $accounts)) {
+            $stmt = $pdo->prepare('SELECT * FROM social_accounts WHERE id = ? LIMIT 1');
+            $stmt->execute([$aid]);
+            $accounts[$aid] = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        }
+        $account = $accounts[$aid];
+        if (!$account) continue;
+        $out['checked']++;
+        $pid = (string)$t['platform_post_id'];
+        $missing = false;
+        if ($t['platform'] === 'youtube') {
+            $token = socialYouTubeAccessToken($account);
+            if (!$token) continue;
+            $res = socialHttp('GET', 'https://www.googleapis.com/youtube/v3/videos?part=id&id=' . urlencode($pid), [
+                'headers' => ['Authorization: Bearer ' . $token], 'timeout' => 30,
+            ]);
+            $missing = socialYouTubeObjectMissing($res);
+        } else {
+            $token = socialAccountToken($account);
+            if ($token === '') continue;
+            $res = socialHttp('GET', "https://graph.facebook.com/{$v}/" . urlencode($pid) . '?fields=id&access_token=' . urlencode($token), ['timeout' => 30]);
+            $missing = socialGraphObjectMissing($res);
+        }
+        if ($missing) {
+            $out['missing']++;
+            error_log('[social] reconcile: ' . $t['platform'] . ' object ' . $pid . ' missing on platform — requeued (target ' . $t['id'] . ')');
+            // platform_post_id is deliberately NOT cleared: the file-wide
+            // invariant is that a stored id is only ever overwritten by a
+            // successful publish (the IG resume path status-checks any
+            // stashed id and falls through to a fresh container when it
+            // is not a live container, so a stale media id is harmless).
+            $pdo->prepare(
+                "UPDATE social_post_targets
+                    SET status = 'pending', platform_url = NULL, published_at = NULL,
+                        retry_attempts = 0, next_retry_at = NULL,
+                        error = 'Published object missing on platform — requeued for republication.',
+                        updated_at = UTC_TIMESTAMP()
+                  WHERE id = ?"
+            )->execute([$t['id']]);
+            socialRecalcPostStatus((string)$t['post_id']);
+        }
+    }
+    return $out;
 }
