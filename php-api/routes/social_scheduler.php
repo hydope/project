@@ -198,16 +198,28 @@ function socialStoreThumbnail(array $file): string
         je(socialMediaBudgetError(), 507);
     }
     $bytes = (string)file_get_contents($file['tmp_name']);
-    $mime = class_exists('finfo') ? (new finfo(FILEINFO_MIME_TYPE))->buffer($bytes) : null;
-    $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png'];
-    if (!is_string($mime) || !isset($allowed[$mime])) {
+    // Format from the magic bytes first: deterministic on every host.
+    // (Live probe 2026-11-21: production's finfo rejected a standard
+    // ffmpeg PNG that local finfo accepts — the web SAPI's fileinfo
+    // cannot be trusted as the only gate.) finfo stays as a second
+    // opinion for files whose signatures were mangled in transit.
+    $ext = null;
+    if (str_starts_with($bytes, "\xFF\xD8\xFF")) {
+        $ext = 'jpg';
+    } elseif (str_starts_with($bytes, "\x89PNG\r\n\x1a\n")) {
+        $ext = 'png';
+    } else {
+        $mime = class_exists('finfo') ? (new finfo(FILEINFO_MIME_TYPE))->buffer($bytes) : null;
+        $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png'][$mime ?? ''] ?? null;
+    }
+    if ($ext === null) {
         je('Thumbnail must be a JPEG or PNG image.', 400);
     }
     $dir = photoBaseDir() . '/social';
     if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
         je('Could not save the thumbnail — server storage is not writable.', 500);
     }
-    $rel = 'social/' . uuid() . '-thumb.' . $allowed[$mime];
+    $rel = 'social/' . uuid() . '-thumb.' . $ext;
     if (@file_put_contents(photoBaseDir() . '/' . $rel, $bytes) === false) {
         je('Could not save the thumbnail.', 500);
     }

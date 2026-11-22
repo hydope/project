@@ -50,6 +50,8 @@ check('routes: socialStoreThumbnail() enforces the 2 MB cap',
     && str_contains($routes, '2 * 1024 * 1024'));
 check('routes: socialStoreThumbnail() accepts JPEG/PNG only',
     str_contains($routes, "'image/jpeg' => 'jpg', 'image/png' => 'png'"));
+check('routes: socialStoreThumbnail() sniffs JPEG/PNG magic bytes (finfo is not the only gate)',
+    str_contains($routes, '"\xFF\xD8\xFF"') && str_contains($routes, '"\x89PNG\r\n\x1a\n"'));
 check('routes: ingest INSERT persists thumbnail_path',
     str_contains($routes, 'media_url, thumbnail_path, scheduled_at'));
 check('routes: post payload exposes thumbnailPath',
