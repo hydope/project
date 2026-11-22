@@ -359,3 +359,43 @@ lifecycle has already ended — nothing is deleted and no rows change
 until the window closes; from then on the same entries appear under
 `purged` with real `bytesFreed`. (At deploy time there are no
 published posts yet, so early outputs will simply show empty lists.)
+
+## Media upload size limit fix (2026-11-21)
+
+**Symptom (live proof attempt):** in the admin composer, an 80 KB test
+video uploaded and attached fine; the 5.5 MB proof Reel failed every
+time with the API's generic "The upload did not arrive." Root cause:
+PHP rejected the file before the app saw it — `UPLOAD_ERR_INI_SIZE`
+in `socialStoreUpload()`. The repo had NO `.htaccess`/`.user.ini` PHP
+overrides under `php-api/`, so the host default `upload_max_filesize`
+(2M) applied. The site's existing image uploads never hit this: they
+are small photos, far under 2M.
+
+**Fix:**
+- New `php-api/.user.ini` (the per-directory mechanism honoured by
+  PHP-FPM/CGI): `upload_max_filesize = 64M`, `post_max_size = 66M`,
+  `max_execution_time = 300`, `max_input_time = 300`. These settings
+  are PHP_INI_PERDIR — `ini_set()` at runtime cannot change them,
+  which is why a config file is the only fix.
+- Belt-and-braces in `php-api/.htaccess`: the same four values as
+  `php_value` inside `<IfModule mod_php.c>`, in case the host ever
+  serves the API via mod_php (which ignores `.user.ini`).
+- `socialStoreUpload()` now maps `$_FILES` error codes to specific
+  messages instead of one generic failure: INI_SIZE/FORM_SIZE →
+  "That file is larger than the server upload limit
+  (upload_max_filesize)."; PARTIAL → "The upload was interrupted —
+  try again."; NO_FILE and anything else keep the original message.
+  The error-code check runs before the `is_uploaded_file()` check
+  because INI_SIZE leaves `tmp_name` empty.
+
+**Deploy evidence:** the FTPS step (`.github/scripts/ftp_mirror.py
+./php-api /public_html/api ".git*,.DS_Store,tests/,scripts/"`) walks
+the tree with `os.walk` and excludes only those patterns — dotfiles
+ship (the existing `php-api/.htaccess` already reaches production
+this way and deploy.yml verifies it live). So `.user.ini` lands at
+`public_html/api/.user.ini`, and the pre-existing `.htaccess`
+FilesMatch rules already deny serving `.ini` files over HTTP.
+
+**Verification still owed (parent):** after this deploy lands,
+re-run the composer proof with the 5.5 MB Reel — expect the upload
+to attach and the post to publish on all three platforms.

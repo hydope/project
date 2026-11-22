@@ -112,7 +112,23 @@ function socialLoadPost(string $id): ?array
 /** Store an uploaded media file under the social media dir. Returns [mediaPath, mediaType]. */
 function socialStoreUpload(array $file, string $kind): array
 {
-    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+    // Map PHP's upload error codes to specific messages. The generic
+    // "did not arrive" hid the real 2026-11-21 failure: the host's 2M
+    // upload_max_filesize rejected a 5.5 MB Reel with UPLOAD_ERR_INI_SIZE
+    // before the app saw a single byte (limits since raised — see
+    // php-api/.user.ini). INI_SIZE also leaves tmp_name empty, so this
+    // check must run before the is_uploaded_file() check below.
+    $uploadErr = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($uploadErr !== UPLOAD_ERR_OK) {
+        if ($uploadErr === UPLOAD_ERR_INI_SIZE || $uploadErr === UPLOAD_ERR_FORM_SIZE) {
+            je('That file is larger than the server upload limit (' . ini_get('upload_max_filesize') . ').', 400);
+        }
+        if ($uploadErr === UPLOAD_ERR_PARTIAL) {
+            je('The upload was interrupted — try again.', 400);
+        }
+        je('The upload did not arrive. Check the file and try again.', 400);
+    }
+    if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
         je('The upload did not arrive. Check the file and try again.', 400);
     }
     $max = $kind === 'video' ? 200 * 1024 * 1024 : 15 * 1024 * 1024;

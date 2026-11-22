@@ -42,3 +42,16 @@ Options -Indexes
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.php [L]
+
+# ── Upload limits (mod_php belt-and-braces) ─────────────────────────────
+# The primary mechanism is php-api/.user.ini (honoured under PHP-FPM/CGI).
+# If this host ever serves the API via mod_php instead, .user.ini is
+# ignored — these php_value lines carry the same limits there. They exist
+# because the host default upload_max_filesize (2M) silently rejected
+# Social Scheduler Reel uploads (UPLOAD_ERR_INI_SIZE) on 2026-11-21.
+<IfModule mod_php.c>
+    php_value upload_max_filesize 64M
+    php_value post_max_size 66M
+    php_value max_execution_time 300
+    php_value max_input_time 300
+</IfModule>
