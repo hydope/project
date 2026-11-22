@@ -223,11 +223,16 @@ function socialPublishInstagram(array $account, array $post, string $caption): a
     $creationId = (string)($create['json']['id'] ?? '');
     if ($creationId === '') return ['ok' => false, 'error' => socialGraphError($create, 'Instagram media container')];
 
-    // Video containers process asynchronously — poll briefly, then publish.
+    // Video containers process asynchronously — poll briefly, then
+    // publish. The poll budget is deliberately short (~30s): the whole
+    // publish request must finish inside the web server's ~120s
+    // connection timeout, so a slow container is handed back as a
+    // retryable 'pending' (see socialPublishTarget) and the next cron
+    // call re-creates the container and tries again.
     if ($isVideo) {
         $ready = false;
-        for ($i = 0; $i < 10; $i++) {
-            sleep(6);
+        for ($i = 0; $i < 8; $i++) {
+            sleep(4);
             $st = socialHttp('GET', "https://graph.facebook.com/{$v}/{$creationId}?fields=status_code&access_token=" . urlencode($token));
             $code = (string)($st['json']['status_code'] ?? '');
             if ($code === 'FINISHED') { $ready = true; break; }
@@ -235,7 +240,7 @@ function socialPublishInstagram(array $account, array $post, string $caption): a
                 return ['ok' => false, 'error' => 'Instagram video processing ' . strtolower($code) . '.'];
             }
         }
-        if (!$ready) return ['ok' => false, 'error' => 'Instagram video was still processing after 60s — publish will need a retry.'];
+        if (!$ready) return ['ok' => false, 'retry' => true, 'error' => 'Instagram video still processing after ~30s — returned to pending for the next publish run.'];
     }
 
     $pub = socialHttp('POST', "https://graph.facebook.com/{$v}/{$igId}/media_publish", [
@@ -432,6 +437,16 @@ function socialPublishTarget(array $target): array
         }
     }
 
+    if (empty($result['ok']) && !empty($result['retry'])) {
+        // Not a failure — the platform is just slow (e.g. Instagram is
+        // still processing the video). Put the target back to 'pending'
+        // so the next publish run retries it, and do NOT touch the
+        // account failure rail.
+        $pdo->prepare("UPDATE social_post_targets SET status = 'pending', error = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?")
+            ->execute([substr((string)($result['error'] ?? 'Will retry.'), 0, 1000), $target['id']]);
+        return $result;
+    }
+
     if (!empty($result['ok'])) {
         // A failed best-effort thumbnail (YouTube) is noted on the
         // target's error field while the publish itself stays
@@ -493,7 +508,7 @@ function socialRecalcPostStatus(string $postId): string
  * Publish every due/pending target of a post (or only failed ones when
  * $onlyFailed). Used by publish-now, retry, and social-publish-cron.
  */
-function socialPublishPost(string $postId, bool $onlyFailed = false): array
+function socialPublishPost(string $postId, bool $onlyFailed = false, ?int $deadline = null): array
 {
     $pdo = db();
     $pdo->prepare("UPDATE social_posts SET status = 'publishing', updated_at = UTC_TIMESTAMP() WHERE id = ? AND status <> 'draft'")
@@ -511,6 +526,12 @@ function socialPublishPost(string $postId, bool $onlyFailed = false): array
     $stmt->execute([$postId]);
     $results = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $target) {
+        // Deadline (set by the cron): once it passes, stop starting new
+        // targets — they stay 'pending' and the next trigger resumes
+        // them. This keeps every HTTP invocation comfortably inside
+        // the web server's ~120s connection timeout. A target already
+        // started always runs to completion.
+        if ($deadline !== null && $results !== [] && time() >= $deadline) break;
         $results[(string)$target['platform']] = socialPublishTarget($target);
     }
     $status = socialRecalcPostStatus($postId);

@@ -13,10 +13,12 @@ name: Social Publish Cron
 #
 # Reliability notes (2026-11-22): GitHub fires this */5 schedule only
 # sporadically in practice (2 firings in ~19h were observed while a
-# 12-post backlog sat unpublished), and one endpoint call only works
-# through a bounded batch (~120s soft budget server-side). So a single
-# firing now LOOPS the trigger until the endpoint reports an empty
-# queue — one firing drains the whole backlog instead of one slice.
+# 12-post backlog sat unpublished); the web server kills any request
+# at ~120s (LiteSpeed Connection Timeout), which is what stranded a
+# target mid-publish and wedged the queue; and the endpoint therefore
+# budgets each invocation to ~60s of new work. So a single firing now
+# LOOPS the trigger until the endpoint reports an empty queue — one
+# firing drains the whole backlog instead of one slice.
 
 on:
   schedule:
@@ -31,24 +33,44 @@ jobs:
         env:
           SEEDER_CRON_KEY: ${{ secrets.SEEDER_CRON_KEY }}
         run: |
-          for i in $(seq 1 10); do
+          OK_CALLS=0
+          DRAINED=0
+          for i in $(seq 1 12); do
             echo "Triggering social publish cron on production server (call $i)..."
-            RESP=$(curl -s --max-time 600 -X POST https://shiarishta.com/api/social-publish-cron.php \
+            # The server kills any request at ~120s (LiteSpeed
+            # Connection Timeout), so cap curl just above that; the
+            # endpoint budgets its own work to ~60s and answers well
+            # before the cap in normal operation.
+            RESP=$(curl -s --max-time 150 -X POST https://shiarishta.com/api/social-publish-cron.php \
               -H "X-Seeder-Cron-Key: $SEEDER_CRON_KEY" \
-              -H "Content-Type: application/json")
+              -H "Content-Type: application/json" || true)
 
             echo "Response: $RESP"
 
-            echo "$RESP" | grep -q '"ok":true' || {
-              echo "✗ Social publish cron failed"
-              exit 1
-            }
-
-            PROCESSED=$(echo "$RESP" | grep -o '"processed":[0-9]*' | head -1 | cut -d: -f2)
-            if [ -z "$PROCESSED" ] || [ "$PROCESSED" = "0" ]; then
-              echo "✓ Queue drained — no due posts left"
-              break
+            if echo "$RESP" | grep -q '"ok":true'; then
+              OK_CALLS=$((OK_CALLS + 1))
+              PROCESSED=$(echo "$RESP" | grep -o '"processed":[0-9]*' | head -1 | cut -d: -f2)
+              if [ -z "$PROCESSED" ] || [ "$PROCESSED" = "0" ]; then
+                echo "✓ Queue drained — no due posts left"
+                DRAINED=1
+                break
+              fi
+              echo "Processed $PROCESSED post(s); checking for more..."
+            else
+              # No JSON back (e.g. the server's 120s timeout page).
+              # Per-target progress is persisted server-side as it
+              # completes, so a cut-off call is not lost work — keep
+              # looping; the next call resumes what is still due.
+              echo "Call $i returned no ok JSON — continuing (progress is durable server-side)"
+              sleep 5
             fi
-            echo "Processed $PROCESSED post(s); checking for more..."
           done
-          echo "✓ Social publish cron completed successfully"
+          if [ "$OK_CALLS" = "0" ]; then
+            echo "✗ Social publish cron failed — no successful endpoint call"
+            exit 1
+          fi
+          if [ "$DRAINED" = "1" ]; then
+            echo "✓ Social publish cron completed — queue drained"
+          else
+            echo "✓ Social publish cron completed — progress made, queue not fully drained (next firing continues)"
+          fi

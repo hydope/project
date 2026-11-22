@@ -54,13 +54,17 @@ try {
     )->fetchAll(PDO::FETCH_ASSOC);
 
     $summary = [];
-    $startedAt = time();
+    // Hard reality: the web server (LiteSpeed) kills any request at
+    // ~120s ("Connection Timeout"), whatever PHP allows — a longer
+    // batch is what wedged this pipeline. So the whole invocation is
+    // budgeted to ~60s of NEW work: posts and targets already started
+    // always finish, but nothing new starts past the deadline, and
+    // whatever remains stays due for the next trigger (the workflow
+    // loops this endpoint until the queue reports empty).
+    $deadline = time() + 60;
     foreach ($due as $row) {
-        // Soft budget: never START another post past ~120s — the next
-        // trigger picks up the rest. A post already started always
-        // finishes (its targets are individually time-bounded).
-        if ($summary !== [] && time() - $startedAt > 120) break;
-        $result = socialPublishPost((string)$row['id']);
+        if ($summary !== [] && time() >= $deadline) break;
+        $result = socialPublishPost((string)$row['id'], false, $deadline);
         $summary[] = ['post' => (string)$row['id'], 'status' => $result['status']];
     }
     // Storage lifecycle sweep (Social-Storage plan §3.3): purge server
