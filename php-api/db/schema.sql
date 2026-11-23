@@ -692,6 +692,12 @@ CREATE TABLE IF NOT EXISTS social_posts (
   -- (the story loop's contrarian comment). When present, the publisher
   -- posts THIS as the automatic first comment on Facebook/Instagram
   -- instead of the hook question derived from the caption.
+  -- (2026-11-23 digest bump: the da345bf deploy's migration marker was
+  -- sealed mid-upload under this file's digest before the new
+  -- migrate.php landed, so migrateAddSocialFirstCommentColumn() never
+  -- ran in production and ingest 500'd on the missing column. This
+  -- comment-only change busts the marker so the next request runs the
+  -- full additive migration pass with the correct code.)
   first_comment TEXT    DEFAULT NULL,
   -- Server-side path under the photo storage root (social/<file>) plus
   -- its media kind. NULL media = text-only post (Facebook/YouTube rules
