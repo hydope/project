@@ -1263,7 +1263,7 @@ function routeSocialIngest(): void
     try {
         $pdo->prepare(
             "INSERT INTO social_posts (id, caption, caption_overrides, first_comment, media_path, media_type, media_url, thumbnail_path, scheduled_at, status, source, caption_hash, created_by)
-             VALUES (?, ?, ?, ?, 'video', NULL, ?, ?, 'scheduled', 'autopilot_reel', ?, NULL)"
+             VALUES (?, ?, ?, ?, ?, 'video', NULL, ?, ?, 'scheduled', 'autopilot_reel', ?, NULL)"
         )->execute([$postId, $caption, $overrides, $firstComment, $mediaPath, $thumbnailPath, $slot, socialCaptionHash($caption)]);
         $ins = $pdo->prepare("INSERT INTO social_post_targets (id, post_id, social_account_id, platform, status) VALUES (?, ?, ?, ?, 'pending')");
         foreach ($targets as $platform => $acc) $ins->execute([uuid(), $postId, $acc['id'], $platform]);
