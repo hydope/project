@@ -349,7 +349,7 @@ function socialConnectMeta(): void
         // discovery route (/me/businesses -> owned_pages/client_pages).
         // Round 1 shipped without it in this list, so that route could
         // never return the portfolio-owned Shia Rishta Page.
-        'scope' => 'pages_show_list,pages_read_engagement,pages_manage_posts,business_management,instagram_basic,instagram_content_publish',
+        'scope' => 'pages_show_list,pages_read_engagement,pages_manage_posts,business_management,instagram_basic,instagram_content_publish,pages_manage_engagement,instagram_manage_comments',
         'response_type' => 'code',
     ]);
     json(['ok' => true, 'url' => $url]);
@@ -614,7 +614,7 @@ function routeSocialOAuth(string $provider, string $action): void
             }
             $fail(socialMetaNoPagesMessage($diag, $missing));
         }
-        $scopes = 'pages_show_list,pages_read_engagement,pages_manage_posts,business_management,instagram_basic,instagram_content_publish';
+        $scopes = 'pages_show_list,pages_read_engagement,pages_manage_posts,business_management,instagram_basic,instagram_content_publish,pages_manage_engagement,instagram_manage_comments';
         $stored = 0;
         foreach ($list as $page) {
             $pageToken = (string)($page['access_token'] ?? '');

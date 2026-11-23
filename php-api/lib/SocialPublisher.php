@@ -368,7 +368,17 @@ function socialPublishYouTube(array $account, array $post, string $caption): arr
     }
     $meta = json_encode(['snippet' => $snippet, 'status' => $status], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
+    $thumbPath = trim((string)($post['thumbnail_path'] ?? ''));
     $thumbFile = socialMediaFile($post['thumbnail_path'] ?? null);
+    // A thumbnail recorded on the post but missing on disk used to be
+    // skipped in silence — indistinguishable from a post that never had
+    // one. Make it loud instead: log it here and note it on the publish
+    // result at the return points below. An empty thumbnail_path stays
+    // a legitimate no-thumbnail post and keeps the old silent path.
+    $thumbMissing = $thumbPath !== '' && $thumbFile === null;
+    if ($thumbMissing) {
+        error_log('[social] youtube thumbnail: ' . $thumbPath . ' is recorded on the post but missing on disk');
+    }
     $mime = socialMimeFor($file);
     $size = (int)filesize($file);
     $init = socialHttp('POST', 'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', [
@@ -387,11 +397,17 @@ function socialPublishYouTube(array $account, array $post, string $caption): arr
         if ($init['status'] === 401) {
             // One forced refresh + retry of the initiate step.
             $token = socialYouTubeAccessToken($account, true);
-            if ($token) return socialPublishYouTubeWithToken($token, $file, $meta, $thumbFile);
+            if ($token) {
+                $retry = socialPublishYouTubeWithToken($token, $file, $meta, $thumbFile);
+                if ($thumbMissing && !empty($retry['ok'])) $retry['thumbnail_error'] = 'thumbnail file missing on the server';
+                return $retry;
+            }
         }
         return ['ok' => false, 'error' => socialGraphError($init, 'YouTube upload init')];
     }
-    return socialYouTubePut($location, $token, $file, $thumbFile);
+    $out = socialYouTubePut($location, $token, $file, $thumbFile);
+    if ($thumbMissing && !empty($out['ok'])) $out['thumbnail_error'] = 'thumbnail file missing on the server';
+    return $out;
 }
 
 function socialPublishYouTubeWithToken(string $token, string $file, string $meta, ?string $thumbFile = null): array
@@ -590,6 +606,7 @@ function socialPostFirstComment(array $account, string $platform, string $platfo
     }
     $token = socialAccountToken($account);
     if ($token === '') {
+        error_log('[social] first comment failed for ' . $platformPostId . ': platform token is missing');
         return ['ok' => false, 'error' => 'Platform token is missing — first comment not posted.'];
     }
     $v = socialConfig()['metaGraphVersion'];
@@ -599,10 +616,14 @@ function socialPostFirstComment(array $account, string $platform, string $platfo
             'timeout' => 30,
         ]);
     } catch (Throwable $e) {
-        return ['ok' => false, 'error' => 'First comment: ' . substr($e->getMessage(), 0, 200)];
+        $err = 'First comment: ' . substr($e->getMessage(), 0, 200);
+        error_log('[social] first comment failed for ' . $platformPostId . ': ' . $err);
+        return ['ok' => false, 'error' => $err];
     }
     if (!empty($res['json']['id'])) return ['ok' => true, 'comment_id' => (string)$res['json']['id']];
-    return ['ok' => false, 'error' => socialGraphError($res, 'First comment')];
+    $err = socialGraphError($res, 'First comment');
+    error_log('[social] first comment failed for ' . $platformPostId . ': ' . substr($err, 0, 200));
+    return ['ok' => false, 'error' => $err];
 }
 
 // ── Facebook daily-cap test (temporary, 2026-11-22) ─────────────────────

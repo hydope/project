@@ -112,7 +112,7 @@ check('comment: Facebook posts to /{post-id}/comments',
 check('comment: the comment body is the derived hook question',
     str_contains($publisher, "'message' => \$question"));
 check('comment: socialPostFirstComment never throws (Throwable is caught)',
-    str_contains($publisher, "} catch (Throwable \$e) {\n        return ['ok' => false, 'error' => 'First comment: '"));
+    str_contains($publisher, "} catch (Throwable \$e) {\n        \$err = 'First comment: '"));
 check('comment: publish path attempts the comment only after a successful FB/IG publish',
     str_contains($publisher, "if (!empty(\$result['ok']) && in_array((string)\$target['platform'], ['facebook', 'instagram'], true))"));
 check('comment: a comment failure is carried on the result as comment_error',
