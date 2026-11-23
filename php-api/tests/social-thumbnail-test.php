@@ -65,7 +65,13 @@ check('publisher: socialYouTubeSetThumbnail() exists and never throws the publis
 check('publisher: upload result carries thumbnail_error on thumbnail failure',
     str_contains($publisher, "\$out['thumbnail_error']"));
 check('publisher: target row records the thumbnail note while staying published',
-    str_contains($publisher, 'Published OK; custom thumbnail not set: '));
+    // Since the 2026-11-22 first-comment fix the note is composed by
+    // socialPublishedNote() from parts; its thumbnail-only output is
+    // byte-identical to the old inline string (proven in
+    // social-publisher-fixes-test.php).
+    str_contains($publisher, "'custom thumbnail not set: '")
+    && str_contains($publisher, "'Published OK; '")
+    && str_contains($publisher, '$note = socialPublishedNote($result);'));
 check('publisher: thumbnail file resolved from the post row',
     str_contains($publisher, "socialMediaFile(\$post['thumbnail_path'] ?? null)"));
 

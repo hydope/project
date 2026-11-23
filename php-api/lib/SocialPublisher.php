@@ -494,6 +494,221 @@ function socialCaptionFor(array $post, string $platform): string
 }
 
 /**
+ * Atomically claim one target for publishing: a SINGLE conditional
+ * UPDATE that flips the row to 'publishing' only while it is
+ * claimable — 'pending'/'failed', or a 'publishing' claim gone stale
+ * (>20 min: every platform call is time-bounded well under that, so a
+ * fresher claim belongs to a live run). The caller proceeds ONLY when
+ * the claim actually changed the row (rowCount === 1). Two concurrent
+ * invocations — on 2026-11-22 the server cron and the GitHub workflow
+ * overlapped and posted the same Facebook Reel twice — can never both
+ * win this UPDATE, so they can never both publish. attempts is bumped
+ * inside the same UPDATE, so a lost race costs the loser nothing.
+ */
+function socialClaimTarget(PDO $pdo, string $targetId): bool
+{
+    $stmt = $pdo->prepare(
+        "UPDATE social_post_targets
+            SET status = 'publishing', attempts = attempts + 1, updated_at = UTC_TIMESTAMP()
+          WHERE id = ?
+            AND (status IN ('pending', 'failed')
+                 OR (status = 'publishing' AND updated_at <= UTC_TIMESTAMP() - INTERVAL 20 MINUTE))"
+    );
+    $stmt->execute([$targetId]);
+    return $stmt->rowCount() === 1;
+}
+
+/**
+ * Pure mirror of socialClaimTarget()'s WHERE clause, so the claim
+ * decision is unit-testable without a database: a target is claimable
+ * when it is pending/failed, or when its 'publishing' claim is stale
+ * (>20 min old). A second claim on an already-claimed (fresh) target
+ * is NOT claimable — it changes nothing.
+ */
+function socialTargetClaimable(array $target, int $now): bool
+{
+    $status = (string)($target['status'] ?? '');
+    if (in_array($status, ['pending', 'failed'], true)) return true;
+    if ($status === 'publishing') {
+        $upd = !empty($target['updated_at']) ? strtotime((string)$target['updated_at'] . ' UTC') : false;
+        return $upd !== false && $upd <= $now - 1200;
+    }
+    return false;
+}
+
+/**
+ * The note recorded on a target row after a SUCCESSFUL publish whose
+ * best-effort extras failed (YouTube custom thumbnail, the FB/IG first
+ * comment). The publish itself stays 'published' — the post is the
+ * committed effect; a note is not a failure. Pure: unit-tested.
+ */
+function socialPublishedNote(array $result): ?string
+{
+    $parts = [];
+    if (!empty($result['thumbnail_error'])) $parts[] = 'custom thumbnail not set: ' . (string)$result['thumbnail_error'];
+    if (!empty($result['comment_error'])) $parts[] = 'first comment not posted: ' . (string)$result['comment_error'];
+    if ($parts === []) return null;
+    return substr('Published OK; ' . implode('; ', $parts), 0, 1000);
+}
+
+/**
+ * The hook question for the automatic first comment: post captions
+ * lead with the story's hook as a one-line question or shock
+ * statement, followed on the SAME line by the call-to-action and the
+ * hashtags — so the hook is the caption's first line, cut at its
+ * first sentence end. Pure: unit-tested.
+ */
+function socialHookQuestion(string $caption): string
+{
+    $lines = preg_split('/\r?\n/', trim($caption)) ?: [];
+    $first = trim((string)($lines[0] ?? ''));
+    if ($first === '') return '';
+    if (preg_match('/^.*?[.!?]+(?=\s|$)/us', $first, $m) === 1) {
+        $first = trim($m[0]);
+    }
+    return mb_substr($first, 0, 280);
+}
+
+/**
+ * Post the automatic FIRST COMMENT on a freshly published Facebook /
+ * Instagram post: the story's hook question (see socialHookQuestion).
+ * Comments are the strongest early engagement signal the platforms
+ * rank on, and the question hands viewers the exact thing to answer.
+ * STRICTLY best-effort by contract: never throws, and the caller
+ * records a failure as a note on the target row — it never fails,
+ * retries or unpublishes the post itself. YouTube is skipped (its
+ * publish flow has no comment step).
+ */
+function socialPostFirstComment(array $account, string $platform, string $platformPostId, string $caption): array
+{
+    if (!in_array($platform, ['facebook', 'instagram'], true)) {
+        return ['ok' => false, 'skipped' => true, 'error' => 'First comment applies to Facebook and Instagram only.'];
+    }
+    $question = socialHookQuestion($caption);
+    if ($question === '' || $platformPostId === '') {
+        return ['ok' => false, 'skipped' => true, 'error' => 'No hook question in the caption — nothing to comment.'];
+    }
+    $token = socialAccountToken($account);
+    if ($token === '') {
+        return ['ok' => false, 'error' => 'Platform token is missing — first comment not posted.'];
+    }
+    $v = socialConfig()['metaGraphVersion'];
+    try {
+        $res = socialHttp('POST', "https://graph.facebook.com/{$v}/" . urlencode($platformPostId) . '/comments', [
+            'body' => ['access_token' => $token, 'message' => $question],
+            'timeout' => 30,
+        ]);
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => 'First comment: ' . substr($e->getMessage(), 0, 200)];
+    }
+    if (!empty($res['json']['id'])) return ['ok' => true, 'comment_id' => (string)$res['json']['id']];
+    return ['ok' => false, 'error' => socialGraphError($res, 'First comment')];
+}
+
+// ── Facebook daily-cap test (temporary, 2026-11-22) ─────────────────────
+//
+// Syed's A/B test from the Viral Growth Plan: Facebook gets at most 8
+// publishes per calendar day (America/New_York) THROUGH 2026-11-25;
+// from 2026-11-26 on there is no cap. The cap + expiry live in
+// social_state (key below) so the test can be tuned or killed without
+// a deploy; the row is seeded with the defaults on first read. When
+// the cap is reached a Facebook target is DEFERRED — back to 'pending'
+// with next_retry_at at the next New York midnight — never failed,
+// and the watchdog never burns a retry attempt on it. Instagram and
+// YouTube are unaffected.
+
+const SOCIAL_FB_CAP_STATE_KEY = 'fb_daily_cap_test';
+const SOCIAL_FB_CAP_DEFAULT_CAP = 8;
+const SOCIAL_FB_CAP_DEFAULT_UNTIL = '2026-11-25';
+
+/** The cap config from social_state, seeding the test defaults once. */
+function socialFacebookCapConfig(): ?array
+{
+    try {
+        $raw = socialStateGet(SOCIAL_FB_CAP_STATE_KEY);
+        if ($raw === null || trim($raw) === '') {
+            $cfg = ['cap' => SOCIAL_FB_CAP_DEFAULT_CAP, 'until' => SOCIAL_FB_CAP_DEFAULT_UNTIL];
+            try {
+                socialStateSet(SOCIAL_FB_CAP_STATE_KEY, (string)json_encode($cfg));
+            } catch (Throwable $e) {
+                error_log('[social] fb cap config seed failed: ' . substr($e->getMessage(), 0, 120));
+            }
+            return $cfg;
+        }
+        $cfg = json_decode($raw, true);
+        if (!is_array($cfg) || !isset($cfg['cap'], $cfg['until'])) return null;
+        return ['cap' => (int)$cfg['cap'], 'until' => (string)$cfg['until']];
+    } catch (Throwable $e) {
+        // A broken state store must not break publishing; fall back to
+        // the built-in test defaults (which expire on their own).
+        error_log('[social] fb cap config read failed: ' . substr($e->getMessage(), 0, 120));
+        return ['cap' => SOCIAL_FB_CAP_DEFAULT_CAP, 'until' => SOCIAL_FB_CAP_DEFAULT_UNTIL];
+    }
+}
+
+/**
+ * The Facebook cap in force on an America/New_York calendar date
+ * ('Y-m-d'), or null when no cap applies. The test is active THROUGH
+ * its 'until' date inclusive; after that date there is no cap.
+ * Pure: unit-tested.
+ */
+function socialFacebookCapForDate(?array $config, string $nyDate): ?int
+{
+    if ($config === null) return null;
+    $cap = (int)($config['cap'] ?? 0);
+    $until = (string)($config['until'] ?? '');
+    if ($cap <= 0 || $until === '') return null;
+    return strcmp($nyDate, $until) <= 0 ? $cap : null;
+}
+
+/** May one more Facebook publish go out today? Pure: unit-tested. */
+function socialFacebookCapAllows(int $publishedToday, ?int $cap): bool
+{
+    return $cap === null || $publishedToday < $cap;
+}
+
+/**
+ * [nyDate, startUtc, endUtc] for the America/New_York calendar day
+ * containing $now (unix ts) — start/end are UTC 'Y-m-d H:i:s' strings
+ * bounding that NY day, for comparison against stored UTC timestamps.
+ * Pure: unit-tested.
+ */
+function socialNyDayBoundsUtc(int $now): array
+{
+    $tz = new DateTimeZone('America/New_York');
+    $start = (new DateTimeImmutable('@' . $now))->setTimezone($tz)->setTime(0, 0, 0);
+    $end = $start->modify('+1 day');
+    $utc = new DateTimeZone('UTC');
+    return [
+        $start->format('Y-m-d'),
+        $start->setTimezone($utc)->format('Y-m-d H:i:s'),
+        $end->setTimezone($utc)->format('Y-m-d H:i:s'),
+    ];
+}
+
+/**
+ * If the Facebook daily cap is in force AND already reached, the
+ * deferral for a Facebook target: park it until the next New York
+ * midnight. Returns null when the publish may proceed (cap inactive,
+ * expired, or not yet reached).
+ */
+function socialFacebookCapDeferral(PDO $pdo, int $now): ?array
+{
+    $config = socialFacebookCapConfig();
+    [$nyDate, $startUtc, $endUtc] = socialNyDayBoundsUtc($now);
+    $cap = socialFacebookCapForDate($config, $nyDate);
+    if ($cap === null) return null;
+    $stmt = $pdo->prepare(
+        "SELECT COUNT(*) FROM social_post_targets
+          WHERE platform = 'facebook' AND status = 'published'
+            AND published_at >= ? AND published_at < ?"
+    );
+    $stmt->execute([$startUtc, $endUtc]);
+    if (socialFacebookCapAllows((int)$stmt->fetchColumn(), $cap)) return null;
+    return ['cap' => $cap, 'until' => (string)($config['until'] ?? ''), 'defer_until' => $endUtc];
+}
+
+/**
  * Publish one target row. Returns the publisher result and persists it.
  * Also maintains the account failure rail: 3 consecutive failures mark
  * the account 'needs_attention' (autopilot + admin surface read this).
@@ -513,18 +728,56 @@ function socialPublishTarget(array $target): array
         $stmt->execute([$target['post_id']]);
         $post = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
         $caption = socialCaptionFor($post, (string)$target['platform']);
-        $pdo->prepare("UPDATE social_post_targets SET status = 'publishing', attempts = attempts + 1, updated_at = UTC_TIMESTAMP() WHERE id = ?")
-            ->execute([$target['id']]);
-        try {
-            $result = match ((string)$target['platform']) {
-                'facebook' => socialPublishFacebook($account, $post, $caption),
-                'instagram' => socialPublishInstagram($account, $post, $caption, trim((string)($target['platform_post_id'] ?? '')) !== '' ? (string)$target['platform_post_id'] : null),
-                'youtube' => socialPublishYouTube($account, $post, $caption),
-                default => ['ok' => false, 'error' => 'Unknown platform: ' . $target['platform']],
-            };
-        } catch (Throwable $e) {
-            $result = ['ok' => false, 'error' => substr($e->getMessage(), 0, 300)];
+        // ATOMIC CLAIM: exactly one concurrent worker wins the target;
+        // a loser returns 'skipped' BEFORE any platform call and
+        // persists nothing, so the winner's row is never disturbed.
+        if (!socialClaimTarget($pdo, (string)$target['id'])) {
+            return ['ok' => false, 'skipped' => true,
+                'error' => 'Target already claimed by another publish run — skipped so it can never be posted twice.'];
         }
+        // Facebook daily-cap test: at the cap, the target is deferred
+        // to the next New York day (persisted below) — not published,
+        // not failed.
+        $capDeferral = (string)$target['platform'] === 'facebook' ? socialFacebookCapDeferral($pdo, time()) : null;
+        if ($capDeferral !== null) {
+            $result = ['ok' => false, 'deferred' => true,
+                'error' => 'Facebook daily cap reached (' . $capDeferral['cap'] . '/day test through ' . $capDeferral['until'] . ') — deferred to the next day.',
+                'defer_until' => $capDeferral['defer_until']];
+        } else {
+            try {
+                $result = match ((string)$target['platform']) {
+                    'facebook' => socialPublishFacebook($account, $post, $caption),
+                    'instagram' => socialPublishInstagram($account, $post, $caption, trim((string)($target['platform_post_id'] ?? '')) !== '' ? (string)$target['platform_post_id'] : null),
+                    'youtube' => socialPublishYouTube($account, $post, $caption),
+                    default => ['ok' => false, 'error' => 'Unknown platform: ' . $target['platform']],
+                };
+            } catch (Throwable $e) {
+                $result = ['ok' => false, 'error' => substr($e->getMessage(), 0, 300)];
+            }
+            // FIRST COMMENT (engagement): on a successful Facebook /
+            // Instagram publish, comment the story's hook question on
+            // the new post. Best-effort by contract — a failure is
+            // carried on the result and noted on the target row by the
+            // success persistence below; it never fails the publish.
+            if (!empty($result['ok']) && in_array((string)$target['platform'], ['facebook', 'instagram'], true)) {
+                $comment = socialPostFirstComment($account, (string)$target['platform'], (string)($result['platform_post_id'] ?? ''), $caption);
+                if (empty($comment['ok']) && empty($comment['skipped'])) {
+                    $result['comment_error'] = (string)($comment['error'] ?? 'unknown error');
+                }
+            }
+        }
+    }
+
+    if (empty($result['ok']) && !empty($result['deferred'])) {
+        // Daily-cap deferral: NOT a failure and NOT a soft platform
+        // outcome — the target simply waits for the next calendar day.
+        // Back to 'pending' with next_retry_at at the next New York
+        // midnight: the watchdog honours next_retry_at and never burns
+        // a retry attempt on a capped target, and the account failure
+        // rail below is never reached.
+        $pdo->prepare("UPDATE social_post_targets SET status = 'pending', error = ?, next_retry_at = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?")
+            ->execute([substr((string)($result['error'] ?? 'Deferred.'), 0, 1000), (string)($result['defer_until'] ?? gmdate('Y-m-d H:i:s', time() + 3600)), $target['id']]);
+        return $result;
     }
 
     if (empty($result['ok']) && !empty($result['retry'])) {
@@ -547,12 +800,11 @@ function socialPublishTarget(array $target): array
     }
 
     if (!empty($result['ok'])) {
-        // A failed best-effort thumbnail (YouTube) is noted on the
-        // target's error field while the publish itself stays
-        // 'published' — the video is the committed effect.
-        $note = !empty($result['thumbnail_error'])
-            ? substr('Published OK; custom thumbnail not set: ' . (string)$result['thumbnail_error'], 0, 1000)
-            : null;
+        // Best-effort extras that failed (a YouTube custom thumbnail,
+        // the FB/IG first comment) are noted on the target's error
+        // field while the publish itself stays 'published' — the post
+        // is the committed effect; a note is not a failure.
+        $note = socialPublishedNote($result);
         $pdo->prepare("UPDATE social_post_targets SET status = 'published', platform_post_id = ?, platform_url = ?, error = ?, published_at = UTC_TIMESTAMP(), retry_attempts = 0, next_retry_at = NULL, updated_at = UTC_TIMESTAMP() WHERE id = ?")
             ->execute([$result['platform_post_id'] ?? null, $result['platform_url'] ?? null, $note, $target['id']]);
         $pdo->prepare("UPDATE social_accounts SET consecutive_failures = 0, status = CASE WHEN status = 'needs_attention' THEN 'connected' ELSE status END, updated_at = UTC_TIMESTAMP() WHERE id = ?")
@@ -913,6 +1165,16 @@ function socialWatchdogSweep(?int $deadline = null): array
         if (!socialWatchdogTargetEligible($row, $post, time())) continue;
         $out['retried']++;
         $result = socialPublishTarget($row);
+        if (!empty($result['skipped']) || !empty($result['deferred'])) {
+            // Not the watchdog's to book-keep: 'skipped' means another
+            // worker won the atomic claim first (this sweep did no
+            // work — uncount it); 'deferred' means the Facebook
+            // daily-cap test parked the target until the next New
+            // York day with its next_retry_at already set. Neither may
+            // burn a watchdog retry attempt.
+            if (!empty($result['skipped'])) $out['retried']--;
+            continue;
+        }
         if (!empty($result['ok'])) {
             $out['published']++;
             $pdo->prepare('UPDATE social_post_targets SET retry_attempts = 0, next_retry_at = NULL, updated_at = UTC_TIMESTAMP() WHERE id = ?')

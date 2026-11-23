@@ -66,11 +66,23 @@ try {
     // left, and 'publishing' posts whose run died >20 min ago (stale —
     // every platform call is time-bounded well under that, so a
     // 'publishing' post older than 20 min is stranded, not active).
+    // The EXISTS clause additionally requires at least one ACTIONABLE
+    // target: a post whose remaining targets are all parked by a
+    // future next_retry_at (watchdog backoff, or a Facebook target
+    // deferred to tomorrow by the daily-cap test) has no work this run
+    // can do — selecting it would burn one of the 5 slots every 5
+    // minutes and starve newer posts queued behind it. It becomes
+    // selectable again the moment any target's park expires.
     $due = db()->query(
         "SELECT id FROM social_posts
           WHERE scheduled_at IS NOT NULL AND scheduled_at <= UTC_TIMESTAMP()
             AND (status IN ('scheduled', 'partial')
                  OR (status = 'publishing' AND updated_at <= UTC_TIMESTAMP() - INTERVAL 20 MINUTE))
+            AND EXISTS (SELECT 1 FROM social_post_targets t
+                         WHERE t.post_id = social_posts.id
+                           AND (t.status IN ('pending', 'failed')
+                                OR (t.status = 'publishing' AND t.updated_at <= UTC_TIMESTAMP() - INTERVAL 20 MINUTE))
+                           AND (t.next_retry_at IS NULL OR t.next_retry_at <= UTC_TIMESTAMP()))
           ORDER BY scheduled_at ASC LIMIT 5"
     )->fetchAll(PDO::FETCH_ASSOC);
 
