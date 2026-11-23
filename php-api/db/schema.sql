@@ -688,6 +688,11 @@ CREATE TABLE IF NOT EXISTS social_posts (
   caption      TEXT         NOT NULL,
   -- JSON object of optional per-platform caption overrides.
   caption_overrides TEXT    DEFAULT NULL,
+  -- first_comment: optional per-post first comment supplied at ingest
+  -- (the story loop's contrarian comment). When present, the publisher
+  -- posts THIS as the automatic first comment on Facebook/Instagram
+  -- instead of the hook question derived from the caption.
+  first_comment TEXT    DEFAULT NULL,
   -- Server-side path under the photo storage root (social/<file>) plus
   -- its media kind. NULL media = text-only post (Facebook/YouTube rules
   -- apply per platform at publish time).

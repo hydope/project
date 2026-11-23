@@ -84,6 +84,7 @@ function socialPostPayload(array $row, array $targets): array
         'id' => (string)$row['id'],
         'caption' => (string)$row['caption'],
         'captionOverrides' => json_decode((string)($row['caption_overrides'] ?? ''), true) ?: null,
+        'firstComment' => $row['first_comment'] ?? null,
         'mediaPath' => $row['media_path'],
         'mediaType' => $row['media_type'],
         'mediaUrl' => $row['media_url'],
@@ -957,7 +958,10 @@ function socialAutopilotUpdate(): void
 // already in the social media dir>, plus caption, optional
 // captionOverrides (JSON string), optional scheduledAt (ISO; default =
 // next free autopilot slot), optional 'thumbnail' image file (JPEG/PNG,
-// ≤2 MB) stored as the post's custom YouTube thumbnail. Creates
+// ≤2 MB) stored as the post's custom YouTube thumbnail, optional
+// 'firstComment' text stored on the post and posted verbatim by the
+// publisher as the automatic first comment on Facebook/Instagram
+// (falls back to the caption's hook question when absent). Creates
 // source='autopilot_reel' post with
 // targets for every connected, healthy account on FB/IG/YouTube subject
 // to the autopilot platform enables + daily caps. The kill switch applies:
@@ -1015,6 +1019,13 @@ function routeSocialIngest(): void
         $slot = socialNextAutopilotSlot();
     }
 
+    // Optional per-post first comment (the story loop's contrarian
+    // comment). Stored verbatim (trimmed, capped) and posted by the
+    // publisher as the automatic first comment on FB/IG.
+    $firstComment = trim((string)($_POST['firstComment'] ?? ''));
+    if (mb_strlen($firstComment) > 500) $firstComment = mb_substr($firstComment, 0, 500);
+    if ($firstComment === '') $firstComment = null;
+
     $overrides = null;
     if (!empty($_POST['captionOverrides'])) {
         $decoded = json_decode((string)$_POST['captionOverrides'], true);
@@ -1042,9 +1053,9 @@ function routeSocialIngest(): void
     $pdo->beginTransaction();
     try {
         $pdo->prepare(
-            "INSERT INTO social_posts (id, caption, caption_overrides, media_path, media_type, media_url, thumbnail_path, scheduled_at, status, source, caption_hash, created_by)
+            "INSERT INTO social_posts (id, caption, caption_overrides, first_comment, media_path, media_type, media_url, thumbnail_path, scheduled_at, status, source, caption_hash, created_by)
              VALUES (?, ?, ?, ?, 'video', NULL, ?, ?, 'scheduled', 'autopilot_reel', ?, NULL)"
-        )->execute([$postId, $caption, $overrides, $mediaPath, $thumbnailPath, $slot, socialCaptionHash($caption)]);
+        )->execute([$postId, $caption, $overrides, $firstComment, $mediaPath, $thumbnailPath, $slot, socialCaptionHash($caption)]);
         $ins = $pdo->prepare("INSERT INTO social_post_targets (id, post_id, social_account_id, platform, status) VALUES (?, ?, ?, ?, 'pending')");
         foreach ($targets as $platform => $acc) $ins->execute([uuid(), $postId, $acc['id'], $platform]);
         $pdo->commit();

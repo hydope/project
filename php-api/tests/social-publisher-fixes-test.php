@@ -181,5 +181,33 @@ check('cap: cron selection requires an actionable target (parked posts cannot st
     str_contains($cron, 'EXISTS (SELECT 1 FROM social_post_targets t')
     && str_contains($cron, 't.next_retry_at IS NULL OR t.next_retry_at <= UTC_TIMESTAMP()'));
 
+// ── FIX 4: stored contrarian first comment (2026-11-23) ────────────────
+// The story loop composes a per-story contrarian first comment at the
+// gate and passes it at ingest as 'firstComment'; it is stored on the
+// post and the publisher posts it verbatim, falling back to the hook
+// question when no stored comment exists.
+$routes = (string)file_get_contents($root . '/routes/social_scheduler.php');
+check('stored comment: a stored comment wins verbatim over the hook question',
+    socialFirstCommentText('Hook sawaal hai?! Baaki caption.', 'Sach kahoon to auntie sahi thi — ladki ko maan lena chahiye tha.')
+    === 'Sach kahoon to auntie sahi thi — ladki ko maan lena chahiye tha.');
+check('stored comment: stored comment is trimmed',
+    socialFirstCommentText('Hook?!', "  Auntie sahi thi.  \n") === 'Auntie sahi thi.');
+check('stored comment: stored comment is capped at 500 chars',
+    mb_strlen(socialFirstCommentText('Hook?!', str_repeat('Lamba comment ', 60))) === 500);
+check('stored comment: empty stored comment falls back to the hook question',
+    socialFirstCommentText('Meri salary aap ke account mein jaye gi?! Aakhir tak dekho.', '') === 'Meri salary aap ke account mein jaye gi?!');
+check('stored comment: whitespace-only stored comment falls back to the hook question',
+    socialFirstCommentText('Sawaal hai? Baaki.', "  \n ") === 'Sawaal hai?');
+check('stored comment: no stored comment and no hook yields empty (skip path)',
+    socialFirstCommentText('', '') === '');
+check('stored comment: publisher passes the post row first_comment into the comment step',
+    str_contains($publisher, "(string)(\$post['first_comment'] ?? '')"));
+check('stored comment: ingest reads the firstComment field',
+    str_contains($routes, "\$_POST['firstComment']"));
+check('stored comment: ingest stores first_comment on the post insert',
+    str_contains($routes, 'caption_overrides, first_comment, media_path'));
+check('stored comment: post payload exposes firstComment',
+    str_contains($routes, "'firstComment' => \$row['first_comment'] ?? null"));
+
 echo $failures === 0 ? "ALL PASS\n" : "{$failures} FAILURE(S)\n";
 exit($failures === 0 ? 0 : 1);

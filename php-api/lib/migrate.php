@@ -84,6 +84,7 @@ function migrateSchema(): void
     migrateAddSocialSchedulerTables();
     migrateAddSocialStorageColumns();
     migrateAddSocialThumbnailColumn();
+    migrateAddSocialFirstCommentColumn();
     migrateAddSocialReliability();
 
     // Cheap "already migrated" probe. Must check a LATE table too: probing only
@@ -1811,6 +1812,7 @@ function migrateAddSocialSchedulerTables(): void
                 id                CHAR(36)     NOT NULL PRIMARY KEY,
                 caption           TEXT         NOT NULL,
                 caption_overrides TEXT         DEFAULT NULL,
+                first_comment     TEXT         DEFAULT NULL,
                 media_path        VARCHAR(500) DEFAULT NULL,
                 media_type        VARCHAR(16)  DEFAULT NULL,
                 media_url         VARCHAR(1000) DEFAULT NULL,
@@ -1836,6 +1838,7 @@ function migrateAddSocialSchedulerTables(): void
             'social_posts' => [
                 'source' => "VARCHAR(16) NOT NULL DEFAULT 'manual'",
                 'caption_hash' => 'CHAR(64) DEFAULT NULL',
+                'first_comment' => 'TEXT DEFAULT NULL',
             ],
         ];
         foreach ($ensures as $table => $cols) {
@@ -1916,6 +1919,27 @@ function migrateAddSocialThumbnailColumn(): void
         }
     } catch (Throwable $e) {
         error_log('[api] migration (social thumbnail column) issue: ' . substr($e->getMessage(), 0, 120));
+    }
+}
+
+/**
+ * First-comment column on social_posts (2026-11-23): the story loop
+ * composes a contrarian first comment per story (the Page taking the
+ * unpopular side, to start an argument in the comments) and passes it
+ * at ingest; the publisher posts it verbatim as the automatic first
+ * comment on Facebook/Instagram when present, falling back to the
+ * caption's hook question when NULL. Also declared in db/schema.sql,
+ * whose digest change reopens the migration pass.
+ */
+function migrateAddSocialFirstCommentColumn(): void
+{
+    try {
+        $cols = db()->query("SHOW COLUMNS FROM social_posts LIKE 'first_comment'")->fetchAll();
+        if (!$cols) {
+            db()->exec("ALTER TABLE social_posts ADD COLUMN first_comment TEXT DEFAULT NULL AFTER caption_overrides");
+        }
+    } catch (Throwable $e) {
+        error_log('[api] migration (social first comment column) issue: ' . substr($e->getMessage(), 0, 120));
     }
 }
 

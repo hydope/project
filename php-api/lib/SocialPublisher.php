@@ -586,23 +586,38 @@ function socialHookQuestion(string $caption): string
 }
 
 /**
+ * The text of the automatic first comment. A per-post comment stored
+ * at ingest (social_posts.first_comment — the story loop's contrarian
+ * comment, written as the Page taking the UNPOPULAR side of the story's
+ * argument so viewers argue back) wins verbatim when present; otherwise
+ * fall back to the hook question derived from the caption. Pure:
+ * unit-tested.
+ */
+function socialFirstCommentText(string $caption, string $storedComment = ''): string
+{
+    $stored = trim($storedComment);
+    if ($stored !== '') return mb_substr($stored, 0, 500);
+    return socialHookQuestion($caption);
+}
+
+/**
  * Post the automatic FIRST COMMENT on a freshly published Facebook /
- * Instagram post: the story's hook question (see socialHookQuestion).
+ * Instagram post: the post's stored first comment when one was supplied
+ * at ingest, else the story's hook question (see socialHookQuestion).
  * Comments are the strongest early engagement signal the platforms
- * rank on, and the question hands viewers the exact thing to answer.
- * STRICTLY best-effort by contract: never throws, and the caller
+ * rank on. STRICTLY best-effort by contract: never throws, and the caller
  * records a failure as a note on the target row — it never fails,
  * retries or unpublishes the post itself. YouTube is skipped (its
  * publish flow has no comment step).
  */
-function socialPostFirstComment(array $account, string $platform, string $platformPostId, string $caption): array
+function socialPostFirstComment(array $account, string $platform, string $platformPostId, string $caption, string $storedComment = ''): array
 {
     if (!in_array($platform, ['facebook', 'instagram'], true)) {
         return ['ok' => false, 'skipped' => true, 'error' => 'First comment applies to Facebook and Instagram only.'];
     }
-    $question = socialHookQuestion($caption);
+    $question = socialFirstCommentText($caption, $storedComment);
     if ($question === '' || $platformPostId === '') {
-        return ['ok' => false, 'skipped' => true, 'error' => 'No hook question in the caption — nothing to comment.'];
+        return ['ok' => false, 'skipped' => true, 'error' => 'No first comment text available — nothing to comment.'];
     }
     $token = socialAccountToken($account);
     if ($token === '') {
@@ -776,12 +791,14 @@ function socialPublishTarget(array $target): array
                 $result = ['ok' => false, 'error' => substr($e->getMessage(), 0, 300)];
             }
             // FIRST COMMENT (engagement): on a successful Facebook /
-            // Instagram publish, comment the story's hook question on
-            // the new post. Best-effort by contract — a failure is
+            // Instagram publish, comment the post's stored first comment
+            // (the contrarian comment supplied at ingest) on the new
+            // post, or the story's hook question when none was stored.
+            // Best-effort by contract — a failure is
             // carried on the result and noted on the target row by the
             // success persistence below; it never fails the publish.
             if (!empty($result['ok']) && in_array((string)$target['platform'], ['facebook', 'instagram'], true)) {
-                $comment = socialPostFirstComment($account, (string)$target['platform'], (string)($result['platform_post_id'] ?? ''), $caption);
+                $comment = socialPostFirstComment($account, (string)$target['platform'], (string)($result['platform_post_id'] ?? ''), $caption, (string)($post['first_comment'] ?? ''));
                 if (empty($comment['ok']) && empty($comment['skipped'])) {
                     $result['comment_error'] = (string)($comment['error'] ?? 'unknown error');
                 }
