@@ -164,8 +164,14 @@ check('cap: config is stored in social_state under the test key',
 check('cap: the count reads Facebook targets published inside the NY day bounds',
     str_contains($publisher, "WHERE platform = 'facebook' AND status = 'published'")
     && str_contains($publisher, 'AND published_at >= ? AND published_at < ?'));
-check('cap: the cap is checked only for Facebook targets',
-    str_contains($publisher, "(string)\$target['platform'] === 'facebook' ? socialFacebookCapDeferral(\$pdo, time()) : null"));
+// 2026-11-23 (Settings panel): the fb_daily_cap_test check is still
+// Facebook-only, but Instagram/YouTube gained their own settings-driven
+// daily caps (Syed: "24/day for all social medias") — the gate is now a
+// per-platform branch instead of the original ternary.
+check('cap: the fb test cap is checked only for Facebook targets',
+    str_contains($publisher, "\$platform === 'facebook'") && str_contains($publisher, 'socialFacebookCapDeferral($pdo, time())'));
+check('cap: instagram/youtube caps come from Settings',
+    str_contains($publisher, 'socialSettingsCapDeferral($pdo, $platform, time())'));
 check('cap: a capped target returns a deferred result',
     str_contains($publisher, "'deferred' => true"));
 check('cap: deferral persists the target back to pending (never failed)',

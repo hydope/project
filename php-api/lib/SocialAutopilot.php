@@ -259,8 +259,17 @@ function socialAutopilotRun(): array
         return ['ok' => true, 'skipped' => 'storage watchdog: account usage at/over 85% of quota — generation paused, publishing continues'];
     }
 
-    // Next hour boundary (UTC) is the slot we fill.
+    // Next hour boundary (UTC) is the slot we fill — unless the admin
+    // Settings panel defines posting slot times, in which case the
+    // next configured slot is the one filled.
     $slotTs = (int)(floor(time() / 3600) * 3600) + 3600;
+    if (function_exists('socialSchedulerSettings') && function_exists('socialNextSlotTs')) {
+        $slotTimes = socialSchedulerSettings()['slots'] ?? [];
+        if ($slotTimes !== []) {
+            $next = socialNextSlotTs(time(), $slotTimes);
+            if ($next !== null) $slotTs = $next;
+        }
+    }
     $slot = gmdate('Y-m-d H:i:s', $slotTs);
 
     // A reel already waiting for this slot wins — reels are the main

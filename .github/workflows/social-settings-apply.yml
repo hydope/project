@@ -1,0 +1,93 @@
+name: Social settings apply (one-off)
+
+# One-off ops job (2026-11-23): applies Syed's ordered scheduler
+# settings — daily caps 24/day for Facebook, Instagram and YouTube —
+# through the app's own settings storage (the same social_state rows
+# the admin Settings panel writes), releases any cap-deferred targets
+# the raised caps no longer hold, and reads everything back through
+# the same code the panel serves (socialSettingsPayload). The PHP
+# script is generated here, uploaded, called once with the seeder
+# cron key and deleted in the same job — it is never committed into
+# php-api/. Re-running is idempotent and doubles as a status probe
+# (it reports Story #31's Facebook target before/after).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: social-settings-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      SEEDER_CRON_KEY: ${{ secrets.SEEDER_CRON_KEY }}
+    steps:
+      - name: Write the one-off apply script
+        run: |
+          cat > social-settings-apply-once.php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          require __DIR__ . '/lib/bootstrap.php';
+          require __DIR__ . '/lib/logger.php';
+          require __DIR__ . '/lib/db.php';
+          require __DIR__ . '/lib/jwt.php';
+          require __DIR__ . '/lib/util.php';
+          require __DIR__ . '/lib/photos.php';
+          require __DIR__ . '/lib/SocialPublisher.php';
+          require __DIR__ . '/lib/SocialAutopilot.php';
+          require __DIR__ . '/lib/SocialStorage.php';
+          require __DIR__ . '/routes/social_scheduler.php';
+          $expected = getenv('SEEDER_CRON_KEY');
+          if (!is_string($expected) || $expected === '') { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'cron key not configured']); exit; }
+          $provided = $_SERVER['HTTP_X_SEEDER_CRON_KEY'] ?? '';
+          if (!hash_equals($expected, (string)$provided)) { http_response_code(403); echo json_encode(['ok' => false, 'error' => 'forbidden']); exit; }
+          header('Content-Type: application/json');
+          $out = ['ok' => true];
+          $post31 = '02b0dc84-e1e9-4232-9130-8ea2c5398080';
+          $q = db()->prepare("SELECT status, next_retry_at, error, platform_url FROM social_post_targets WHERE post_id = ? AND platform = 'facebook'");
+          $q->execute([$post31]);
+          $out['story31_fb_before'] = $q->fetch(PDO::FETCH_ASSOC) ?: null;
+          $out['fb_cap_before'] = socialFacebookCapConfig();
+          // Apply the ordered caps through the panel's own storage:
+          // Facebook 24 (test window unchanged), Instagram 24, YouTube 24.
+          socialStateSet(SOCIAL_FB_CAP_STATE_KEY, (string)json_encode(['cap' => 24, 'until' => '2026-11-25']));
+          $settings = socialSchedulerSettings();
+          $settings['dailyCaps']['instagram'] = 24;
+          $settings['dailyCaps']['youtube'] = 24;
+          socialSchedulerSettingsSave($settings);
+          // A raised cap frees the targets it was holding.
+          $out['released'] = [
+              'facebook' => socialReleaseCapDeferredTargets('facebook'),
+              'instagram' => socialReleaseCapDeferredTargets('instagram'),
+              'youtube' => socialReleaseCapDeferredTargets('youtube'),
+          ];
+          // Read back through the app's own code paths.
+          $out['fb_cap_after'] = socialFacebookCapConfig();
+          [$nyDate] = socialNyDayBoundsUtc(time());
+          $out['fb_effective_today'] = socialFacebookCapForDate($out['fb_cap_after'], $nyDate);
+          $out['settings_after'] = socialSchedulerSettings();
+          $out['payload'] = socialSettingsPayload();
+          $q->execute([$post31]);
+          $out['story31_fb_after'] = $q->fetch(PDO::FETCH_ASSOC) ?: null;
+          echo json_encode($out);
+          PHP
+      - name: Upload the script
+        run: |
+          curl -sS --insecure --ftp-create-dirs -T social-settings-apply-once.php "ftp://$FTP_USERNAME:$FTP_PASSWORD@$FTP_SERVER/public_html/api/social-settings-apply-once.php"
+      - name: Call it (apply + read back)
+        run: |
+          curl -sS --max-time 120 -H "X-Seeder-Cron-Key: $SEEDER_CRON_KEY" "https://shiarishta.com/api/social-settings-apply-once.php" | tee apply-result.json
+          grep -q '"ok":true' apply-result.json
+      - name: Delete the script
+        if: always()
+        run: |
+          curl -sS --insecure "ftp://$FTP_USERNAME:$FTP_PASSWORD@$FTP_SERVER/" -Q "-DELE public_html/api/social-settings-apply-once.php" || echo "FTP delete failed - the script is cron-key protected; remove it manually"

@@ -3,7 +3,8 @@ import Layout from '@/layouts/AdminLayout';
 import { http } from '@/lib/api/transport';
 import {
   Share2, RefreshCw, Globe, Camera, Video, Plug, Trash2, Send,
-  Clock, Save, AlertTriangle, Bot, Power,
+  Clock, Save, AlertTriangle, Bot, Power, Gauge, HardDrive,
+  ShieldAlert, History,
 } from 'lucide-react';
 
 // lucide-react 1.39 dropped brand icons, so platforms use generic glyphs.
@@ -52,8 +53,27 @@ export default function AdminSocialScheduler() {
   const [publisher, setPublisher] = useState(null);
   const [deadTargets, setDeadTargets] = useState([]);
   const [autopilot, setAutopilot] = useState(null);
+  const [settings, setSettings] = useState(null);
+  const [activity, setActivity] = useState([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+
+  // Settings drafts (committed per card with its Save button)
+  const [fbDraft, setFbDraft] = useState({ cap: 8, until: '2026-11-25' });
+  const [capDraft, setCapDraft] = useState({ instagram: '', youtube: '' });
+  const [slotDraft, setSlotDraft] = useState('');
+  const [retryDraft, setRetryDraft] = useState({ maxAttempts: 6, backoffMinutes: 5 });
+  const [storageDraft, setStorageDraft] = useState({ budgetGiB: '', purgeHours: 72 });
+
+  const applySettings = useCallback((s) => {
+    setSettings(s);
+    if (!s) return;
+    setFbDraft({ cap: s.fbCap.cap, until: s.fbCap.until });
+    setCapDraft({ instagram: s.dailyCaps.instagram.cap ?? '', youtube: s.dailyCaps.youtube.cap ?? '' });
+    setSlotDraft((s.slots || []).join(', '));
+    setRetryDraft({ maxAttempts: s.retry.maxAttempts, backoffMinutes: s.retry.backoffMinutes });
+    setStorageDraft({ budgetGiB: s.storage.budgetGiB ?? '', purgeHours: s.storage.purgeHours });
+  }, []);
 
   // Composer state
   const [caption, setCaption] = useState('');
@@ -67,10 +87,12 @@ export default function AdminSocialScheduler() {
 
   const load = useCallback(async () => {
     try {
-      const [acc, list, ap] = await Promise.all([
+      const [acc, list, ap, st, act] = await Promise.all([
         http.get('/api/admin/social/accounts'),
         http.get('/api/admin/social/posts'),
         http.get('/api/admin/social/autopilot'),
+        http.get('/api/admin/social/settings'),
+        http.get('/api/admin/social/activity'),
       ]);
       setAccounts(acc.accounts || []);
       setConfig(acc.config || {});
@@ -78,10 +100,26 @@ export default function AdminSocialScheduler() {
       setPublisher(list.publisher || null);
       setDeadTargets(list.deadTargets || []);
       setAutopilot(ap.autopilot || null);
+      applySettings(st.settings || null);
+      setActivity(act.events || []);
     } catch (e) {
       setError(e.message || 'Could not load the social scheduler.');
     }
-  }, []);
+  }, [applySettings]);
+
+  const saveSettings = async (patch, msg) => {
+    setError('');
+    try {
+      const res = await http.put('/api/admin/social/settings', patch);
+      applySettings(res.settings);
+      const released = Object.values(res.released || {}).reduce((a, b) => a + (b || 0), 0);
+      setNotice(`${msg || 'Settings saved.'}${released ? ` ${released} cap-deferred post(s) released — they publish on the next run.` : ''}`);
+      const act = await http.get('/api/admin/social/activity');
+      setActivity(act.events || []);
+    } catch (e) {
+      setError(e.message || 'Could not save settings.');
+    }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -383,6 +421,244 @@ export default function AdminSocialScheduler() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Settings: publishing limits ────────────────────── */}
+        {settings && (
+          <div className="border rounded p-4 mb-6" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="flex items-center gap-2">
+              <Gauge className="w-5 h-5" />
+              <h2 className="font-bold">Settings — Publishing limits</h2>
+            </div>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-ink-secondary)' }}>
+              Daily caps enforced by the publisher (New York day). A post that reaches a cap is deferred to
+              the next day — never failed. Changes apply immediately, no deploy needed. For Instagram and
+              YouTube, an empty cap or 0 means no cap.
+            </p>
+            <div className="grid sm:grid-cols-3 gap-3 mt-3">
+              <div className="text-sm border rounded p-3" style={{ borderColor: 'var(--color-border)' }}>
+                <p className="font-medium">Facebook</p>
+                <label className="flex items-center gap-2 mt-2 text-xs" style={{ color: 'var(--color-ink-secondary)' }}>
+                  Cap
+                  <input type="number" min="0" max="100" value={fbDraft.cap}
+                    className="input px-2 py-1 text-sm" style={{ width: 70 }}
+                    onChange={(e) => setFbDraft({ ...fbDraft, cap: e.target.value })} />
+                  / day
+                </label>
+                <label className="flex items-center gap-2 mt-2 text-xs" style={{ color: 'var(--color-ink-secondary)' }}>
+                  Test window ends
+                  <input type="date" value={fbDraft.until}
+                    className="input px-2 py-1 text-sm"
+                    onChange={(e) => setFbDraft({ ...fbDraft, until: e.target.value })} />
+                </label>
+                <p className="text-xs mt-2" style={{ color: 'var(--color-ink-secondary)' }}>
+                  {settings.fbCap.usedToday} published today · {settings.fbCap.active ? 'cap active' : 'window ended — no cap in force (set cap 0 to switch off)'}
+                </p>
+              </div>
+              <div className="text-sm border rounded p-3" style={{ borderColor: 'var(--color-border)' }}>
+                <p className="font-medium">Instagram</p>
+                <label className="flex items-center gap-2 mt-2 text-xs" style={{ color: 'var(--color-ink-secondary)' }}>
+                  Cap
+                  <input type="number" min="0" max="100" value={capDraft.instagram} placeholder="No cap"
+                    className="input px-2 py-1 text-sm" style={{ width: 70 }}
+                    onChange={(e) => setCapDraft({ ...capDraft, instagram: e.target.value })} />
+                  / day
+                </label>
+                <p className="text-xs mt-2" style={{ color: 'var(--color-ink-secondary)' }}>
+                  {settings.dailyCaps.instagram.usedToday} published today
+                </p>
+              </div>
+              <div className="text-sm border rounded p-3" style={{ borderColor: 'var(--color-border)' }}>
+                <p className="font-medium">YouTube</p>
+                <label className="flex items-center gap-2 mt-2 text-xs" style={{ color: 'var(--color-ink-secondary)' }}>
+                  Cap
+                  <input type="number" min="0" max="100" value={capDraft.youtube} placeholder="No cap"
+                    className="input px-2 py-1 text-sm" style={{ width: 70 }}
+                    onChange={(e) => setCapDraft({ ...capDraft, youtube: e.target.value })} />
+                  / day
+                </label>
+                <p className="text-xs mt-2" style={{ color: 'var(--color-ink-secondary)' }}>
+                  {settings.dailyCaps.youtube.usedToday} published today
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-warning, #9a6700)' }}>
+                  {settings.dailyCaps.youtube.quotaNote}
+                </p>
+              </div>
+            </div>
+            <button type="button"
+              onClick={() => saveSettings({
+                fbCap: { cap: Number(fbDraft.cap), until: fbDraft.until },
+                dailyCaps: {
+                  instagram: capDraft.instagram === '' ? null : Number(capDraft.instagram),
+                  youtube: capDraft.youtube === '' ? null : Number(capDraft.youtube),
+                },
+              }, 'Publishing limits saved.')}
+              className="btn px-3 py-1.5 text-sm mt-3 flex items-center gap-2">
+              <Save className="w-4 h-4" /> Save limits
+            </button>
+          </div>
+        )}
+
+        {/* ── Settings: scheduling ───────────────────────────── */}
+        {settings && (
+          <div className="border rounded p-4 mb-6" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              <h2 className="font-bold">Settings — Scheduling</h2>
+            </div>
+            <label className="block text-xs mt-3" style={{ color: 'var(--color-ink-secondary)' }}>
+              Posting slot times (UTC, 24h, comma-separated — e.g. 14:00, 18:00, 22:00). Ingested and
+              autopilot posts are assigned the next free slot. Leave empty for the default hourly slots.
+              <input type="text" value={slotDraft} placeholder="Hourly (default)"
+                className="input w-full px-2 py-1 text-sm mt-1"
+                onChange={(e) => setSlotDraft(e.target.value)} />
+            </label>
+            <button type="button"
+              onClick={() => saveSettings({ slots: slotDraft.split(',').map((s) => s.trim()).filter(Boolean) }, 'Slot times saved.')}
+              className="btn px-3 py-1.5 text-sm mt-2 flex items-center gap-2">
+              <Save className="w-4 h-4" /> Save slot times
+            </button>
+            <p className="text-xs mt-4 mb-2" style={{ color: 'var(--color-ink-secondary)' }}>
+              Publishing pause — a paused platform's posts wait (pending) until it is unpaused; nothing fails.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {Object.entries(PLATFORM_META).map(([platform, { label }]) => (
+                <label key={platform} className="flex items-center gap-2 text-sm border rounded px-2.5 py-1.5" style={{ borderColor: 'var(--color-border)' }}>
+                  <input type="checkbox" checked={!!settings.paused[platform]}
+                    onChange={(e) => saveSettings({ paused: { ...settings.paused, [platform]: e.target.checked } }, `${label} ${e.target.checked ? 'paused' : 'resumed'}.`)} />
+                  Pause {label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Settings: automation rules ─────────────────────── */}
+        {settings && (
+          <div className="border rounded p-4 mb-6" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="flex items-center gap-2">
+              <Bot className="w-5 h-5" />
+              <h2 className="font-bold">Settings — Automation rules</h2>
+            </div>
+            <label className="block text-xs mt-3" style={{ color: 'var(--color-ink-secondary)' }}>
+              Automatic first comment on Facebook / Instagram
+              <select value={settings.firstCommentMode}
+                className="input w-full px-2 py-1 text-sm mt-1"
+                onChange={(e) => saveSettings({ firstCommentMode: e.target.value }, 'First-comment mode saved.')}>
+                <option value="stored">Stored comment, hook question as fallback</option>
+                <option value="hook">Hook question only</option>
+                <option value="off">Off — no automatic comment</option>
+              </select>
+            </label>
+            <div className="flex flex-wrap items-end gap-3 mt-3">
+              <label className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>
+                Retry max attempts
+                <input type="number" min="1" max="20" value={retryDraft.maxAttempts}
+                  className="input px-2 py-1 text-sm block mt-1" style={{ width: 80 }}
+                  onChange={(e) => setRetryDraft({ ...retryDraft, maxAttempts: e.target.value })} />
+              </label>
+              <label className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>
+                Backoff base (minutes — delays scale 5/15/30/60/120 from this base)
+                <input type="number" min="1" max="120" value={retryDraft.backoffMinutes}
+                  className="input px-2 py-1 text-sm block mt-1" style={{ width: 80 }}
+                  onChange={(e) => setRetryDraft({ ...retryDraft, backoffMinutes: e.target.value })} />
+              </label>
+              <button type="button"
+                onClick={() => saveSettings({ retry: { maxAttempts: Number(retryDraft.maxAttempts), backoffMinutes: Number(retryDraft.backoffMinutes) } }, 'Retry policy saved.')}
+                className="btn px-3 py-1.5 text-sm flex items-center gap-2">
+                <Save className="w-4 h-4" /> Save retry policy
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Settings: storage & lifecycle ──────────────────── */}
+        {settings && (
+          <div className="border rounded p-4 mb-6" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="flex items-center gap-2">
+              <HardDrive className="w-5 h-5" />
+              <h2 className="font-bold">Settings — Storage &amp; lifecycle</h2>
+            </div>
+            <p className="text-xs mt-2" style={{ color: 'var(--color-ink-secondary)' }}>
+              {settings.storage.usedBytes != null
+                ? `Media on server: ${(settings.storage.usedBytes / 1073741824).toFixed(2)} GB of ${(settings.storage.budgetBytes / 1073741824).toFixed(2)} GB budget (${settings.storage.usedPct}%).`
+                : 'Media usage unavailable.'}
+              {' '}Published files are purged after the delay below; the platforms keep the content.
+            </p>
+            <div className="flex flex-wrap items-end gap-3 mt-3">
+              <label className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>
+                Storage budget (GB — empty = default 2 GB)
+                <input type="number" min="0.1" max="100" step="0.1" value={storageDraft.budgetGiB} placeholder="2"
+                  className="input px-2 py-1 text-sm block mt-1" style={{ width: 90 }}
+                  onChange={(e) => setStorageDraft({ ...storageDraft, budgetGiB: e.target.value })} />
+              </label>
+              <label className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>
+                Purge after publish (hours)
+                <input type="number" min="1" max="720" value={storageDraft.purgeHours}
+                  className="input px-2 py-1 text-sm block mt-1" style={{ width: 90 }}
+                  onChange={(e) => setStorageDraft({ ...storageDraft, purgeHours: e.target.value })} />
+              </label>
+              <button type="button"
+                onClick={() => saveSettings({ storage: { budgetGiB: storageDraft.budgetGiB === '' ? null : Number(storageDraft.budgetGiB), purgeHours: Number(storageDraft.purgeHours) } }, 'Storage settings saved.')}
+                className="btn px-3 py-1.5 text-sm flex items-center gap-2">
+                <Save className="w-4 h-4" /> Save storage settings
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Settings: safety & visibility ──────────────────── */}
+        {settings && (
+          <div className="border rounded p-4 mb-6" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5" />
+              <h2 className="font-bold">Settings — Safety &amp; visibility</h2>
+            </div>
+            <p className="text-xs mt-2 font-semibold">Account token health</p>
+            {settings.accounts.length === 0 && (
+              <p className="text-xs mt-1" style={{ color: 'var(--color-ink-secondary)' }}>No accounts connected.</p>
+            )}
+            {settings.accounts.map((a) => (
+              <div key={a.id} className="text-sm mt-2 flex flex-wrap items-center gap-2">
+                <span className="font-medium">{(PLATFORM_META[a.platform]?.label) || a.platform}: {a.accountName || '—'}</span>
+                <span className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>status {a.status}</span>
+                {a.tokenHealth === 'ok' && (
+                  <span className="text-xs" style={{ color: 'var(--color-success, #1a7f37)' }}>
+                    Token OK — expires {fmtDate(a.tokenExpiresAt)} ({a.tokenDaysLeft} days left)
+                  </span>
+                )}
+                {a.tokenHealth === 'expiring' && (
+                  <span className="text-xs flex items-center gap-1" style={{ color: 'var(--color-warning, #9a6700)' }}>
+                    <AlertTriangle className="w-3.5 h-3.5" /> Token expiring — {a.tokenDaysLeft} days left ({fmtDate(a.tokenExpiresAt)}). Reconnect soon.
+                  </span>
+                )}
+                {a.tokenHealth === 'expired' && (
+                  <span className="text-xs flex items-center gap-1" style={{ color: 'var(--color-danger)' }}>
+                    <AlertTriangle className="w-3.5 h-3.5" /> Token EXPIRED {fmtDate(a.tokenExpiresAt)} — reconnect this account.
+                  </span>
+                )}
+                {a.tokenHealth === 'unknown' && (
+                  <span className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>Token expiry not tracked for this account.</span>
+                )}
+              </div>
+            ))}
+            <p className="text-xs mt-4 font-semibold flex items-center gap-1"><History className="w-3.5 h-3.5" /> Recent activity</p>
+            {activity.length === 0 && (
+              <p className="text-xs mt-1" style={{ color: 'var(--color-ink-secondary)' }}>No activity yet.</p>
+            )}
+            <div className="mt-1">
+              {activity.map((ev, i) => (
+                <div key={i} className="text-xs py-1.5 border-b flex flex-wrap gap-x-2" style={{ borderColor: 'var(--color-border)' }}>
+                  <span style={{ color: 'var(--color-ink-secondary)' }}>{fmtDate(ev.at)}</span>
+                  <span className="font-medium">{(PLATFORM_META[ev.platform]?.label) || ev.platform}</span>
+                  <span style={STATUS_STYLE[ev.type] || {}}>{ev.type}</span>
+                  <span>{ev.reason}</span>
+                  {ev.url && <a href={ev.url} target="_blank" rel="noreferrer" className="underline">view</a>}
+                  {ev.caption && <span style={{ color: 'var(--color-ink-secondary)' }}>“{ev.caption}…”</span>}
+                </div>
+              ))}
             </div>
           </div>
         )}

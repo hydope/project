@@ -744,6 +744,190 @@ function socialFacebookCapDeferral(PDO $pdo, int $now): ?array
     return ['cap' => $cap, 'until' => (string)($config['until'] ?? ''), 'defer_until' => $endUtc];
 }
 
+// ── Scheduler settings (admin Settings panel, 2026-11-23) ───────────
+//
+// Syed's rule: every operational knob of the scheduler lives in
+// social_state and is read AT RUNTIME — changing a value in the admin
+// Settings panel must never need a code edit or a deploy. The Facebook
+// daily-cap test keeps its own key (fb_daily_cap_test, above); the
+// rest lives here as one JSON row. Every reader merges the stored row
+// over defaults that reproduce the pre-panel behaviour exactly, and a
+// missing/broken store falls back to those defaults — settings must
+// never take publishing down.
+
+const SOCIAL_SETTINGS_KEY = 'social_scheduler_settings';
+
+function socialSettingsDefaults(): array
+{
+    return [
+        // Publisher-level daily caps for Instagram/YouTube (Facebook's
+        // cap is the fb_daily_cap_test row above). null = no cap.
+        'dailyCaps' => ['instagram' => null, 'youtube' => null],
+        // Per-platform publishing pause: a paused platform's targets
+        // are parked (pending, short retry), never failed.
+        'paused' => ['facebook' => false, 'instagram' => false, 'youtube' => false],
+        // Posting slot times (UTC 'HH:MM') the autopilot/ingest assign.
+        // Empty = the legacy behaviour: the next free hourly slot.
+        'slots' => [],
+        // stored = the post's stored comment with the hook question as
+        // fallback (the behaviour the first-comment feature shipped
+        // with); hook = always the hook question; off = no comment.
+        'firstCommentMode' => 'stored',
+        'retry' => ['maxAttempts' => SOCIAL_WATCHDOG_MAX_ATTEMPTS, 'backoffMinutes' => 5],
+        // budgetGiB null = legacy resolution (env
+        // SOCIAL_MEDIA_BUDGET_BYTES, else 2 GiB); purgeHours is the
+        // published-media purge grace (72h before the panel existed).
+        'storage' => ['budgetGiB' => null, 'purgeHours' => 72],
+    ];
+}
+
+/** Merge a stored settings row over the defaults, validating per field. Pure. */
+function socialSettingsMerge(?array $stored): array
+{
+    $s = socialSettingsDefaults();
+    if (!is_array($stored)) return $s;
+    foreach (['instagram', 'youtube'] as $p) {
+        if (isset($stored['dailyCaps'][$p]) && is_numeric($stored['dailyCaps'][$p])) {
+            $s['dailyCaps'][$p] = max(0, min(100, (int)$stored['dailyCaps'][$p]));
+        }
+    }
+    foreach (['facebook', 'instagram', 'youtube'] as $p) {
+        if (isset($stored['paused'][$p])) $s['paused'][$p] = !empty($stored['paused'][$p]);
+    }
+    if (isset($stored['slots']) && is_array($stored['slots'])) {
+        $times = [];
+        foreach ($stored['slots'] as $t) {
+            $t = trim((string)$t);
+            if (preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $t)) $times[] = $t;
+        }
+        $times = array_values(array_unique($times));
+        sort($times);
+        $s['slots'] = $times;
+    }
+    if (isset($stored['firstCommentMode']) && in_array($stored['firstCommentMode'], ['stored', 'hook', 'off'], true)) {
+        $s['firstCommentMode'] = (string)$stored['firstCommentMode'];
+    }
+    if (isset($stored['retry']) && is_array($stored['retry'])) {
+        if (isset($stored['retry']['maxAttempts']) && is_numeric($stored['retry']['maxAttempts'])) {
+            $s['retry']['maxAttempts'] = max(1, min(20, (int)$stored['retry']['maxAttempts']));
+        }
+        if (isset($stored['retry']['backoffMinutes']) && is_numeric($stored['retry']['backoffMinutes'])) {
+            $s['retry']['backoffMinutes'] = max(1, min(120, (int)$stored['retry']['backoffMinutes']));
+        }
+    }
+    if (isset($stored['storage']) && is_array($stored['storage'])) {
+        if (isset($stored['storage']['budgetGiB']) && is_numeric($stored['storage']['budgetGiB'])) {
+            $s['storage']['budgetGiB'] = max(0.1, min(100, (float)$stored['storage']['budgetGiB']));
+        }
+        if (isset($stored['storage']['purgeHours']) && is_numeric($stored['storage']['purgeHours'])) {
+            $s['storage']['purgeHours'] = max(1, min(720, (int)$stored['storage']['purgeHours']));
+        }
+    }
+    return $s;
+}
+
+/** The scheduler settings in force: stored row merged over defaults. */
+function socialSchedulerSettings(): array
+{
+    try {
+        $raw = socialStateGet(SOCIAL_SETTINGS_KEY);
+        $stored = ($raw !== null && trim($raw) !== '') ? json_decode($raw, true) : null;
+        return socialSettingsMerge(is_array($stored) ? $stored : null);
+    } catch (Throwable $e) {
+        error_log('[social] settings read failed: ' . substr($e->getMessage(), 0, 120));
+        return socialSettingsDefaults();
+    }
+}
+
+/** Persist scheduler settings (normalized through the same merge). */
+function socialSchedulerSettingsSave(array $settings): void
+{
+    socialStateSet(SOCIAL_SETTINGS_KEY, (string)json_encode(socialSettingsMerge($settings)));
+}
+
+/** True when the admin Settings panel has paused a platform. */
+function socialPlatformPaused(string $platform): bool
+{
+    $settings = socialSchedulerSettings();
+    return !empty($settings['paused'][$platform]);
+}
+
+/** Published-target count for a platform in the current New York day. */
+function socialPublishedTodayCount(PDO $pdo, string $platform, int $now): int
+{
+    [, $startUtc, $endUtc] = socialNyDayBoundsUtc($now);
+    $stmt = $pdo->prepare(
+        "SELECT COUNT(*) FROM social_post_targets
+          WHERE platform = ? AND status = 'published'
+            AND published_at >= ? AND published_at < ?"
+    );
+    $stmt->execute([$platform, $startUtc, $endUtc]);
+    return (int)$stmt->fetchColumn();
+}
+
+/**
+ * Settings daily-cap deferral for Instagram/YouTube (Facebook uses
+ * the fb_daily_cap_test machinery above). Same contract as the
+ * Facebook deferral: park to the next New York midnight, never a
+ * failure. Returns null when the publish may proceed.
+ */
+function socialSettingsCapDeferral(PDO $pdo, string $platform, int $now): ?array
+{
+    $settings = socialSchedulerSettings();
+    $cap = $settings['dailyCaps'][$platform] ?? null;
+    if ($cap === null || (int)$cap <= 0) return null;
+    if (socialPublishedTodayCount($pdo, $platform, $now) < (int)$cap) return null;
+    [, , $endUtc] = socialNyDayBoundsUtc($now);
+    return ['cap' => (int)$cap, 'defer_until' => $endUtc];
+}
+
+/**
+ * Release targets parked by a daily-cap deferral when the cap no
+ * longer holds them (raised in Settings, switched off, or its window
+ * expired): clears next_retry_at so the next publisher run picks them
+ * up. Returns how many targets were released.
+ */
+function socialReleaseCapDeferredTargets(string $platform): int
+{
+    $pdo = db();
+    $now = time();
+    if ($platform === 'facebook') {
+        $config = socialFacebookCapConfig();
+        [$nyDate] = socialNyDayBoundsUtc($now);
+        $cap = socialFacebookCapForDate($config, $nyDate);
+    } else {
+        $raw = socialSchedulerSettings()['dailyCaps'][$platform] ?? null;
+        $cap = ($raw === null || (int)$raw <= 0) ? null : (int)$raw;
+    }
+    if ($cap !== null && socialPublishedTodayCount($pdo, $platform, $now) >= $cap) return 0;
+    $stmt = $pdo->prepare(
+        "UPDATE social_post_targets
+            SET next_retry_at = NULL, error = ?, updated_at = UTC_TIMESTAMP()
+          WHERE platform = ? AND status = 'pending'
+            AND next_retry_at IS NOT NULL AND error LIKE '%daily cap reached%'"
+    );
+    $stmt->execute(['Released — the daily cap was changed in Settings and no longer holds this post.', $platform]);
+    return $stmt->rowCount();
+}
+
+/**
+ * The next posting slot (unix ts, UTC) strictly after $now for a list
+ * of 'HH:MM' UTC times, scanning 8 days ahead. Pure.
+ */
+function socialNextSlotTs(int $now, array $times): ?int
+{
+    if ($times === []) return null;
+    $day = (new DateTimeImmutable('@' . $now))->setTime(0, 0, 0);
+    for ($d = 0; $d < 8; $d++) {
+        foreach ($times as $t) {
+            [$h, $m] = array_map('intval', explode(':', (string)$t));
+            $cand = $day->modify('+' . $d . ' days')->setTime($h, $m, 0)->getTimestamp();
+            if ($cand > $now) return $cand;
+        }
+    }
+    return null;
+}
+
 /**
  * Publish one target row. Returns the publisher result and persists it.
  * Also maintains the account failure rail: 3 consecutive failures mark
@@ -771,14 +955,34 @@ function socialPublishTarget(array $target): array
             return ['ok' => false, 'skipped' => true,
                 'error' => 'Target already claimed by another publish run — skipped so it can never be posted twice.'];
         }
-        // Facebook daily-cap test: at the cap, the target is deferred
-        // to the next New York day (persisted below) — not published,
-        // not failed.
-        $capDeferral = (string)$target['platform'] === 'facebook' ? socialFacebookCapDeferral($pdo, time()) : null;
-        if ($capDeferral !== null) {
+        // Settings gates, checked before any platform call: a paused
+        // platform parks the target briefly; a reached daily cap
+        // parks it to the next New York day. Both are deferrals —
+        // pending, not published, not failed (persisted below).
+        $platform = (string)$target['platform'];
+        $deferral = null;
+        if (socialPlatformPaused($platform)) {
+            $deferral = ['error' => 'Publishing is paused for ' . $platform . ' in Settings — deferred.',
+                'defer_until' => gmdate('Y-m-d H:i:s', time() + 900)];
+        } elseif ($platform === 'facebook') {
+            // Facebook daily-cap test (fb_daily_cap_test in
+            // social_state): at the cap, deferred to the next day.
+            $fbDeferral = socialFacebookCapDeferral($pdo, time());
+            if ($fbDeferral !== null) {
+                $deferral = ['error' => 'Facebook daily cap reached (' . $fbDeferral['cap'] . '/day test through ' . $fbDeferral['until'] . ') — deferred to the next day.',
+                    'defer_until' => $fbDeferral['defer_until']];
+            }
+        } elseif (in_array($platform, ['instagram', 'youtube'], true)) {
+            $capDeferral = socialSettingsCapDeferral($pdo, $platform, time());
+            if ($capDeferral !== null) {
+                $deferral = ['error' => ucfirst($platform) . ' daily cap reached (' . $capDeferral['cap'] . '/day) — deferred to the next day.',
+                    'defer_until' => $capDeferral['defer_until']];
+            }
+        }
+        if ($deferral !== null) {
             $result = ['ok' => false, 'deferred' => true,
-                'error' => 'Facebook daily cap reached (' . $capDeferral['cap'] . '/day test through ' . $capDeferral['until'] . ') — deferred to the next day.',
-                'defer_until' => $capDeferral['defer_until']];
+                'error' => $deferral['error'],
+                'defer_until' => $deferral['defer_until']];
         } else {
             try {
                 $result = match ((string)$target['platform']) {
@@ -798,21 +1002,29 @@ function socialPublishTarget(array $target): array
             // carried on the result and noted on the target row by the
             // success persistence below; it never fails the publish.
             if (!empty($result['ok']) && in_array((string)$target['platform'], ['facebook', 'instagram'], true)) {
-                $comment = socialPostFirstComment($account, (string)$target['platform'], (string)($result['platform_post_id'] ?? ''), $caption, (string)($post['first_comment'] ?? ''));
-                if (empty($comment['ok']) && empty($comment['skipped'])) {
-                    $result['comment_error'] = (string)($comment['error'] ?? 'unknown error');
+                // Settings first-comment mode: 'stored' posts the
+                // stored comment with the hook question as fallback
+                // (the shipped behaviour), 'hook' always asks the
+                // hook question, 'off' posts no automatic comment.
+                $fcMode = (string)(socialSchedulerSettings()['firstCommentMode'] ?? 'stored');
+                if ($fcMode !== 'off') {
+                    $comment = socialPostFirstComment($account, (string)$target['platform'], (string)($result['platform_post_id'] ?? ''), $caption, $fcMode === 'hook' ? '' : (string)($post['first_comment'] ?? ''));
+                    if (empty($comment['ok']) && empty($comment['skipped'])) {
+                        $result['comment_error'] = (string)($comment['error'] ?? 'unknown error');
+                    }
                 }
             }
         }
     }
 
     if (empty($result['ok']) && !empty($result['deferred'])) {
-        // Daily-cap deferral: NOT a failure and NOT a soft platform
-        // outcome — the target simply waits for the next calendar day.
-        // Back to 'pending' with next_retry_at at the next New York
-        // midnight: the watchdog honours next_retry_at and never burns
-        // a retry attempt on a capped target, and the account failure
-        // rail below is never reached.
+        // Settings deferral (daily cap or platform pause): NOT a
+        // failure and NOT a soft platform outcome — the target simply
+        // waits. Back to 'pending' with next_retry_at at defer_until
+        // (the next New York midnight for caps, ~15 min for a pause):
+        // the watchdog honours next_retry_at and never burns a retry
+        // attempt on a deferred target, and the account failure rail
+        // below is never reached.
         $pdo->prepare("UPDATE social_post_targets SET status = 'pending', error = ?, next_retry_at = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?")
             ->execute([substr((string)($result['error'] ?? 'Deferred.'), 0, 1000), (string)($result['defer_until'] ?? gmdate('Y-m-d H:i:s', time() + 3600)), $target['id']]);
         return $result;
@@ -1123,6 +1335,17 @@ function socialHeartbeatPayload(?array $hb, int $now): array
 
 const SOCIAL_WATCHDOG_MAX_ATTEMPTS = 6;
 
+/** The watchdog attempt cap in force: Settings value, else the constant. */
+function socialWatchdogMaxAttempts(): int
+{
+    try {
+        $v = (int)(socialSchedulerSettings()['retry']['maxAttempts'] ?? 0);
+        return $v > 0 ? $v : SOCIAL_WATCHDOG_MAX_ATTEMPTS;
+    } catch (Throwable) {
+        return SOCIAL_WATCHDOG_MAX_ATTEMPTS;
+    }
+}
+
 /** Delay before watchdog attempt N+1, after N failed attempts (1-based). */
 function socialWatchdogBackoffSeconds(int $failedAttempts): int
 {
@@ -1135,13 +1358,19 @@ function socialWatchdogBackoffSeconds(int $failedAttempts): int
  * counter, and either schedule the next attempt (exponential backoff)
  * or — at the cap — declare the target dead. Pure: unit-tested.
  */
-function socialWatchdogAfterFailure(int $retryAttempts): array
+function socialWatchdogAfterFailure(int $retryAttempts, ?int $maxAttempts = null, ?int $backoffBaseMinutes = null): array
 {
     $next = $retryAttempts + 1;
-    if ($next >= SOCIAL_WATCHDOG_MAX_ATTEMPTS) {
+    if ($next >= ($maxAttempts ?? socialWatchdogMaxAttempts())) {
         return ['retry_attempts' => $next, 'dead' => true, 'delay_seconds' => 0];
     }
-    return ['retry_attempts' => $next, 'dead' => false, 'delay_seconds' => socialWatchdogBackoffSeconds($next)];
+    $delay = socialWatchdogBackoffSeconds($next);
+    // Settings backoff: the panel's base minutes scale the shipped
+    // table (base 5 = the table as-is: 5/15/30/60/120 minutes).
+    if ($backoffBaseMinutes !== null && $backoffBaseMinutes > 0 && $backoffBaseMinutes !== 5) {
+        $delay = (int)round($delay * $backoffBaseMinutes / 5);
+    }
+    return ['retry_attempts' => $next, 'dead' => false, 'delay_seconds' => $delay];
 }
 
 /**
@@ -1150,7 +1379,7 @@ function socialWatchdogAfterFailure(int $retryAttempts): array
  * $post needs scheduled_at/status. All times are unix timestamps
  * pre-converted by the caller (DB rows arrive as UTC strings).
  */
-function socialWatchdogTargetEligible(array $target, array $post, int $now): bool
+function socialWatchdogTargetEligible(array $target, array $post, int $now, ?int $maxAttempts = null): bool
 {
     if (($post['status'] ?? '') === 'draft') return false;
     $due = !empty($post['scheduled_at']) ? strtotime((string)$post['scheduled_at'] . ' UTC') : false;
@@ -1164,7 +1393,7 @@ function socialWatchdogTargetEligible(array $target, array $post, int $now): boo
     } elseif (!in_array($status, ['pending', 'failed'], true)) {
         return false;   // published / dead / skipped are not watchdog work
     }
-    if ((int)($target['retry_attempts'] ?? 0) >= SOCIAL_WATCHDOG_MAX_ATTEMPTS) return false;
+    if ((int)($target['retry_attempts'] ?? 0) >= ($maxAttempts ?? socialWatchdogMaxAttempts())) return false;
     $next = !empty($target['next_retry_at']) ? strtotime((string)$target['next_retry_at'] . ' UTC') : false;
     if ($next !== false && $next > $now) return false;       // backoff not yet elapsed
     return true;
@@ -1182,6 +1411,9 @@ function socialWatchdogTargetEligible(array $target, array $post, int $now): boo
 function socialWatchdogSweep(?int $deadline = null): array
 {
     $pdo = db();
+    // Retry policy from the Settings panel (defaults = shipped values).
+    $maxAttempts = socialWatchdogMaxAttempts();
+    $backoffBase = (int)(socialSchedulerSettings()['retry']['backoffMinutes'] ?? 5);
     $stmt = $pdo->query(
         "SELECT t.*, p.scheduled_at AS post_scheduled_at, p.status AS post_status
            FROM social_post_targets t
@@ -1192,7 +1424,7 @@ function socialWatchdogSweep(?int $deadline = null): array
             AND (t.status IN ('pending', 'failed')
                  OR (t.status = 'publishing' AND t.updated_at <= UTC_TIMESTAMP() - INTERVAL 20 MINUTE))
             AND (t.next_retry_at IS NULL OR t.next_retry_at <= UTC_TIMESTAMP())
-            AND t.retry_attempts < " . SOCIAL_WATCHDOG_MAX_ATTEMPTS . "
+            AND t.retry_attempts < " . $maxAttempts . "
           ORDER BY p.scheduled_at ASC LIMIT 10"
     );
     $out = ['scanned' => 0, 'retried' => 0, 'published' => 0, 'dead' => 0];
@@ -1200,16 +1432,16 @@ function socialWatchdogSweep(?int $deadline = null): array
         $out['scanned']++;
         if ($deadline !== null && $out['retried'] > 0 && time() >= $deadline) break;
         $post = ['scheduled_at' => $row['post_scheduled_at'], 'status' => $row['post_status']];
-        if (!socialWatchdogTargetEligible($row, $post, time())) continue;
+        if (!socialWatchdogTargetEligible($row, $post, time(), $maxAttempts)) continue;
         $out['retried']++;
         $result = socialPublishTarget($row);
         if (!empty($result['skipped']) || !empty($result['deferred'])) {
             // Not the watchdog's to book-keep: 'skipped' means another
             // worker won the atomic claim first (this sweep did no
-            // work — uncount it); 'deferred' means the Facebook
-            // daily-cap test parked the target until the next New
-            // York day with its next_retry_at already set. Neither may
-            // burn a watchdog retry attempt.
+            // work — uncount it); 'deferred' means a Settings gate (a
+            // daily cap or a platform pause) parked the target with
+            // its next_retry_at already set. Neither may burn a
+            // watchdog retry attempt.
             if (!empty($result['skipped'])) $out['retried']--;
             continue;
         }
@@ -1224,7 +1456,7 @@ function socialWatchdogSweep(?int $deadline = null): array
             $pdo->prepare('UPDATE social_post_targets SET next_retry_at = UTC_TIMESTAMP() + INTERVAL 5 MINUTE, updated_at = UTC_TIMESTAMP() WHERE id = ?')
                 ->execute([$row['id']]);
         } else {
-            $d = socialWatchdogAfterFailure((int)$row['retry_attempts']);
+            $d = socialWatchdogAfterFailure((int)$row['retry_attempts'], $maxAttempts, $backoffBase);
             if ($d['dead']) {
                 $out['dead']++;
                 $pdo->prepare("UPDATE social_post_targets SET status = 'dead', retry_attempts = ?, next_retry_at = NULL, updated_at = UTC_TIMESTAMP() WHERE id = ?")

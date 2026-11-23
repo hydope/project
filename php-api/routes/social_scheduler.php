@@ -240,6 +240,21 @@ function socialStoreThumbnail(array $file): string
 /** Next free hourly slot (UTC) for autopilot-fed content, honouring caps. */
 function socialNextAutopilotSlot(): string
 {
+    // Settings slot times (UTC 'HH:MM') when the panel defines them:
+    // the next free configured slot wins over the hourly ladder.
+    if (function_exists('socialSchedulerSettings') && function_exists('socialNextSlotTs')) {
+        $times = socialSchedulerSettings()['slots'] ?? [];
+        if ($times !== []) {
+            $ts = socialNextSlotTs(time(), $times);
+            for ($i = 0; $i < 16 && $ts !== null; $i++) {
+                $slot = gmdate('Y-m-d H:i:s', $ts);
+                $stmt = db()->prepare("SELECT 1 FROM social_posts WHERE source IN ('autopilot','autopilot_reel') AND scheduled_at = ? AND status IN ('scheduled','publishing') LIMIT 1");
+                $stmt->execute([$slot]);
+                if (!$stmt->fetch()) return $slot;
+                $ts = socialNextSlotTs($ts, $times);
+            }
+        }
+    }
     $ts = (int)(floor(time() / 3600) * 3600) + 3600;
     for ($i = 0; $i < 48; $i++) {
         $slot = gmdate('Y-m-d H:i:s', $ts + $i * 3600);
@@ -273,6 +288,11 @@ function routeAdminSocial(string $method, array $segments): void
         if ($method === 'GET') { socialAutopilotGet(); return; }
         if ($method === 'PUT' || $method === 'POST') { socialAutopilotUpdate(); return; }
     }
+    if ($sub === 'settings') {
+        if ($method === 'GET') { socialSettingsGet(); return; }
+        if ($method === 'PUT' || $method === 'POST') { socialSettingsUpdate(); return; }
+    }
+    if ($sub === 'activity' && $method === 'GET') { socialActivityList(); return; }
     if ($sub === 'posts') {
         $id = $segments[1] ?? null;
         if ($method === 'GET' && $id === null) { socialPostsList(); return; }
@@ -950,6 +970,195 @@ function socialAutopilotUpdate(): void
     socialAutopilotSaveSettings($settings, (string)$admin['uid']);
     auditLog('social.autopilot.updated', 'social_autopilot', 'settings', ['enabled' => $settings['enabled']]);
     json(['ok' => true, 'autopilot' => $settings]);
+}
+
+// ── Scheduler settings (admin Settings panel, 2026-11-23) ──────────────
+// GET/PUT /api/admin/social/settings — every value lives in
+// social_state (the fb_daily_cap_test row for Facebook, the
+// social_scheduler_settings JSON for the rest) and is read at runtime
+// by the publisher, the watchdog, the autopilot and the storage
+// lifecycle: changing a value here never needs a code edit or deploy.
+
+/** The full Settings-panel payload: values + live counters + token health. */
+function socialSettingsPayload(): array
+{
+    $settings = socialSchedulerSettings();
+    $fbCfg = socialFacebookCapConfig();
+    if (!is_array($fbCfg)) $fbCfg = ['cap' => SOCIAL_FB_CAP_DEFAULT_CAP, 'until' => SOCIAL_FB_CAP_DEFAULT_UNTIL];
+    [$nyDate] = socialNyDayBoundsUtc(time());
+    $pdo = db();
+
+    $accounts = [];
+    $rows = $pdo->query('SELECT id, platform, account_name, status, token_expires_at FROM social_accounts ORDER BY platform ASC, created_at ASC')
+        ->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as $r) {
+        $exp = !empty($r['token_expires_at']) ? strtotime((string)$r['token_expires_at'] . ' UTC') : false;
+        $health = 'unknown';
+        $days = null;
+        if ($exp !== false) {
+            $days = (int)floor(($exp - time()) / 86400);
+            $health = $exp <= time() ? 'expired' : ($days < 7 ? 'expiring' : 'ok');
+        }
+        $accounts[] = [
+            'id' => (string)$r['id'],
+            'platform' => (string)$r['platform'],
+            'accountName' => $r['account_name'],
+            'status' => (string)$r['status'],
+            'tokenExpiresAt' => $r['token_expires_at'],
+            'tokenHealth' => $health,
+            'tokenDaysLeft' => $days,
+        ];
+    }
+
+    $storage = function_exists('socialStorageStatus') ? socialStorageStatus() : null;
+    return [
+        'fbCap' => [
+            'cap' => (int)$fbCfg['cap'],
+            'until' => (string)$fbCfg['until'],
+            'active' => socialFacebookCapForDate($fbCfg, $nyDate) !== null,
+            'usedToday' => socialPublishedTodayCount($pdo, 'facebook', time()),
+        ],
+        'dailyCaps' => [
+            'instagram' => [
+                'cap' => $settings['dailyCaps']['instagram'],
+                'usedToday' => socialPublishedTodayCount($pdo, 'instagram', time()),
+            ],
+            'youtube' => [
+                'cap' => $settings['dailyCaps']['youtube'],
+                'usedToday' => socialPublishedTodayCount($pdo, 'youtube', time()),
+                'quotaNote' => 'The YouTube Data API quota currently allows about 6 uploads/day — this cap cannot exceed what the quota grants until the pending quota extension is approved.',
+            ],
+        ],
+        'paused' => $settings['paused'],
+        'slots' => $settings['slots'],
+        'firstCommentMode' => $settings['firstCommentMode'],
+        'retry' => $settings['retry'],
+        'storage' => [
+            'budgetGiB' => $settings['storage']['budgetGiB'],
+            'purgeHours' => $settings['storage']['purgeHours'],
+            'usedBytes' => $storage['mediaDirBytes'] ?? null,
+            'budgetBytes' => $storage['mediaBudgetBytes'] ?? null,
+            'usedPct' => $storage['mediaBudgetUsedPct'] ?? null,
+        ],
+        'accounts' => $accounts,
+    ];
+}
+
+function socialSettingsGet(): void
+{
+    json(['ok' => true, 'settings' => socialSettingsPayload()]);
+}
+
+function socialSettingsUpdate(): void
+{
+    $admin = requireAdminUser();
+    $body = requestJson();
+    $settings = socialSchedulerSettings();
+    $released = [];
+
+    // Facebook cap: the fb_daily_cap_test row the publisher reads.
+    if (isset($body['fbCap']) && is_array($body['fbCap'])) {
+        $cfg = socialFacebookCapConfig();
+        if (!is_array($cfg)) $cfg = ['cap' => SOCIAL_FB_CAP_DEFAULT_CAP, 'until' => SOCIAL_FB_CAP_DEFAULT_UNTIL];
+        if (array_key_exists('cap', $body['fbCap'])) {
+            $cfg['cap'] = max(0, min(100, (int)$body['fbCap']['cap']));
+        }
+        if (isset($body['fbCap']['until']) && is_string($body['fbCap']['until'])) {
+            $until = trim($body['fbCap']['until']);
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $until)) je('Facebook cap window end must be a date (YYYY-MM-DD).', 400);
+            $cfg['until'] = $until;
+        }
+        socialStateSet(SOCIAL_FB_CAP_STATE_KEY, (string)json_encode(['cap' => (int)$cfg['cap'], 'until' => (string)$cfg['until']]));
+        // A raised/lifted cap frees the targets it was holding.
+        $released['facebook'] = socialReleaseCapDeferredTargets('facebook');
+    }
+
+    if (isset($body['dailyCaps']) && is_array($body['dailyCaps'])) {
+        foreach (['instagram', 'youtube'] as $p) {
+            if (array_key_exists($p, $body['dailyCaps'])) {
+                $v = $body['dailyCaps'][$p];
+                $settings['dailyCaps'][$p] = ($v === null || $v === '') ? null : max(0, min(100, (int)$v));
+            }
+        }
+    }
+    if (isset($body['paused']) && is_array($body['paused'])) {
+        foreach (['facebook', 'instagram', 'youtube'] as $p) {
+            if (array_key_exists($p, $body['paused'])) $settings['paused'][$p] = !empty($body['paused'][$p]);
+        }
+    }
+    if (isset($body['slots']) && is_array($body['slots'])) {
+        $settings['slots'] = $body['slots']; // validated/sorted by the save merge
+    }
+    if (isset($body['firstCommentMode']) && in_array($body['firstCommentMode'], ['stored', 'hook', 'off'], true)) {
+        $settings['firstCommentMode'] = (string)$body['firstCommentMode'];
+    }
+    if (isset($body['retry']) && is_array($body['retry'])) {
+        if (isset($body['retry']['maxAttempts'])) $settings['retry']['maxAttempts'] = (int)$body['retry']['maxAttempts'];
+        if (isset($body['retry']['backoffMinutes'])) $settings['retry']['backoffMinutes'] = (int)$body['retry']['backoffMinutes'];
+    }
+    if (isset($body['storage']) && is_array($body['storage'])) {
+        if (array_key_exists('budgetGiB', $body['storage'])) {
+            $settings['storage']['budgetGiB'] = $body['storage']['budgetGiB'] === null ? null : (float)$body['storage']['budgetGiB'];
+        }
+        if (isset($body['storage']['purgeHours'])) $settings['storage']['purgeHours'] = (int)$body['storage']['purgeHours'];
+    }
+    socialSchedulerSettingsSave($settings);
+    foreach (['instagram', 'youtube'] as $p) {
+        if (isset($body['dailyCaps']) && is_array($body['dailyCaps']) && array_key_exists($p, $body['dailyCaps'])) {
+            $released[$p] = socialReleaseCapDeferredTargets($p);
+        }
+    }
+    auditLog('social.settings.updated', 'social_state', SOCIAL_SETTINGS_KEY, ['by' => (string)($admin['uid'] ?? ''), 'released' => $released]);
+    json(['ok' => true, 'settings' => socialSettingsPayload(), 'released' => $released]);
+}
+
+/**
+ * Recent scheduler activity for the Settings panel: the last 30
+ * target events (publishes, cap defers, pauses, failures, retries)
+ * with plain-language reasons, newest first.
+ */
+function socialActivityList(): void
+{
+    $rows = db()->query(
+        "SELECT t.platform, t.status, t.error, t.published_at, t.updated_at, t.retry_attempts, t.platform_url, p.caption
+           FROM social_post_targets t
+           JOIN social_posts p ON p.id = t.post_id
+          WHERE t.published_at IS NOT NULL OR t.error IS NOT NULL OR t.status IN ('failed','dead')
+          ORDER BY COALESCE(t.published_at, t.updated_at) DESC
+          LIMIT 30"
+    )->fetchAll(PDO::FETCH_ASSOC);
+    $events = [];
+    foreach ($rows as $r) {
+        $error = trim((string)($r['error'] ?? ''));
+        if ((string)$r['status'] === 'published') {
+            $type = 'published';
+            $reason = $error !== '' ? 'Published. Note: ' . $error : 'Published.';
+        } elseif (str_contains($error, 'daily cap reached') || str_contains($error, 'paused')) {
+            $type = 'deferred';
+            $reason = $error;
+        } elseif ((string)$r['status'] === 'dead') {
+            $type = 'dead';
+            $reason = $error !== '' ? $error : 'Failed permanently after all retries.';
+        } elseif ((string)$r['status'] === 'failed') {
+            $type = 'failed';
+            $reason = $error !== '' ? $error : 'Publish failed.';
+        } elseif ((int)($r['retry_attempts'] ?? 0) > 0) {
+            $type = 'retry';
+            $reason = $error !== '' ? $error : 'Waiting to retry.';
+        } else {
+            $type = 'note';
+            $reason = $error;
+        }
+        $events[] = [
+            'platform' => (string)$r['platform'],
+            'type' => $type,
+            'reason' => $reason,
+            'at' => $r['published_at'] ?? $r['updated_at'],
+            'url' => $r['platform_url'],
+            'caption' => mb_substr((string)($r['caption'] ?? ''), 0, 90),
+        ];
+    }
+    json(['ok' => true, 'events' => $events]);
 }
 
 // ── Reel ingest (Muse-side generator -> queue) ──────────────────────────

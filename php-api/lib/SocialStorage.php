@@ -39,6 +39,16 @@ const SOCIAL_PURGE_ANCHOR_KEY = 'social_purge_dryrun_anchor';
 
 function socialMediaBudgetBytes(): int
 {
+    // The admin Settings panel wins over the env var: the budget is
+    // an operational knob, not a deploy artifact.
+    if (function_exists('socialSchedulerSettings')) {
+        try {
+            $gib = socialSchedulerSettings()['storage']['budgetGiB'] ?? null;
+            if ($gib !== null && (float)$gib > 0) return (int)round((float)$gib * 1024 * 1024 * 1024);
+        } catch (Throwable) {
+            // Fall through to the legacy resolution.
+        }
+    }
     $raw = trim((string)(getenv('SOCIAL_MEDIA_BUDGET_BYTES') ?: ''));
     if ($raw !== '' && is_numeric($raw) && (int)$raw > 0) return (int)$raw;
     return 2 * 1024 * 1024 * 1024; // 2 GiB
@@ -123,7 +133,7 @@ function socialParseUtc(?string $s): ?int
  * @param array $targets social_post_targets rows for the post
  * @return ?array ['reason'=>string,'note'=>string] or null to keep the file
  */
-function socialPurgeDecision(array $post, array $targets, int $now, bool $emergency = false): ?array
+function socialPurgeDecision(array $post, array $targets, int $now, bool $emergency = false, int $graceHours = 72): ?array
 {
     if (empty($post['media_path'])) return null;
     if (!empty($post['media_purged_at'])) return null;
@@ -165,14 +175,15 @@ function socialPurgeDecision(array $post, array $targets, int $now, bool $emerge
     }
 
     // Fully live everywhere it was sent: the platforms hold the content.
+    // The grace is the Settings panel's purge delay (72h by default).
     if ($anyPublished && $allSettledLive && $lastPublish !== null) {
         if ($emergency) {
             return ['reason' => 'emergency_storage_95',
-                    'note' => 'Media purged EARLY by the storage watchdog (account usage ≥95% of quota): 72h grace skipped to protect the website. Content lives on the platforms; URLs are on the targets.'];
+                    'note' => 'Media purged EARLY by the storage watchdog (account usage ≥95% of quota): ' . $graceHours . 'h grace skipped to protect the website. Content lives on the platforms; URLs are on the targets.'];
         }
-        if ($now - $lastPublish >= 72 * 3600) {
+        if ($now - $lastPublish >= $graceHours * 3600) {
             return ['reason' => 'published_grace_72h',
-                    'note' => 'Media purged: all targets published >72h ago. Server copy deleted; content lives on the platforms (URLs on the targets).'];
+                    'note' => 'Media purged: all targets published >' . $graceHours . 'h ago. Server copy deleted; content lives on the platforms (URLs on the targets).'];
         }
         return null; // still inside the grace window — nothing else applies
     }
@@ -301,11 +312,20 @@ function socialPurgeSweep(bool $emergency = false): array
     // SELECT * omits it pre-migration, and preparing against a missing
     // column here would throw outside the guarded section above).
     $updThumbStmt = null;
+    // Purge grace from the Settings panel (72h by default).
+    $graceHours = 72;
+    if (function_exists('socialSchedulerSettings')) {
+        try {
+            $graceHours = (int)(socialSchedulerSettings()['storage']['purgeHours'] ?? 72);
+        } catch (Throwable) {
+            $graceHours = 72;
+        }
+    }
     foreach ($rows as $row) {
         try {
             $tgtStmt->execute([(string)$row['id']]);
             $targets = $tgtStmt->fetchAll(PDO::FETCH_ASSOC);
-            $decision = socialPurgeDecision($row, $targets, time(), $emergency);
+            $decision = socialPurgeDecision($row, $targets, time(), $emergency, $graceHours);
             if ($decision === null) continue;
             $file = function_exists('socialMediaFile') ? socialMediaFile($row['media_path'] ?? null) : null;
             $bytes = $file ? (int)@filesize($file) : 0;
@@ -356,7 +376,7 @@ function socialMediaBudgetExceeded(int $incomingBytes = 0): bool
 function socialMediaBudgetError(): string
 {
     $gb = rtrim(rtrim(number_format(socialMediaBudgetBytes() / 1073741824, 2), '0'), '.');
-    return 'Social media storage is at its ' . $gb . ' GB budget — new videos are paused until published files are purged or the budget is raised (SOCIAL_MEDIA_BUDGET_BYTES). Nothing was saved.';
+    return 'Social media storage is at its ' . $gb . ' GB budget — new videos are paused until published files are purged or the budget is raised in the admin Settings panel. Nothing was saved.';
 }
 
 // ── Account watchdog ────────────────────────────────────────────────────
