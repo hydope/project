@@ -82,7 +82,7 @@ jobs:
           PHP
       - name: Upload the script
         run: |
-          curl -sS --insecure --ftp-create-dirs -T social-settings-apply-once.php "ftp://$FTP_USERNAME:$FTP_PASSWORD@$FTP_SERVER/public_html/api/social-settings-apply-once.php"
+          curl -sS --insecure --ftp-create-dirs --user "$FTP_USERNAME:$FTP_PASSWORD" -T social-settings-apply-once.php "ftp://$FTP_SERVER/public_html/api/social-settings-apply-once.php"
       - name: Call it (apply + read back)
         run: |
           curl -sS --max-time 120 -H "X-Seeder-Cron-Key: $SEEDER_CRON_KEY" "https://shiarishta.com/api/social-settings-apply-once.php" | tee apply-result.json
@@ -90,4 +90,4 @@ jobs:
       - name: Delete the script
         if: always()
         run: |
-          curl -sS --insecure "ftp://$FTP_USERNAME:$FTP_PASSWORD@$FTP_SERVER/" -Q "-DELE public_html/api/social-settings-apply-once.php" || echo "FTP delete failed - the script is cron-key protected; remove it manually"
+          curl -sS --insecure --user "$FTP_USERNAME:$FTP_PASSWORD" "ftp://$FTP_SERVER/" -Q "-DELE public_html/api/social-settings-apply-once.php" || echo "FTP delete failed - the script is cron-key protected; remove it manually"
