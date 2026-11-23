@@ -75,6 +75,14 @@ const sections = [
       { heading: 'Legal Holds', text: 'If required by law or legal proceedings, certain data may be retained beyond the standard period.' },
     ]
   },
+  {
+    id: 'youtube-api-services',
+    title: '7. YouTube API Services',
+    icon: FileText,
+    content: [
+      { heading: 'Our Use of YouTube API Services', text: 'Shia Rishta uses the YouTube API Services to upload videos to, and check the status of videos on, our own YouTube channel. We access only our own channel data using the youtube.upload and youtube.readonly scopes; we do not collect data about other YouTube users. Use of YouTube is also subject to Google\u2019s Privacy Policy: ', link: 'https://policies.google.com/privacy', tail: '. You can revoke our access at any time from your Google account\u2019s security settings.' },
+    ]
+  },
 ];
 
 export default function Privacy() {
@@ -102,7 +110,7 @@ export default function Privacy() {
                 {section.content.map(item => (
                   <div key={item.heading}>
                     <h3 className="font-semibold text-ink text-sm mb-1">{item.heading}</h3>
-                    <p className="text-sm text-muted leading-relaxed">{item.text}</p>
+                    <p className="text-sm text-muted leading-relaxed">{item.text}{item.link && <a href={item.link} target="_blank" rel="noreferrer" className="text-primary hover:underline">{item.link}</a>}{item.tail || ''}</p>
                   </div>
                 ))}
               </div>
