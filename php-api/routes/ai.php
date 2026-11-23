@@ -85,6 +85,20 @@ function routeAI(string $method, array $segments): void
         return;
     }
 
+    // POST /api/ai/queue-update — replace an existing post's content by
+    // slug (blog rewrite program). Service-key authed, quality-gated.
+    if ($method === 'POST' && $action === 'queue-update') {
+        aiQueueUpdate();
+        return;
+    }
+
+    // POST /api/ai/hold-templates — flip scheduled fallback-template posts
+    // to draft so they can never publish. Service-key authed.
+    if ($method === 'POST' && $action === 'hold-templates') {
+        aiHoldTemplates();
+        return;
+    }
+
     // POST /api/ai/publish-due — flip scheduled posts whose time has arrived
     // to published. Service-key authed. Called by the daily workflow before
     // generating new posts.
@@ -374,6 +388,58 @@ function aiComputeReadTime(array $blocks): string
     $words = str_word_count(strip_tags($text));
     $mins = max(1, (int)round($words / 200));
     return $mins . ' min';
+}
+
+/**
+ * Blog quality gate (2026-11-22, Syed's order after the duplicate audit).
+ *
+ * The old Actions fallback_post.py substituted a deterministic 94-word
+ * template whenever NVIDIA generation failed, and no save path checked
+ * length or content — 117 identical posts reached the blog. These helpers
+ * are the server-side last line of defence, shared by aiQueueSave() and
+ * aiQueueUpdate(): a post below the gate is never stored.
+ */
+function aiBodyText(array $blocks): string
+{
+    $parts = [];
+    foreach ($blocks as $b) {
+        if (is_array($b) && isset($b['x']) && is_string($b['x'])) {
+            $parts[] = $b['x'];
+        }
+    }
+    return implode("\n", $parts);
+}
+
+function aiBodyWordCount(array $blocks): int
+{
+    return str_word_count(strip_tags(aiBodyText($blocks)));
+}
+
+/** Stock phrases from the retired fallback template. Any hit = template. */
+function aiTemplatePhrases(): array
+{
+    return [
+        'in the journey toward nikah',
+        'provide clear guidance on marriage',
+        'begin with clear intention',
+        'may allah bless your search',
+    ];
+}
+
+function aiTemplateHitCount(array $blocks): int
+{
+    $lower = strtolower(aiBodyText($blocks));
+    $hits = 0;
+    foreach (aiTemplatePhrases() as $p) {
+        if (str_contains($lower, $p)) $hits++;
+    }
+    return $hits;
+}
+
+/** True when a body is a real article: >=600 words and zero template text. */
+function aiPassesQualityGate(array $blocks): bool
+{
+    return aiBodyWordCount($blocks) >= 600 && aiTemplateHitCount($blocks) === 0;
 }
 
 function aiNormalizeBlock(array $b): ?array
@@ -1010,7 +1076,12 @@ function aiQueueNext(): void
     }
 
     // Reset stale 'in_progress' (a crashed run shouldn't block the queue forever).
-    db()->exec("UPDATE blog_queue SET status = 'queued' WHERE status = 'in_progress' AND attempts < 3");
+    // Since 2026-11-22 a reset also costs the topic an attempt: with the
+    // template fallback gone, a topic whose generation keeps failing would
+    // otherwise sit at the head of the queue forever. Three strikes and it
+    // is marked 'failed' like every other path.
+    db()->exec("UPDATE blog_queue SET status = 'failed', attempts = attempts + 1 WHERE status = 'in_progress' AND attempts >= 2");
+    db()->exec("UPDATE blog_queue SET status = 'queued', attempts = attempts + 1 WHERE status = 'in_progress' AND attempts < 2");
 
     $row = db()->query(
         "SELECT * FROM blog_queue WHERE status = 'queued' ORDER BY position ASC LIMIT 1"
@@ -1083,6 +1154,17 @@ function aiQueueSave(): void
     if ($title === '' || !$blocks) {
         $r = $release();
         json(['ok' => false, 'reason' => 'invalid_post', 'attempt' => $r['attempts'], 'will_retry' => $r['will_retry']]);
+    }
+
+    // Quality gate (2026-11-22): never store a short or templated post,
+    // whatever produced it. The topic returns to the queue (or fails after
+    // 3 attempts) instead of the blog gaining another duplicate.
+    if (!aiPassesQualityGate($blocks)) {
+        $r = $release();
+        json(['ok' => false, 'reason' => 'below_quality_gate',
+              'words' => aiBodyWordCount($blocks),
+              'template_hits' => aiTemplateHitCount($blocks),
+              'attempt' => $r['attempts'], 'will_retry' => $r['will_retry']]);
     }
 
     // Next free slot: fixed daily slots at 09:00, 15:00, 21:00 UTC
@@ -1173,6 +1255,109 @@ function aiQueueSave(): void
         'slug' => $slug, 'keyword' => (string)$topic['keyword'], 'scheduled_for' => $slot, 'via' => 'actions',
     ]);
     json(['ok' => true, 'id' => $id, 'slug' => $slug, 'title' => $title, 'scheduled_for' => $slot]);
+}
+
+/**
+ * POST /api/ai/queue-update — replace an existing post's content by slug.
+ *
+ * Service-key auth (same X-Blog-Cron-Key as queue-save). Body:
+ * { slug, post: { title, excerpt, category, body: [{t, x}] } }.
+ * Built for the 2026-11-22 blog rewrite program: the admin session route
+ * (PUT /api/ai/posts/:id) is the interactive path, but batch-applying 117
+ * verified rewrites needs the same service-key route the generator uses.
+ * Only content fields change — slug, status, schedule and dates are kept,
+ * so a published post stays published at the same URL. The quality gate
+ * applies here too: a rewrite below the gate is refused, never stored.
+ */
+function aiQueueUpdate(): void
+{
+    $providedKey = $_SERVER['HTTP_X_BLOG_CRON_KEY'] ?? '';
+    $wantKey = (string)($_ENV['BLOG_CRON_KEY'] ?? getenv('BLOG_CRON_KEY') ?? '');
+    if ($wantKey === '' || !hash_equals($wantKey, (string)$providedKey)) {
+        json(['error' => 'Unauthorized'], 401);
+    }
+
+    $body = requestJson();
+    $slug = sanitizeText((string)($body['slug'] ?? ''), 200);
+    $post = $body['post'] ?? null;
+    if ($slug === '' || !is_array($post)) {
+        json(['ok' => false, 'reason' => 'bad_request'], 400);
+    }
+
+    $stmt = db()->prepare('SELECT id, status FROM blog_posts WHERE slug = ? LIMIT 1');
+    $stmt->execute([$slug]);
+    $existing = $stmt->fetch();
+    if (!$existing) {
+        json(['ok' => false, 'reason' => 'unknown_slug'], 404);
+    }
+
+    $title = sanitizeText((string)($post['title'] ?? ''), 160);
+    $excerpt = sanitizeText((string)($post['excerpt'] ?? ''), 300);
+    $category = sanitizeText((string)($post['category'] ?? 'Guidance'), 40);
+    $blocks = [];
+    foreach ((array)($post['body'] ?? []) as $b) {
+        if (!is_array($b)) continue;
+        $norm = aiNormalizeBlock($b);
+        if ($norm !== null) $blocks[] = $norm;
+    }
+    if ($title === '' || !$blocks) {
+        json(['ok' => false, 'reason' => 'invalid_post'], 400);
+    }
+    if (!aiPassesQualityGate($blocks)) {
+        json(['ok' => false, 'reason' => 'below_quality_gate',
+              'words' => aiBodyWordCount($blocks),
+              'template_hits' => aiTemplateHitCount($blocks)], 422);
+    }
+
+    db()->prepare(
+        'UPDATE blog_posts SET title = ?, excerpt = ?, category = ?, read_time = ?,
+                body = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?'
+    )->execute([
+        $title, $excerpt, $category, aiComputeReadTime($blocks),
+        json_encode($blocks, JSON_UNESCAPED_UNICODE), (string)$existing['id'],
+    ]);
+    auditLog('post.queue_updated', 'blog_post', (string)$existing['id'], [
+        'slug' => $slug, 'words' => aiBodyWordCount($blocks), 'via' => 'actions',
+    ]);
+    json(['ok' => true, 'slug' => $slug, 'status' => (string)$existing['status'],
+          'words' => aiBodyWordCount($blocks)]);
+}
+
+/**
+ * POST /api/ai/hold-templates — unpublish scheduled template posts.
+ *
+ * Service-key auth. The retired fallback template also filled the
+ * scheduled queue (up to 90 posts waiting their slot). Any SCHEDULED post
+ * whose body carries at least two of the template's signature phrases and
+ * is under 250 words is unmistakably a fallback product: it is flipped to
+ * 'draft' (held, reviewable in admin, never deleted) so it can never
+ * publish. Published posts are NOT touched here — those are being
+ * rewritten through aiQueueUpdate().
+ */
+function aiHoldTemplates(): void
+{
+    $providedKey = $_SERVER['HTTP_X_BLOG_CRON_KEY'] ?? '';
+    $wantKey = (string)($_ENV['BLOG_CRON_KEY'] ?? getenv('BLOG_CRON_KEY') ?? '');
+    if ($wantKey === '' || !hash_equals($wantKey, (string)$providedKey)) {
+        json(['error' => 'Unauthorized'], 401);
+    }
+
+    $held = [];
+    $rows = db()->query(
+        "SELECT id, slug, body FROM blog_posts WHERE status = 'scheduled'"
+    )->fetchAll();
+    foreach ($rows as $r) {
+        $blocks = json_decode((string)($r['body'] ?? ''), true);
+        if (!is_array($blocks)) continue;
+        if (aiTemplateHitCount($blocks) >= 2 && aiBodyWordCount($blocks) < 250) {
+            db()->prepare(
+                "UPDATE blog_posts SET status = 'draft', updated_at = UTC_TIMESTAMP() WHERE id = ?"
+            )->execute([(string)$r['id']]);
+            $held[] = (string)$r['slug'];
+        }
+    }
+    auditLog('post.templates_held', 'blog_post', '', ['count' => count($held)]);
+    json(['ok' => true, 'held' => count($held), 'slugs' => $held]);
 }
 
 /**

@@ -1,0 +1,28 @@
+name: Blog Rewrite Apply
+
+# Applies the verified blog rewrites from blog-rewrites/<batch>/ to the live
+# posts via POST /api/ai/queue-update (service-key auth, quality-gated
+# server-side), then holds any still-scheduled fallback-template posts as
+# drafts via /api/ai/hold-templates so they can never publish.
+#
+# Manual dispatch only. Set the batch input to the folder under
+# blog-rewrites/ (default batch1). Added 2026-11-22 for the rewrite program
+# that replaces the 117 template posts found by the duplicate audit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch:
+        description: "Batch folder under blog-rewrites/"
+        required: true
+        default: "batch1"
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply rewrites and hold scheduled templates
+        env:
+          BLOG_CRON_KEY: ${{ secrets.BLOG_CRON_KEY }}
+        run: python3 .github/scripts/apply_rewrites.py "blog-rewrites/${{ inputs.batch }}"

@@ -79,10 +79,14 @@ jobs:
               echo "Full NVIDIA response (first 2000 chars):"
               echo "$NVIDIA_RESP" | head -c 2000
               echo ""
-              # Fallback: deterministic template post so a bad model day
-              # can never empty the queue.
-              echo "Using fallback template post..."
-              POST_JSON=$(python3 .github/scripts/fallback_post.py /tmp/topic.json)
+              # NO template fallback (removed 2026-11-22): the old
+              # deterministic fallback_post.py is what filled the blog with
+              # 117 identical 94-word posts. A failed or below-gate
+              # generation now saves NOTHING — the topic returns to the
+              # queue (attempts increment server-side) and a later run
+              # retries it. An empty slot is better than a fake article.
+              echo "SKIPPING topic $TOPIC_ID — no usable post, nothing saved"
+              continue
             fi
 
             # Pick a random cover image from the pool
@@ -93,7 +97,7 @@ jobs:
             # workflow YAML free of embedded-python indentation traps)
             POST_JSON=$(echo "$POST_JSON" | python3 .github/scripts/inject_image.py "$IMAGE_URL")
             if ! echo "$POST_JSON" | grep -q '"title"'; then
-              echo "FALLBACK_FAILED: no usable post for topic $TOPIC_ID, moving on"
+              echo "NO_USABLE_POST for topic $TOPIC_ID, moving on"
               continue
             fi
 
