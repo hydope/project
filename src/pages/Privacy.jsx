@@ -13,7 +13,7 @@ const sections = [
     content: [
       { heading: 'Profile Information', text: 'Display name, date of birth (stored only to enforce the 18+ minimum age), age, gender, city, country, citizenships, profession, education level, ethnicity, sub-ethnicity, languages, bio, about your family, and faith details (sect, religiosity, marja, modesty practice, diet). Also height, income range, marital status, children and children plans, relocation, family involvement, nikah timeline, seeking gender, what you are looking for, syed status, and username. If a guardian manages your profile, we store the management mode plus the guardian\u2019s name and email. These are provided voluntarily during onboarding and can be edited at any time. Your marja is collected for matching but is never shown to other members.' },
       { heading: 'Account Information', text: 'Email address, hashed password, display name, role, email-verified status, and verification status with reviewer notes. We never store your password in plain text — passwords are one-way hashed (bcrypt) and cannot be read back, by us or anyone else. One-time email verification and password-reset links are stored only as SHA-256 hashes, so a database leak cannot be replayed as a valid link. If you sign in with Google or Facebook, we store that provider\u2019s account ID — never your password there.' },
-      { heading: 'Photos & Media', text: 'Profile photos you upload, stored on our server. You choose who can see them — everyone, signed-in members only, or only you (the default is members-only) — and you can change or remove them at any time. We do not publish your photos to search engines or third parties, and we do not sell or license your images to anyone.' },
+      { heading: 'Photos & Media', text: 'Profile photos you upload, stored on our server. You choose who can see them — Public (anyone), Members only (signed-in members), or Private (only you). The default is Members only — and you can change or remove them at any time. We do not publish your photos to search engines or third parties, and we do not sell or license your images to anyone.' },
       { heading: 'Identity Verification', text: 'A government ID or selfie you submit for a verification badge. The file is encrypted at rest before it is written to disk, readable only by our review team, and never shown to another member. The file is deleted once the review is complete; the decision (approved or rejected), the badge, and the review note are kept while your account is active.' },
       { heading: 'Messages & Activity', text: 'Messages you send (encrypted at rest with AES-256-GCM — only the two participants can read them; our staff cannot read your message history), interests you express, profiles you block or report, reports you file, matchmaker submissions, guardian/wali links, biodata drafts, community posts and replies, support tickets, and — only if you delete your account — the optional reason you chose to leave.' },
       { heading: 'Usage & Analytics', text: 'Pages viewed, search filters used, device and browser information, and an anonymous day-scoped visitor hash for aggregate analytics. This helps us improve the platform and recommend better matches. It is never used for advertising and never sold.' },
@@ -35,9 +35,9 @@ const sections = [
     title: '3. Your Privacy Controls',
     icon: Eye,
     content: [
-      { heading: 'Photo Visibility', text: 'Choose between: everyone, signed-in members only, or only you. The default is members-only. You decide who can open each photo, and you can change this at any time.' },
-      { heading: 'Profile Visibility', text: 'By default your profile appears in browse and search for signed-in members. Incognito hides your profile from browse and search while you keep browsing; Private hides it from everyone but you.' },
-      { heading: 'Discreet Browsing', text: 'Incognito mode hides your profile from browse and search. There are no visitor lists and no online-status indicator on the platform — nobody can see whether you are online or whose profile you viewed.' },
+      { heading: 'Photo Visibility', text: 'Choose between three tiers: Public (anyone), Members only (signed-in members), or Private (only you). The default is Members only. You decide who can open each photo, and you can change this at any time.' },
+      { heading: 'Profile Visibility', text: 'Profiles are browsable by visitors: the Public and Members settings show your profile the same way, to signed-in members and to guests alike. Only Private hides your profile from everyone but you (a mutual match can still see it). Photos are a separate control — a public profile never means a public photo.' },
+      { heading: 'Discreet Browsing', text: 'Setting your profile to Private (called Incognito in onboarding) hides it from browse and search while you keep browsing. There are no visitor lists and no online-status indicator on the platform — nobody can see whether you are online or whose profile you viewed.' },
       { heading: 'Hide Individual Fields', text: 'In Settings → Privacy & Safety you can hide individual profile fields (such as height, children, or what you are looking for) from other members. Hidden fields are still used for matching and filters — only the display is hidden. Your display name, verification badges, guardian badge, and photo-visibility setting cannot be hidden.' },
       { heading: 'Guardian Management', text: 'Add or remove guardians at any time. Only you can revoke a guardian link — the person holding it cannot. A revoked link can be restored within 24 hours; after that it is gone for good and you will need to generate a new one.' },
       { heading: 'Data Export & Deletion', text: 'Export all your data at any time from Settings → Account. Delete your account yourself from Settings → Account → Delete account (type DELETE to confirm). Your profile, messages, interests, and reports are removed immediately; backups are purged within 30 days.' },
@@ -49,7 +49,7 @@ const sections = [
     icon: Users,
     content: [
       { heading: 'We Never Sell Your Data', text: 'Your personal information is never sold, rented, or shared with third parties for marketing purposes. Period.' },
-      { heading: 'Service Providers', text: 'We use trusted third-party services (cloud hosting, email delivery) under strict data processing agreements. They access data only to provide services on our behalf. There is no payment processor — the site has no paid tier and no payment system.' },
+      { heading: 'Service Providers', text: 'A small number of third-party processors handle data on our behalf — they are listed in full in section 8 (Third-Party Processors) below. They may access data only to provide their service to us. There is no payment processor — the site has no paid tier and no payment system.' },
       { heading: 'Legal Requirements', text: 'We may disclose information if required by law, court order, or to protect the rights, property, or safety of Shia Rishta, our users, or the public.' },
     ]
   },
@@ -76,8 +76,32 @@ const sections = [
     ]
   },
   {
+    id: 'cookies-storage',
+    title: '7. Cookies & Browser Storage',
+    icon: FileText,
+    content: [
+      { heading: 'Our Own Storage — Not Tracking Cookies', text: 'Shia Rishta does not set first-party advertising or tracking cookies, and our analytics are first-party and aggregate (an anonymous day-scoped visitor hash — see section 1). The app instead keeps a few items in your browser\u2019s local storage so it can work: your sign-in token (so you stay signed in), a cached copy of your own profile and onboarding draft (so forms survive a refresh), Islamic calendar data, and a dismissed-banner preference kept for the current session only. Clearing your browser storage signs you out and removes all of it.' },
+      { heading: 'Cloudflare Security Cookies', text: 'The site is delivered through Cloudflare, our content-delivery and security provider. Cloudflare may set strictly necessary cookies in your browser to tell humans apart from bots and to protect the site from attacks. These are security cookies, not advertising cookies, and we do not control their exact names or lifetimes — Cloudflare documents them in its own cookie documentation.' },
+      { heading: 'Google Fonts', text: 'Pages load fonts from Google Fonts, so your browser fetches font files directly from Google\u2019s servers (fonts.googleapis.com and fonts.gstatic.com). That request exposes your IP address to Google, the way any request to a website does. Google Fonts does not set cookies in your browser for this.' },
+      { heading: 'Sign-In Providers', text: 'If you choose to sign in with Google or Facebook, that provider\u2019s sign-in window may set its own cookies in your browser under its own privacy policy. If you never use social sign-in, those providers are not loaded.' },
+    ]
+  },
+  {
+    id: 'processors',
+    title: '8. Third-Party Processors',
+    icon: Users,
+    content: [
+      { heading: 'Hosting Provider', text: 'Our web hosting provider (shared cPanel/LiteSpeed hosting) stores the site, the database, your uploaded photos and verification files on its servers, and its mail servers deliver our transactional email (verification, password-reset and notification emails) — so email addresses and the contents of those emails pass through the hosting mail system.' },
+      { heading: 'Cloudflare', text: 'Cloudflare delivers pages and protects the site, so every request — including your IP address and browser details — passes through Cloudflare\u2019s network.' },
+      { heading: 'Google Fonts', text: 'Google serves the fonts used on the site and in the biodata maker. Your browser requests them from Google directly, exposing your IP address to Google (see section 7). No account or profile data is sent.' },
+      { heading: 'Google & Meta (Sign-In Only)', text: 'Only if you sign in with Google or Facebook: the provider verifies your identity and returns your account ID and basic account details to us. We never receive your password for those services.' },
+      { heading: 'NVIDIA (Assistant Only)', text: 'Our on-site Assistant is powered by NVIDIA\u2019s AI API. When you ask the Assistant a question, the text of your question and the last few turns of that conversation are sent to NVIDIA to generate the answer, together with platform facts and minimal context flags (such as whether you are signed in) — never your profile, photos, or messages with other members.' },
+      { heading: 'YouTube (Google)', text: 'We use the YouTube API Services for our own channel only — see section 9.' },
+    ]
+  },
+  {
     id: 'youtube-api-services',
-    title: '7. YouTube API Services',
+    title: '9. YouTube API Services',
     icon: FileText,
     content: [
       { heading: 'Our Use of YouTube API Services', text: 'Shia Rishta uses the YouTube API Services to upload videos to, and check the status of videos on, our own YouTube channel. We access only our own channel data using the youtube.upload and youtube.readonly scopes; we do not collect data about other YouTube users. Use of YouTube is also subject to Google\u2019s Privacy Policy: ', link: 'https://policies.google.com/privacy', tail: '. You can revoke our access at any time from your Google account\u2019s security settings.' },
@@ -92,7 +116,7 @@ export default function Privacy() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
           <span className="text-xs font-bold uppercase tracking-widest text-primary">Your privacy matters</span>
           <h1 className="text-3xl sm:text-4xl font-bold text-ink mt-2">Privacy Policy</h1>
-          <p className="text-muted mt-2">Last updated: November 2026</p>
+          <p className="text-muted mt-2">Last updated: 24 November 2026</p>
           <p className="text-sm text-muted mt-4 max-w-2xl mx-auto">
             At Shia Rishta, privacy is a right — not a premium feature. This policy explains what we collect, how we use it, and the controls you have.
           </p>

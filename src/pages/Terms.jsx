@@ -43,7 +43,7 @@ const sections = [
     id: 'photos-licence',
     title: '7. Photos & Content Licence',
     icon: FileText,
-    content: 'By uploading a photo or profile content, you grant Shia Rishta a non-exclusive, royalty-free licence to display it on the platform to the audience you choose (everyone, signed-in members only, or only you), and in biodata documents you choose to generate and share. The licence ends when you delete the photo or your account. You keep full ownership of your photos and content. We will never sell or license your photos to anyone, and we will never use them in advertising without your separate written consent. You confirm you own the photos you upload, or have the right to share them.'
+    content: 'By uploading a photo or profile content, you grant Shia Rishta a non-exclusive, royalty-free licence to display it on the platform to the audience you choose (Public — anyone, Members only — signed-in members, or Private — only you), and in biodata documents you choose to generate and share. The licence ends when you delete the photo or your account. You keep full ownership of your photos and content. We will never sell or license your photos to anyone, and we will never use them in advertising without your separate written consent. You confirm you own the photos you upload, or have the right to share them.'
   },
   {
     id: 'payments',
@@ -84,7 +84,7 @@ export default function Terms() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
           <span className="text-xs font-bold uppercase tracking-widest text-primary">Legal</span>
           <h1 className="text-3xl sm:text-4xl font-bold text-ink mt-2">Terms of Service</h1>
-          <p className="text-muted mt-2">Last updated: November 2026</p>
+          <p className="text-muted mt-2">Last updated: 24 November 2026</p>
           <p className="text-sm text-muted mt-4 max-w-2xl mx-auto">
             Please read these terms carefully. They govern your use of Shia Rishta and outline our shared commitments.
           </p>

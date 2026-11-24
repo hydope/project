@@ -59,12 +59,42 @@
   # including the stricter X-Frame-Options: DENY) — but the documents
   # browsers actually render are static files served from here, and they
   # went out with HSTS only. `always` so redirects and error responses
-  # carry them too. CSP is deliberately NOT here yet: it ships report-only
-  # first in a later phase, once an inventory of what the site loads
-  # (Google Fonts, Google sign-in) has had a violation window.
+  # carry them too.
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set X-Frame-Options "SAMEORIGIN"
+
+  # Content-Security-Policy — REPORT-ONLY (Phase 6 step 1, 2026-11-24).
+  # Nothing is blocked by this header: the browser only reports what
+  # WOULD violate it, which buys a violation window before enforcement
+  # (step 2: nonces/hashes for inline scripts, then flip to enforcing).
+  # Policy built from the actual load inventory, not a template:
+  #   script-src: 'self' bundles; accounts.google.com/gsi/client and
+  #     connect.facebook.net/en_US/sdk.js are loaded on demand by
+  #     SocialLogin.jsx; 'unsafe-inline' is required TODAY because
+  #     index.html carries inline JSON-LD and inline bootstrap scripts
+  #     and the prerender emits inline JSON-LD per route — removing it
+  #     is the step-2 nonce/hash work, recorded, not hidden.
+  #   style-src: 'self' + inline styles (React style props / motion) +
+  #     the Google Fonts stylesheet (index.html, BiodataMaker.jsx).
+  #   font-src: fonts.gstatic.com serves those families (Cormorant
+  #     Garamond, Inter, Noto Naskh/Nastaliq/Devanagari).
+  #   img-src: https: because profile photos and blog covers are served
+  #     from our own API today but hot-linked community/blog imagery is
+  #     user content; data:/blob: cover the biodata SVG export and the
+  #     object-URL previews (useAuthedImage, VideoUpload, miniPdf).
+  #   media-src: profile videos stream from our own API; blob: covers
+  #     local upload previews.
+  #   connect-src: 'self' — the API, the first-party analytics beacon
+  #     and the NVIDIA-backed Assistant all go through /api/* on this
+  #     origin (the browser never talks to NVIDIA directly);
+  #     accounts.google.com is where the GSI client posts.
+  #   frame-src: the Google sign-in and Facebook login dialogs.
+  #   frame-ancestors 'self' mirrors X-Frame-Options: SAMEORIGIN above.
+  # The API deliberately does NOT get this header: it serves JSON only,
+  # browsers never render it as a document, and its header path is PHP
+  # (index.php), not this file — revisit at enforcement time.
+  Header always set Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://accounts.google.com; frame-src https://accounts.google.com https://www.facebook.com; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
   # camera/microphone: nothing in the app uses getUserMedia (verified in
   # src/, 2026-11-24), so both are fully off. geolocation stays (self)
   # because IslamicCalendar.jsx legitimately requests the visitor's own
