@@ -9,14 +9,16 @@
  *  2. Nothing readable exists when JS never runs, so a no-JS user gets a
  *     blank page — the exact problem this work set out to fix.
  *
- * The shell has two parts since 2026-11-22: the full crawler copy inside
- * .seo-static (display:none — read from source, never painted) and the
- * route's hero emitted a second time in .seo-static.seo-shell, which IS
- * painted at first paint so users see the headline, CTAs and hero image
- * instead of a blank cream screen behind a spinner. The checks below map
- * to those two parts: block 1 proves both are replaced on mount; block 2
- * proves the visible hero works without JS and the crawler copy is still
- * complete in the document.
+ * The shell has two parts: the full crawler copy inside .seo-static
+ * (display:none — read from source, never painted) and the branded
+ * full-viewport loader (#app-loader), the ONLY element painted before
+ * React mounts. From 2026-11-22 to 2026-11-24 the route's hero was also
+ * emitted visibly in a .seo-shell wrapper; the shell→app swap read as a
+ * flash on phones, and Syed ordered the loader-only first paint back on
+ * 2026-11-24. The checks below map to the two parts: block 1 proves the
+ * shell is replaced on mount; block 2 proves the loader is what a no-JS
+ * visitor sees (and that no visible shell hero exists anymore) while the
+ * crawler copy is still complete in the document.
  *
  * Playwright is already a dev dependency for the E2E suite, so this reuses it
  * rather than adding a browser driver.
@@ -56,24 +58,22 @@ const browser = await chromium.launch();
 }
 
 // ── 2. With JavaScript disabled ─────────────────────────────────────────────
-// The visible hero is what a no-JS user (or a slow-JS phone) actually gets;
-// the hidden crawler copy must still be complete in the document source.
+// The branded loader is what a no-JS user (or a slow-JS phone) actually
+// gets — one clean loading state, no shell hero, no flash (Syed's order,
+// 2026-11-24). The hidden crawler copy must still be complete in source.
 {
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
   await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 45000 });
 
-  const hero = page.locator('.seo-shell');
-  check('the hero shell is visible without JavaScript', await hero.isVisible());
+  const loader = page.locator('#app-loader');
+  check('the branded loader is visible without JavaScript', await loader.isVisible());
 
-  const h1 = (await hero.locator('h1').innerText().catch(() => '')).trim();
-  check('a no-JS reader gets a real H1', h1.length > 0, 'h1 was empty');
+  const loaderText = (await loader.innerText()).replace(/\s+/g, ' ').trim();
+  check('the loader carries the brand wordmark', /Shia Rishta/i.test(loaderText), loaderText.slice(0, 60));
 
-  const heroImg = await hero.locator('img.seo-hero-img').count();
-  check('a no-JS reader gets the hero image', heroImg === 1, `found ${heroImg}`);
-
-  const heroText = (await hero.innerText()).replace(/\s+/g, ' ').trim();
-  check('a no-JS reader gets the hero copy and CTAs', heroText.length > 150, `${heroText.length} chars`);
+  const shellCount = await page.locator('.seo-shell').count();
+  check('no visible shell hero is emitted anymore', shellCount === 0, `found ${shellCount}`);
 
   // The crawler copy: hidden from paint, complete in the document.
   const copy = page.locator('.seo-static:not(.seo-shell)');
