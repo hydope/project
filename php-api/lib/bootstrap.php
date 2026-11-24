@@ -22,6 +22,31 @@ if (file_exists(__DIR__.'/../.env')) {
 date_default_timezone_set(getenv('TZ')?: 'UTC');
 mb_internal_encoding('UTF-8');
 
+/**
+ * Effective application environment — FAIL CLOSED (audit A-13, 2026-11-24).
+ *
+ * The deploy workflow writes APP_ENV=production into the generated .env, so
+ * production is always explicit there. Anything else — APP_ENV unset, empty,
+ * or an unrecognised value — is treated as PRODUCTION by every security gate
+ * that consults this helper (HSTS, the boot JWT gate, the jwtSecret()
+ * fallback). The old convention, `getenv('APP_ENV') ?: 'development'`, meant
+ * a deploy that lost its .env silently degraded to development behaviour: no
+ * HSTS and a publicly known JWT signing secret. Development behaviour now
+ * requires an explicit, exact APP_ENV=development — which is what local dev
+ * and the test harnesses set.
+ */
+function appEnv(): string
+{
+    $raw = getenv('APP_ENV');
+    $env = is_string($raw) ? strtolower(trim($raw)) : '';
+    return in_array($env, ['production', 'development'], true) ? $env : 'production';
+}
+
+function isProductionEnv(): bool
+{
+    return appEnv() === 'production';
+}
+
 function json(mixed $d,int $s=200):never{
     http_response_code($s);
     header('Content-Type: application/json; charset=utf-8');

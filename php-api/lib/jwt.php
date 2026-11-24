@@ -3,10 +3,20 @@ function jwtSecret():string
 {
     $s = getenv('JWT_SECRET');
     if ($s === false || $s === '' || strlen($s) < 32) {
-        if (php_sapi_name() === 'cli' || getenv('APP_ENV') === 'development') {
+        // Fail closed (audit A-13, 2026-11-24): the known literal fallback is
+        // available ONLY under an explicit APP_ENV=development (appEnv() in
+        // lib/bootstrap.php treats unset/unknown APP_ENV as production). The
+        // old bare-CLI carve-out is gone for the same reason — CLI tooling in
+        // a production checkout must use the real secret from .env, and local
+        // harnesses set APP_ENV=development explicitly. Refusing means auth
+        // fails loudly (500 via the front controller) rather than signing or
+        // verifying tokens with a secret printed in this repo.
+        $env = function_exists('appEnv') ? appEnv() : 'production';
+        if ($env === 'development') {
             error_log('[api] JWT_SECRET short/unset dev fallback (NEVER prod)');
             return 'dev-only-secret-change-me';
         }
+        error_log('[api] JWT_SECRET missing/short and APP_ENV is not explicitly development — refusing the dev fallback secret');
         throw new RuntimeException('JWT_SECRET >= 32 chars.');
     }
     return $s;
@@ -100,6 +110,9 @@ function signSession(array $user): string
     // Exact Node claim set: uid, email, displayName, isAdmin. Role is NEVER a
     // claim — a stale JWT would keep granting (or denying) draft powers after
     // an admin changes it; routes query users.role from the DB instead.
+    // isAdmin stays a claim only because the client session payload carries
+    // it; no server gate trusts it — requireAdminUser() re-reads
+    // users.is_admin from the DB on every admin request (audit A-03).
     return jwtSign([
         'uid' => (string)($user['id'] ?? ''),
         'email' => (string)($user['email'] ?? ''),
@@ -132,7 +145,14 @@ function authRequired(): array
 
 function adminRequired(array $user): void
 {
-    if (empty($user['isAdmin'])) je('Admin access required', 403);
+    // Same stale-claim rule as requireAdminUser() (audit A-03): the isAdmin
+    // claim alone is never enough when the DB helper is loaded — re-read
+    // users.is_admin. The claim-only fallback exists solely for stripped
+    // harnesses that load this file without lib/db.php.
+    $ok = function_exists('userIsAdmin')
+        ? userIsAdmin((string)($user['uid'] ?? ''))
+        : !empty($user['isAdmin']);
+    if (!$ok) je('Admin access required', 403);
 }
 
 function adminEmails(): array

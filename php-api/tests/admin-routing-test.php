@@ -1191,5 +1191,101 @@ require_once __DIR__ . '/test-shell-probe.php';
 // (opposite-gender only, fail closed) against the shipped lib functions.
 require_once __DIR__ . '/recommendation-gender-probe.php';
 
+// ── DB-backed admin gate (audit A-03, 2026-11-24) ───────────────────────────
+// requireAdminUser() lives in lib/db.php, which this harness cannot include
+// (it stubs db() and requireAdminUser itself for the routing assertions), so
+// the REAL gate is exercised in a child process against a stub DB — the same
+// pattern as the visibility probe above. The contract: admin status comes
+// from users.is_admin, never from the isAdmin JWT claim alone, so a demoted
+// admin's still-valid token is denied and a promoted member's stale claim
+// passes.
+echo "\nadmin gate (DB re-check)\n";
+
+$gateProbe = visibilityProbe(__DIR__ . '/admin-gate-probe.php');
+check(
+    'the admin gate probe ran',
+    ($gateProbe['demoted_blocked'] ?? null) !== null,
+    'probe produced no output: ' . substr((string)($gateProbe['__raw'] ?? 'none'), 0, 200)
+);
+check(
+    'a demoted admin (claim says admin, DB says no) is blocked with 403',
+    ($gateProbe['demoted_blocked'] ?? false) === true,
+    'a stale isAdmin claim still opens admin — A-03 has regressed'
+);
+check(
+    'a current admin (claim and DB agree) passes',
+    ($gateProbe['current_admin_passes'] ?? false) === true
+        && ($gateProbe['current_admin_flag'] ?? false) === true
+);
+check(
+    'the gate queries users.is_admin from the DB',
+    ($gateProbe['gate_queries_is_admin'] ?? false) === true,
+    'requireAdminUser() did not consult the users table'
+);
+check(
+    'a promoted member (claim says member, DB says admin) passes',
+    ($gateProbe['promoted_member_passes'] ?? false) === true,
+    'the gate trusts the claim over the DB in the other direction'
+);
+check(
+    'a plain member is blocked with 403',
+    ($gateProbe['plain_member_blocked'] ?? false) === true
+);
+check(
+    'a token for a deleted user row is blocked, never passed',
+    ($gateProbe['missing_row_blocked'] ?? false) === true
+);
+
+// ── Fail-closed environment gates (audit A-13, 2026-11-24) ──────────────────
+// appEnv()/jwtSecret() also live behind files this harness replaces, so they
+// get their own child probe. The contract: unset/empty/unknown APP_ENV is
+// production for security gates, and the known literal JWT fallback secret is
+// reachable only under an explicit APP_ENV=development.
+echo "\nfail-closed env gates\n";
+
+$envProbe = visibilityProbe(__DIR__ . '/env-gate-probe.php');
+check(
+    'the env gate probe ran',
+    ($envProbe['env_unset_is_production'] ?? null) !== null,
+    'probe produced no output: ' . substr((string)($envProbe['__raw'] ?? 'none'), 0, 200)
+);
+check(
+    'unset APP_ENV resolves to production',
+    ($envProbe['env_unset_is_production'] ?? null) === 'production'
+);
+check(
+    'empty APP_ENV resolves to production',
+    ($envProbe['env_empty_is_production'] ?? null) === 'production'
+);
+check(
+    'unknown APP_ENV resolves to production',
+    ($envProbe['env_unknown_is_production'] ?? null) === 'production'
+);
+check(
+    'explicit APP_ENV=development still resolves to development',
+    ($envProbe['env_development'] ?? null) === 'development'
+);
+check(
+    'no JWT_SECRET + unset APP_ENV refuses the fallback secret',
+    ($envProbe['secret_unset_env_unset'] ?? null) === 'THREW',
+    'jwtSecret() handed out the known literal secret with APP_ENV unset — A-13 has regressed'
+);
+check(
+    'no JWT_SECRET + unknown APP_ENV refuses the fallback secret',
+    ($envProbe['secret_unset_env_unknown'] ?? null) === 'THREW'
+);
+check(
+    'no JWT_SECRET + explicit development uses the dev fallback',
+    ($envProbe['secret_unset_env_development'] ?? null) === 'dev-only-secret-change-me'
+);
+check(
+    'a short JWT_SECRET + unset APP_ENV refuses the fallback secret',
+    ($envProbe['secret_short_env_unset'] ?? null) === 'THREW'
+);
+check(
+    'a real JWT_SECRET is used as-is even with APP_ENV unset',
+    ($envProbe['secret_real_env_unset'] ?? null) === str_repeat('r', 40)
+);
+
 echo "\n$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

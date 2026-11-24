@@ -74,7 +74,7 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
 header('Cross-Origin-Resource-Policy: cross-origin');
 header('Cache-Control: no-store');
-if ((getenv('APP_ENV') ?: 'development') === 'production') {
+if (isProductionEnv()) {
     header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
 }
 
@@ -97,16 +97,28 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
 }
 
 // ── Boot-time JWT gate (mirrors index.js failFast) ──────────────────────────
+// Fail closed (audit A-13, 2026-11-24): isProductionEnv() treats an unset or
+// unrecognised APP_ENV as production, so a deploy that loses its .env trips
+// this gate instead of silently serving with a weak or known secret.
 $knownDefaults = ['change-me-to-a-long-random-secret', 'dev-only-secret-change-me', 'test-secret-for-verification-only-not-production'];
 $secret = getenv('JWT_SECRET') ?: '';
-$isProd = (getenv('APP_ENV') ?: 'development') === 'production';
+$isProd = isProductionEnv();
 if (strlen($secret) < 32) {
     if ($isProd) {
+        error_log('[api] BOOT GATE: JWT_SECRET missing/short with effective env=production — refusing to serve');
         json(['error' => 'Server misconfigured: JWT_SECRET must be at least 32 characters.'], 500);
     }
 } elseif (in_array($secret, $knownDefaults, true) && $isProd) {
+    error_log('[api] BOOT GATE: JWT_SECRET is a known default value with effective env=production — refusing to serve');
     json(['error' => 'Server misconfigured: JWT_SECRET is a known default value.'], 500);
 }
+
+// Startup self-check (audit A-13): one line per boot stating the EFFECTIVE
+// environment, so a misconfigured deploy is visible in the log instead of
+// degrading silently. No secrets — just the env name and whether APP_ENV was
+// explicitly set.
+$appEnvRaw = getenv('APP_ENV');
+error_log('[api] startup env=' . appEnv() . ' (APP_ENV ' . ($appEnvRaw === false || trim((string)$appEnvRaw) === '' ? 'unset' : 'set') . ')');
 
 // ── Schema migration (idempotent, cheap when already applied) ───────────────
 migrateSchema();
@@ -276,10 +288,10 @@ try {
         case 'admin':
             // Social Scheduler lives under /api/admin/social/*.
             if (($rest[0] ?? '') === 'social') {
-                requireAuthUser();
-                if (empty(currentUser()['isAdmin'])) {
-                    json(['error' => 'Admin access required'], 403);
-                }
+                // Shared admin gate — re-checks users.is_admin in the DB
+                // (audit A-03); a stale isAdmin claim alone no longer opens
+                // any admin surface, including this dispatch pre-gate.
+                requireAdminUser();
                 routeAdminSocial($method, array_slice($rest, 1));
                 break;
             }

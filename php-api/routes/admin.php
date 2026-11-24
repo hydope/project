@@ -365,10 +365,10 @@ function adminAiSettingsVerify(): void
 
 function routeAdmin(string $method, array $segments): void
 {
-    $user = requireAuthUser();
-    if (empty($user['isAdmin'])) {
-        je('Admin access required', 403);
-    }
+    // Shared admin gate — re-checks users.is_admin in the DB on every request
+    // (audit A-03). This dispatcher previously trusted the isAdmin JWT claim
+    // directly, which kept a demoted admin in for the token's whole life.
+    $user = requireAdminUser();
 
     $action = $segments[0] ?? null;
 
@@ -2817,11 +2817,9 @@ function adminUpdateUser(string $userId): void
 function adminUserPhoto(string $userId): void
 {
     // routeAdmin already enforced admin, but check again so this function is
-    // safe no matter how it is reached.
-    $me = requireAuthUser();
-    if (empty($me['isAdmin'])) {
-        je('Admin access required', 403);
-    }
+    // safe no matter how it is reached — through the shared gate, so the
+    // re-check is the DB-backed one (audit A-03), not the stale claim.
+    $me = requireAdminUser();
 
     $probe = db()->prepare('SELECT id FROM users WHERE id = ? LIMIT 1');
     $probe->execute([$userId]);

@@ -92,12 +92,32 @@ function requireAuthUser(): array
     return $user;
 }
 
+// Admin status always comes from the DB — the same stale-claim rule roleOf()
+// (routes/drafts.php) already applies to role: the isAdmin JWT claim would
+// keep granting admin until token expiry (default 7 days) after a demotion,
+// and would deny a freshly promoted admin until re-login. One indexed PK
+// lookup per admin request; per-request only, never cached across requests.
+// Fail closed: a missing row or a DB error denies admin (audit A-03).
+function userIsAdmin(string $userId): bool
+{
+    if ($userId === '') {
+        return false;
+    }
+    $stmt = db()->prepare('SELECT is_admin FROM users WHERE id = ? LIMIT 1');
+    $stmt->execute([$userId]);
+    $row = $stmt->fetch();
+    return !empty($row['is_admin']);
+}
+
 function requireAdminUser(): array
 {
     $user = requireAuthUser();
-    if (empty($user['isAdmin'])) {
+    if (!userIsAdmin((string)($user['uid'] ?? ''))) {
         je('Admin access required', 403);
     }
+    // The gate passed on the DB row, so the returned payload's claim is made
+    // truthful even when the token's claim was stale in the other direction.
+    $user['isAdmin'] = true;
     return $user;
 }
 
