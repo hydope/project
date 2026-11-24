@@ -1039,14 +1039,15 @@ function profilesList(): void
     // without a sect get the default order.
     $sortMatch = ($_GET['sort'] ?? '') === 'match' && $viewer !== null;
 
-    // Latest profiles first, seeded included (Syed's order, 2026-11-23):
-    // the public directory and the homepage strip order purely by recency,
-    // so a freshly seeded profile appears among the newest instead of below
-    // every real member. This supersedes the 2026-10-12 real-first display
-    // order for LISTINGS only — recommendations, First Connections, stats
-    // and analytics keep their real-only definitions (seeded profiles are
-    // never suggested as matches and never counted as real members).
-    $sql = 'SELECT p.*, ' . lastActiveSql() . ' AS last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE ' . implode(' AND ', $where) . ' ORDER BY p.created_at DESC' . (($paged || $sortMatch) ? '' : ' LIMIT ' . (isset($limit) ? (int)$limit : 100));
+    // Listing order is an ADMIN SETTING (Admin → Settings → Profile
+    // listing; lib/siteSettings.php), not a code constant — Syed's order
+    // 2026-11-23, after the latest-first change itself needed a deploy.
+    // Default 'latest': newest first, seeded profiles mixed in by recency.
+    // 'real_first': the 2026-10-12 order. Either way this governs LISTINGS
+    // only — recommendations, First Connections, stats and analytics keep
+    // their real-only definitions (seeded profiles are never suggested as
+    // matches and never counted as real members).
+    $sql = 'SELECT p.*, ' . lastActiveSql() . ' AS last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE ' . implode(' AND ', $where) . ' ORDER BY ' . profileListingOrderBy() . (($paged || $sortMatch) ? '' : ' LIMIT ' . (isset($limit) ? (int)$limit : 100));
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();

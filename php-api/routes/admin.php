@@ -156,6 +156,54 @@ function adminAiSettingsUpdate(): void
     json(['ok' => true, 'updated' => $wrote, 'source' => aiApiKeySource()]);
 }
 
+/** GET /api/admin/site-settings — site behaviour settings (values are
+ *  not secrets, so unlike ai-settings they are returned in full). */
+function adminSiteSettingsStatus(): void
+{
+    $row = aiSettingsRow('profile_listing_order');
+    json([
+        'profileListingOrder' => profileListingOrder(),
+        'updatedAt' => $row['updated_at'] ?? null,
+    ]);
+}
+
+/** PUT /api/admin/site-settings — update site behaviour settings.
+ *  Takes effect on the next request (the guest browse cache adds at most
+ *  ~60s) — no deploy, which is the entire point (Syed's order, 2026-11-23). */
+function adminSiteSettingsUpdate(): void
+{
+    $admin = requireAdminUser();
+    $body = requestJson();
+
+    $wrote = [];
+
+    if (array_key_exists('profileListingOrder', $body)) {
+        $order = trim((string)($body['profileListingOrder'] ?? ''));
+        if (!in_array($order, ['latest', 'real_first'], true)) {
+            je('Profile listing order must be "latest" or "real_first".', 400);
+        }
+        $up = db()->prepare(
+            'INSERT INTO app_settings (setting_key, value_enc, updated_by, updated_at)
+             VALUES (?, ?, ?, UTC_TIMESTAMP())
+             ON DUPLICATE KEY UPDATE value_enc = VALUES(value_enc), updated_by = VALUES(updated_by),
+                                     updated_at = UTC_TIMESTAMP(), last_status = NULL'
+        );
+        $up->execute(['profile_listing_order', encAtRest($order), $admin['uid']]);
+        $wrote[] = 'profileListingOrder';
+    }
+
+    if (!$wrote) {
+        je('Nothing to save.', 400);
+    }
+
+    auditLog('site.settings.updated', 'app_setting', 'site', [
+        'fields' => $wrote,
+        'profileListingOrder' => profileListingOrder(),
+    ]);
+
+    json(['ok' => true, 'updated' => $wrote, 'profileListingOrder' => profileListingOrder()]);
+}
+
 /**
  * POST /api/admin/ai-settings/verify — live end-to-end check.
  *
@@ -285,6 +333,12 @@ function routeAdmin(string $method, array $segments): void
     if ($method === 'POST' && $action === 'ai-settings' && ($segments[1] ?? null) === 'verify') {
         adminAiSettingsVerify();
         return;
+    }
+
+    // ── Site behaviour settings (Admin → Settings) ────────────────────────
+    if ($action === 'site-settings' && ($segments[1] ?? null) === null) {
+        if ($method === 'GET') { adminSiteSettingsStatus(); return; }
+        if ($method === 'PUT' || $method === 'POST') { adminSiteSettingsUpdate(); return; }
     }
 
     // Audit trail — immutable, read-only.

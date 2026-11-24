@@ -231,6 +231,7 @@ const ADMIN_NAV_ITEMS = [
   { path: '/admin/audit', label: 'Audit Trail', icon: History, section: 'Admin' },
   { path: '/admin/events', label: 'User Logs', icon: ScrollText, section: 'Admin' },
   { path: '/admin/mail', label: 'Mail', icon: Mail, section: 'Admin' },
+  { path: '/admin/settings', label: 'Site Settings', icon: Settings, section: 'Admin' },
   { path: '/admin/content', label: 'Content', icon: BookOpen, section: 'Admin' },
   { path: '/admin/analytics', label: 'Analytics', icon: BarChart3, section: 'Admin' },
 ];

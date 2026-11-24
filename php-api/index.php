@@ -48,6 +48,7 @@ require __DIR__ . '/lib/SocialAutopilot.php';
 require __DIR__ . '/lib/SocialStorage.php';
 require __DIR__ . '/routes/social_scheduler.php';
 require __DIR__ . '/lib/ai.php';
+require __DIR__ . '/lib/siteSettings.php';
 require __DIR__ . '/routes/ai.php';
 require __DIR__ . '/routes/config.php';
 

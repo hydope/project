@@ -5,7 +5,7 @@ import Seo from '../components/Seo';
 import {
   LayoutDashboard, ShieldAlert, ShieldCheck, UserCheck, Users, UserX, LifeBuoy, BadgeCheck,
   KeyRound, History, BookOpen, BarChart3, LogOut, HeartHandshake, Home,
-  Sun, Moon, FileText, Sprout, ScrollText, Mail, Share2,
+  Sun, Moon, FileText, Sprout, ScrollText, Mail, Share2, Settings,
 } from 'lucide-react';
 
 const ADMIN_LINKS = [
@@ -27,6 +27,7 @@ const ADMIN_LINKS = [
   { path: '/admin/events', label: 'User Logs', icon: ScrollText },
   { path: '/admin/mail', label: 'Mail', icon: Mail },
   { path: '/admin/social-scheduler', label: 'Social Scheduler', icon: Share2 },
+  { path: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
 // The admin console is deliberately NOT the member layout. Admins were getting
