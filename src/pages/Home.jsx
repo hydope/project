@@ -264,12 +264,25 @@ export default function Home() {
                 {p ? (
                   <ProfileCard profile={p} actions={false} />
                 ) : (
-                  <div className="profiles-card profiles-card-skeleton" aria-hidden="true">
-                    <div className="skeleton" style={{ height: 250 }} />
-                    <div className="pcard-body">
-                      <div className="skeleton" style={{ height: 12, width: '55%' }} />
-                      <div className="skeleton" style={{ height: 11, width: '70%' }} />
-                      <div className="skeleton" style={{ height: 11, width: '45%' }} />
+                  /* Geometry-stable skeleton (Phase 2, 2026-11-24, diagnosis
+                     F4): the old skeleton used the retired .profiles-card
+                     shell with a fixed 250px media block, while the real
+                     ProfileCard is a .premium-card whose media is
+                     aspect-[4/3.2] sm:aspect-[4/4.6] with a p-3.5 body —
+                     so the swap moved everything below the grid. This
+                     skeleton mirrors the real card's outer classes, media
+                     aspect and body padding/rows so the loaded cards land
+                     in the same boxes the skeletons occupied. */
+                  <div className="premium-card overflow-hidden flex flex-col" aria-hidden="true">
+                    <div className="relative aspect-[4/3.2] sm:aspect-[4/4.6] overflow-hidden">
+                      <div className="skeleton absolute inset-0" />
+                    </div>
+                    <div className="p-3.5 space-y-2">
+                      <div className="skeleton" style={{ height: 20, width: '55%' }} />
+                      <div className="skeleton" style={{ height: 16, width: '40%' }} />
+                      <div className="skeleton" style={{ height: 24, width: '70%' }} />
+                      <div className="skeleton" style={{ height: 16, width: '50%' }} />
+                      <div className="skeleton" style={{ height: 32, width: '85%' }} />
                     </div>
                   </div>
                 )}
@@ -278,7 +291,12 @@ export default function Home() {
           </div>
           <div className="hp-featured-cta">
             {isLoggedIn ? (<Link to="/dashboard" className="hp-btn-primary">Go to your dashboard <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>) : (<Link to="/profiles/" className="hp-btn-primary">Browse all profiles <ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>)}
-            <span>{profilesLoading || !hasStats ? 'Finding members…' : `${memberCount} curated members`} · {isLoggedIn ? "welcome back" : "free to join"}</span>
+            {/* Reserve two lines of height (Phase 2, 2026-11-24, diagnosis
+                F4): the text swaps from "Finding members…" to the longer
+                "N curated members" when stats land, which can wrap to a
+                second line on narrow screens and push everything below it
+                down. The reserved min-height makes the swap height-neutral. */}
+            <span style={{ minHeight: '2.5em' }}>{profilesLoading || !hasStats ? 'Finding members…' : `${memberCount} curated members`} · {isLoggedIn ? "welcome back" : "free to join"}</span>
           </div>
         </section>
 

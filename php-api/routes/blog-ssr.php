@@ -235,7 +235,12 @@ function blogIndexSsr(): void
     }
 
     header('Content-Type: text/html; charset=utf-8');
-    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    // Phase 2 (2026-11-24, diagnosis F2): the blog index document is
+    // public and identical for every requester (published-post list only;
+    // this route never reads a token or cookie), so a shared cache may
+    // hold it — 300s, matching the server file cache above — while
+    // browsers revalidate on every load. /api/* keeps its own no-store.
+    header('Cache-Control: public, max-age=0, s-maxage=300, must-revalidate');
     echo $html;
 }
 
@@ -379,5 +384,13 @@ function blogSsr(string $slug): void
     $html = str_replace('</body>', $dataTag . "\n</body>", $html);
 
     header('Content-Type: text/html; charset=utf-8');
+    // Phase 2 (2026-11-24, diagnosis F2): a published article document is
+    // public and identical for every requester (the __SSR_POST__ payload
+    // is the published post itself), so a shared cache may hold it for
+    // 300s while browsers revalidate on every load. This header() call
+    // replaces the front controller's blanket `Cache-Control: no-store`
+    // for this response only; the 404 and static-shell paths above keep
+    // the default, and /api/* is untouched.
+    header('Cache-Control: public, max-age=0, s-maxage=300, must-revalidate');
     echo $html;
 }

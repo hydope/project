@@ -1,9 +1,28 @@
 <IfModule mod_headers.c>
-  # Entry points — NEVER cache. index.html is ~2KB; always fetch fresh so a
-  # deploy's new hashed bundles are picked up immediately. `no-cache` alone
-  # allows 304 revalidation which can serve stale HTML if mtimes are off —
-  # `no-store` eliminates that entire class of bug.
-  <FilesMatch "^(index\.html|sw\.js)$">
+  # Entry points — split policy (Phase 2 performance fix, 2026-11-24;
+  # diagnosis: phase-2-diagnosis.md F2). The old blanket rule sent EVERY
+  # index.html out as `no-store`, so no shared cache could ever hold a
+  # document and every visitor paid the full Cloudflare→origin round trip
+  # (~1.3s TTFB floor measured live) on every page.
+  #
+  # index.html — the prerendered public documents AND the SPA shell. This
+  # file is byte-identical for every requester: it contains no per-user
+  # data, and all personalisation happens after load via /api/* calls,
+  # which keep their own `no-store` from PHP (bootstrap.php/index.php) and
+  # are not files this rule can match. So a shared cache holding it can
+  # never leak one visitor's data to another. Browsers still revalidate
+  # on every load (`max-age=0, must-revalidate`), which keeps the
+  # stale-bundle bug class the old `no-store` was created to kill dead:
+  # a deploy's new hashed bundles are picked up on the next navigation,
+  # and the shared-cache copy is bounded to s-maxage=600 (10 min) even if
+  # a deploy-time purge is missed.
+  <FilesMatch "^index\.html$">
+    Header set Cache-Control "public, max-age=0, s-maxage=600, must-revalidate"
+  </FilesMatch>
+  # sw.js — NEVER cache, unchanged. A stale service worker would pin old
+  # bundles far harder than stale HTML ever could, so it keeps the full
+  # no-store policy and is deliberately NOT part of the rule above.
+  <FilesMatch "^sw\.js$">
     Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
   </FilesMatch>
   # Unhashed brand assets — revalidate every time (tiny files).

@@ -98,7 +98,7 @@
       ]
     }
     </script>
-    <!-- Font loading: preconnect + preload warm the cache; the stylesheet
+    <!-- Font loading: preconnect warms the connection; the stylesheet
          below applies non-blocking (media=print swap) so fonts never delay
          first paint. display=swap keeps text visible with system fallbacks.
          The design system uses two families only: Inter (UI/body) +
@@ -107,12 +107,18 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
     <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700;800;900&display=swap" />
     <!-- Non-blocking font stylesheet: applies after first paint instead of
          delaying it (replaces the old render-blocking @import). display=swap
-         keeps text visible with fallback fonts until the webfonts arrive. -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700;800;900&display=swap" media="print" onload="this.media='all'" />
-    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700;800;900&display=swap" /></noscript>
+         keeps text visible with fallback fonts until the webfonts arrive.
+         Phase 2 trim (2026-11-24, diagnosis F5): 13 variants → 9. Inter 300
+         is used nowhere (zero font-light), Inter 900 exactly once, and
+         Cormorant 400 + italic 400 have no clear use — all dropped. Kept:
+         Inter 400/500/600/700/800 + Cormorant 500/600/700 + italic 500.
+         The URL is emitted ONCE: the old preload + stylesheet + noscript
+         triple emission of the identical URL is gone (the app requires
+         JavaScript, so the noscript copy served no one, and the preload
+         duplicated the stylesheet fetch that follows it immediately). -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Inter:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
     <!-- LCP image preload: the hero is discovered only after JS executes;
          preloading it here lets the browser fetch it during JS parse. -->
     <link rel="preload" as="image" href="/hero-nikah.webp" type="image/webp" fetchpriority="high" />

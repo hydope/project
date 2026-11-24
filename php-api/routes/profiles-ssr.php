@@ -188,6 +188,22 @@ function profilesSsr(): void
     }
 
     header('Content-Type: text/html; charset=utf-8');
-    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    if ($filtered) {
+        // Faceted variants stay uncacheable: they are noindex crawl
+        // permutations, not landing pages, and there is no reason for a
+        // shared cache to hold them.
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    } else {
+        // Phase 2 (2026-11-24, diagnosis F2): the clean browse document
+        // is built ONLY from the anonymous roster — visibleProfile($row,
+        // null) above; this route never reads a token or cookie, so the
+        // response is byte-identical for every requester and a shared
+        // cache can never serve one visitor's data to another. Let
+        // Cloudflare hold it for 300s (matching the 5-minute server file
+        // cache above) while browsers revalidate every load, so a deploy
+        // is still picked up immediately. Personalised data only ever
+        // travels via /api/*, which keeps its own no-store.
+        header('Cache-Control: public, max-age=0, s-maxage=300, must-revalidate');
+    }
     echo $html;
 }

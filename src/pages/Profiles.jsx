@@ -220,14 +220,41 @@ function RecentlyActiveCard({ profile }) {
 
 function RecentlyActiveRail() {
   const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     let cancelled = false;
     api.getRecentlyActive()
       .then(data => { if (!cancelled) setRows(Array.isArray(data) ? data : []); })
-      .catch(() => { /* the rail is an extra — browse works without it */ });
+      .catch(() => { /* the rail is an extra — browse works without it */ })
+      .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
-  if (rows.length < 4) return null;
+  if (rows.length < 4) {
+    // Geometry reservation (Phase 2, 2026-11-24, diagnosis F4): the rail
+    // used to render nothing until its fetch landed, then pop in above
+    // the results grid and push the whole page down by the rail's height
+    // (~148px: heading + 64px avatars + two text lines). While loading,
+    // hold that exact space with a skeleton of the same shape; if the
+    // rail genuinely has too few members it collapses as before.
+    if (!loading) return null;
+    return (
+      <section aria-hidden="true" className="mb-6">
+        <div className="flex items-baseline gap-2 mb-3">
+          <div className="skeleton" style={{ height: 24, width: 130 }} />
+          <div className="skeleton" style={{ height: 16, width: 210 }} />
+        </div>
+        <div className="flex gap-4 overflow-hidden pb-2">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="flex flex-col items-center gap-2 shrink-0 w-24">
+              <div className="skeleton rounded-full" style={{ width: 64, height: 64 }} />
+              <div className="skeleton" style={{ height: 20, width: '80%' }} />
+              <div className="skeleton" style={{ height: 16, width: '60%' }} />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
   return (
     <section aria-label="Recently active members" className="mb-6">
       <div className="flex items-baseline gap-2 mb-3">
@@ -747,11 +774,23 @@ export function BrowseProfiles() {
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5" aria-hidden="true">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-2xl overflow-hidden" style={{ background: 'var(--color-elevated)', border: '1px solid var(--color-border)' }}>
-                <div className="h-52 skeleton" />
-                <div className="p-4 space-y-2.5">
-                  <div className="h-4 w-2/3 rounded skeleton" />
-                  <div className="h-3 w-1/2 rounded skeleton" />
+              /* Geometry-stable skeleton (Phase 2, 2026-11-24, diagnosis
+                 F4): the old skeleton was a fixed h-52 (208px) media block
+                 + two lines, far shorter than the real ProfileCard
+                 (.premium-card, media aspect-[4/3.2] sm:aspect-[4/4.6],
+                 p-3.5 body with name/location/profession/about rows), so
+                 the loaded grid landed at different offsets and shoved
+                 the page down. Mirror the real card's geometry instead. */
+              <div key={i} className="premium-card overflow-hidden flex flex-col">
+                <div className="relative aspect-[4/3.2] sm:aspect-[4/4.6] overflow-hidden">
+                  <div className="skeleton absolute inset-0" />
+                </div>
+                <div className="p-3.5 space-y-2">
+                  <div className="skeleton" style={{ height: 20, width: '55%' }} />
+                  <div className="skeleton" style={{ height: 16, width: '40%' }} />
+                  <div className="skeleton" style={{ height: 24, width: '70%' }} />
+                  <div className="skeleton" style={{ height: 16, width: '50%' }} />
+                  <div className="skeleton" style={{ height: 32, width: '85%' }} />
                 </div>
               </div>
             ))}
