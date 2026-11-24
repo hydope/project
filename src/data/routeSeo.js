@@ -182,6 +182,7 @@ export const ROUTE_SEO = {
       { h2: 'No guarantee of outcome', p: 'Shia Rishta provides a platform for introductions. We do not guarantee that any introduction leads to a marriage, and we are not a party to any relationship formed through the service.' },
       { h2: 'Cost', p: 'Shia Rishta is free. There is no payment system today, and no paid tier is required to browse, express interest, message a match, or use the guardian tools.' },
       { h2: 'Data retention', p: 'When you delete your account, your profile, messages, interests, and reports are removed immediately; backups are purged within 30 days. See the Privacy Policy for the full retention schedule.' },
+      { h2: 'Governing law', p: 'These terms are governed by the laws of India. Any disputes shall be resolved in the courts of Hyderabad, Telangana, India. You agree to submit to the exclusive jurisdiction of these courts.' },
     ],
   },
 

@@ -73,7 +73,7 @@ const sections = [
     id: 'governing',
     title: '12. Governing Law',
     icon: Scale,
-    content: 'These terms are governed by the laws of the State of Michigan, USA. Any disputes shall be resolved in the courts of Washtenaw County, Michigan. You agree to submit to the exclusive jurisdiction of these courts.'
+    content: 'These terms are governed by the laws of India. Any disputes shall be resolved in the courts of Hyderabad, Telangana, India. You agree to submit to the exclusive jurisdiction of these courts.'
   },
 ];
 
