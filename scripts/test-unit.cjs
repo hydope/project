@@ -33,6 +33,7 @@ for (const rel of [
   'data/tagLandingPages.js',
   'data/articleMeta.js',
   'data/locationSeo.js',
+  'data/placeGrammar.js',
   'data/routeSeo.js',
   'data/socialLinks.js',
 ]) {
