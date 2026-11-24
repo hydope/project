@@ -9,6 +9,15 @@ how you lose /public_html/api, .well-known/, and runtime data).
 
 Usage: ftp_mirror.py <local_dir> <remote_dir> <exclude_csv>
   exclude_csv: comma-separated; "name*" matches basenames, "dir/" prunes dirs.
+
+Atomic uploads (2026-11-23): every file lands under a ".deploy-tmp" name
+and is then renamed over the live file. A rename is atomic on the
+server's filesystem, so anything executing code mid-deploy — a web
+request, or the social publisher's 5-minute cron reading
+SocialPublisher.php — always sees a complete old or complete new file,
+never a half-written one. Publishing can no longer be interrupted by a
+deploy. If the server refuses a rename, the upload falls back to the
+historical direct STOR so a deploy can never fail because of this step.
 """
 import fnmatch
 import ftplib
@@ -56,14 +65,38 @@ def ensure_dir(ftps, remote_dir):
             pass  # already exists
 
 
+_rename_fallback_noted = False
+
+
 def upload(ftps, local_path, remote_path, remote_dir, label):
     """Upload one file with the standard retry/reconnect policy.
 
+    Bytes go to "<remote>.deploy-tmp" first and are renamed over the live
+    file (atomic on the server's filesystem — see the module docstring).
+    A refused rename falls back to a direct STOR of the live path, with a
+    one-line notice the first time it happens.
+
     Returns the (possibly reconnected) ftps handle."""
+    global _rename_fallback_noted
+    tmp_path = remote_path + ".deploy-tmp"
     for attempt in range(1, MAX_FILE_ATTEMPTS + 1):
         try:
             with open(local_path, "rb") as f:
-                ftps.storbinary("STOR " + remote_path, f)
+                ftps.storbinary("STOR " + tmp_path, f)
+            try:
+                ftps.rename(tmp_path, remote_path)
+            except Exception:  # noqa: BLE001 - rename refused: go direct
+                if not _rename_fallback_noted:
+                    _rename_fallback_noted = True
+                    print("  NOTE: server refused an atomic rename; "
+                          "falling back to direct STOR for this deploy.",
+                          flush=True)
+                with open(local_path, "rb") as f:
+                    ftps.storbinary("STOR " + remote_path, f)
+                try:
+                    ftps.delete(tmp_path)
+                except Exception:  # noqa: BLE001 - leftover tmp is inert
+                    pass
             return ftps
         except Exception as e:  # noqa: BLE001 - retry any transfer error
             print(f"  retry {attempt}/{MAX_FILE_ATTEMPTS} {label}: "
