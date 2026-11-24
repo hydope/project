@@ -31,7 +31,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { ROUTE_SEO, SHARED_NAV, SITE_URL } from '../src/data/routeSeo.js';
 import { landingRouteSeo } from '../src/data/landingRouteSeo.js';
-import { CITIES, COUNTRIES, locationRouteSeo, buildLocationSections, buildLocationFaq, locationMetaDesc } from '../src/data/locationSeo.js';
+import { CITIES, COUNTRIES, locationRouteSeo, buildLocationSections, buildLocationFaq, locationMetaDesc, locationCountryTitle } from '../src/data/locationSeo.js';
 import { placeWithArticle } from '../src/data/placeGrammar.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath as __f2u } from 'url';
@@ -153,7 +153,7 @@ function dynamicLocationRouteSeo(dynamic) {
   for (const k of dynamic.countries) {
     const note = dynamicLocationNote(k.name);
     out[`/country/${k.slug}`] = {
-      title: `Shia Matrimony in ${placeWithArticle(k.name)} | Free Shia Rishta Platform`,
+      title: locationCountryTitle(k.name),
       desc: locationMetaDesc(k.name, note),
       h1: `Shia matrimony in ${placeWithArticle(k.name)}`,
       lede: `Shia matrimonial profiles across ${placeWithArticle(k.name)}, filterable by city, sect, marja and practice. Free to browse, and no account is needed to view public profiles.`,

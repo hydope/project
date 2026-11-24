@@ -272,12 +272,35 @@ function trimToWords(str, max) {
  * description is built from that note: no two curated pages share one.
  */
 export function locationMetaDesc(name, note) {
-  const full = `Shia matrimony in ${placeWithArticle(name)}. ${note} Privacy-first profiles and wali-involved introductions. Free to join.`;
-  if (full.length <= 155) return full;
-  // Too long: drop the boilerplate suffix before trimming the note itself,
-  // so the description still ends on a complete sentence where it can.
   const bare = `Shia matrimony in ${placeWithArticle(name)}. ${note}`;
+  // Append the boilerplate as whole sentences, longest combination first,
+  // while the total stays within 155 chars (2026-11-24 audit, Phase 8).
+  // The previous logic returned `bare` whenever the FULL suffix overflowed
+  // — so a short note (Bangalore, 98 chars total) shipped a description far
+  // under the useful range even though one suffix sentence would have fit.
+  const sentences = [
+    'Privacy-first profiles and wali-involved introductions.',
+    'Free to join.',
+  ];
+  for (const combo of [[0, 1], [0], [1]]) {
+    const candidate = bare + combo.map(i => ' ' + sentences[i]).join('');
+    if (candidate.length <= 155) return candidate;
+  }
+  // Even the bare note overflows: trim it on a word boundary, as before.
   return trimToWords(bare, 155);
+}
+
+/**
+ * Country-page title (2026-11-24 audit, Phase 8 / Track C title trims).
+ * "… | Free Shia Rishta Platform" overflows 60 chars for long country
+ * names (the United Arab Emirates, the United Kingdom, the United
+ * States); those fall back to the short brand suffix. Shorter names keep
+ * the full suffix, so only the over-length titles change.
+ */
+export function locationCountryTitle(name) {
+  const full = `Shia Matrimony in ${placeWithArticle(name)} | Free Shia Rishta Platform`;
+  if (full.length <= 60) return full;
+  return `Shia Matrimony in ${placeWithArticle(name)} | Shia Rishta`;
 }
 
 /**
@@ -357,7 +380,7 @@ export function locationRouteSeo(withMembers) {
   }
   for (const k of withMembers.countries) {
     out[`/country/${k.slug}`] = {
-      title: `Shia Matrimony in ${placeWithArticle(k.name)} | Free Shia Rishta Platform`,
+      title: locationCountryTitle(k.name),
       desc: locationMetaDesc(k.name, k.note),
       h1: `Shia matrimony in ${placeWithArticle(k.name)}`,
       lede: `Shia matrimonial profiles across ${placeWithArticle(k.name)}, filterable by city, sect, marja and practice. Free to browse, and no account is needed to view public profiles.`,

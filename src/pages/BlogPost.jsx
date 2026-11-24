@@ -4,6 +4,32 @@ import Layout from '../layouts/LandingLayout';
 import { Clock, ArrowLeft } from 'lucide-react';
 import NotFound from './NotFound';
 import { renderInlineLinks } from '../lib/inlineLinks.jsx';
+import { CITIES, COUNTRIES } from '../data/locationSeo.js';
+import { inPlace } from '../data/placeGrammar.js';
+
+// D-04 (2026-11-24 audit, Phase 8): the in-article "Continue reading"
+// block — 2 related posts + one place link, spliced into the article
+// flow after the 3rd block (or at the end for short posts), the exact
+// position rule routes/blog-ssr.php applies to the served HTML. DB posts
+// carry the block's data from the server (window.__SSR_POST__ or
+// /api/ai/posts/:slug, both computed by the blog-ssr.php helpers); the 8
+// static articles compute it here from the site's own data — related by
+// category, and a place link only for a place the article itself names
+// that has a city/country page (those routes are generated from
+// CITIES/COUNTRIES, so the target exists by construction).
+const PLACE_CANDIDATES = [
+  ...CITIES.map((c) => ({ name: c.name, href: `/city/${c.slug}/` })),
+  ...COUNTRIES.map((c) => ({ name: c.name, href: `/country/${c.slug}/` })),
+].sort((a, b) => b.name.length - a.name.length);
+
+function placeLinkFor(text) {
+  for (const c of PLACE_CANDIDATES) {
+    if (c.name.length < 4) continue;
+    const re = new RegExp(`\\b${c.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (re.test(text)) return { href: c.href, label: `Shia matrimony ${inPlace(c.name)}` };
+  }
+  return null;
+}
 
 // articles.js holds all eight full-length articles — dynamically imported so
 // it ships as its own async chunk instead of bloating the shared entry chunk.
@@ -90,6 +116,23 @@ export default function BlogPost() {
     })),
   } : null);
 
+  // The "Continue reading" data for whichever post shape rendered.
+  let continueReading = null;
+  if (article && articles) {
+    const others = articles.filter((a) => a.slug !== article.slug);
+    const posts = [
+      ...others.filter((a) => a.category === article.category),
+      ...others.filter((a) => a.category !== article.category),
+    ].slice(0, 2).map((a) => ({ slug: a.slug, title: a.title }));
+    const text = `${article.title} ${(article.body || []).map((b) => b.text || b.x || '').join(' ')}`;
+    continueReading = { posts, place: placeLinkFor(text) };
+  } else if (ssrPost) {
+    continueReading = {
+      posts: Array.isArray(ssrPost.related) ? ssrPost.related : [],
+      place: ssrPost.place || null,
+    };
+  }
+
   useEffect(() => {
     if (!post) return;
     // The SSR document (routes/blog-ssr.php) already embeds this tag —
@@ -157,7 +200,8 @@ export default function BlogPost() {
           <img src={post.image} alt={post.title} className="w-full h-64 sm:h-80 object-cover" loading="eager" />
         </div>
         <div style={{ color: 'var(--color-ink-secondary)', lineHeight: 1.8, fontSize: '1rem' }}>
-          {post.body.map((b, i) => {
+          {(() => {
+            const blocks = post.body.map((b, i) => {
             const type = b.type || b.t;
             if (type === 'h2') {
               return <h2 key={i} style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-ink)', margin: '2rem 0 0.75rem' }}>{b.x || b.text}</h2>;
@@ -171,7 +215,27 @@ export default function BlogPost() {
               return <blockquote key={i} style={{ borderLeft: '3px solid var(--color-gold)', paddingLeft: '1rem', margin: '0 0 1.25rem', fontStyle: 'italic', color: 'var(--color-ink)' }}>{renderInlineLinks(b.x || b.text)}</blockquote>;
             }
             return <p key={i} style={{ marginBottom: '1.25rem' }}>{renderInlineLinks(b.x || b.text)}</p>;
-          })}
+            });
+            // D-04: splice the "Continue reading" block into the flow at
+            // the same position the SSR renderer uses (after the 3rd
+            // block; at the end when the post has 3 or fewer).
+            if (continueReading && (continueReading.posts.length > 0 || continueReading.place)) {
+              blocks.splice(blocks.length > 3 ? 3 : blocks.length, 0, (
+                <aside key="continue-reading" aria-label="Continue reading" style={{ border: '1px solid var(--color-border)', borderRadius: '1rem', padding: '1rem 1.25rem', margin: '0 0 1.25rem', background: 'var(--color-surface)' }}>
+                  <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--color-ink)', margin: '0 0 0.5rem' }}>Continue reading</h2>
+                  <ul style={{ margin: '0 0 0 1.25rem', lineHeight: 1.8 }}>
+                    {continueReading.posts.map((p) => (
+                      <li key={p.slug}><Link to={`/blog/${p.slug}`}>{p.title}</Link></li>
+                    ))}
+                    {continueReading.place && (
+                      <li><Link to={continueReading.place.href}>{continueReading.place.label}</Link></li>
+                    )}
+                  </ul>
+                </aside>
+              ));
+            }
+            return blocks;
+          })()}
         </div>
         <div className="mt-8 pt-6" style={{ borderTop: '1px solid var(--color-border)' }}>
           <Link to="/auth/register" className="button primary px-6 py-2.5 font-semibold">Start your journey — it&rsquo;s free</Link>

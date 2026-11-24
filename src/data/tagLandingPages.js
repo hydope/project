@@ -129,7 +129,7 @@ const TAG_DEFS = [
     phrase: p => `${p.name} Shia Matrimonial`,
     h1: p => `${p.name} Shia Matrimonial`,
     title: p => `${p.name} Shia Matrimonial | Profiles & Matchmaking – Shia Rishta`,
-    desc: p => `${p.name} Shia matrimonial — profiles, matchmaking, and wali workflows built for Shia families. Free to join.`,
+    desc: p => `${p.name} Shia matrimonial — profiles, matchmaking, and wali workflows built for Shia families seeking nikah. Free to join.`,
     angle: 'matrimonial',
   },
   {
@@ -346,6 +346,39 @@ function allTags(place) {
   return TAG_DEFS.map(t => ({ label: t.phrase(place), to: `/${t.slug(place)}` }));
 }
 
+/**
+ * Title length fit (2026-11-24 audit, Phase 8 / Track C title trims).
+ *
+ * SERPs truncate titles around 60 characters. The templates above compose
+ * "<phrase> | <benefit> – Shia Rishta", which overflows for long place
+ * names (the United Kingdom, Silver Spring, Washington DC…). Rather than
+ * shortening every title — most fit — an over-length title is reduced
+ * deterministically, keywords first:
+ *   1. If the phrase already carries the brand ("Shia Rishta in …",
+ *      "Find Shia Rishta in …"), drop the trailing " – Shia Rishta".
+ *   2. Otherwise drop the middle benefit segment, keeping
+ *      "<phrase> – Shia Rishta".
+ *   3. If it still overflows, drop the trailing brand as well.
+ * Titles at or under the limit are returned untouched, so this changes
+ * only the pages the audit flagged.
+ */
+const TITLE_MAX = 60;
+function fitTitle(title) {
+  if (title.length <= TITLE_MAX) return title;
+  const SUFFIX = ' – Shia Rishta';
+  let t = title;
+  if (t.endsWith(SUFFIX) && t.slice(0, -SUFFIX.length).includes('Shia Rishta')) {
+    t = t.slice(0, -SUFFIX.length);
+  }
+  if (t.length > TITLE_MAX && t.includes(' | ')) {
+    t = t.split(' | ')[0] + (title.endsWith(SUFFIX) ? SUFFIX : '');
+  }
+  if (t.length > TITLE_MAX && t.endsWith(SUFFIX)) {
+    t = t.slice(0, -SUFFIX.length);
+  }
+  return t;
+}
+
 // ── Page builder ───────────────────────────────────────────────────────────
 function buildPage(tag, place) {
   const angle = ANGLES[tag.angle];
@@ -362,7 +395,7 @@ function buildPage(tag, place) {
     })),
   ];
   return {
-    title: tag.title(place),
+    title: fitTitle(tag.title(place)),
     desc: tag.desc(place),
     h1: tag.h1(place),
     breadcrumb: tag.phrase(place),

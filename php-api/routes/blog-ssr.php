@@ -99,10 +99,15 @@ function blogSsrInlineLinks(string $text): string
 }
 
 /** Render [{t:'p'|'h2'|'ul'|'ol'|'quote', x:'...'}] body blocks as HTML. List
- * items arrive newline-separated in x (see aiNormalizeBlock). */
-function blogSsrBodyHtml(array $body): string
+ * items arrive newline-separated in x (see aiNormalizeBlock).
+ *
+ * $asideHtml (the D-04 "Continue reading" block) is spliced INTO the
+ * article flow — after the 3rd block, or at the end when the post has
+ * 3 or fewer — never appended outside the article. BlogPost.jsx applies
+ * the identical position rule so the served HTML and the app agree. */
+function blogSsrBodyHtml(array $body, string $asideHtml = ''): string
 {
-    $out = '';
+    $chunks = [];
     foreach ($body as $b) {
         if (!is_array($b)) {
             continue;
@@ -110,7 +115,7 @@ function blogSsrBodyHtml(array $body): string
         $text = htmlspecialchars((string)($b['x'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         switch ($b['t'] ?? 'p') {
             case 'h2':
-                $out .= "<h2>{$text}</h2>";
+                $chunks[] = "<h2>{$text}</h2>";
                 break;
             case 'ul':
             case 'ol': {
@@ -119,20 +124,156 @@ function blogSsrBodyHtml(array $body): string
                     array_map('trim', preg_split('/\r\n|\r|\n/', (string)($b['x'] ?? '')) ?: []),
                     static fn($l) => $l !== ''
                 ));
-                $out .= "<{$tag}>" . implode('', array_map(
+                $chunks[] = "<{$tag}>" . implode('', array_map(
                     static fn($i) => '<li>' . blogSsrInlineLinks($i) . '</li>',
                     $items
                 )) . "</{$tag}>";
                 break;
             }
             case 'quote':
-                $out .= '<blockquote>' . blogSsrInlineLinks((string)($b['x'] ?? '')) . '</blockquote>';
+                $chunks[] = '<blockquote>' . blogSsrInlineLinks((string)($b['x'] ?? '')) . '</blockquote>';
                 break;
             default:
-                $out .= '<p>' . blogSsrInlineLinks((string)($b['x'] ?? '')) . '</p>';
+                $chunks[] = '<p>' . blogSsrInlineLinks((string)($b['x'] ?? '')) . '</p>';
         }
     }
+    if ($asideHtml !== '') {
+        array_splice($chunks, count($chunks) > 3 ? 3 : count($chunks), 0, [$asideHtml]);
+    }
+    return implode('', $chunks);
+}
+
+/** Related posts for the in-article links (2026-11-24 audit, D-04).
+ * Same category first, then the latest others — published only, so every
+ * link target is a live post (DB-is-truth). Returns [] on any failure:
+ * a missing links block must never break the article. */
+function blogSsrRelatedPosts(string $slug, string $category, int $limit = 2): array
+{
+    try {
+        $rows = [];
+        if ($category !== '') {
+            $st = db()->prepare(
+                "SELECT slug, title FROM blog_posts
+                  WHERE status = 'published'
+                    AND (scheduled_for IS NULL OR scheduled_for <= UTC_TIMESTAMP())
+                    AND slug <> ? AND category = ?
+                  ORDER BY published_at DESC
+                  LIMIT " . (int)$limit
+            );
+            $st->execute([$slug, $category]);
+            $rows = $st->fetchAll();
+        }
+        if (count($rows) < $limit) {
+            $have = array_map(static fn($r) => (string)$r['slug'], $rows);
+            $have[] = $slug;
+            $in = implode(',', array_fill(0, count($have), '?'));
+            $st = db()->prepare(
+                "SELECT slug, title FROM blog_posts
+                  WHERE status = 'published'
+                    AND (scheduled_for IS NULL OR scheduled_for <= UTC_TIMESTAMP())
+                    AND slug NOT IN ({$in})
+                  ORDER BY published_at DESC
+                  LIMIT " . (int)($limit - count($rows))
+            );
+            $st->execute($have);
+            $rows = array_merge($rows, $st->fetchAll());
+        }
+        return array_map(
+            static fn($r) => ['slug' => (string)$r['slug'], 'title' => (string)$r['title']],
+            $rows
+        );
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+/** Place candidates for the in-article place link: every city/country
+ * route that exists as a prerendered directory on this host. Derived
+ * from the filesystem the web server actually serves (local checkouts
+ * keep the same pages under dist/), cached for a day in storage/ — a
+ * place is only ever linked when its page exists. */
+function blogSsrPlaceCandidates(): array
+{
+    $cacheFile = __DIR__ . '/../storage/blog-place-links.json';
+    if (is_file($cacheFile) && filemtime($cacheFile) > time() - 86400) {
+        $cached = json_decode((string)@file_get_contents($cacheFile), true);
+        if (is_array($cached)) {
+            return $cached;
+        }
+    }
+    $root = dirname(__DIR__, 2);
+    $acronyms = ['dc' => 'DC', 'usa' => 'USA', 'uk' => 'UK', 'uae' => 'UAE'];
+    $byHref = [];
+    foreach (['city', 'country'] as $kind) {
+        foreach ([$root . '/' . $kind, $root . '/dist/' . $kind] as $base) {
+            if (!is_dir($base)) {
+                continue;
+            }
+            foreach (scandir($base) ?: [] as $slug) {
+                if ($slug === '.' || $slug === '..' || !is_file($base . '/' . $slug . '/index.html')) {
+                    continue;
+                }
+                $words = array_map(
+                    static fn($w) => $acronyms[$w] ?? ucfirst($w),
+                    explode('-', $slug)
+                );
+                $href = '/' . $kind . '/' . $slug . '/';
+                $byHref[$href] = ['href' => $href, 'name' => implode(' ', $words)];
+            }
+        }
+    }
+    $out = array_values($byHref);
+    // Longest names first, so "Washington DC" wins over "Washington".
+    usort($out, static fn($a, $b) => strlen($b['name']) <=> strlen($a['name']));
+    $cacheDir = dirname($cacheFile);
+    if (is_dir($cacheDir)) {
+        @file_put_contents($cacheFile, json_encode($out));
+    }
     return $out;
+}
+
+/** The one place link for a post, or null when the post's own title/body
+ * never mentions a place that has a page. Word-boundary, case-insensitive
+ * match against the post's own text — no place is invented. */
+function blogSsrPlaceLink(string $title, array $body): ?array
+{
+    $text = $title;
+    foreach ($body as $b) {
+        if (is_array($b)) {
+            $text .= ' ' . (string)($b['x'] ?? '');
+        }
+    }
+    foreach (blogSsrPlaceCandidates() as $c) {
+        if (strlen($c['name']) < 4) {
+            continue;
+        }
+        if (preg_match('/\b' . preg_quote($c['name'], '/') . '\b/i', $text)) {
+            $needsThe = in_array($c['name'], ['USA', 'UK', 'UAE', 'United States', 'United Kingdom', 'Netherlands'], true)
+                || str_starts_with($c['name'], 'United ');
+            return [
+                'href' => $c['href'],
+                'label' => 'Shia matrimony in ' . ($needsThe ? 'the ' : '') . $c['name'],
+            ];
+        }
+    }
+    return null;
+}
+
+/** The in-article "Continue reading" block (D-04): up to 2 related posts
+ * plus the place link when the post mentions a place with a page. */
+function blogSsrInlineLinksAside(array $related, ?array $place): string
+{
+    if ($related === [] && $place === null) {
+        return '';
+    }
+    $items = '';
+    foreach ($related as $r) {
+        $items .= '<li><a href="/blog/' . blogSsrEsc($r['slug']) . '">' . blogSsrEsc($r['title']) . '</a></li>';
+    }
+    if ($place !== null) {
+        $items .= '<li><a href="' . blogSsrEsc($place['href']) . '">' . blogSsrEsc($place['label']) . '</a></li>';
+    }
+    return '<aside aria-label="Continue reading"><h2>Continue reading</h2><ul>' . $items . '</ul></aside>';
 }
 
 /** Crawlable cross-links between posts (2026-11-19, indexing audit).
@@ -284,6 +425,24 @@ function blogSsr(string $slug): void
     $imageAbs = str_starts_with($image, 'http') ? $image : 'https://shiarishta.com' . $image;
     $url = 'https://shiarishta.com/blog/' . $slug;
     $fullTitle = $title . ' — Shia Rishta';
+    // Title/meta length fit (2026-11-24 audit, Phase 8 / Track C): SERPs
+    // truncate titles around 60 chars and descriptions around 160. The
+    // brand suffix is dropped when it alone pushes the title over, and
+    // the meta description is cut on a word boundary. The article's own
+    // H1 and the JSON-LD keep the full title/excerpt — only the SERP
+    // snippets are fitted.
+    if (mb_strlen($fullTitle) > 60) {
+        $fullTitle = $title;
+    }
+    $metaDesc = $excerpt;
+    if (mb_strlen($metaDesc) > 160) {
+        $cut = mb_substr($metaDesc, 0, 157);
+        $lastSpace = mb_strrpos($cut, ' ');
+        if ($lastSpace !== false && $lastSpace > 100) {
+            $cut = mb_substr($cut, 0, $lastSpace);
+        }
+        $metaDesc = rtrim($cut, " \t,;—-") . '…';
+    }
 
     // ── <head>: title, description, canonical, Open Graph ──
     $html = preg_replace(
@@ -294,7 +453,7 @@ function blogSsr(string $slug): void
     );
     $html = preg_replace(
         '/<meta name="description" content="[^"]*" \/>/',
-        '<meta name="description" content="' . $esc($excerpt) . '" />',
+        '<meta name="description" content="' . $esc($metaDesc) . '" />',
         $html,
         1
     );
@@ -312,7 +471,7 @@ function blogSsr(string $slug): void
         '/<meta property="og:title" content="[^"]*" \/>/' =>
             '<meta property="og:title" content="' . $esc($fullTitle) . '" />',
         '/<meta property="og:description" content="[^"]*" \/>/' =>
-            '<meta property="og:description" content="' . $esc($excerpt) . '" />',
+            '<meta property="og:description" content="' . $esc($metaDesc) . '" />',
         '/<meta property="og:image" content="[^"]*" \/>/' =>
             '<meta property="og:image" content="' . $esc($imageAbs) . '" />',
     ];
@@ -348,12 +507,17 @@ function blogSsr(string $slug): void
     $html = str_replace('</head>', $jsonLdTag . "\n</head>", $html);
 
     // ── #root: the article body as real HTML ──
+    // D-04: in-article contextual links (related posts + the place link),
+    // spliced into the body by blogSsrBodyHtml — the end-of-article nav
+    // below stays as the crawlable cross-link list it already was.
+    $related = blogSsrRelatedPosts($slug, $category);
+    $place = blogSsrPlaceLink($title, $post['body']);
     $articleHtml = '<article>'
         . '<p><span>' . $esc($category) . '</span></p>'
         . '<h1>' . $esc($title) . '</h1>'
         . '<p>' . $esc($readTime) . ' read · ' . $esc($date) . '</p>'
         . '<img src="' . $esc($image) . '" alt="' . $esc($title) . '" />'
-        . blogSsrBodyHtml($post['body'])
+        . blogSsrBodyHtml($post['body'], blogSsrInlineLinksAside($related, $place))
         . '<p><a href="/auth/register">Start your journey — it&rsquo;s free</a></p>'
         . '</article>'
         . blogSsrRelatedNav($slug);
@@ -377,6 +541,10 @@ function blogSsr(string $slug): void
         'read_time' => $readTime,
         'published_at' => (string)($post['published_at'] ?? ''),
         'body' => $post['body'],
+        // D-04: BlogPost.jsx renders the same in-article links block from
+        // these fields, so hydration keeps what the crawler was served.
+        'related' => $related,
+        'place' => $place,
     ];
     $dataTag = '<script>window.__SSR_POST__=' .
         json_encode($ssrPost, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) .

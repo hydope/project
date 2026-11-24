@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import Layout from '../layouts/MainLayout';
+// Shell (2026-11-24 audit, Phase 8 / D-02): this page is publicly
+// reachable — guests get the "join to submit" pitch — so it carries the
+// standard public shell (LandingLayout: header nav + footer), the same
+// shell as Profiles, Community and Profile. It previously used the
+// member MainLayout, whose sidebar renders nothing for a guest and which
+// has no footer at all, leaving guests on this page with no onward
+// navigation. Page content and function are unchanged.
+import Layout from '../layouts/LandingLayout';
 import { http } from '../lib/api/transport';
 import { useAuthedImage } from '../lib/api/useAuthedImage';
 import { useAuth } from '../lib/auth/AuthContext';

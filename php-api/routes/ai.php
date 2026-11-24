@@ -673,6 +673,16 @@ function aiGetPost(string $slug): void
     }
     $decoded = json_decode((string)$row['body'], true);
     $row['body'] = is_array($decoded) ? $decoded : [];
+    // D-04 (2026-11-24 audit, Phase 8): the in-article "Continue reading"
+    // links, computed by the same helpers the SSR document uses
+    // (routes/blog-ssr.php, required before this file in index.php) so a
+    // client-side navigation renders the identical block.
+    $row['related'] = function_exists('blogSsrRelatedPosts')
+        ? blogSsrRelatedPosts($slug, (string)($row['category'] ?? ''))
+        : [];
+    $row['place'] = function_exists('blogSsrPlaceLink')
+        ? blogSsrPlaceLink((string)($row['title'] ?? ''), $row['body'])
+        : null;
     json(['post' => $row]);
 }
 

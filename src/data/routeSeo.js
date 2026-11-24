@@ -253,7 +253,7 @@ export const ROUTE_SEO = {
   },
 
   '/blog': {
-    title: 'Nikah & Marriage Guidance for Shia Muslims | Shia Rishta Blog',
+    title: 'Nikah & Marriage Guidance for Shia Muslims | Shia Rishta',
     desc: 'Practical guidance on nikah, choosing a spouse, and married life for Shia Muslims — written for serious seekers and their families.',
     h1: 'Nikah and marriage guidance',
     lede: 'Practical guidance on nikah, choosing a spouse, and married life — written for serious seekers and the families supporting them.',

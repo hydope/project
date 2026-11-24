@@ -12,7 +12,7 @@
 import { LANDING_PAGE_META } from '../pages/landing/landingPageMeta.js';
 import { buildTagLandingPages } from '../data/tagLandingPages.js';
 import { ARTICLE_META } from '../data/articleMeta.js';
-import { CITIES, COUNTRIES, locationMetaDesc } from '../data/locationSeo.js';
+import { CITIES, COUNTRIES, locationMetaDesc, locationCountryTitle } from '../data/locationSeo.js';
 import { ROUTE_SEO, SITE_URL } from '../data/routeSeo.js';
 
 // SITE comes from routeSeo.js so the prerenderer and the runtime agree on the host.
@@ -186,14 +186,14 @@ function resolveMeta(pathname, search = '') {
     const country = COUNTRIES.find((c) => `/country/${c.slug}` === path);
     if (country) {
       return {
-        title: `Shia Matrimony in ${country.name} | Free Shia Rishta Platform`,
+        title: locationCountryTitle(country.name),
         desc: locationMetaDesc(country.name, country.note),
         index: true,
       };
     }
     const name = displayNameFromSlug(path.slice('/country/'.length));
     return {
-      title: `Shia Matrimony in ${name} | Free Shia Rishta Platform`,
+      title: locationCountryTitle(name),
       desc: `Find Shia brides and grooms in ${name}. Privacy-first profiles, wali and guardian workflows, mutual-interest messaging. Free.`,
       index: true,
     };

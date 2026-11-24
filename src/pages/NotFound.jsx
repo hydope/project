@@ -1,4 +1,9 @@
 import { Link, useNavigate } from 'react-router-dom';
+// Shell (2026-11-24 audit, Phase 8 / D-02): the 404 rendered bare — no
+// header nav, no footer — unlike every other public page. It now carries
+// the standard public shell (LandingLayout), which also covers the
+// in-page uses (BlogPost and CityPage render this component directly).
+import Layout from '../layouts/LandingLayout';
 import { motion } from '../lib/motion';
 import { Search, Home, Users, MessageCircle, Sparkles } from 'lucide-react';
 import { useState } from 'react';
@@ -22,6 +27,7 @@ export default function NotFound() {
   ];
 
   return (
+    <Layout>
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-16" style={{ background: 'var(--bg)' }}>
       <div className="text-center max-w-2xl w-full">
         <motion.div
@@ -79,5 +85,6 @@ export default function NotFound() {
         </motion.div>
       </div>
     </div>
+    </Layout>
   );
 }
