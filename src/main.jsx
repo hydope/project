@@ -37,11 +37,30 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator && window.isSecureConte
   });
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+// The app bundle CSS loads async in prerendered pages (see
+// scripts/prerender-routes.mjs — it was the last render-blocking
+// resource, and a cold load showed blank white until it arrived).
+// Hold React's first render until that sheet lands so the app never
+// flashes unstyled; the branded hero/loader (inline CSS) is what
+// paints in the meantime. 1.5s fallback: a stuck sheet must never
+// strand the app on the loader.
+function whenAppCssReady() {
+  const link = document.getElementById('sr-app-css');
+  if (!link || link.sheet) return Promise.resolve();
+  return new Promise((resolve) => {
+    link.addEventListener('load', () => resolve(), { once: true });
+    link.addEventListener('error', () => resolve(), { once: true });
+    setTimeout(resolve, 1500);
+  });
+}
+
+whenAppCssReady().then(() => {
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+});
 
 // Boot survived → forget any earlier heal so the next deploy can heal too.
 clearChunkHealFlagOnBoot();

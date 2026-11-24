@@ -849,6 +849,28 @@ async function buildRouteHtml(route, meta, baseHtml) {
     },
   );
 
+  // Async-load the app bundle CSS (Syed's order, 2026-11-23, after he
+  // recorded ~4s of blank white on a cold phone load). The bundle
+  // stylesheet was the last render-blocking resource: the browser would
+  // not paint ANYTHING — not even the inline-styled hero and loader —
+  // until it arrived from the slow host. The hero's critical CSS is
+  // inline in index.html, so with the bundle deferred via the same
+  // preload + media="print" pattern the fonts already use, first paint
+  // shows the branded hero immediately and the app styles swap in when
+  // they land. main.jsx holds React's first render until this sheet
+  // loads (id="sr-app-css", 1.5s fallback), so the app itself never
+  // flashes unstyled. No-JS keeps a plain blocking link via <noscript>.
+  const cssMatch = html.match(/<link rel="stylesheet" crossorigin href="(\/assets\/[^"]+\.css)">/);
+  if (cssMatch) {
+    const href = cssMatch[1];
+    html = html.replace(
+      cssMatch[0],
+      `<link rel="preload" as="style" href="${href}">` +
+        `<link id="sr-app-css" rel="stylesheet" href="${href}" media="print" onload="this.media='all'">` +
+        `<noscript><link rel="stylesheet" href="${href}"></noscript>`,
+    );
+  }
+
   return html;
 }
 
