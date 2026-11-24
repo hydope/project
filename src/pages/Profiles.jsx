@@ -232,7 +232,7 @@ function RecentlyActiveRail() {
     <section aria-label="Recently active members" className="mb-6">
       <div className="flex items-baseline gap-2 mb-3">
         <h2 className="text-base font-semibold" style={{ color: 'var(--color-ink)' }}>Recently active</h2>
-        <span className="text-xs" style={{ color: 'var(--color-ink-tertiary)' }}>Real members, most recently active first</span>
+        <span className="text-xs" style={{ color: 'var(--color-ink-tertiary)' }}>Members, most recently active first</span>
       </div>
       <div className="flex gap-4 overflow-x-auto pb-2">
         {rows.map(p => <RecentlyActiveCard key={p.id} profile={p} />)}
