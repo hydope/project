@@ -223,7 +223,8 @@ function createMotionComponent(tag) {
         return;
       }
       applyValues(el, toValues, css);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      // Intentionally keyed on toKey only — a serialised change signal for
+      // the values, so the effect does not re-run on every render.
     }, [toKey]);
 
     const interactionProps = {};

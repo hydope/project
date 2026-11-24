@@ -7,7 +7,7 @@ import { useAuth } from '../lib/auth/AuthContext';
 import LoginGate from '../components/LoginGate';
 import { formatCity, formatCountry, formatDateShort, isStaleActivity, SHOW_LAST_SEEN } from '../lib/format';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { ArrowLeft, ShieldCheck, MapPin, Heart, MessageCircle, Bookmark, Lock, Users, Award, Sparkles, ChevronRight, HeartHandshake } from 'lucide-react';
+import { ShieldCheck, MapPin, Heart, MessageCircle, Bookmark, Lock, Users, Award, Sparkles, ChevronRight, HeartHandshake } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
 import CompatibilityIndex from '../components/CompatibilityIndex';
 import { ReportFlag } from '../components/ReportFlag';

@@ -337,7 +337,6 @@ function allTags(place) {
 
 // ── Page builder ───────────────────────────────────────────────────────────
 function buildPage(tag, place) {
-  const slug = tag.slug(place);
   const angle = ANGLES[tag.angle];
   const tags = allTags(place);
   // Related: other tag variants for the same place + same tag in other places

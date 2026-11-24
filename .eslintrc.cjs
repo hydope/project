@@ -17,7 +17,10 @@ module.exports = {
     // shipped 2026-11-16 in Profiles.jsx (an effect above the `filtered`
     // useMemo it depended on) and crashed /profiles for every visitor
     // for a day — a real member deleted his account over it. This rule
-    // flags that shape at lint time; the codebase is clean under it.
+    // flags that shape at lint time. The codebase is clean under it as of
+    // the 2026-11-24 Phase 5 pass (21 errors triaged and fixed), and lint
+    // is a blocking step in CI and deploy — keep it clean; a red lint
+    // now stops the deploy.
     'no-use-before-define': ['error', { variables: true, functions: false, classes: true }],
   },
   settings: { react: { version: 'detect' } },

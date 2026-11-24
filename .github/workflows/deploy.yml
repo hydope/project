@@ -62,6 +62,13 @@ jobs:
           node-version: 20
           cache: npm
 
+      # Blocking JS lint gate (2026-11-24, Phase 5): same standard as the
+      # PHP syntax gate above — a red lint stops the deploy before build.
+      - name: JS lint gate (blocks deploy on lint errors)
+        run: |
+          npm ci
+          npm run lint
+
       - name: Build frontend
         run: |
           npm ci

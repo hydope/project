@@ -29,7 +29,7 @@ export const COUNTRY_ALIASES = {
   "cote-d-ivoire": ['Ivory Coast'],
 };
 
-export function countryAliases(slug, displayName) {
+export function countryAliases(slug, _displayName) {
   const key = slug.toLowerCase();
   const aliases = COUNTRY_ALIASES[key];
   if (aliases && aliases.length) return aliases;

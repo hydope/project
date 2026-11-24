@@ -12,41 +12,6 @@ export default function IslamicCalendar() {
   void locationError;
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    // Try to load cached data
-    const loadCachedData = () => {
-      try {
-        const cached = localStorage.getItem('islamicCalendarData');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          const now = Date.now();
-          if (now - parsed.timestamp < 24 * 60 * 60 * 1000) { // 24 hours
-            setIslamicDate(parsed.islamicDate);
-            setPrayerTimes(parsed.prayerTimes);
-            setQiblaDirection(parsed.qiblaDirection);
-            setIsLoading(false);
-            return true;
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to load cached Islamic calendar data:', e);
-      }
-      return false;
-    };
-
-    if (loadCachedData()) {
-      // If we have cached data, we still want to update in background if stale
-      // but we'll set a timeout to refresh after a short delay
-      setTimeout(() => {
-        fetchIslamicData();
-      }, 30000); // Refresh after 30 seconds if we had cache
-      return;
-    }
-
-    // No valid cache, fetch new data
-    fetchIslamicData();
-  }, []);
-
   const fetchIslamicData = async () => {
     setIsLoading(true);
     setError(null);
@@ -116,6 +81,42 @@ export default function IslamicCalendar() {
       }
     }
   };
+
+  useEffect(() => {
+    // Try to load cached data
+    const loadCachedData = () => {
+      try {
+        const cached = localStorage.getItem('islamicCalendarData');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          const now = Date.now();
+          if (now - parsed.timestamp < 24 * 60 * 60 * 1000) { // 24 hours
+            setIslamicDate(parsed.islamicDate);
+            setPrayerTimes(parsed.prayerTimes);
+            setQiblaDirection(parsed.qiblaDirection);
+            setIsLoading(false);
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load cached Islamic calendar data:', e);
+      }
+      return false;
+    };
+
+    if (loadCachedData()) {
+      // If we have cached data, we still want to update in background if stale
+      // but we'll set a timeout to refresh after a short delay
+      setTimeout(() => {
+        fetchIslamicData();
+      }, 30000); // Refresh after 30 seconds if we had cache
+      return;
+    }
+
+    // No valid cache, fetch new data
+    fetchIslamicData();
+  }, []);
+
 
   // Update prayer times daily (at a random time to avoid thundering herd)
   useEffect(() => {

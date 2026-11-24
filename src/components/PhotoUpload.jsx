@@ -51,7 +51,8 @@ export default function PhotoUpload() {
       await loadPhoto();
     })();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally not reacting to loadPhoto identity changes — the effect
+    // re-runs on uid/bust, which are the only inputs that need a reload.
   }, [user?.uid, bust]);
 
   const onPick = async (e) => {

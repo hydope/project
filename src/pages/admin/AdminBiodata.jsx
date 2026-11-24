@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/layouts/AdminLayout';
 import { http } from '@/lib/api/transport';
-import { FileText, Search, Download, Calendar, User, Camera, RefreshCw, ChevronDown, BarChart3 } from 'lucide-react';
+import { FileText, Search, Calendar, User, Camera, RefreshCw, ChevronDown, BarChart3 } from 'lucide-react';
 
 /**
  * Biodata Maker — admin section.

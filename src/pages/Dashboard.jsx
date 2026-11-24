@@ -142,7 +142,7 @@ function ConnectionsCard({ title, subtitle, profiles, showReason }) {
 
 export default function Dashboard() {
   usePageTitle('Dashboard');
-  const { user, refreshUser } = useAuth();
+  const { user } = useAuth();
   const [profiles, setProfiles] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);

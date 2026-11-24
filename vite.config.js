@@ -4,7 +4,14 @@ import { resolve } from 'path';
 
 // Environment variable prefix for Vite
 const defineOptions = {
-  'process.env': {}
+  'process.env': {},
+  // Build ID — injected into the bundle so the app can detect when the
+  // server has a newer deploy than the running code (stale chunk guard).
+  // (Merged here 2026-11-24, Phase 5 lint fix: this used to also be set by
+  // a second inline `define:` key in the config object below, which
+  // silently overrode this one — duplicate keys are last-wins in JS, so
+  // __BUILD_ID__ never reached the bundle.)
+  '__BUILD_ID__': JSON.stringify(new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')),
 };
 
 // Add all env vars that start with VITE_ or are in a allowed list
@@ -38,11 +45,6 @@ const buildId = (process.env.BUILD_ID || process.env.GITHUB_SHA || 'local')
 
 export default defineConfig({
   plugins: [react()],
-  // Build ID — injected into the bundle so the app can detect when the
-  // server has a newer deploy than the running code (stale chunk guard).
-  define: {
-    '__BUILD_ID__': JSON.stringify(new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')),
-  },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),

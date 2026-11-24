@@ -64,7 +64,6 @@ export default function CityPage() {
 
   const kind = isCountry ? 'country' : 'city';
   const aliases = isCountry ? countryAliases(slug, displayName) : [];
-  const altName = aliases[0] || null;
 
   usePageTitle(`Shia Rishta in ${displayName} | Shia Nikah Match`);
 

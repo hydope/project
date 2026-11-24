@@ -469,38 +469,8 @@ export default function Onboard() {
   // validation failures were visible, never successful progress.
   useEffect(() => {
     logEvent('onboarding', `step_${step}`, { form: 'onboarding', message: `reached step ${step} of ${totalSteps}` });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally [step] only — this logs step arrivals, not data edits.
   }, [step]);
-
-  const goNext = () => {
-    const e = validateStep(step, data);
-    setErrors(e);
-    // Event log (2026-11-15): which wizard fields block progress.
-    if (Object.keys(e).length > 0) { logValidation(`onboarding_step_${step}`, e); return; }
-    if (step < totalSteps) { saveProgress(); setStep(s => s + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-    else publish();
-  };
-
-  const goBack = () => {
-    setErrors({});
-    if (step > 1) { setStep(s => s - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-  };
-
-  // Skip onboarding entirely — signup is NEVER blocked by onboarding
-  // (Syed's order 2026-10-24). The draft autosaves, so the member can finish
-  // later from the dashboard banner. Their account is fully usable now.
-  const skipOnboarding = () => {
-    try { localStorage.setItem(scopedDraftKey(), JSON.stringify({ data, step })); } catch { /* ignore */ }
-    http.put('/users/me/draft', { draft: { data, step } }).catch(() => { /* ignore */ });
-    // Save whatever they filled as a real profile too — skipping must not
-    // leave them invisible (2026-11-01 stuck-signup fix).
-    saveProgress();
-    navigate('/dashboard');
-  };
-
-  const goTo = (id) => { // jump back only — moving forward requires validation
-    if (id < step) { setErrors({}); setStep(id); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-  };
 
   const publish = async () => {
     setPublishing(true);
@@ -544,6 +514,36 @@ export default function Onboard() {
     } finally {
       setPublishing(false);
     }
+  };
+
+  const goNext = () => {
+    const e = validateStep(step, data);
+    setErrors(e);
+    // Event log (2026-11-15): which wizard fields block progress.
+    if (Object.keys(e).length > 0) { logValidation(`onboarding_step_${step}`, e); return; }
+    if (step < totalSteps) { saveProgress(); setStep(s => s + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    else publish();
+  };
+
+  const goBack = () => {
+    setErrors({});
+    if (step > 1) { setStep(s => s - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  };
+
+  // Skip onboarding entirely — signup is NEVER blocked by onboarding
+  // (Syed's order 2026-10-24). The draft autosaves, so the member can finish
+  // later from the dashboard banner. Their account is fully usable now.
+  const skipOnboarding = () => {
+    try { localStorage.setItem(scopedDraftKey(), JSON.stringify({ data, step })); } catch { /* ignore */ }
+    http.put('/users/me/draft', { draft: { data, step } }).catch(() => { /* ignore */ });
+    // Save whatever they filled as a real profile too — skipping must not
+    // leave them invisible (2026-11-01 stuck-signup fix).
+    saveProgress();
+    navigate('/dashboard');
+  };
+
+  const goTo = (id) => { // jump back only — moving forward requires validation
+    if (id < step) { setErrors({}); setStep(id); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   };
 
   const stepProps = { data, update, errors, toggleIn };

@@ -125,6 +125,61 @@ export default function Settings() {
   const [usernameNote, setUsernameNote] = useState('');
   const [usernameSaving, setUsernameSaving] = useState(false);
 
+  // State used by the load-on-mount effect below is declared BEFORE it
+  // (2026-11-24, Phase 5 lint fix): a hook dependency array — and any
+  // render-time read — is evaluated during render, so reading a const
+  // above its declaration is a TDZ crash on every render. Handlers and
+  // effects only run after the whole component body has executed,
+  // which is why this ever worked; the order is now honest.
+  const [profile, setProfile] = useState({
+    displayName: user?.displayName || '',
+    email: user?.email || '',
+    phone: '', city: '', country: '', bio: '',
+    // Partner preferences (2026-11-10): editable here, saved by the same
+    // "Save account changes" button. The other new detail fields follow the
+    // existing pattern — collected in onboarding, editable by re-running it
+    // (which pre-fills from the server profile).
+    prefAgeMin: '', prefAgeMax: '', prefHeightMinParts: { feet: '', inches: '' }, prefHeightMaxParts: { feet: '', inches: '' },
+    prefEducation: '', prefLocation: '', prefMustHaves: '',
+  });
+  // True once the owner profile has loaded from the server. The Save button
+  // stays disabled until then: the fields start blank, and sending blanks
+  // would wipe the stored city/country/phone before they ever load.
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
+  const [privacy, setPrivacy] = useState({
+    profileVisibility: 'members', photoVisibility: 'members',
+    contactVisibility: 'members',
+    // "Show online status" was removed (2026-11-09, P0 batch): no online
+    // status is displayed anywhere in the product, so the toggle promised
+    // a feature that did not exist. The two toggles below are enforced by
+    // the server — blockUnverified hides your profile from unverified
+    // members and blocks their interest; allowFamilyView gates wali links.
+    allowFamilyView: true, blockUnverified: false,
+    // First Connections (2026-11-11): opt-in to be suggested to new
+    // members. Default off — nobody is put forward until they choose it.
+    openToIntroductions: false
+  });
+  const [privacySaved, setPrivacySaved] = useState('');
+
+  // Hide-any-field (2026-11-09): payload keys the member wants hidden from
+  // other viewers. Empty = everything shown (the default).
+  const [hiddenFields, setHiddenFields] = useState([]);
+  const toggleHiddenField = (key) => {
+    setHiddenFields(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  };
+
+  const [blocks, setBlocks] = useState([]);
+  const [mutes, setMutes] = useState([]);
+
+  const [myReports, setMyReports] = useState([]);
+
+  const [notifications, setNotifications] = useState({
+    emailInterests: true, emailMessages: true, emailMatches: true, emailWeeklyDigest: true,
+    pushMessages: true, pushMatches: false, pushProfileViews: false
+  });
+  const [notifNote, setNotifNote] = useState('');
+
   // Load the current handle once so the field is not blank for members who
   // already set one. The same owner payload carries the server truth for the
   // privacy toggles, the location/phone fields and the blocked list — Settings
@@ -359,49 +414,11 @@ export default function Settings() {
     }
   };
 
-  const [profile, setProfile] = useState({
-    displayName: user?.displayName || '',
-    email: user?.email || '',
-    phone: '', city: '', country: '', bio: '',
-    // Partner preferences (2026-11-10): editable here, saved by the same
-    // "Save account changes" button. The other new detail fields follow the
-    // existing pattern — collected in onboarding, editable by re-running it
-    // (which pre-fills from the server profile).
-    prefAgeMin: '', prefAgeMax: '', prefHeightMinParts: { feet: '', inches: '' }, prefHeightMaxParts: { feet: '', inches: '' },
-    prefEducation: '', prefLocation: '', prefMustHaves: '',
-  });
-  // True once the owner profile has loaded from the server. The Save button
-  // stays disabled until then: the fields start blank, and sending blanks
-  // would wipe the stored city/country/phone before they ever load.
-  const [profileLoaded, setProfileLoaded] = useState(false);
 
-  const [privacy, setPrivacy] = useState({
-    profileVisibility: 'members', photoVisibility: 'members',
-    contactVisibility: 'members',
-    // "Show online status" was removed (2026-11-09, P0 batch): no online
-    // status is displayed anywhere in the product, so the toggle promised
-    // a feature that did not exist. The two toggles below are enforced by
-    // the server — blockUnverified hides your profile from unverified
-    // members and blocks their interest; allowFamilyView gates wali links.
-    allowFamilyView: true, blockUnverified: false,
-    // First Connections (2026-11-11): opt-in to be suggested to new
-    // members. Default off — nobody is put forward until they choose it.
-    openToIntroductions: false
-  });
-  const [privacySaved, setPrivacySaved] = useState('');
-  // Hide-any-field (2026-11-09): payload keys the member wants hidden from
-  // other viewers. Empty = everything shown (the default).
-  const [hiddenFields, setHiddenFields] = useState([]);
-  const toggleHiddenField = (key) => {
-    setHiddenFields(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
-  };
-  const [blocks, setBlocks] = useState([]);
-  const [mutes, setMutes] = useState([]);
   const [blocking, setBlocking] = useState('');
   const [blockError, setBlockError] = useState('');
   const [blockSuccess, setBlockSuccess] = useState('');
   const [confirmBlockId, setConfirmBlockId] = useState(null);
-  const [myReports, setMyReports] = useState([]);
   const [appealBusy, setAppealBusy] = useState(null);
   const [appealNote, setAppealNote] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState('');
@@ -414,11 +431,6 @@ export default function Settings() {
   const [deleteReason, setDeleteReason] = useState('');
   const [deleteDetail, setDeleteDetail] = useState('');
 
-  const [notifications, setNotifications] = useState({
-    emailInterests: true, emailMessages: true, emailMatches: true, emailWeeklyDigest: true,
-    pushMessages: true, pushMatches: false, pushProfileViews: false
-  });
-  const [notifNote, setNotifNote] = useState('');
 
   // Notification prefs (2026-11-09): persisted server-side so the server
   // can respect them when an event fires. The tab has no save button, so a

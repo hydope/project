@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { BadgeCheck, Camera, ShieldCheck, Users } from 'lucide-react';
+import { BadgeCheck, Camera, ShieldCheck } from 'lucide-react';
 import { api } from '../lib/api/client';
 import { useAuth } from '../lib/auth/AuthContext';
 

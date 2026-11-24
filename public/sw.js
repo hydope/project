@@ -4,7 +4,7 @@
 //
 // This file unregisters itself and clears all caches. Every client it
 // controls gets a clean slate on next load.
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 

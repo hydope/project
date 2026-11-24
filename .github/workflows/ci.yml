@@ -34,6 +34,10 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # Blocking JS lint gate (2026-11-24, Phase 5): a red lint fails CI.
+      # no-use-before-define is an error on purpose — that shape crashed
+      # /profiles for a day in Nov 2026.
+      - run: npm run lint
       - run: npm run build
       - run: node scripts/check-bundle-budget.mjs
       - run: node scripts/test-unit.cjs

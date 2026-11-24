@@ -449,7 +449,7 @@ function LandingHeader() {
 export default function LandingLayout({ children }) {
   // Warm editorial light is the product default — see lib/theme.js. The
   // versioned key means a stale `dark` from an older build cannot resurrect.
-  const [dark, setDark] = useState(readIsDark);
+  const [dark] = useState(readIsDark);
   const location = useLocation();
 
   useEffect(() => {

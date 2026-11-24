@@ -35,6 +35,10 @@ export default function Drafts() {
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  const copy = async (url, code) => {
+    try { await navigator.clipboard.writeText(url); setCopied(code); setTimeout(() => setCopied(''), 2500); } catch { /* clipboard blocked — the URL is visible below */ }
+  };
+
   const create = async (e) => {
     e.preventDefault();
     setCreating(true);
@@ -70,9 +74,6 @@ export default function Drafts() {
     }
   };
 
-  const copy = async (url, code) => {
-    try { await navigator.clipboard.writeText(url); setCopied(code); setTimeout(() => setCopied(''), 2500); } catch { /* clipboard blocked — the URL is visible below */ }
-  };
 
   const whatsapp = (d) => `https://wa.me/?text=${encodeURIComponent(
     `Assalamu Alaikum — I have set up a private profile for you on Shia Rishta (nikah-first matchmaking). Review it and make it yours here: ${window.location.origin}/claim/${d.claim_token}\n\nShort code if the link expires: ${d.short_code}`,
