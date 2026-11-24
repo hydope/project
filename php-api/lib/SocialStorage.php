@@ -133,7 +133,7 @@ function socialParseUtc(?string $s): ?int
  * @param array $targets social_post_targets rows for the post
  * @return ?array ['reason'=>string,'note'=>string] or null to keep the file
  */
-function socialPurgeDecision(array $post, array $targets, int $now, bool $emergency = false, int $graceHours = 72): ?array
+function socialPurgeDecision(array $post, array $targets, int $now, bool $emergency = false, float $graceHours = 72): ?array
 {
     if (empty($post['media_path'])) return null;
     if (!empty($post['media_purged_at'])) return null;
@@ -175,15 +175,18 @@ function socialPurgeDecision(array $post, array $targets, int $now, bool $emerge
     }
 
     // Fully live everywhere it was sent: the platforms hold the content.
-    // The grace is the Settings panel's purge delay (72h by default).
+    // The grace is the Settings panel's purge delay (72h by default;
+    // fractional values allowed down to 0.5h = 30 minutes).
     if ($anyPublished && $allSettledLive && $lastPublish !== null) {
+        // Render the grace cleanly: 0.5 -> '0.5', 72.0 -> '72'.
+        $graceLabel = rtrim(rtrim(number_format($graceHours, 2, '.', ''), '0'), '.');
         if ($emergency) {
             return ['reason' => 'emergency_storage_95',
-                    'note' => 'Media purged EARLY by the storage watchdog (account usage ≥95% of quota): ' . $graceHours . 'h grace skipped to protect the website. Content lives on the platforms; URLs are on the targets.'];
+                    'note' => 'Media purged EARLY by the storage watchdog (account usage ≥95% of quota): ' . $graceLabel . 'h grace skipped to protect the website. Content lives on the platforms; URLs are on the targets.'];
         }
         if ($now - $lastPublish >= $graceHours * 3600) {
-            return ['reason' => 'published_grace_72h',
-                    'note' => 'Media purged: all targets published >' . $graceHours . 'h ago. Server copy deleted; content lives on the platforms (URLs on the targets).'];
+            return ['reason' => 'published_grace',
+                    'note' => 'Media purged: all targets published >' . $graceLabel . 'h ago. Server copy deleted; content lives on the platforms (URLs on the targets).'];
         }
         return null; // still inside the grace window — nothing else applies
     }
@@ -312,13 +315,14 @@ function socialPurgeSweep(bool $emergency = false): array
     // SELECT * omits it pre-migration, and preparing against a missing
     // column here would throw outside the guarded section above).
     $updThumbStmt = null;
-    // Purge grace from the Settings panel (72h by default).
-    $graceHours = 72;
+    // Purge grace from the Settings panel (72h by default; fractional
+    // hours allowed, panel minimum 0.5h = 30 minutes).
+    $graceHours = 72.0;
     if (function_exists('socialSchedulerSettings')) {
         try {
-            $graceHours = (int)(socialSchedulerSettings()['storage']['purgeHours'] ?? 72);
+            $graceHours = (float)(socialSchedulerSettings()['storage']['purgeHours'] ?? 72);
         } catch (Throwable) {
-            $graceHours = 72;
+            $graceHours = 72.0;
         }
     }
     foreach ($rows as $row) {

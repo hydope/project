@@ -1100,7 +1100,7 @@ function socialSettingsUpdate(): void
         if (array_key_exists('budgetGiB', $body['storage'])) {
             $settings['storage']['budgetGiB'] = $body['storage']['budgetGiB'] === null ? null : (float)$body['storage']['budgetGiB'];
         }
-        if (isset($body['storage']['purgeHours'])) $settings['storage']['purgeHours'] = (int)$body['storage']['purgeHours'];
+        if (isset($body['storage']['purgeHours'])) $settings['storage']['purgeHours'] = (float)$body['storage']['purgeHours'];
     }
     socialSchedulerSettingsSave($settings);
     foreach (['instagram', 'youtube'] as $p) {

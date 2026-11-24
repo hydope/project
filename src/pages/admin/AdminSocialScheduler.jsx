@@ -596,9 +596,10 @@ export default function AdminSocialScheduler() {
               </label>
               <label className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>
                 Purge after publish (hours)
-                <input type="number" min="1" max="720" value={storageDraft.purgeHours}
+                <input type="number" min="0.5" max="720" step="0.5" value={storageDraft.purgeHours}
                   className="input px-2 py-1 text-sm block mt-1" style={{ width: 90 }}
                   onChange={(e) => setStorageDraft({ ...storageDraft, purgeHours: e.target.value })} />
+                <span className="block mt-1">0.5 = 30 minutes</span>
               </label>
               <button type="button"
                 onClick={() => saveSettings({ storage: { budgetGiB: storageDraft.budgetGiB === '' ? null : Number(storageDraft.budgetGiB), purgeHours: Number(storageDraft.purgeHours) } }, 'Storage settings saved.')}

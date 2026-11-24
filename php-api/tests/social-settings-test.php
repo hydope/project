@@ -61,7 +61,13 @@ check('merge: youtube paused, others not', $m['paused']['youtube'] === true && $
 check('merge: slots validated, deduped, sorted', $m['slots'] === ['09:30', '18:00']);
 check('merge: first-comment mode off kept', $m['firstCommentMode'] === 'off');
 check('merge: retry applied', $m['retry'] === ['maxAttempts' => 3, 'backoffMinutes' => 10]);
-check('merge: storage applied', $m['storage']['budgetGiB'] === 4.0 && $m['storage']['purgeHours'] === 48);
+check('merge: storage applied', $m['storage']['budgetGiB'] === 4.0 && $m['storage']['purgeHours'] === 48.0);
+$mHalf = socialSettingsMerge(['storage' => ['purgeHours' => 0.5]]);
+check('merge: purge grace 0.5h accepted and stored (30 minutes)', $mHalf['storage']['purgeHours'] === 0.5);
+$mLow = socialSettingsMerge(['storage' => ['purgeHours' => 0.1]]);
+check('merge: purge grace clamped to the 0.5h minimum', $mLow['storage']['purgeHours'] === 0.5);
+$mHigh = socialSettingsMerge(['storage' => ['purgeHours' => 9999]]);
+check('merge: purge grace clamped to the 720h maximum', $mHigh['storage']['purgeHours'] === 720.0);
 $m2 = socialSettingsMerge(['firstCommentMode' => 'bogus', 'retry' => ['maxAttempts' => 0, 'backoffMinutes' => 0]]);
 check('merge: invalid mode falls back to stored', $m2['firstCommentMode'] === 'stored');
 check('merge: retry clamped to minimums', $m2['retry'] === ['maxAttempts' => 1, 'backoffMinutes' => 1]);

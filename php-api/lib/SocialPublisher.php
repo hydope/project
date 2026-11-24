@@ -820,7 +820,7 @@ function socialSettingsMerge(?array $stored): array
             $s['storage']['budgetGiB'] = max(0.1, min(100, (float)$stored['storage']['budgetGiB']));
         }
         if (isset($stored['storage']['purgeHours']) && is_numeric($stored['storage']['purgeHours'])) {
-            $s['storage']['purgeHours'] = max(1, min(720, (int)$stored['storage']['purgeHours']));
+            $s['storage']['purgeHours'] = max(0.5, min(720.0, (float)$stored['storage']['purgeHours']));
         }
     }
     return $s;

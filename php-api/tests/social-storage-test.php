@@ -4,7 +4,8 @@
 // budget config and the recursive dir-size helper.
 //
 // Rules pinned here (Social-Storage-World-Class-Plan.md §3.3/§3.4):
-//   · all targets published with live URLs → purge 72h after last publish
+//   · all targets published with live URLs → purge after the configured
+//     grace (72h default; fractional allowed down to 0.5h = 30 minutes)
 //   · any target failed, none still open → keep 7 days, then purge
 //   · cancelled post → purge 24h after cancellation
 //   · emergency (watchdog ≥95%) → published files purge regardless of grace
@@ -42,15 +43,28 @@ $tgt = static fn(string $status, array $over = []): array => array_merge([
 
 // ── Published rule ──────────────────────────────────────────────────────
 $d = socialPurgeDecision($post(), [$tgt('published'), $tgt('published')], $now);
-check('all published, last publish 73h ago -> purge (published_grace_72h)',
-    $d !== null && $d['reason'] === 'published_grace_72h');
+check('all published, last publish 73h ago -> purge (published_grace)',
+    $d !== null && $d['reason'] === 'published_grace');
 
 $d = socialPurgeDecision($post(), [$tgt('published', ['published_at' => $fmt($now - 71 * $H), 'updated_at' => $fmt($now - 71 * $H)])], $now);
 check('all published, last publish 71h ago -> keep (inside grace)', $d === null);
 
 $d = socialPurgeDecision($post(), [$tgt('published'), $tgt('skipped')], $now);
 check('published + skipped target -> purge after grace (skipped is settled)',
-    $d !== null && $d['reason'] === 'published_grace_72h');
+    $d !== null && $d['reason'] === 'published_grace');
+
+// ── Fractional grace: 0.5h = 30 minutes (panel minimum, 2026-11-24) ──
+$d = socialPurgeDecision($post(), [$tgt('published', ['published_at' => $fmt($now - 31 * 60), 'updated_at' => $fmt($now - 31 * 60)])], $now, false, 0.5);
+check('grace 0.5h: last publish 31 min ago -> purge (published_grace)',
+    $d !== null && $d['reason'] === 'published_grace');
+check('grace 0.5h: note renders the grace cleanly as 0.5h',
+    $d !== null && str_contains($d['note'], '>0.5h ago'));
+
+$d = socialPurgeDecision($post(), [$tgt('published', ['published_at' => $fmt($now - 30 * 60), 'updated_at' => $fmt($now - 30 * 60)])], $now, false, 0.5);
+check('grace 0.5h: last publish exactly 30 min ago -> purge (boundary)', $d !== null);
+
+$d = socialPurgeDecision($post(), [$tgt('published', ['published_at' => $fmt($now - 29 * 60), 'updated_at' => $fmt($now - 29 * 60)])], $now, false, 0.5);
+check('grace 0.5h: last publish 29 min ago -> keep (inside grace)', $d === null);
 
 $d = socialPurgeDecision($post(), [$tgt('published', ['platform_url' => null])], $now);
 check('published target WITHOUT a live URL -> keep (proof rule)', $d === null);
