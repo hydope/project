@@ -147,6 +147,18 @@ RewriteCond %{HTTPS} !=on
 RewriteCond %{HTTP_HOST} ^(shiarishta\.com|www\.shiarishta\.com)$ [NC]
 RewriteRule ^api/(.*)$ https://shiarishta.com/api/$1 [R=301,L]
 
+# Deleted-file guard: /seed.html (audit A-04, 2026-11-24). The page listed
+# test accounts and was deleted from the repo in cf1afca, but the FTPS
+# deploy mirror is upload-only by design (see deploy.yml: a delete-sync
+# would endanger /public_html/api, .well-known/ and runtime data), so the
+# file itself is still on disk in public_html and would otherwise be
+# served directly as a static file — the SPA fallback's !-f guard never
+# fires for it. Answer 410 Gone here, before any fallback, so the URL is
+# dead even while the stale file exists; the deploy's stale-file cleanup
+# step (ftp_delete_stale.py) removes the file itself. Keep this rule
+# until that cleanup has run at least once and the file is verified gone.
+RewriteRule ^seed\.html$ - [G,L]
+
 # 2) Legacy WordPress URLs. The old WP install's routes no longer exist as
 #    content. URLs that may carry backlink equity 301-redirect to the closest
 #    new page so link value transfers instead of dying. Pure junk with no
