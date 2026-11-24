@@ -7,8 +7,13 @@
  * seed-daily-community-cron.php (SEEDER_CRON_KEY protected).
  *
  * Content pools below cover 25 days of posts without repetition; a
- * community_seed_log table tracks used items so nothing repeats until
- * the pool cycles. Replies are generic-but-warm and fit most threads.
+ * community_seed_log table tracks used items so nothing repeats. The
+ * pool NEVER recycles: when the catalogue is exhausted the run is a
+ * no-op (the old wipe-and-restart behaviour re-inserted the whole
+ * catalogue as fresh rows — the D-03 duplicate pairs), and a live-copy
+ * guard below makes a duplicate insert impossible even if the log and
+ * the posts table disagree. Replies are generic-but-warm and fit most
+ * threads.
  */
 
 // ── Configuration ──────────────────────────────────────────────
@@ -205,19 +210,20 @@ foreach ($db->query('SELECT content_key FROM community_seed_log')->fetchAll() as
     $used[$r['content_key']] = true;
 }
 
-// Pick 2 unused posts (reset the log if the pool is exhausted)
+// Pick 2 unused posts. The log is NEVER wiped: when the pool runs out,
+// the catalogue is done and the run is a no-op. (The previous behaviour —
+// DELETE the whole log and start the catalogue again — is what created
+// the D-03 duplicate title pairs: every re-insert got a fresh UUID while
+// the earlier cycle's rows stayed live.) With one post left, seed just
+// that one; the next run then no-ops.
 $available = [];
 foreach ($COMMUNITY_POSTS as $i => $p) {
     $key = 'post-' . md5($p[1]);
     if (!isset($used[$key])) $available[] = [$i, $key];
 }
-if (count($available) < 2) {
-    $db->exec('DELETE FROM community_seed_log');
-    $used = [];
-    $available = [];
-    foreach ($COMMUNITY_POSTS as $i => $p) {
-        $available[] = [$i, 'post-' . md5($p[1])];
-    }
+if (count($available) === 0) {
+    echo 'OK: seed pool exhausted — all ' . count($COMMUNITY_POSTS) . " catalogue posts already seeded; nothing inserted\n";
+    return;
 }
 shuffle($available);
 $chosen = array_slice($available, 0, 2);
@@ -228,12 +234,26 @@ $insRoom = $db->prepare("INSERT IGNORE INTO communities (id, name) VALUES (?, ?)
 $ROOM_NAMES = ['hyderabad' => 'Hyderabad', 'dubai' => 'Dubai', 'dallas' => 'Dallas', 'london' => 'London', 'toronto' => 'Toronto', 'reverts' => 'Reverts', 'parents' => 'Parents', 'newlywed' => 'Newlywed', 'general' => 'General'];
 $insReply = $db->prepare('INSERT INTO replies (id, post_id, author_id, author_name, body) VALUES (?, ?, NULL, ?, ?)');
 $insLog = $db->prepare('INSERT IGNORE INTO community_seed_log (content_key) VALUES (?)');
+// D-03 guard: a catalogue post may be inserted only if no LIVE copy of the
+// same title already exists in the same room.
+$existsPost = $db->prepare('SELECT 1 FROM posts WHERE community_id = ? AND title = ? AND is_hidden = 0 LIMIT 1');
 
 $postsMade = 0;
 $repliesMade = 0;
+$postsSkipped = 0;
 
 foreach ($chosen as [$i, $key]) {
     [$community, $title, $body, $author] = $COMMUNITY_POSTS[$i];
+    // Never insert a second live copy of a catalogue post (D-03). The pick
+    // is still logged below so the rotation advances past it.
+    $existsPost->execute([$community, $title]);
+    $alreadyLive = $existsPost->fetchColumn() !== false;
+    $existsPost->closeCursor();
+    if ($alreadyLive) {
+        $insLog->execute([$key]);
+        $postsSkipped++;
+        continue;
+    }
     // Never orphan a post in a room that doesn't exist (the /community/dallas
     // 404: rooms only resolve from the DB `communities` table in remote mode).
     if ($community !== 'all' && isset($ROOM_NAMES[$community])) {
@@ -259,4 +279,6 @@ foreach ($chosen as [$i, $key]) {
     }
 }
 
-echo "OK: seeded $postsMade posts, $repliesMade replies\n";
+echo "OK: seeded $postsMade posts, $repliesMade replies"
+    . ($postsSkipped > 0 ? ", $postsSkipped skipped (already live)" : '')
+    . "\n";
