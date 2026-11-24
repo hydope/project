@@ -48,6 +48,7 @@ function requireVerifiedEmail(string $uid): void {}
 function cleanMessage(string $text): string { return $text; }
 
 require __DIR__ . '/../lib/db.php';
+require __DIR__ . '/../lib/ProfileService.php';
 require __DIR__ . '/../routes/messages.php';
 require __DIR__ . '/../routes/profiles.php';
 
@@ -96,6 +97,57 @@ emit('owner_sees_private', is_array(visibleProfile(probeRow(['visibility' => 'pr
 $authed = visibleProfile(probeRow(['photos_visibility' => 'members']), ['uid' => 'u1']);
 emit('authed_photo', $authed['photo'] ?? null);
 emit('authed_bio', $authed['bio'] ?? null);
+
+// ── Guest payload trim (2026-11-24 audit B-04 remainder, Phase 4) ───────────
+// A fully-populated row: employer, income, institution, citizenships and the
+// exact last-active instant must be ABSENT from the anonymous payload (keys
+// not present at all — a null would still confirm the field exists), while
+// the coarse lastActive label stays. A signed-in viewer keeps all of them.
+$fullRow = probeRow([
+    'employer' => 'Acme Ltd', 'income_range' => '50-75k', 'income_currency' => 'GBP',
+    'education_institution' => 'SOAS', 'citizenships' => 'British',
+    'last_active_at' => '2026-11-24 10:00:00',
+]);
+$anonFull = visibleProfile($fullRow, null);
+foreach (['employer', 'incomeRange', 'incomeCurrency', 'educationInstitution', 'citizenships', 'lastActiveAt'] as $k) {
+    emit('anon_has_' . $k, is_array($anonFull) && array_key_exists($k, $anonFull));
+}
+emit('anon_last_active_label', is_array($anonFull) && array_key_exists('lastActive', $anonFull));
+$authedFull = visibleProfile($fullRow, ['uid' => 'u1']);
+foreach (['employer', 'incomeRange', 'incomeCurrency', 'educationInstitution', 'citizenships', 'lastActiveAt'] as $k) {
+    emit('authed_has_' . $k, is_array($authedFull) && array_key_exists($k, $authedFull) && $authedFull[$k] !== null && $authedFull[$k] !== '');
+}
+
+// ── Location normalisation (2026-11-24 audit E-01a, Phase 4B) ───────────────
+// Country variants members actually type must store in ONE canonical form
+// (the onboarding list's spellings), or exact-match country filters miss
+// rows. City gets case/whitespace normalisation only.
+$countryCases = [
+    'usa' => 'USA', 'Usa' => 'USA', 'United States' => 'USA', 'america' => 'USA',
+    'uae' => 'UAE', 'United Arab Emirates' => 'UAE',
+    'UK' => 'United Kingdom', 'england' => 'United Kingdom',
+    'KSA' => 'Saudi Arabia', 'Pakistan' => 'Pakistan', 'india' => 'India',
+];
+$countryMapOk = true;
+foreach ($countryCases as $typed => $expect) {
+    $loc = ['country' => $typed];
+    ProfileService::normalizeLocation($loc);
+    if (($loc['country'] ?? null) !== $expect) $countryMapOk = false;
+}
+emit('country_map_ok', $countryMapOk);
+$loc = ['country' => 'usa'];
+ProfileService::normalizeLocation($loc);
+emit('country_usa_lower', $loc['country'] ?? null);
+$loc = ['city' => '  new   york ', 'country' => 'usa'];
+ProfileService::normalizeLocation($loc);
+emit('city_normalised', $loc['city'] ?? null);
+emit('city_country_canonical', $loc['country'] ?? null);
+// "City, Country" typed into the city field splits, and the split country
+// is canonicalised too.
+$loc = ['city' => 'London, UK'];
+ProfileService::normalizeLocation($loc);
+emit('split_city', $loc['city'] ?? null);
+emit('split_country', $loc['country'] ?? null);
 
 // ── Match gating ────────────────────────────────────────────────────────────
 // "Matched" had three separate implementations; one helper now defines it.

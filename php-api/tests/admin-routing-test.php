@@ -778,6 +778,48 @@ check(
     ($probe['anon_leaks_contact'] ?? true) === false,
     'the payload exposed contact fields'
 );
+// Guest payload trim (2026-11-24, Phase 4): the sensitive depth fields and
+// the exact last-active instant are absent — keys, not just values — from
+// the anonymous payload, while a signed-in viewer still receives them.
+foreach (['employer', 'incomeRange', 'incomeCurrency', 'educationInstitution', 'citizenships', 'lastActiveAt'] as $trimmedKey) {
+    check(
+        "an anonymous visitor does not receive {$trimmedKey}",
+        ($probe['anon_has_' . $trimmedKey] ?? true) === false,
+        "{$trimmedKey} was present in the anonymous payload"
+    );
+    check(
+        "a signed-in viewer still receives {$trimmedKey}",
+        ($probe['authed_has_' . $trimmedKey] ?? false) === true,
+        "{$trimmedKey} went missing for a signed-in viewer"
+    );
+}
+check(
+    'an anonymous visitor still gets the coarse lastActive label',
+    ($probe['anon_last_active_label'] ?? false) === true,
+    'the lastActive label was trimmed along with the exact instant'
+);
+// Location normalisation (2026-11-24, Phase 4B / E-01a): country variants
+// store in one canonical form; city is case/whitespace-normalised only.
+check(
+    'country variants normalise to the canonical forms',
+    ($probe['country_map_ok'] ?? false) === true,
+    'a typed variant (usa/UK/United Arab Emirates/…) stored non-canonically'
+);
+check(
+    'a lowercase "usa" stores as "USA"',
+    ($probe['country_usa_lower'] ?? null) === 'USA',
+    'lowercase usa was not canonicalised'
+);
+check(
+    'city whitespace/case is normalised',
+    ($probe['city_normalised'] ?? null) === 'New York',
+    'city was not trim/collapse/title-cased'
+);
+check(
+    '"City, Country" in the city field splits and canonicalises',
+    ($probe['split_city'] ?? null) === 'London' && ($probe['split_country'] ?? null) === 'United Kingdom',
+    'the split city/country was not normalised'
+);
 // array_key_exists, not `??`: json_decode('null') yields PHP null, and `null ?? 'x'`
 // falls back to 'x', so a correctly-withheld photo would read as "served".
 $afterPhotoWithheld = array_key_exists('after_tier_photo', $probe)

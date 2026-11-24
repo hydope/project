@@ -135,7 +135,8 @@ function draftsCreate(): void
         $draftId, $user['uid'], $role, $claimToken, $expires, $shortCode,
         $gender, $relationship !== '' ? $relationship : null, $displayName, $age,
         trim((string)($payload['city'] ?? '')) ?: null,
-        trim((string)($payload['country'] ?? '')) ?: null,
+        // Canonical country on save (E-01a): "usa"/"United States" → "USA".
+        ProfileService::canonicalCountry(trim((string)($payload['country'] ?? '')) ?: null),
         trim((string)($payload['sect'] ?? '')) ?: null,
         trim((string)($payload['profession'] ?? '')) ?: null,
         trim((string)($payload['bio'] ?? '')) ?: null,

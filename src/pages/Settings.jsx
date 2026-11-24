@@ -678,7 +678,7 @@ export default function Settings() {
                 <h2 className="text-xl font-semibold text-ink">Privacy & Safety</h2>
                 <p className="text-sm text-muted">Enforced by the server on Save — not just hidden in your browser. Photos set to Private are never sent to other members.</p>
                 {[
-                  { key: 'profileVisibility', label: 'Who can see my profile', type: 'select', options: [{ v: 'public', l: 'Public — anyone' }, { v: 'members', l: 'Members only' }, { v: 'private', l: 'Private — only me' }] },
+                  { key: 'profileVisibility', label: 'Who can see my profile', hint: 'Profiles are browsable by visitors — Public and Members show your profile the same way. Only Private hides it. Your photos are controlled separately below.', type: 'select', options: [{ v: 'public', l: 'Public — anyone' }, { v: 'members', l: 'Members — same profile visibility as Public' }, { v: 'private', l: 'Private — only me' }] },
                   { key: 'photoVisibility', label: 'Who can see my photos', type: 'select', options: [{ v: 'public', l: 'Public — anyone' }, { v: 'members', l: 'Members only' }, { v: 'private', l: 'Private — only me' }] },
                   { key: 'contactVisibility', label: 'Who can see my contact details', hint: 'Your phone number and email shown on your profile', type: 'select', options: [{ v: 'public', l: 'Public — anyone' }, { v: 'members', l: 'Members only' }, { v: 'private', l: 'Private — only me' }] },
                   { key: 'allowFamilyView', label: 'Allow family members to view profile', hint: 'Wali view links stop working while this is off', type: 'toggle' },

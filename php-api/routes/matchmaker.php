@@ -312,7 +312,8 @@ function matchmakerSubmit(): void
         'age' => isset($body['age']) ? (int)$body['age'] : null,
         'gender' => $gender,
         'city' => trim((string)($body['city'] ?? '')),
-        'country' => trim((string)($body['country'] ?? '')),
+        // Canonical country on save (E-01a): "usa"/"United States" → "USA".
+        'country' => ProfileService::canonicalCountry(trim((string)($body['country'] ?? ''))) ?? '',
         'bio' => trim((string)($body['bio'] ?? '')),
         'profession' => trim((string)($body['profession'] ?? '')),
         'education_level' => trim((string)($body['education_level'] ?? '')),

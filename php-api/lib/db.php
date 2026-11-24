@@ -623,11 +623,15 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'modesty' => $row['modesty'] ?? null,
             'diet' => $row['diet'] ?? null,
             'languages' => $row['languages'] ?? null,
-            'citizenships' => $row['citizenships'] ?? null,
+            // Guest payload trim (2026-11-24 audit B-04 remainder, Phase 4):
+            // citizenships, incomeRange/incomeCurrency, educationInstitution,
+            // employer and the exact lastActiveAt instant are NOT sent to
+            // anonymous visitors — they were harvestable in bulk from a public
+            // endpoint by anyone, signed in or not. Signed-in viewers and the
+            // owner still receive them in the branch below; guests keep the
+            // coarse lastActive label so cards can still show freshness.
             'ethnicity' => $row['ethnicity'] ?? null,
             'subEthnicity' => $row['sub_ethnicity'] ?? null,
-            'incomeRange' => $row['income_range'] ?? null,
-            'incomeCurrency' => $row['income_currency'] ?? '',
             'maritalStatus' => $row['marital_status'] ?? null,
             'children' => $row['children'] ?? null,
             'childrenPlans' => $row['children_plans'] ?? null,
@@ -635,14 +639,13 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'familyInvolvement' => $row['family_involvement'] ?? null,
             'heightCm' => isset($row['height_cm']) && $row['height_cm'] !== null ? (int)$row['height_cm'] : null,
             'timeline' => $row['timeline'] ?? null,
-            // Profile depth (2026-11-10): education detail, employer,
-            // residency, build, hobbies, convert status, partner
-            // preferences. Display-only hiding via hidden_fields applies
-            // in applyHiddenFields() below — the stored values stay usable
-            // for matching and filters.
+            // Profile depth (2026-11-10): education detail, residency,
+            // build, hobbies, convert status, partner preferences.
+            // Display-only hiding via hidden_fields applies in
+            // applyHiddenFields() below — the stored values stay usable
+            // for matching and filters. (educationInstitution and employer
+            // moved to signed-in-only in the Phase 4 guest trim above.)
             'educationField' => $row['education_field'] ?? null,
-            'educationInstitution' => $row['education_institution'] ?? null,
-            'employer' => $row['employer'] ?? null,
             'residencyStatus' => $row['residency_status'] ?? null,
             'build' => $row['build'] ?? null,
             'hobbies' => $row['hobbies'] ?? null,
@@ -655,11 +658,11 @@ function visibleProfile(array $row, ?array $viewer): ?array
             'prefLocation' => $row['pref_location'] ?? null,
             'prefMustHaves' => $row['pref_must_haves'] ?? null,
             // Last active (2026-11-10): 'today' / 'this week' / 'over a week
-            // ago' / null (never recorded — shown as nothing). lastActiveAt
-            // (2026-11-11) carries the raw instant next to it — clients now
-            // render the actual date from it.
+            // ago' / null (never recorded — shown as nothing). The raw
+            // lastActiveAt instant (2026-11-11) is signed-in-only after the
+            // Phase 4 guest trim — guests get the coarse label, not a
+            // harvestable activity timestamp.
             'lastActive' => lastActiveLabel($row['last_active_at'] ?? null),
-            'lastActiveAt' => lastActiveIso($row['last_active_at'] ?? null),
             'photosVisibility' => $tier,
             'photosLocked' => $photosLocked,
             'photo' => ($photosLocked || (string)($row['photo_url'] ?? '') === '')

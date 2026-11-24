@@ -32,6 +32,7 @@ import { fileURLToPath } from 'url';
 import { ROUTE_SEO, SHARED_NAV, SITE_URL } from '../src/data/routeSeo.js';
 import { landingRouteSeo } from '../src/data/landingRouteSeo.js';
 import { CITIES, COUNTRIES, locationRouteSeo, buildLocationSections, buildLocationFaq, locationMetaDesc } from '../src/data/locationSeo.js';
+import { placeWithArticle } from '../src/data/placeGrammar.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath as __f2u } from 'url';
 import { LANDING_PAGE_META } from '../src/pages/landing/landingPageMeta.js';
@@ -152,10 +153,10 @@ function dynamicLocationRouteSeo(dynamic) {
   for (const k of dynamic.countries) {
     const note = dynamicLocationNote(k.name);
     out[`/country/${k.slug}`] = {
-      title: `Shia Matrimony in ${k.name} | Free Shia Rishta Platform`,
+      title: `Shia Matrimony in ${placeWithArticle(k.name)} | Free Shia Rishta Platform`,
       desc: locationMetaDesc(k.name, note),
-      h1: `Shia matrimony in ${k.name}`,
-      lede: `Shia matrimonial profiles across ${k.name}, filterable by city, sect, marja and practice. Free to browse, and no account is needed to view public profiles.`,
+      h1: `Shia matrimony in ${placeWithArticle(k.name)}`,
+      lede: `Shia matrimonial profiles across ${placeWithArticle(k.name)}, filterable by city, sect, marja and practice. Free to browse, and no account is needed to view public profiles.`,
       sections: buildLocationSections({ name: k.name, note, kind: 'country', count: null }),
       faq: buildLocationFaq({ name: k.name }),
       liveFilter: `/profiles?country=${encodeURIComponent(k.name)}`,
@@ -460,8 +461,8 @@ function locationsHubHtml() {
   parts.push('<article class="seo-section">', '<h2>Countries</h2>', '<ul>');
   for (const k of ALL_LOCATIONS.countries) {
     parts.push(
-      `<li><a href="${SITE_URL}/country/${k.slug}/">Shia matrimony in ${esc(k.name)}</a>` +
-      ` — <a href="${SITE_URL}/profiles?country=${encodeURIComponent(k.name)}">browse profiles in ${esc(k.name)}</a></li>`
+      `<li><a href="${SITE_URL}/country/${k.slug}/">Shia matrimony in ${esc(placeWithArticle(k.name))}</a>` +
+      ` — <a href="${SITE_URL}/profiles?country=${encodeURIComponent(k.name)}">browse profiles in ${esc(placeWithArticle(k.name))}</a></li>`
     );
   }
   parts.push('</ul>', '</article>');
@@ -533,8 +534,8 @@ function relatedSearchLinks(route) {
       .filter(p => p.slug !== tagSlug)
       .map(p => `<li><a href="${SITE_URL}/${p.slug}/">${esc(p.phrase)}</a></li>`);
     const parentPath = place.type === 'city' ? `/city/${place.slug}/` : `/country/${place.slug}/`;
-    items.push(`<li><a href="${SITE_URL}${parentPath}">Shia matrimony in ${esc(place.name)}</a></li>`);
-    return `<h2>More searches in ${esc(place.name)}</h2>\n<ul>\n${items.join('\n')}\n</ul>`;
+    items.push(`<li><a href="${SITE_URL}${parentPath}">Shia matrimony in ${esc(placeWithArticle(place.name))}</a></li>`);
+    return `<h2>More searches in ${esc(placeWithArticle(place.name))}</h2>\n<ul>\n${items.join('\n')}\n</ul>`;
   }
 
   return null;

@@ -10,6 +10,7 @@ import LeadCapture from '../components/LeadCapture.jsx';
 import { useAuth } from '../lib/auth/AuthContext';
 import { countryAliases } from '../data/countryAliases';
 import { CITIES, COUNTRIES, buildLocationSections, buildLocationFaq } from '../data/locationSeo';
+import { placeWithArticle } from '../data/placeGrammar';
 import { locationQueryParams } from '../lib/locationQuery';
 import { tagPagesForPlace } from '../data/tagLandingPages';
 import NotFound from './NotFound';
@@ -109,6 +110,9 @@ export default function CityPage() {
   }, [loading, profiles.length]);
 
   const name = locationName || displayName;
+  // Preposition form: "in the United States" / "in the USA" where the
+  // name takes the article (placeGrammar.js, 2026-11-24 audit E-03).
+  const inName = placeWithArticle(name);
   const count = profiles.length;
 
   // Dynamic location pages (2026-11-09, Syed's call): a city/country with
@@ -124,20 +128,20 @@ export default function CityPage() {
 
   // Keyword variations — 11 base + country alternate names
   const kw = {
-    rishta: `Shia Rishta in ${name}`,
-    rishtay: `Shia Rishtay in ${name}`,
-    nikah: `Shia Nikah in ${name}`,
-    marriage: `Shia Marriage in ${name}`,
-    matrimony: `Shia Matrimony in ${name}`,
+    rishta: `Shia Rishta in ${inName}`,
+    rishtay: `Shia Rishtay in ${inName}`,
+    nikah: `Shia Nikah in ${inName}`,
+    marriage: `Shia Marriage in ${inName}`,
+    matrimony: `Shia Matrimony in ${inName}`,
     brides: `${name} Shia Brides`,
     grooms: `${name} Shia Grooms`,
-    shaadi: `Shia Shaadi in ${name}`,
+    shaadi: `Shia Shaadi in ${inName}`,
     find: `Find Shia Rishta ${name}`,
     matrimonial: `${name} Shia Matrimonial`,
     match: `Shia Nikah Match ${name}`,
   };
   // Alternate country names, e.g. "Shia Rishta in United States"
-  const altKw = aliases.map(a => `Shia Rishta in ${a}`);
+  const altKw = aliases.map(a => `Shia Rishta in ${placeWithArticle(a)}`);
 
   return (
     <Layout>
@@ -190,12 +194,12 @@ export default function CityPage() {
             Same note the prerender emits, so crawlers and users see one page. */}
         <section className="mb-8 p-6 rounded-2xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
           <h2 className="text-lg font-bold mb-2" style={{ color: 'var(--color-ink)' }}>
-            About Shia families in {name}
+            About Shia families in {inName}
           </h2>
           <p className="text-sm leading-relaxed" style={{ color: 'var(--color-ink-secondary)' }}>
             {curated
               ? curated.note
-              : `Shia families in ${name} are part of the growing Shia Rishta community. Browse member profiles from ${name} seeking a serious nikah match — photos stay private by default, and a conversation opens only after interest is mutual.`}
+              : `Shia families in ${inName} are part of the growing Shia Rishta community. Browse member profiles from ${inName} seeking a serious nikah match — photos stay private by default, and a conversation opens only after interest is mutual.`}
           </p>
         </section>
 
@@ -237,7 +241,7 @@ export default function CityPage() {
             <LeadCapture
               source="city"
               city={name}
-              heading={`New Shia profiles in ${name}, by email`}
+              heading={`New Shia profiles in ${inName}, by email`}
               blurb={`Members join every week. Leave your email and we'll send you new ${name} profiles each Sunday — only in weeks when someone new actually joins.`}
             />
           </div>
@@ -250,8 +254,8 @@ export default function CityPage() {
               {kw.marriage}
             </h2>
             <p className="text-sm leading-relaxed" style={{ color: 'var(--color-ink-secondary)' }}>
-              Looking for a Shia marriage in {name}? ShiaRishta connects Shia Muslims
-              in {name} seeking nikah. Every {name} Shia matrimonial profile is created with nikah as its stated purpose,
+              Looking for a Shia marriage in {inName}? ShiaRishta connects Shia Muslims
+              in {inName} seeking nikah. Every {name} Shia matrimonial profile is created with nikah as its stated purpose,
               photos stay private until you choose to share, and conversations are respectful
               from the first salaam.
               {altKw.length > 0 && ` Whether you search for ${altKw.join(', ')}, you'll find the same trusted ${name} community here.`}
@@ -291,7 +295,7 @@ export default function CityPage() {
         {/* FAQ — same questions the prerender emits (buildLocationFaq). */}
         <section className="mt-6 p-6 rounded-2xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
           <h2 className="text-lg font-bold mb-3" style={{ color: 'var(--color-ink)' }}>
-            Questions about Shia rishta in {name}
+            Questions about Shia rishta in {inName}
           </h2>
           {buildLocationFaq({ name }).map((f) => (
             <div key={f.q} className="mb-4 last:mb-0">

@@ -128,7 +128,7 @@ export const PHOTO_ACCESS_OPTIONS = [
 
 export const PROFILE_VISIBILITY_OPTIONS = [
   { value: 'public', label: 'Discoverable', desc: 'Shown in search results and browse' },
-  { value: 'limited', label: 'Limited visibility', desc: 'Only members matching your preferences see you' },
+  { value: 'limited', label: 'Limited visibility', desc: 'Browsable by visitors and members, like Discoverable — only Hidden takes you out of browse' },
   { value: 'hidden', label: 'Hidden / incognito', desc: 'Browse freely — nobody sees your profile' }
 ];
 

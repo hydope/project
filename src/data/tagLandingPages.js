@@ -9,6 +9,8 @@
 //   {place} Shia Grooms, Shia Shaadi in {place}, Find Shia Rishta {place},
 //   {place} Shia Matrimonial, Shia Nikah Match {place}
 
+import { inPlace } from './placeGrammar.js';
+
 // ── Places: every city + country present in member profiles ────────────────
 export const TAG_PLACES = [
   // Cities
@@ -43,46 +45,46 @@ const TAG_DEFS = [
   {
     id: 'rishta',
     slug: p => `shia-rishta-${p.slug}`,
-    phrase: p => `Shia Rishta in ${p.name}`,
-    h1: p => `Shia Rishta in ${p.name}`,
-    title: p => `Shia Rishta in ${p.name} | Find Shia Profiles – Shia Rishta`,
-    desc: p => `Find a Shia rishta in ${p.name}. Profiles, wali-involved introductions, and photo privacy — the nikah-first platform. Join free.`,
+    phrase: p => `Shia Rishta ${inPhrase(p)}`,
+    h1: p => `Shia Rishta ${inPhrase(p)}`,
+    title: p => `Shia Rishta ${inPhrase(p)} | Find Shia Profiles – Shia Rishta`,
+    desc: p => `Find a Shia rishta ${inPhrase(p)}. Profiles, wali-involved introductions, and photo privacy — the nikah-first platform. Join free.`,
     angle: 'search',
   },
   {
     id: 'rishtay',
     slug: p => `shia-rishtay-${p.slug}`,
-    phrase: p => `Shia Rishtay in ${p.name}`,
-    h1: p => `Shia Rishtay in ${p.name}`,
-    title: p => `Shia Rishtay in ${p.name} | Shia Rishta Profiles – Shia Rishta`,
-    desc: p => `Shia rishtay in ${p.name} — browse Shia profiles seeking nikah, with family involvement from the start. Free to join.`,
+    phrase: p => `Shia Rishtay ${inPhrase(p)}`,
+    h1: p => `Shia Rishtay ${inPhrase(p)}`,
+    title: p => `Shia Rishtay ${inPhrase(p)} | Shia Rishta Profiles – Shia Rishta`,
+    desc: p => `Shia rishtay ${inPhrase(p)} — browse Shia profiles seeking nikah, with family involvement from the start. Free to join.`,
     angle: 'search-urdu',
   },
   {
     id: 'nikah',
     slug: p => `shia-nikah-${p.slug}`,
-    phrase: p => `Shia Nikah in ${p.name}`,
-    h1: p => `Shia Nikah in ${p.name}`,
-    title: p => `Shia Nikah in ${p.name} | Nikah-First Matchmaking – Shia Rishta`,
-    desc: p => `Seeking nikah in ${p.name}? Meet Shia singles on a nikah-first platform — no casual dating, just serious marriage intent. Join free.`,
+    phrase: p => `Shia Nikah ${inPhrase(p)}`,
+    h1: p => `Shia Nikah ${inPhrase(p)}`,
+    title: p => `Shia Nikah ${inPhrase(p)} | Nikah-First Matchmaking – Shia Rishta`,
+    desc: p => `Seeking nikah ${inPhrase(p)}? Meet Shia singles on a nikah-first platform — no casual dating, just serious marriage intent. Join free.`,
     angle: 'nikah',
   },
   {
     id: 'marriage',
     slug: p => `shia-marriage-${p.slug}`,
-    phrase: p => `Shia Marriage in ${p.name}`,
-    h1: p => `Shia Marriage in ${p.name}`,
-    title: p => `Shia Marriage in ${p.name} | Find Your Life Partner – Shia Rishta`,
-    desc: p => `Shia marriage in ${p.name} starts with the right introduction. Profiles, family involvement, and privacy-first matchmaking. Join free.`,
+    phrase: p => `Shia Marriage ${inPhrase(p)}`,
+    h1: p => `Shia Marriage ${inPhrase(p)}`,
+    title: p => `Shia Marriage ${inPhrase(p)} | Find Your Life Partner – Shia Rishta`,
+    desc: p => `Shia marriage ${inPhrase(p)} starts with the right introduction. Profiles, family involvement, and privacy-first matchmaking. Join free.`,
     angle: 'marriage',
   },
   {
     id: 'matrimony',
     slug: p => `shia-matrimony-${p.slug}`,
-    phrase: p => `Shia Matrimony in ${p.name}`,
-    h1: p => `Shia Matrimony in ${p.name}`,
-    title: p => `Shia Matrimony in ${p.name} | Trusted Matchmaking – Shia Rishta`,
-    desc: p => `Shia matrimony in ${p.name} — a trusted platform with profiles, marja-aware filters, and wali workflows. Join free.`,
+    phrase: p => `Shia Matrimony ${inPhrase(p)}`,
+    h1: p => `Shia Matrimony ${inPhrase(p)}`,
+    title: p => `Shia Matrimony ${inPhrase(p)} | Trusted Matchmaking – Shia Rishta`,
+    desc: p => `Shia matrimony ${inPhrase(p)} — a trusted platform with profiles, marja-aware filters, and wali workflows. Join free.`,
     angle: 'matrimony',
   },
   {
@@ -106,19 +108,19 @@ const TAG_DEFS = [
   {
     id: 'shaadi',
     slug: p => `shia-shaadi-${p.slug}`,
-    phrase: p => `Shia Shaadi in ${p.name}`,
-    h1: p => `Shia Shaadi in ${p.name}`,
-    title: p => `Shia Shaadi in ${p.name} | Find Your Match – Shia Rishta`,
-    desc: p => `Shia shaadi in ${p.name} — find a compatible match with profiles and family involvement. The modern way to arrange a blessed shaadi. Join free.`,
+    phrase: p => `Shia Shaadi ${inPhrase(p)}`,
+    h1: p => `Shia Shaadi ${inPhrase(p)}`,
+    title: p => `Shia Shaadi ${inPhrase(p)} | Find Your Match – Shia Rishta`,
+    desc: p => `Shia shaadi ${inPhrase(p)} — find a compatible match with profiles and family involvement. The modern way to arrange a blessed shaadi. Join free.`,
     angle: 'shaadi',
   },
   {
     id: 'find',
     slug: p => `find-shia-rishta-${p.slug}`,
     phrase: p => `Find Shia Rishta ${p.name}`,
-    h1: p => `Find Shia Rishta in ${p.name}`,
-    title: p => `Find Shia Rishta in ${p.name} | Start Today – Shia Rishta`,
-    desc: p => `Find a Shia rishta in ${p.name} today. Create a free profile, browse matches, and involve your family from day one.`,
+    h1: p => `Find Shia Rishta ${inPhrase(p)}`,
+    title: p => `Find Shia Rishta ${inPhrase(p)} | Start Today – Shia Rishta`,
+    desc: p => `Find a Shia rishta ${inPhrase(p)} today. Create a free profile, browse matches, and involve your family from day one.`,
     angle: 'find',
   },
   {
@@ -134,25 +136,34 @@ const TAG_DEFS = [
     id: 'nikah-match',
     slug: p => `shia-nikah-match-${p.slug}`,
     phrase: p => `Shia Nikah Match ${p.name}`,
-    h1: p => `Shia Nikah Match in ${p.name}`,
-    title: p => `Shia Nikah Match in ${p.name} | Compatible Matches – Shia Rishta`,
-    desc: p => `Your Shia nikah match in ${p.name} — compatibility on marja, practice, and family values, not just photos. Find your match free.`,
+    h1: p => `Shia Nikah Match ${inPhrase(p)}`,
+    title: p => `Shia Nikah Match ${inPhrase(p)} | Compatible Matches – Shia Rishta`,
+    desc: p => `Your Shia nikah match ${inPhrase(p)} — compatibility on marja, practice, and family values, not just photos. Find your match free.`,
     angle: 'match',
   },
   {
     id: 'shia-match',
     slug: p => `shia-match-${p.slug}`,
     phrase: p => `Shia Match ${p.name}`,
-    h1: p => `Shia Match in ${p.name}`,
-    title: p => `Shia Match in ${p.name} | Find Your Shia Match – Shia Rishta`,
-    desc: p => `Find your Shia match in ${p.name}. Shia singles seeking nikah, matched on deen and values. Join free and meet your match.`,
+    h1: p => `Shia Match ${inPhrase(p)}`,
+    title: p => `Shia Match ${inPhrase(p)} | Find Your Shia Match – Shia Rishta`,
+    desc: p => `Find your Shia match ${inPhrase(p)}. Shia singles seeking nikah, matched on deen and values. Join free and meet your match.`,
     angle: 'shia-match',
   },
 ];
 
 // ── Content builders: distinct angle per tag type ──────────────────────────
 function inPhrase(place) {
-  return place.type === 'city' ? `in ${place.name}` : `in ${place.name}`;
+  // Country names that take the article ("in the USA", "in the UAE") are
+  // handled by placeGrammar.js (2026-11-24 audit E-03) — this used to
+  // interpolate the bare name for both branches, producing "in USA".
+  return inPlace(place.name);
+}
+function inContext(place) {
+  // "your family is in Karachi, Pakistan" / "your family is in the USA":
+  // the city form keeps its country suffix, the country form takes the
+  // article where grammar requires it.
+  return place.type === 'city' ? `in ${place.name}, ${place.country}` : inPlace(place.name);
 }
 function placeContext(place) {
   if (place.type === 'city') return `${place.name}, ${place.country}`;
@@ -163,7 +174,7 @@ const ANGLES = {
   'search': {
     intro: p => [
       `Searching for a Shia rishta ${inPhrase(p)} means looking in the right place. Shia Rishta is the nikah-first platform where every profile is Shia — filter by marja, sect, practice, and family values to find genuinely compatible matches ${inPhrase(p)}.`,
-      `Whether your family is in ${placeContext(p)} or you're searching from elsewhere for someone there, the platform keeps the process dignified: profiles, photo privacy you control, and your wali involved from the first introduction.`,
+      `Whether your family is ${inContext(p)} or you're searching from elsewhere for someone there, the platform keeps the process dignified: profiles, photo privacy you control, and your wali involved from the first introduction.`,
     ],
     sections: p => [
       { h2: `Why search ${inPhrase(p)} on Shia Rishta`, body: [`Generic matrimonial sites treat "Muslim" as one checkbox. But a Shia family ${inPhrase(p)} needs marja compatibility, Muharram observance alignment, and family structures built around nikah — filters Shia Rishta was designed around from day one.`] },

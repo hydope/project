@@ -105,7 +105,7 @@ export const ROUTE_SEO = {
       {
         h2: 'How photo privacy works in practice',
         p: [
-          'Every member picks one of three settings, and it applies everywhere without exception. "Everyone" shows photos to any signed-out visitor browsing the directory. "After mutual interest" keeps photos hidden until both people have expressed interest, so a photo is never visible to someone who has only looked. "Matches only" keeps photos hidden until you have actually been matched, which is the strictest option and the default for anyone who has not chosen otherwise.',
+          'Every member picks one of three settings, and it applies everywhere without exception. "Public" shows photos to anyone, including signed-out visitors browsing the directory. "Members only" keeps photos hidden from signed-out visitors, so a photo is never visible to someone who has not joined. "Private" keeps photos hidden from everyone but you, which is the strictest option. The default for anyone who has not chosen otherwise is Members only.',
           'In every case the photos themselves stay behind an access check on the server. They are not delivered to the browser and hidden with CSS, which is the usual trick and the reason photos leak on most sites. A locked photo is never sent over the wire at all, so there is nothing in the page source, the network tab or a browser cache to recover.',
           'Changing a setting takes effect immediately, including mid-conversation. There is no delay, no grace period, and nobody is notified that it changed.',
         ],

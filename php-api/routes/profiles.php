@@ -1041,7 +1041,12 @@ function profilesList(): void
         // countable members, just not browsable until they add even one of
         // those fields, at which point they reappear immediately.
         $where[] = "NOT $unfinished";
-        $limit = 100;
+        // Guest page cap (2026-11-24 audit B-04 remainder, Phase 4): the
+        // unpaged anonymous response is capped at 24 rows (was 100) so one
+        // signed-out call cannot harvest the whole roster at once. Guests
+        // who want more use ?paged=1, which is capped the same way below;
+        // `total` in the paged envelope still reports the full count.
+        $limit = 24;
     } else {
         $where[] = "(p.visibility <> 'private' OR p.user_id = ?)";
         $params[] = $viewer['uid'];
@@ -1085,6 +1090,13 @@ function profilesList(): void
     // plain array so every existing caller keeps working unchanged.
     $paged = ($_GET['paged'] ?? '') === '1';
     $pageLimit = isset($_GET['limit']) ? max(1, min(100, (int)$_GET['limit'])) : 100;
+    // Guest page cap (Phase 4, as above): anonymous paged requests are
+    // clamped to 24 rows per page. Signed-in limits are unchanged. The
+    // envelope's `total` is computed from the full filtered roster, so the
+    // count stays honest and `hasMore` still drives the client's paging.
+    if ($viewer === null) {
+        $pageLimit = min($pageLimit, 24);
+    }
     $pageOffset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
 
     // Match-score ranking (2026-11-10, Batch 4): ?sort=match orders the

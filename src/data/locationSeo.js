@@ -20,6 +20,8 @@
  * CTA where no profiles exist yet. The /locations hub links every page.
  */
 
+import { placeWithArticle } from './placeGrammar.js';
+
 // Real, recognisable locations. A member's free-text city is validated against
 // this list before it is allowed to become a page — which is also what stops a
 // spammer manufacturing one by typing nonsense into a profile.
@@ -270,11 +272,11 @@ function trimToWords(str, max) {
  * description is built from that note: no two curated pages share one.
  */
 export function locationMetaDesc(name, note) {
-  const full = `Shia matrimony in ${name}. ${note} Privacy-first profiles and wali-involved introductions. Free to join.`;
+  const full = `Shia matrimony in ${placeWithArticle(name)}. ${note} Privacy-first profiles and wali-involved introductions. Free to join.`;
   if (full.length <= 155) return full;
   // Too long: drop the boilerplate suffix before trimming the note itself,
   // so the description still ends on a complete sentence where it can.
-  const bare = `Shia matrimony in ${name}. ${note}`;
+  const bare = `Shia matrimony in ${placeWithArticle(name)}. ${note}`;
   return trimToWords(bare, 155);
 }
 
@@ -291,23 +293,27 @@ export function locationMetaDesc(name, note) {
  * figure).
  */
 export function buildLocationSections({ name, note, count }) {
+  // "in the United States" / "from the United States" where the name takes
+  // the article (placeGrammar.js, 2026-11-24 audit E-03); plain names and
+  // every city pass through unchanged.
+  const inName = placeWithArticle(name);
   const countPara =
     count > 0
-      ? `There are currently ${count} ShiaRishta ${count === 1 ? 'profile' : 'profiles'} from ${name}, and every one is searchable by marja, practice, age, and education — the questions Shia families ask first.`
+      ? `There are currently ${count} ShiaRishta ${count === 1 ? 'profile' : 'profiles'} from ${inName}, and every one is searchable by marja, practice, age, and education — the questions Shia families ask first.`
       : count === 0
-        ? `No ShiaRishta profiles from ${name} are listed yet — the first profile from a place is usually the one that starts its search. Profiles from the wider region are searchable by marja, practice, age, and education — the questions Shia families ask first.`
-        : `ShiaRishta profiles from ${name} are searchable by marja, practice, age, and education — the questions Shia families ask first.`;
+        ? `No ShiaRishta profiles from ${inName} are listed yet — the first profile from a place is usually the one that starts its search. Profiles from the wider region are searchable by marja, practice, age, and education — the questions Shia families ask first.`
+        : `ShiaRishta profiles from ${inName} are searchable by marja, practice, age, and education — the questions Shia families ask first.`;
   return [
-    { h2: `About Shia families in ${name}`, p: [note] },
+    { h2: `About Shia families in ${inName}`, p: [note] },
     {
-      h2: `How Shia matchmaking works in ${name}`,
+      h2: `How Shia matchmaking works in ${inName}`,
       p: [
-        `A Shia rishta in ${name} usually begins the way it begins everywhere: one family learns of a suitable person — through relatives, through the local community, or through a matchmaker — and approaches the other family. The families talk first: is this person Shia, which marja do they follow, how do they practise, what does each side want from a marriage? Only when both families are comfortable does an introduction happen, with the wali — the bride’s guardian — involved from the start rather than brought in at the end.`,
+        `A Shia rishta in ${inName} usually begins the way it begins everywhere: one family learns of a suitable person — through relatives, through the local community, or through a matchmaker — and approaches the other family. The families talk first: is this person Shia, which marja do they follow, how do they practise, what does each side want from a marriage? Only when both families are comfortable does an introduction happen, with the wali — the bride’s guardian — involved from the start rather than brought in at the end.`,
         'Many families then seek guidance through istikhara before proceeding, settle the mahr, and move to the nikah itself. The whole process is family-led by design: a rishta is a proposal carried by a family and answered by a family, not a private arrangement between two strangers.',
       ],
     },
     {
-      h2: `Searching for a rishta in ${name}`,
+      h2: `Searching for a rishta in ${inName}`,
       p: [
         countPara,
         'Photos stay private by default: each member chooses who sees theirs, contact details are never published, and a conversation opens only after interest is mutual. Members can earn photo and ID verification badges, so a family can see that identity has been checked before the first introduction. New to the process? Read [how Shia rishtay work](/shia-rishtay/) and [what a Shia nikah involves](/shia-nikah/) before your family’s first introduction.',
@@ -318,13 +324,14 @@ export function buildLocationSections({ name, note, count }) {
 
 /** The three questions every location page answers (visible FAQ + FAQPage schema). */
 export function buildLocationFaq({ name }) {
+  const inName = placeWithArticle(name);
   return [
     {
-      q: `How do I find a Shia rishta in ${name}?`,
-      a: `Browse the profiles listed for ${name}, filter by marja, practice, age, and education, and express interest where a profile fits. Introductions are family-led, with the wali involved from the start, and a conversation opens only after interest is mutual.`,
+      q: `How do I find a Shia rishta in ${inName}?`,
+      a: `Browse the profiles listed for ${inName}, filter by marja, practice, age, and education, and express interest where a profile fits. Introductions are family-led, with the wali involved from the start, and a conversation opens only after interest is mutual.`,
     },
     {
-      q: `Is ShiaRishta free to use in ${name}?`,
+      q: `Is ShiaRishta free to use in ${inName}?`,
       a: 'Yes. Joining, browsing, and creating a profile are free, and there are no charges based on where you live.',
     },
     {
@@ -350,10 +357,10 @@ export function locationRouteSeo(withMembers) {
   }
   for (const k of withMembers.countries) {
     out[`/country/${k.slug}`] = {
-      title: `Shia Matrimony in ${k.name} | Free Shia Rishta Platform`,
+      title: `Shia Matrimony in ${placeWithArticle(k.name)} | Free Shia Rishta Platform`,
       desc: locationMetaDesc(k.name, k.note),
-      h1: `Shia matrimony in ${k.name}`,
-      lede: `Shia matrimonial profiles across ${k.name}, filterable by city, sect, marja and practice. Free to browse, and no account is needed to view public profiles.`,
+      h1: `Shia matrimony in ${placeWithArticle(k.name)}`,
+      lede: `Shia matrimonial profiles across ${placeWithArticle(k.name)}, filterable by city, sect, marja and practice. Free to browse, and no account is needed to view public profiles.`,
       sections: buildLocationSections({ name: k.name, note: k.note, kind: 'country', count: k.count || 0 }),
       faq: buildLocationFaq({ name: k.name }),
       liveFilter: `/profiles?country=${encodeURIComponent(k.name)}`,
