@@ -34,6 +34,23 @@
   <IfModule mod_headers.c>
     Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
   </IfModule>
+
+  # Baseline security headers for HTML/static responses (audit B-02,
+  # 2026-11-24). The API already sends its own set from PHP (index.php,
+  # including the stricter X-Frame-Options: DENY) — but the documents
+  # browsers actually render are static files served from here, and they
+  # went out with HSTS only. `always` so redirects and error responses
+  # carry them too. CSP is deliberately NOT here yet: it ships report-only
+  # first in a later phase, once an inventory of what the site loads
+  # (Google Fonts, Google sign-in) has had a violation window.
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  # camera/microphone: nothing in the app uses getUserMedia (verified in
+  # src/, 2026-11-24), so both are fully off. geolocation stays (self)
+  # because IslamicCalendar.jsx legitimately requests the visitor's own
+  # position; () would silently break it.
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
 </IfModule>
 
 # ── ShiaRishta SEO: canonical host + legacy cleanup + SPA fallback ──────────
@@ -110,6 +127,14 @@ RewriteRule ^rajab-the-most-blessed-month /blog/ [R=301,L]
 RewriteRule ^sample-page/?$ - [G,L]
 RewriteRule ^sample-page-2/?$ - [G,L]
 RewriteRule ^terms-and-conditions /terms/ [R=301,L]
+# /login and /register are not routes — the auth pages live at
+# /auth/login and /auth/register (src/routes.jsx; React also redirects
+# the slash-less paths client-side, but a crawler or a no-JS hit on the
+# trailing-slash URL got the SPA fallback's 200 with the HOMEPAGE title —
+# duplicate content, audit C-SEO 2026-11-24). Canonicalise at the server
+# so every client sees the same 301.
+RewriteRule ^login/?$ /auth/login [R=301,L]
+RewriteRule ^register/?$ /auth/register [R=301,L]
 # /country/uk is an alias with no page of its own — send it to the canonical
 # country page instead of serving a 200 with the homepage's meta.
 RewriteRule ^country/uk/?$ /country/united-kingdom/ [R=301,L]

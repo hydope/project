@@ -29,14 +29,20 @@ function sitemapXml(): void
         }
     }
 
-    // Honest lastmod for template-driven pages (2026-10-24 indexing fix).
-    // Static, tag, city and country pages used to stamp date('Y-m-d') — every
-    // page claiming "changed today" on every single day. Google learns to
-    // ignore a lastmod signal that cries wolf daily, which hurts the pages
-    // that ACTUALLY change (blog posts, new profiles — those keep real DB
-    // timestamps below). This date is the last time the shared templates
-    // changed; bump it ONLY when a template actually changes, never per deploy.
-    $templateLastmod = '2026-10-24';
+    // lastmod for template-driven pages: OMITTED, deliberately (audit
+    // C-SEO, 2026-11-24). History: these pages first stamped date('Y-m-d')
+    // (every page "changed today", daily — Google learns to ignore a
+    // lastmod that cries wolf), then a hardcoded $templateLastmod of
+    // 2026-10-24 that nobody bumped when templates changed, so 300+ URLs
+    // carried one stale bulk date. There is no truthful per-URL date
+    // available at runtime for these pages: their source data files
+    // (src/data/*.js) are not part of the deploy, and the on-disk mtimes
+    // of the prerendered HTML are reset by the every-file FTPS mirror on
+    // every deploy — filemtime() would stamp "last deploy" on every URL,
+    // the same false signal in a new costume. An omitted lastmod is fully
+    // valid and honest; Google then relies on crawl scheduling. Pages
+    // with real DB timestamps (blog posts, city/country below) keep them.
+    $templateLastmod = null;
 
     // Static public pages.
     $static = [
@@ -67,6 +73,8 @@ function sitemapXml(): void
     foreach ($static as $p) {
         $urls[] = ['loc' => $base . $p . ($p === '/' ? '' : '/'), 'lastmod' => $templateLastmod, 'priority' => $p === '/' ? '1.0' : '0.7'];
     }
+    // ('lastmod' => null above = omit the element; see the note at the
+    // $templateLastmod definition.)
 
     // Programmatic tag landing pages: 11 tag phrases × every profile
     // city/country. Mirrors src/data/tagLandingPages.js — keep in sync.
@@ -283,7 +291,7 @@ function sitemapXml(): void
         . ' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">' . "\n";
     foreach ($urls as $u) {
         $xml .= '  <url><loc>' . htmlspecialchars($u['loc'], ENT_XML1) . '</loc>'
-            . '<lastmod>' . htmlspecialchars($u['lastmod'], ENT_XML1) . '</lastmod>'
+            . (!empty($u['lastmod']) ? '<lastmod>' . htmlspecialchars((string)$u['lastmod'], ENT_XML1) . '</lastmod>' : '')
             . '<priority>' . $u['priority'] . '</priority>';
         foreach ($u['images'] ?? [] as $img) {
             $xml .= '<image:image><image:loc>' . htmlspecialchars($img, ENT_XML1) . '</image:loc></image:image>';

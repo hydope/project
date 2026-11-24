@@ -2,6 +2,16 @@
 // Core bootstrap: .env loading, JSON/HTTP helpers, client IP.
 // DB lives in db.php; JWT in jwt.php; mail in mail.php; rate limit in ratelimit.php.
 
+// Never advertise the PHP version (audit B-03, 2026-11-24). PHP adds
+// "X-Powered-By: PHP/x.y.z" itself and expose_php is PHP_INI_SYSTEM, so
+// ini_set() cannot turn it off at runtime — header_remove() in the shared
+// bootstrap is the mechanism that works on every SAPI this code runs on
+// (LiteSpeed/mod_php/FPM/CLI-server). It runs before any output on every
+// entry point that loads this file; in CLI it is a harmless no-op.
+if (PHP_SAPI !== 'cli') {
+    header_remove('X-Powered-By');
+}
+
 if (file_exists(__DIR__.'/../.env')) {
     foreach (file(__DIR__.'/../.env', FILE_IGNORE_NEW_LINES|FILE_SKIP_EMPTY_LINES) as $l) {
         $l=trim($l);
