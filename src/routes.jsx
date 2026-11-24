@@ -53,6 +53,7 @@ const AdminSupport = lazy(() => import('./pages/admin/AdminSupport'));
 const AdminQueue = lazy(() => import('./pages/admin/AdminQueue'));
 const AdminMembers = lazy(() => import('./pages/admin/AdminMembers'));
 const AdminDeletedProfiles = lazy(() => import('./pages/admin/AdminDeletedProfiles'));
+const AdminLeads = lazy(() => import('./pages/admin/AdminLeads'));
 const AdminAudit = lazy(() => import('./pages/admin/AdminAudit'));
 const AdminEvents = lazy(() => import('./pages/admin/AdminEvents'));
 const AdminMail = lazy(() => import('./pages/admin/AdminMail'));
@@ -291,6 +292,7 @@ const router = createBrowserRouter([
           { path: 'verify-accounts', element: <LazyRoute component={AdminVerifyAccounts} /> },
           { path: 'members', element: <LazyRoute component={AdminMembers} /> },
           { path: 'deleted-profiles', element: <LazyRoute component={AdminDeletedProfiles} /> },
+          { path: 'leads', element: <LazyRoute component={AdminLeads} /> },
           { path: 'audit', element: <LazyRoute component={AdminAudit} /> },
           { path: 'events', element: <LazyRoute component={AdminEvents} /> },
           { path: 'mail', element: <LazyRoute component={AdminMail} /> },

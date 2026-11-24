@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '@/layouts/AdminLayout';
 import { http, apiUrl } from '@/lib/api/transport';
-import { Search, Users, RefreshCw, X, ShieldCheck, Ban, History, Mail, Check, Pencil, Upload, Sprout } from 'lucide-react';
+import { Search, Users, RefreshCw, X, ShieldCheck, Ban, History, Mail, Check, Pencil, Upload, Sprout, FlaskConical, Trash2, Loader2 } from 'lucide-react';
 
 /**
  * Member directory â€” searchable, paginated, with a full detail drawer.
@@ -91,6 +91,9 @@ export default function AdminMembers() {
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [editBusy, setEditBusy] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteAck, setDeleteAck] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const fileRef = useRef(null);
@@ -127,6 +130,38 @@ export default function AdminMembers() {
       setDetail(await http.get(`/api/admin/user/${id}`));
     } catch (e) {
       setError(e?.message || 'Could not verify email.');
+    }
+  };
+
+  // Mark/unmark as test (P2, 2026-11-23) — test accounts disappear from
+  // browse, counts and recommendations. Until now only code migrations
+  // could set this flag.
+  const toggleTest = async (id, isTest) => {
+    try {
+      await http.post(`/api/admin/users/${id}/test`, { isTest: !isTest });
+      await load();
+      setDetail(await http.get(`/api/admin/user/${id}`));
+      setSelected((s) => (s && s.id === id ? { ...s, is_test: !isTest } : s));
+    } catch (e) {
+      setError(e?.message || 'Could not change the test flag.');
+    }
+  };
+
+  // Permanent delete (P2) — the server refuses admins, self-deletion and
+  // any call without confirm:true; the modal's checkbox is the human half
+  // of that safeguard.
+  const confirmDelete = async () => {
+    if (!selected) return;
+    setDeleteBusy(true);
+    try {
+      await http.del(`/api/admin/users/${selected.id}`, { confirm: true });
+      setDeleteOpen(false); setDeleteAck(false);
+      setSelected(null); setDetail(null);
+      await load();
+    } catch (e) {
+      setError(e?.message || 'Could not delete that member.');
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -331,6 +366,19 @@ export default function AdminMembers() {
                 className="mt-3 ml-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-line/30 text-muted">
                 <Pencil className="w-3.5 h-3.5" /> Edit details
               </button>
+              <button onClick={() => toggleTest(selected.id, !!selected.is_test)}
+                className="mt-3 ml-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-line/30 text-muted">
+                <FlaskConical className="w-3.5 h-3.5" /> {selected.is_test ? 'Unmark as test' : 'Mark as test'}
+              </button>
+              <div className="mt-4 pt-4 border-t border-line/20">
+                <button onClick={() => { setDeleteAck(false); setDeleteOpen(true); }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-danger/40 text-danger hover:bg-danger/10">
+                  <Trash2 className="w-3.5 h-3.5" /> Delete member permanently
+                </button>
+                <p className="text-[11px] text-muted mt-1.5">
+                  Removes the account, profile, messages and interests for good. The exit is recorded in Deleted Profiles, like a member leaving on their own.
+                </p>
+              </div>
               {detailBusy && <div className="skeleton h-40 rounded-xl mt-4" />}
               {!detailBusy && detail && (
                 <div className="space-y-5 mt-5">
@@ -360,6 +408,39 @@ export default function AdminMembers() {
                 </div>
               )}
             </aside>
+          </div>
+        )}
+
+        {/* Delete member confirm modal (P2) */}
+        {deleteOpen && selected && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-label="Delete member">
+            <div className="absolute inset-0 bg-black/60" onClick={() => !deleteBusy && setDeleteOpen(false)} />
+            <div className="relative rounded-2xl p-6 w-full max-w-md" style={{ background: '#161b22', border: '1px solid #21262d' }}>
+              <h2 className="text-lg font-bold mb-2" style={{ color: '#f0f6fc' }}>Delete this member permanently?</h2>
+              <p className="text-sm mb-1" style={{ color: '#f0f6fc' }}>{selected.display_name}</p>
+              <p className="text-xs mb-4 break-all" style={{ color: '#8b949e' }}>{selected.email}</p>
+              <p className="text-sm mb-4" style={{ color: '#8b949e' }}>
+                The account, profile, photos, messages, interests and sessions are removed and cannot be
+                restored. This is recorded in the audit trail and in Deleted Profiles.
+              </p>
+              <label className="flex gap-2 items-start cursor-pointer mb-5">
+                <input type="checkbox" checked={deleteAck} onChange={(e) => setDeleteAck(e.target.checked)} className="mt-0.5" />
+                <span className="text-sm" style={{ color: '#f0f6fc' }}>I understand this is permanent</span>
+              </label>
+              <div className="flex gap-3 justify-end">
+                <button onClick={() => setDeleteOpen(false)} disabled={deleteBusy}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40"
+                  style={{ border: '1px solid #21262d', color: '#8b949e' }}>
+                  Cancel
+                </button>
+                <button onClick={confirmDelete} disabled={!deleteAck || deleteBusy}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40"
+                  style={{ background: '#da3633' }}>
+                  {deleteBusy && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Delete permanently
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
