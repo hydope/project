@@ -69,12 +69,13 @@ export default function Home() {
   const reduceMotion = useReducedMotion();
   const { isLoggedIn, user } = useAuth();
   const { data, isLoading: profilesLoading } = useProfiles({});
-  // Homepage members: the newest real profiles, period. Unfinished profiles
+  // Homepage members: the latest profiles, seeded included (Syed's order,
+  // 2026-11-23) — the API orders the directory purely by recency, so the
+  // first 6 here are the newest profiles of any kind. Unfinished profiles
   // (no city, no country, no bio) are hidden from browse by the API since
-  // 2026-11-04 (Syed's call), so they never reach this list — the first 6
-  // here are the newest finished members. (2026-10-24: a separate "New
-  // members" section was tried and rejected by Syed — one members section,
-  // not two.)
+  // 2026-11-04 (Syed's call), so they never reach this list. (2026-10-24:
+  // a separate "New members" section was tried and rejected by Syed — one
+  // members section, not two.)
   const featured = (data || []).slice(0, 6);
 
   // Community counts, straight from the database. Until this resolves we show

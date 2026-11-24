@@ -1039,10 +1039,14 @@ function profilesList(): void
     // without a sect get the default order.
     $sortMatch = ($_GET['sort'] ?? '') === 'match' && $viewer !== null;
 
-    // Real profiles first, seeded profiles after — then newest-first within
-    // each group. Seeded profiles fill out the directory but never outrank
-    // a real member.
-    $sql = 'SELECT p.*, ' . lastActiveSql() . ' AS last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE ' . implode(' AND ', $where) . ' ORDER BY p.is_seeded ASC, p.created_at DESC' . (($paged || $sortMatch) ? '' : ' LIMIT ' . (isset($limit) ? (int)$limit : 100));
+    // Latest profiles first, seeded included (Syed's order, 2026-11-23):
+    // the public directory and the homepage strip order purely by recency,
+    // so a freshly seeded profile appears among the newest instead of below
+    // every real member. This supersedes the 2026-10-12 real-first display
+    // order for LISTINGS only — recommendations, First Connections, stats
+    // and analytics keep their real-only definitions (seeded profiles are
+    // never suggested as matches and never counted as real members).
+    $sql = 'SELECT p.*, ' . lastActiveSql() . ' AS last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE ' . implode(' AND ', $where) . ' ORDER BY p.created_at DESC' . (($paged || $sortMatch) ? '' : ' LIMIT ' . (isset($limit) ? (int)$limit : 100));
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();

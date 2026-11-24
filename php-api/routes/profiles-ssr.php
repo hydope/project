@@ -51,7 +51,7 @@ function profilesSsrSection(): ?string
         'SELECT p.* FROM profiles p LEFT JOIN users u ON u.id = p.user_id
           WHERE (p.is_blocked = 0 OR (p.blocked_until IS NOT NULL AND p.blocked_until <= NOW()))
             AND p.user_id NOT IN (SELECT id FROM users WHERE is_test = 1)
-          ORDER BY p.is_seeded ASC, p.created_at DESC'
+          ORDER BY p.created_at DESC'
     );
     $stmt->execute([]);
     $rows = $stmt->fetchAll();
