@@ -25,6 +25,15 @@ export const profilesRepo = {
     if (useRemote) return http.get(`/api/profiles/${encodeURIComponent(id)}`);
     return allProfiles().find((p) => p.id === id) ?? null;
   },
+  // Recently Active rail (2026-11-23): real members only, server-ordered by
+  // last activity. Local/demo mode has no honest source for it — empty.
+  async recentlyActive() {
+    if (useRemote) {
+      const data = await http.get('/api/profiles/recently-active');
+      return Array.isArray(data) ? data : (data?.rows ?? []);
+    }
+    return [];
+  },
   async search(filters = {}) {
     if (useRemote) {
       const q = new URLSearchParams();

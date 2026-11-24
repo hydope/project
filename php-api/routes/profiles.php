@@ -76,6 +76,9 @@ function routeProfiles(string $method, array $segments): void
     if ($method === 'GET' && $id === 'notifications' && ($segments[1] ?? '') === 'unread-count') { notificationsUnreadCount(); return; }
     if ($method === 'POST' && $id === 'notifications' && ($segments[1] ?? '') === 'read') { notificationsRead(); return; }
     if ($method === 'GET' && $id === 'notifications') { notificationsList(); return; }
+    // Recently Active rail (2026-11-23): literal segment, matched before the
+    // bare /:id route below for the same reason as /me/favourites above.
+    if ($method === 'GET' && $id === 'recently-active') { recentlyActive(); return; }
     if ($method === 'GET' && $id !== null && $sub === 'photo') { photoServe($id); return; }
     if ($method === 'GET' && $id !== null && $sub === 'video') { videoServe($id); return; }
     if ($method === 'GET' && $id !== null) { profileById($id); return; }
@@ -517,7 +520,7 @@ function imageIsComplete(string $bytes, string $mime): bool
 // photos takes effect immediately for any link that was already shared.
 function photoServe(string $id): void
 {
-    $stmt = db()->prepare('SELECT user_id, photo_url, photos_visibility, visibility, is_blocked, blocked_until FROM profiles WHERE user_id = ? LIMIT 1');
+    $stmt = db()->prepare('SELECT user_id, photo_url, photos_visibility, visibility, is_blocked, blocked_until, is_seeded FROM profiles WHERE user_id = ? LIMIT 1');
     $stmt->execute([$id]);
     $row = $stmt->fetch();
 
@@ -527,6 +530,12 @@ function photoServe(string $id): void
 
     $viewer = currentUser();
     $isOwner = $viewer !== null && (string)$viewer['uid'] === (string)$row['user_id'];
+
+    // Seeded profiles have no photo (Syed's rule, 2026-11-23) — not even by
+    // direct URL. Same 404 as a missing photo, no probing signal.
+    if (!empty($row['is_seeded']) && !$isOwner) {
+        je('Not found.', 404);
+    }
 
     if (!$isOwner) {
         // A private profile is invisible, photo or not — same 404, no probing.
@@ -815,6 +824,55 @@ function profilesFilterOptions(): void
         'hobbies' => array_keys($hob),
         'languages' => array_keys($lang),
     ];
+    if ($guestCache !== null) guestBrowseCacheStore($guestCache, $payload);
+    json($payload);
+}
+
+// Recently Active rail (2026-11-23, Syed's order): real members only —
+// never seeded, never test — ordered by last activity. The listing-order
+// setting deliberately does NOT apply here, and private profiles are
+// excluded in SQL: the rail is a discovery surface, not a matches view.
+// Payloads still pass through visibleProfile(), so blocks, the
+// unverified-viewer gate and hidden fields all hold per viewer.
+function recentlyActive(): void
+{
+    $viewer = currentUser();
+    $guestCache = guestBrowseCacheFile('recently-active', $viewer === null);
+    if ($guestCache !== null) guestBrowseCacheServe($guestCache);
+    $where = [
+        '(p.is_blocked = 0 OR (p.blocked_until IS NOT NULL AND p.blocked_until <= NOW()))',
+        'p.user_id NOT IN (SELECT id FROM users WHERE is_test = 1)',
+        'COALESCE(p.is_seeded, 0) = 0',
+        "COALESCE(p.visibility, 'members') <> 'private'",
+    ];
+    $params = [];
+    if ($viewer !== null) {
+        $where[] = 'p.user_id <> ?';
+        $params[] = $viewer['uid'];
+        $where[] = 'NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?))';
+        $params[] = $viewer['uid'];
+        $params[] = $viewer['uid'];
+        if (!viewerIsEmailVerified($viewer)) {
+            $where[] = 'p.block_unverified = 0';
+        }
+    }
+    $sql = 'SELECT p.*, ' . lastActiveSql() . ' AS last_active_at FROM profiles p LEFT JOIN users u ON u.id = p.user_id WHERE ' . implode(' AND ', $where)
+        . ' ORDER BY last_active_at IS NULL, last_active_at DESC LIMIT 12';
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+    if ($viewer === null || ($viewer['isAdmin'] ?? false) !== true) {
+        $rows = array_values(array_filter(
+            $rows,
+            static fn(array $row): bool => !isTestShellRow($row)
+        ));
+    }
+    $out = [];
+    foreach ($rows as $row) {
+        $v = visibleProfile($row, $viewer);
+        if ($v !== null) $out[] = $v;
+    }
+    $payload = ['rows' => $out];
     if ($guestCache !== null) guestBrowseCacheStore($guestCache, $payload);
     json($payload);
 }

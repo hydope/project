@@ -559,6 +559,17 @@ function visibleProfile(array $row, ?array $viewer): ?array
     }
     $isAnonymous = $viewer === null;
 
+    // Seeded profiles carry NO photo or video (Syed's rule, 2026-11-23):
+    // the seeder's pool images read as AI-generated and repeat across
+    // profiles, so a seeded profile presents exactly like a real member who
+    // never uploaded one. Every payload built below reads photo_url /
+    // video_url, so blanking them here covers both branches and every
+    // caller; photoServe() enforces the same rule for direct URLs.
+    if (!empty($row['is_seeded'])) {
+        $row['photo_url'] = '';
+        $row['video_url'] = '';
+    }
+
     // ── Anonymous visitors ────────────────────────────────────────────────────
     // Members here do not need an account to read a profile or see a public
     // photo. The previous behaviour hid everything behind a "sign up to view"

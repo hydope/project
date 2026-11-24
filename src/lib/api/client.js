@@ -32,6 +32,7 @@ export const api = {
 
   // ── Profiles ──
   getProfiles: (filters = {}) => unwrap(profilesRepo.search(filters), 'Could not load profiles.'),
+  getRecentlyActive: () => unwrap(profilesRepo.recentlyActive(), 'Could not load recently active members.'),
   getStats: () => unwrap(profilesRepo.stats(), 'Could not load community stats.'),
   getFilterOptions: () => unwrap(profilesRepo.filterOptions(), 'Could not load filter options.'),
   getProfile: (id) => unwrap(profilesRepo.getById(id), 'Could not load this profile.'),

@@ -213,25 +213,11 @@ try {
     ");
     $stmt->execute([$userId, $email, $passwordHash, $displayName]);
 
-    // Pick a photo from the pool
-    $photoFile = $isFemale ? pick($FEMALE_PHOTOS) : pick($MALE_PHOTOS);
-    $srcPhoto = __DIR__ . '/uploads/seeded/' . $photoFile;
+    // Seeded profiles carry NO photo (Syed's rule, 2026-11-23): the pool
+    // images read as AI-generated and repeat across profiles, so a seeded
+    // profile presents like a real member who never uploaded one. The
+    // FEMALE_PHOTOS / MALE_PHOTOS pools above are retired, not deleted.
     $photoUrl = null;
-
-    // Copy to a per-user location under photoBaseDir() — the SAME directory
-    // photoServe() reads from. (2026-11-10: the old __DIR__.'/uploads/photos'
-    // destination sat inside the web root, so every seeded photo 404d at
-    // serve time and was directly fetchable over HTTP with no tier check.)
-    if (file_exists($srcPhoto)) {
-      $destDir = photoBaseDir() . '/' . $userId;
-      if (!is_dir($destDir)) {
-        @mkdir($destDir, 0755, true);
-      }
-      $destPhoto = $destDir . '/profile.webp';
-      if (@copy($srcPhoto, $destPhoto)) {
-        $photoUrl = $destPhoto;
-      }
-    }
 
     // Create profile
     $stmt = $db->prepare("

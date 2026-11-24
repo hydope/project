@@ -7,6 +7,7 @@ import LeadCapture from '../components/LeadCapture.jsx';
 import LoginGate from '../components/LoginGate';
 import { useAuth } from '../lib/auth/AuthContext';
 import { api } from '../lib/api/client';
+import { useAuthedImage } from '../lib/api/useAuthedImage';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { logEvent } from '../lib/eventLog';
 import { motion, AnimatePresence } from '../lib/motion';
@@ -180,6 +181,63 @@ export function Favourites() {
         )}
       </div>
     </Layout>
+  );
+}
+
+// Recently Active rail (2026-11-23, Syed's order): real members only —
+// seeded and test accounts are excluded server-side by
+// /api/profiles/recently-active. Deliberately shows NO activity timestamps:
+// last-seen display stays off (2026-11-14 decision), the order alone is the
+// signal. The parent mounts it only in the unfiltered default view, and it
+// renders nothing until at least 4 members qualify.
+function RecentlyActiveCard({ profile }) {
+  const photoLocked = profile.photosLocked === true;
+  const { url: photoUrl } = useAuthedImage(photoLocked ? null : profile.photo);
+  const initials = (profile.displayName || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  return (
+    <Link to={'/profiles/' + profile.id} className="flex flex-col items-center gap-2 shrink-0 w-24 text-center">
+      <span
+        className="relative block w-16 h-16 rounded-full overflow-hidden"
+        style={{ background: 'linear-gradient(150deg, #1a5c40 0%, #0d1f16 55%, #0a0f1a 100%)', border: '1px solid rgba(212,175,105,0.35)' }}
+      >
+        {photoUrl ? (
+          <img src={photoUrl} alt={profile.displayName} loading="lazy" decoding="async" className="w-full h-full object-cover" style={{ objectPosition: 'center top' }} />
+        ) : (
+          <span className="absolute inset-0 flex items-center justify-center text-lg font-bold" style={{ color: '#d4af69', fontFamily: 'Georgia, serif' }}>
+            {initials}
+          </span>
+        )}
+      </span>
+      <span className="w-full">
+        <span className="block text-sm font-medium truncate" style={{ color: 'var(--color-ink)' }}>{profile.displayName}</span>
+        <span className="block text-xs truncate" style={{ color: 'var(--color-ink-tertiary)' }}>
+          {[profile.age ? String(profile.age) : null, profile.city].filter(Boolean).join(' · ')}
+        </span>
+      </span>
+    </Link>
+  );
+}
+
+function RecentlyActiveRail() {
+  const [rows, setRows] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    api.getRecentlyActive()
+      .then(data => { if (!cancelled) setRows(Array.isArray(data) ? data : []); })
+      .catch(() => { /* the rail is an extra — browse works without it */ });
+    return () => { cancelled = true; };
+  }, []);
+  if (rows.length < 4) return null;
+  return (
+    <section aria-label="Recently active members" className="mb-6">
+      <div className="flex items-baseline gap-2 mb-3">
+        <h2 className="text-base font-semibold" style={{ color: 'var(--color-ink)' }}>Recently active</h2>
+        <span className="text-xs" style={{ color: 'var(--color-ink-tertiary)' }}>Real members, most recently active first</span>
+      </div>
+      <div className="flex gap-4 overflow-x-auto pb-2">
+        {rows.map(p => <RecentlyActiveCard key={p.id} profile={p} />)}
+      </div>
+    </section>
   );
 }
 
@@ -397,6 +455,11 @@ export function BrowseProfiles() {
     const labels = { gender: 'Looking for', minAge: 'Min age', maxAge: 'Max age', country: 'Country', sect: 'Sect', religiosity: 'Religiosity', education: 'Education', syedStatus: 'Syed status', modesty: 'Modesty', photo: 'Photo', verifiedOnly: 'Verified only', sort: 'Sort', search: 'Search', minHeightParts: 'Min height', maxHeightParts: 'Max height', citizenship: 'Citizenship', incomeRange: 'Income', hobbies: 'Hobbies', language: 'Language', residencyStatus: 'Residency', maritalStatus: 'Marital status', convertStatus: 'Muslim background' };
     return `${labels[k] || k}: ${v === true ? 'on' : Array.isArray(v) ? v.join(', ') : (k === 'minHeightParts' || k === 'maxHeightParts') ? (cmToFeetInches(heightPartsToCm(v)) || '') : v}`;
   }).join(', ');
+  // The Recently Active rail belongs to the untouched default view. The one
+  // exception is the auto-applied gender default, which the member never
+  // chose (see the seekingGender effect above).
+  const onlyAutoGender = autoGender && activeFilterEntries.length === 1 && activeFilterEntries[0][0] === 'gender';
+  const showRecentlyActive = view === 'grid' && (activeFilterCount === 0 || onlyAutoGender);
 
   return (
     <Layout>
@@ -677,6 +740,8 @@ export function BrowseProfiles() {
             {loading ? 'Loading profiles...' : ((serverTotal ?? filtered.length) + ' member' + ((serverTotal ?? filtered.length) !== 1 ? 's' : '') + ' found')}
           </p>
         </div>
+
+        {showRecentlyActive && <RecentlyActiveRail />}
 
         {/* Content */}
         {loading ? (
