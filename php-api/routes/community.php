@@ -37,9 +37,10 @@ function communityDeletePost(string $postId): void
             je('Post not found.', 404);
         }
         // Author can delete their own post; admins can delete any post.
-        // (Session payload uses camelCase isAdmin; the posts table uses author_id —
-        // both were wrong here, which made every delete 500 silently.)
-        $isAdmin = !empty($user['isAdmin']);
+        // Admin status comes from the DB (userIsAdmin), never the isAdmin
+        // JWT claim — a demoted admin's stale claim must not keep moderation
+        // power (audit A-03 follow-up sweep, 2026-11-24).
+        $isAdmin = userIsAdmin((string)$user['uid']);
         if (!$isAdmin && (string)$post['author_id'] !== (string)$user['uid']) {
             je('You can only delete your own posts.', 403);
         }
@@ -79,7 +80,8 @@ function communityDeleteReply(string $replyId): void
     if (!$reply) {
         je('Reply not found.', 404);
     }
-    $isAdmin = !empty($user['isAdmin']);
+    // Same DB-backed admin check as post delete (A-03 sweep) — not the claim.
+    $isAdmin = userIsAdmin((string)$user['uid']);
     if (!$isAdmin && (string)$reply['author_id'] !== (string)$user['uid']) {
         je('You can only delete your own replies.', 403);
     }

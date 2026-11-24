@@ -861,7 +861,8 @@ function recentlyActive(): void
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
-    if ($viewer === null || ($viewer['isAdmin'] ?? false) !== true) {
+    // Admin bypass follows the DB, not the stale isAdmin claim (A-03 sweep).
+    if ($viewer === null || !userIsAdmin((string)$viewer['uid'])) {
         $rows = array_values(array_filter(
             $rows,
             static fn(array $row): bool => !isTestShellRow($row)
@@ -1130,7 +1131,8 @@ function profilesList(): void
     // 48 shells ahead of 13 real profiles, filtering in SQL after LIMIT would
     // return a short page. Filtering here guarantees the member sees only
     // genuine rows however much debris precedes them.
-    if ($viewer === null || ($viewer['isAdmin'] ?? false) !== true) {
+    // Admin bypass follows the DB, not the stale isAdmin claim (A-03 sweep).
+    if ($viewer === null || !userIsAdmin((string)$viewer['uid'])) {
         // Negate. array_filter KEEPS rows for which the callback returns true,
         // so passing isTestShellRow() directly would keep the debris and drop
         // every genuine member — the exact inverse of the intent, and it

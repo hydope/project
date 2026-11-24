@@ -448,7 +448,8 @@ function draftsEvents(string $draftId): void
     $draft = $draftStmt->fetch();
     if (!$draft) je('Not found.', 404);
 
-    $can = ((string)$draft['created_by'] === (string)$user['uid']) || !empty($user['isAdmin']);
+    // Admin branch re-checks the DB, not the stale isAdmin claim (A-03 sweep).
+    $can = ((string)$draft['created_by'] === (string)$user['uid']) || userIsAdmin((string)$user['uid']);
     if (!$can) je('Not yours to inspect.', 403);
 
     $stmt = db()->prepare('SELECT event, detail, created_at FROM draft_events WHERE draft_id = ? ORDER BY created_at ASC LIMIT 100');

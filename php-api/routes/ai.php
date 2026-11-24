@@ -614,7 +614,10 @@ function normaliseSchedule(?string $when): ?string
 /** GET /api/ai/posts — public: only published posts, newest first. */
 function aiListPosts(): void
 {
-    $includeAll = !empty(currentUser()['isAdmin']);
+    // Draft/future posts are visible only to a CURRENT admin — the DB
+    // decides, not the stale isAdmin JWT claim (A-03 sweep).
+    $aiViewer = currentUser();
+    $includeAll = $aiViewer !== null && userIsAdmin((string)$aiViewer['uid']);
     // image_url was added by a later migration; if it hasn't run yet in
     // production, selecting it kills the whole query. Detect the column first.
     $hasImageUrl = false;

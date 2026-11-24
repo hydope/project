@@ -1016,7 +1016,9 @@ check(
 );
 check(
     'admins can still see test shells for cleanup',
-    $listBody !== '' && strpos($listBody, "['isAdmin']") !== false,
+    // A-03 sweep: the bypass is the DB re-check (userIsAdmin), not the
+    // ['isAdmin'] claim read this assertion originally pattern-matched.
+    $listBody !== '' && strpos($listBody, 'userIsAdmin(') !== false,
     'the shell filter blocks admins too, leaving the debris unmanageable'
 );
 // ── Honest stats: the anti-fabrication guard ────────────────────────────────
@@ -1235,6 +1237,67 @@ check(
     'a token for a deleted user row is blocked, never passed',
     ($gateProbe['missing_row_blocked'] ?? false) === true
 );
+
+// ── Admin claim sweep (audit A-03 follow-up, 2026-11-24) ───────────────────
+// The six softer claim reads the partial Phase 3 left behind (community
+// moderation deletes, draft events, test-shell bypass ×2, matchmaker photo,
+// analytics exclusion, AI includeAll) now call userIsAdmin() like the gate.
+// The child probe replays each site's decision expression against the REAL
+// helper with stale claims, and asserts no claim read survives in source.
+echo "\nadmin claim sweep (A-03 follow-up)\n";
+
+$sweepProbe = visibilityProbe(__DIR__ . '/admin-claim-sweep-probe.php');
+check(
+    'the admin claim sweep probe ran',
+    ($sweepProbe['community_demoted_cannot_delete_others'] ?? null) !== null,
+    'probe produced no output: ' . substr((string)($sweepProbe['__raw'] ?? 'none'), 0, 200)
+);
+check(
+    'community: a demoted admin cannot delete another member\'s post/reply',
+    ($sweepProbe['community_demoted_cannot_delete_others'] ?? false) === true,
+    'a stale isAdmin claim still grants moderation deletes'
+);
+check(
+    'community: a current admin can delete another member\'s post/reply',
+    ($sweepProbe['community_current_admin_can_delete_others'] ?? false) === true
+);
+check(
+    'community: the author can still delete their own post/reply',
+    ($sweepProbe['community_author_can_delete_own'] ?? false) === true
+        && ($sweepProbe['community_stranger_cannot_delete'] ?? false) === true
+);
+check(
+    'drafts: demoted admin cannot read another creator\'s draft events; creator and current admin can',
+    ($sweepProbe['drafts_demoted_cannot_read_others'] ?? false) === true
+        && ($sweepProbe['drafts_current_admin_can_read_others'] ?? false) === true
+        && ($sweepProbe['drafts_creator_can_read_own'] ?? false) === true
+);
+check(
+    'matchmaker: demoted admin cannot view another owner\'s photo; owner and current admin can',
+    ($sweepProbe['matchmaker_demoted_cannot_view_others'] ?? false) === true
+        && ($sweepProbe['matchmaker_current_admin_can_view_others'] ?? false) === true
+        && ($sweepProbe['matchmaker_owner_can_view_own'] ?? false) === true
+);
+check(
+    'profiles: test-shell bypass follows the DB (demoted/member/anon get none, current admin keeps it)',
+    ($sweepProbe['profiles_demoted_no_shell_bypass'] ?? false) === true
+        && ($sweepProbe['profiles_current_admin_shell_bypass'] ?? false) === true
+        && ($sweepProbe['profiles_member_no_shell_bypass'] ?? false) === true
+        && ($sweepProbe['profiles_anon_no_shell_bypass'] ?? false) === true
+);
+check(
+    'analytics + ai: demoted admin counts as a visitor and gets no includeAll; current admin keeps both',
+    ($sweepProbe['analytics_demoted_counts_as_visitor'] ?? false) === true
+        && ($sweepProbe['analytics_current_admin_internal'] ?? false) === true
+        && ($sweepProbe['ai_demoted_no_include_all'] ?? false) === true
+        && ($sweepProbe['ai_current_admin_include_all'] ?? false) === true
+);
+foreach (['community', 'drafts', 'profiles', 'matchmaker', 'analytics', 'ai'] as $sweepFile) {
+    check(
+        "sweep source: routes/{$sweepFile}.php uses userIsAdmin() and reads no isAdmin claim",
+        ($sweepProbe['sweep_src_' . $sweepFile . '_db_check_only'] ?? false) === true
+    );
+}
 
 // ── Fail-closed environment gates (audit A-13, 2026-11-24) ──────────────────
 // appEnv()/jwtSecret() also live behind files this harness replaces, so they

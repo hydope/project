@@ -89,7 +89,9 @@ function analyticsCollect(): void
     }
     try {
         $me = currentUser();
-        if ($me !== null && !empty($me['isAdmin'])) {
+        // DB re-check, not the stale isAdmin claim (A-03 sweep): a demoted
+        // admin's pageviews count as ordinary traffic again.
+        if ($me !== null && userIsAdmin((string)$me['uid'])) {
             json(['ok' => true, 'internal' => true]);
         }
     } catch (Throwable) { /* a bad token must never break the beacon */ }

@@ -220,7 +220,8 @@ function matchmakerPhotoServe(string $uid, string $file): void
         je('Not found.', 404);
     }
     $isOwner = (string)($viewer['uid'] ?? '') === $uid;
-    if (!$isOwner && empty($viewer['isAdmin'])) {
+    // Admin branch re-checks the DB, not the stale isAdmin claim (A-03 sweep).
+    if (!$isOwner && !userIsAdmin((string)($viewer['uid'] ?? ''))) {
         je('Not found.', 404);
     }
     $base = realpath(photoBaseDir() . '/matchmaker/' . $uid) ?: '';
