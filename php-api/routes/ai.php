@@ -1177,6 +1177,12 @@ function aiQueueSave(): void
     // lost (outage, cleanup), MAX+1 leaves a publishing gap of days or
     // weeks that never heals on its own. In steady state (no gaps) the
     // earliest free slot IS MAX+1, so behaviour is unchanged.
+    // Publish slots per day are an admin setting (Admin → Settings → Blog):
+    // 1 → morning only, 2 → morning + night, 3 → morning/afternoon/night.
+    // The workflow runs publish-due at 09:15/15:15/21:15 UTC, so these are
+    // the only hours that publish promptly.
+    $slotHours = [1 => [9], 2 => [9, 21], 3 => [9, 15, 21]][siteSettingInt('blog_posts_per_day', 3, 1, 3)];
+
     $slot = null;
     try {
         $takenRows = db()->query(
@@ -1190,7 +1196,7 @@ function aiQueueSave(): void
         $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
         $midnight = (clone $now)->setTime(0, 0, 0);
         for ($d = 0; $d < 120 && $slot === null; $d++) {
-            foreach ([9, 15, 21] as $h) {
+            foreach ($slotHours as $h) {
                 $cand = (clone $midnight)->modify('+' . $d . ' days')->setTime($h, 0, 0);
                 if ($cand <= $now) {
                     continue;
@@ -1217,7 +1223,7 @@ function aiQueueSave(): void
         if ($cursor < $now) {
             $cursor = $now;
         }
-        foreach ([9, 15, 21] as $h) {
+        foreach ($slotHours as $h) {
             $cand = (clone $cursor)->setTime($h, 0, 0);
             if ($cand > $cursor) {
                 $slot = $cand->format('Y-m-d H:i:s');
@@ -1414,7 +1420,10 @@ function aiScheduledCount(): void
     $n = (int)db()->query(
         "SELECT COUNT(*) AS n FROM blog_posts WHERE status = 'scheduled'"
     )->fetch()['n'];
-    json(['ok' => true, 'scheduled' => $n, 'target' => 90, 'deficit' => max(0, 90 - $n)]);
+    // Queue target is an admin setting (Admin → Settings → Blog); the
+    // workflow tops up to whatever this endpoint reports.
+    $target = siteSettingInt('blog_queue_target', 90, 0, 300);
+    json(['ok' => true, 'scheduled' => $n, 'target' => $target, 'deficit' => max(0, $target - $n)]);
 }
 
 /**

@@ -11,17 +11,35 @@
 /** Raw decrypted value of one app_settings row, '' when unset/unreadable. */
 function siteSettingRaw(string $key): string
 {
+    static $cache = [];
+    if (array_key_exists($key, $cache)) return $cache[$key];
     try {
         $stmt = db()->prepare('SELECT value_enc FROM app_settings WHERE setting_key = ? LIMIT 1');
         $stmt->execute([$key]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!is_array($row)) return '';
+        if (!is_array($row)) return $cache[$key] = '';
         $raw = decAtRest($row['value_enc'] ?? null);
-        return is_string($raw) ? trim($raw) : '';
+        return $cache[$key] = is_string($raw) ? trim($raw) : '';
     } catch (Throwable $e) {
         error_log('[site-settings] read failed: ' . substr($e->getMessage(), 0, 120));
-        return '';
+        return $cache[$key] = '';
     }
+}
+
+/** Integer setting clamped to [$min, $max]; $default when unset/invalid. */
+function siteSettingInt(string $key, int $default, int $min, int $max): int
+{
+    $raw = siteSettingRaw($key);
+    if ($raw === '' || !is_numeric($raw)) return $default;
+    return max($min, min($max, (int)$raw));
+}
+
+/** Boolean setting stored as '1'/'0'; $default when unset. */
+function siteSettingBool(string $key, bool $default): bool
+{
+    $raw = siteSettingRaw($key);
+    if ($raw === '') return $default;
+    return $raw === '1' || strtolower($raw) === 'true';
 }
 
 /**

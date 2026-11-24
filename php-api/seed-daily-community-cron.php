@@ -32,6 +32,15 @@ if ($expected === '' || !hash_equals($expected, $provided)) {
     exit;
 }
 
+// Admin settings gate (Admin → Settings → Automations).
+require_once __DIR__ . '/lib/db.php';
+require_once __DIR__ . '/lib/util.php';
+require_once __DIR__ . '/lib/siteSettings.php';
+if (!siteSettingBool('community_seeder_enabled', true)) {
+    echo json_encode(['ok' => true, 'skipped' => 'community seeder disabled in Admin → Settings']);
+    exit;
+}
+
 define('SEEDER_INCLUDED', true);
 ob_start();
 $seederExitCode = 0;

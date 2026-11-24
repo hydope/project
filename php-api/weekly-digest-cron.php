@@ -33,6 +33,14 @@ if (!hash_equals($expected, $provided)) {
     exit;
 }
 
+// Admin settings gate (Admin → Settings → Automations).
+require_once __DIR__ . '/lib/util.php';
+require_once __DIR__ . '/lib/siteSettings.php';
+if (!siteSettingBool('weekly_digest_enabled', true)) {
+    echo json_encode(['ok' => true, 'skipped' => 'weekly digest disabled in Admin → Settings']);
+    exit;
+}
+
 try {
     // Recipients: verified members whose digest pref is on (NULL = default
     // on) and who are not seeded/test/admin.

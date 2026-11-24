@@ -156,52 +156,102 @@ function adminAiSettingsUpdate(): void
     json(['ok' => true, 'updated' => $wrote, 'source' => aiApiKeySource()]);
 }
 
-/** GET /api/admin/site-settings — site behaviour settings (values are
- *  not secrets, so unlike ai-settings they are returned in full). */
+/** The full site-settings payload (values are not secrets, so unlike
+ *  ai-settings they are returned in full). Single source for GET + PUT
+ *  responses so the panel and the API can never drift apart. */
+function siteSettingsPayload(): array
+{
+    return [
+        'profileListingOrder' => profileListingOrder(),
+        'signupTarget' => siteSettingInt('signup_target', 10, 1, 50),
+        'seederEnabled' => siteSettingBool('seeder_enabled', true),
+        'seederDailyCount' => siteSettingInt('seeder_daily_count', 5, 0, 20),
+        'seederFemaleCount' => siteSettingInt('seeder_female_count', 4, 0, 20),
+        'blogPostsPerDay' => siteSettingInt('blog_posts_per_day', 3, 1, 3),
+        'blogQueueTarget' => siteSettingInt('blog_queue_target', 90, 0, 300),
+        'weeklyDigestEnabled' => siteSettingBool('weekly_digest_enabled', true),
+        'communitySeederEnabled' => siteSettingBool('community_seeder_enabled', true),
+    ];
+}
+
+/** GET /api/admin/site-settings — site behaviour settings. */
 function adminSiteSettingsStatus(): void
 {
     $row = aiSettingsRow('profile_listing_order');
-    json([
-        'profileListingOrder' => profileListingOrder(),
-        'updatedAt' => $row['updated_at'] ?? null,
-    ]);
+    json(siteSettingsPayload() + ['updatedAt' => $row['updated_at'] ?? null]);
 }
 
 /** PUT /api/admin/site-settings — update site behaviour settings.
- *  Takes effect on the next request (the guest browse cache adds at most
- *  ~60s) — no deploy, which is the entire point (Syed's order, 2026-11-23). */
+ *  Takes effect on the next request or cron run (the guest browse cache
+ *  adds at most ~60s for the listing order) — no deploy, which is the
+ *  entire point (Syed's order, 2026-11-23). */
 function adminSiteSettingsUpdate(): void
 {
     $admin = requireAdminUser();
     $body = requestJson();
 
+    // The seeder split is validated against the EFFECTIVE pair (posted
+    // value wins, else the stored one) BEFORE anything is written.
+    if (array_key_exists('seederDailyCount', $body) || array_key_exists('seederFemaleCount', $body)) {
+        $daily = array_key_exists('seederDailyCount', $body)
+            ? (int)$body['seederDailyCount'] : siteSettingInt('seeder_daily_count', 5, 0, 20);
+        $female = array_key_exists('seederFemaleCount', $body)
+            ? (int)$body['seederFemaleCount'] : siteSettingInt('seeder_female_count', 4, 0, 20);
+        if ($female > $daily) {
+            je('Female seed count cannot exceed the daily seed count.', 400);
+        }
+    }
+
+    $up = db()->prepare(
+        'INSERT INTO app_settings (setting_key, value_enc, updated_by, updated_at)
+         VALUES (?, ?, ?, UTC_TIMESTAMP())
+         ON DUPLICATE KEY UPDATE value_enc = VALUES(value_enc), updated_by = VALUES(updated_by),
+                                 updated_at = UTC_TIMESTAMP(), last_status = NULL'
+    );
+    $write = function (string $key, string $value) use ($up, $admin): void {
+        $up->execute([$key, encAtRest($value), $admin['uid']]);
+    };
+
     $wrote = [];
+    $intField = function (string $field, string $key, int $min, int $max) use ($body, $write, &$wrote): void {
+        if (!array_key_exists($field, $body)) return;
+        $v = filter_var($body[$field], FILTER_VALIDATE_INT);
+        if ($v === false || $v < $min || $v > $max) {
+            je("{$field} must be a whole number between {$min} and {$max}.", 400);
+        }
+        $write($key, (string)$v);
+        $wrote[] = $field;
+    };
+    $boolField = function (string $field, string $key) use ($body, $write, &$wrote): void {
+        if (!array_key_exists($field, $body)) return;
+        $write($key, !empty($body[$field]) ? '1' : '0');
+        $wrote[] = $field;
+    };
 
     if (array_key_exists('profileListingOrder', $body)) {
         $order = trim((string)($body['profileListingOrder'] ?? ''));
         if (!in_array($order, ['latest', 'real_first'], true)) {
             je('Profile listing order must be "latest" or "real_first".', 400);
         }
-        $up = db()->prepare(
-            'INSERT INTO app_settings (setting_key, value_enc, updated_by, updated_at)
-             VALUES (?, ?, ?, UTC_TIMESTAMP())
-             ON DUPLICATE KEY UPDATE value_enc = VALUES(value_enc), updated_by = VALUES(updated_by),
-                                     updated_at = UTC_TIMESTAMP(), last_status = NULL'
-        );
-        $up->execute(['profile_listing_order', encAtRest($order), $admin['uid']]);
+        $write('profile_listing_order', $order);
         $wrote[] = 'profileListingOrder';
     }
+    $intField('signupTarget', 'signup_target', 1, 50);
+    $boolField('seederEnabled', 'seeder_enabled');
+    $intField('seederDailyCount', 'seeder_daily_count', 0, 20);
+    $intField('seederFemaleCount', 'seeder_female_count', 0, 20);
+    $intField('blogPostsPerDay', 'blog_posts_per_day', 1, 3);
+    $intField('blogQueueTarget', 'blog_queue_target', 0, 300);
+    $boolField('weeklyDigestEnabled', 'weekly_digest_enabled');
+    $boolField('communitySeederEnabled', 'community_seeder_enabled');
 
     if (!$wrote) {
         je('Nothing to save.', 400);
     }
 
-    auditLog('site.settings.updated', 'app_setting', 'site', [
-        'fields' => $wrote,
-        'profileListingOrder' => profileListingOrder(),
-    ]);
+    auditLog('site.settings.updated', 'app_setting', 'site', ['fields' => $wrote]);
 
-    json(['ok' => true, 'updated' => $wrote, 'profileListingOrder' => profileListingOrder()]);
+    json(['ok' => true, 'updated' => $wrote] + siteSettingsPayload());
 }
 
 /**
@@ -460,6 +510,23 @@ function routeAdmin(string $method, array $segments): void
     // PATCH /api/admin/users/:id — edit a member's name, photo and details.
     if ($method === 'PATCH' && $action === 'users' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === null) {
         adminUpdateUser((string)$segments[1]);
+        return;
+    }
+    // POST /api/admin/users/:id/test — mark/unmark an account as test
+    // (P2, 2026-11-23: the flag existed but only code migrations could set
+    // it, which is why QA accounts polluted counts for weeks).
+    if ($method === 'POST' && $action === 'users' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === 'test') {
+        adminSetTestFlag((string)$segments[1]);
+        return;
+    }
+    // DELETE /api/admin/users/:id — permanently delete a member (P2).
+    if ($method === 'DELETE' && $action === 'users' && ($segments[1] ?? null) !== null && ($segments[2] ?? null) === null) {
+        adminDeleteUser((string)$segments[1]);
+        return;
+    }
+    // POST /api/admin/leads/delete — remove one guest lead.
+    if ($method === 'POST' && $action === 'leads' && ($segments[1] ?? null) === 'delete') {
+        adminLeadDelete();
         return;
     }
 
@@ -1088,7 +1155,7 @@ function adminAnalytics(): void
         'timezone' => 'America/New_York',
         'headline' => [
             'signupsToday' => $signupsToday,
-            'signupTarget' => 10, // Syed raised the target to 10 real signups/day on 2026-11-14; the dashboard still said 5 until 2026-11-15.
+            'signupTarget' => siteSettingInt('signup_target', 10, 1, 50), // Admin setting (Settings → Goals); was a hard-coded 10 (5 before 2026-11-15, changed by deploy both times).
             'signupsYesterday' => $signupsYesterday,
             'realMembers' => $realMembers,
             'visitorsToday' => $visitorsToday,
@@ -1280,20 +1347,37 @@ function adminPhotoLift(): void
  */
 function adminLeads(): void
 {
-    $limit = max(1, min(200, (int)($_GET['limit'] ?? 50)));
+    $limit = max(1, min(1000, (int)($_GET['limit'] ?? 50)));
+    $offset = max(0, (int)($_GET['offset'] ?? 0));
+    $q = trim((string)($_GET['q'] ?? ''));
     try {
         leadsEnsureTable();
         $total = (int)db()->query('SELECT COUNT(*) FROM guest_leads')->fetchColumn();
         $active = (int)db()->query('SELECT COUNT(*) FROM guest_leads WHERE unsubscribed = 0')->fetchColumn();
+        // Counts stay global (they are the page's headline stats); `q`
+        // filters the rows only (P2 Leads page: search + paging + export).
+        $where = '';
+        $params = [];
+        if ($q !== '') {
+            $where = ' WHERE email LIKE ? OR city LIKE ?';
+            $like = '%' . $q . '%';
+            $params = [$like, $like];
+        }
+        $filtered = $total;
+        if ($q !== '') {
+            $cs = db()->prepare('SELECT COUNT(*) FROM guest_leads' . $where);
+            $cs->execute($params);
+            $filtered = (int)$cs->fetchColumn();
+        }
         $stmt = db()->prepare(
             'SELECT email, source, city, unsubscribed, created_at, last_sent_at
-               FROM guest_leads ORDER BY created_at DESC LIMIT ' . $limit
+               FROM guest_leads' . $where . ' ORDER BY created_at DESC LIMIT ' . $limit . ' OFFSET ' . $offset
         );
-        $stmt->execute();
-        json(['total' => $total, 'active' => $active, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+        $stmt->execute($params);
+        json(['total' => $total, 'active' => $active, 'filtered' => $filtered, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     } catch (Throwable $e) {
         error_log('[admin] leads failed: ' . $e->getMessage());
-        json(['total' => 0, 'active' => 0, 'rows' => [], 'error' => 'leads unavailable']);
+        json(['total' => 0, 'active' => 0, 'filtered' => 0, 'rows' => [], 'error' => 'leads unavailable']);
     }
 }
 
@@ -2570,6 +2654,110 @@ function adminVerifyEmail(string $userId): void
     db()->prepare('UPDATE users SET email_verified = 1 WHERE id = ?')->execute([$userId]);
     auditLog('user.email_verified', 'user', $userId, ['email' => (string)$row['email']]);
     json(['ok' => true, 'id' => $row['id'], 'email' => $row['email']]);
+}
+
+// POST /api/admin/users/:id/test — mark or unmark an account as a test
+// account (P2, 2026-11-23). Test accounts vanish from browse, counts and
+// recommendations everywhere the is_test flag is read — which is most of
+// the site. Safeguards: never an admin account, never your own.
+function adminSetTestFlag(string $userId): void
+{
+    $admin = requireAdminUser();
+    $body = requestJson();
+    $isTest = !empty($body['isTest']);
+
+    $probe = db()->prepare('SELECT id, email, is_admin, is_test FROM users WHERE id = ? LIMIT 1');
+    $probe->execute([$userId]);
+    $row = $probe->fetch();
+    if (!$row) {
+        je('Member not found.', 404);
+    }
+    if (!empty($row['is_admin'])) {
+        je('Admin accounts cannot be marked as test.', 400);
+    }
+    if ((string)$row['id'] === (string)($admin['uid'] ?? '')) {
+        je('You cannot change your own test flag.', 400);
+    }
+    db()->prepare('UPDATE users SET is_test = ? WHERE id = ?')->execute([$isTest ? 1 : 0, $userId]);
+    auditLog($isTest ? 'user.marked_test' : 'user.unmarked_test', 'user', $userId, ['email' => (string)$row['email']]);
+    json(['ok' => true, 'id' => $row['id'], 'email' => $row['email'], 'isTest' => $isTest]);
+}
+
+// DELETE /api/admin/users/:id — permanently delete a member (P2,
+// 2026-11-23). Mirrors the member self-delete sequence exactly (same
+// tables, same order, same deletion-feedback snapshot), so an admin
+// removal leaves the same traces a self-removal does. Safeguards: the
+// body must carry confirm:true, the target cannot be an admin, and an
+// admin cannot delete themselves.
+function adminDeleteUser(string $userId): void
+{
+    $admin = requireAdminUser();
+    $body = requestJson();
+    if (($body['confirm'] ?? null) !== true) {
+        je('Deletion requires { "confirm": true } in the request body.', 400);
+    }
+
+    $probe = db()->prepare('SELECT id, email, display_name, is_admin FROM users WHERE id = ? LIMIT 1');
+    $probe->execute([$userId]);
+    $row = $probe->fetch();
+    if (!$row) {
+        je('Member not found.', 404);
+    }
+    if (!empty($row['is_admin'])) {
+        je('Admin accounts cannot be deleted from the panel.', 400);
+    }
+    if ((string)$row['id'] === (string)($admin['uid'] ?? '')) {
+        je('You cannot delete your own account from the panel.', 400);
+    }
+
+    $pdo = db();
+    try {
+        $pdo->beginTransaction();
+        recordDeletionFeedback($pdo, $userId, [
+            'reason' => 'other',
+            'detail' => 'Admin removal from the Members panel',
+        ]);
+        $pdo->prepare('DELETE FROM messages WHERE sender_id = ?')->execute([$userId]);
+        $pdo->prepare('DELETE FROM conversations WHERE user_a = ? OR user_b = ?')->execute([$userId, $userId]);
+        $pdo->prepare('DELETE FROM interests WHERE from_user_id = ? OR to_user_id = ?')->execute([$userId, $userId]);
+        $pdo->prepare('DELETE FROM blocks WHERE blocker_id = ? OR blocked_id = ?')->execute([$userId, $userId]);
+        $pdo->prepare('DELETE FROM reports WHERE reporter_id = ?')->execute([$userId]);
+        $pdo->prepare('DELETE FROM wali_links WHERE user_id = ?')->execute([$userId]);
+        $pdo->prepare('DELETE FROM verifications WHERE user_id = ?')->execute([$userId]);
+        $pdo->prepare('DELETE FROM sessions WHERE user_id = ?')->execute([$userId]);
+        $pdo->prepare('DELETE FROM email_verifications WHERE user_id = ?')->execute([$userId]);
+        $pdo->prepare('DELETE FROM profiles WHERE user_id = ?')->execute([$userId]);
+        $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+
+    auditLog('user.deleted_by_admin', 'user', $userId, [
+        'email' => (string)$row['email'],
+        'displayName' => (string)$row['display_name'],
+    ]);
+    json(['ok' => true, 'id' => $row['id'], 'email' => $row['email']]);
+}
+
+// POST /api/admin/leads/delete — remove one guest lead by email (P2).
+function adminLeadDelete(): void
+{
+    requireAdminUser();
+    $body = requestJson();
+    $email = strtolower(trim((string)($body['email'] ?? '')));
+    if ($email === '' || !str_contains($email, '@')) {
+        je('A valid lead email is required.', 400);
+    }
+    leadsEnsureTable();
+    $stmt = db()->prepare('DELETE FROM guest_leads WHERE email = ?');
+    $stmt->execute([$email]);
+    if ($stmt->rowCount() === 0) {
+        je('Lead not found.', 404);
+    }
+    auditLog('lead.deleted', 'guest_lead', $email, []);
+    json(['ok' => true, 'email' => $email]);
 }
 
 // PATCH /api/admin/users/:id — edit a member's name, photo and profile details.

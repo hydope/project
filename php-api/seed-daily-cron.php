@@ -33,6 +33,20 @@ if ($expected === '' || !hash_equals($expected, $provided)) {
     exit;
 }
 
+// Admin settings gate (Admin → Settings → Profile seeder): the panel owns
+// whether the seeder runs and how many profiles it adds. The seeder script
+// already honours SEEDER_CUSTOM_COUNT / SEEDER_FEMALE_COUNT defines, so the
+// counts are handed over through them.
+require_once __DIR__ . '/lib/db.php';
+require_once __DIR__ . '/lib/util.php';
+require_once __DIR__ . '/lib/siteSettings.php';
+if (!siteSettingBool('seeder_enabled', true)) {
+    echo json_encode(['ok' => true, 'skipped' => 'seeder disabled in Admin → Settings']);
+    exit;
+}
+define('SEEDER_CUSTOM_COUNT', siteSettingInt('seeder_daily_count', 5, 0, 20));
+define('SEEDER_FEMALE_COUNT', siteSettingInt('seeder_female_count', 4, 0, 20));
+
 // Capture the seeder's output
 // Define SEEDER_INCLUDED so the seeder doesn't try to exit() itself
 define('SEEDER_INCLUDED', true);

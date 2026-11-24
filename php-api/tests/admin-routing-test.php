@@ -73,6 +73,15 @@ function requireAuthUser(): ?array
 }
 /** Some routes call the nullable form directly. */
 function requireUser(): ?array { return requireAuthUser(); }
+/** The admin-gated form lives in lib/db.php, which this harness replaces
+ *  with StubDb — stub it to the same default admin identity. */
+function requireAdminUser(): array { return requireAuthUser(); }
+/** lib/util.php helpers the P1/P2 handlers call; identity/no-op here —
+ *  routing is what this suite proves, crypto is covered elsewhere. */
+function encAtRest(string $plaintext): string { return $plaintext; }
+function decAtRest(?string $stored): string { return (string)($stored ?? ''); }
+function recordDeletionFeedback($pdo, string $uid, array $body): void {}
+function leadsEnsureTable(): void {}
 
 /** Nullable viewer: null for an anonymous request, else the identity array. */
 function currentUser(): ?array
@@ -146,6 +155,7 @@ require_once __DIR__ . '/../routes/admin.php';
 // function definitions — no duplicate names, no top-level side effects.
 require_once __DIR__ . '/../routes/profiles.php';
 require_once __DIR__ . '/../lib/ai.php';
+require_once __DIR__ . '/../lib/siteSettings.php';
 require_once __DIR__ . '/../routes/ai.php';
 require_once __DIR__ . '/../lib/AdminService.php';
 
@@ -276,6 +286,26 @@ route(
 route('POST /reports/:id/action probes before writing', 'POST', ['reports', 'abc', 'action'], 'FROM reports WHERE id = ?');
 route('POST /reports/:id/dismiss writes dismissed', 'POST', ['reports', 'abc', 'dismiss'], "SET status = 'dismissed'");
 route('POST /users/:id/unblock', 'POST', ['users', 'abc', 'unblock'], 'FROM users');
+route('POST /users/:id/test marks the test flag', 'POST', ['users', 'abc', 'test'], 'UPDATE users SET is_test', ['isTest' => true]);
+route('DELETE /users/:id removes the member', 'DELETE', ['users', 'abc'], 'DELETE FROM users WHERE id = ?', ['confirm' => true]);
+// Leads delete: StubStmt reports rowCount 0, so the handler's own
+// not-found guard answers J:404 AFTER running the DELETE — reaching that
+// guard with the DELETE in the SQL log is what proves the routing.
+$GLOBALS['sql_seen'] = [];
+$GLOBALS['json_out'] = null;
+$GLOBALS['request_body'] = ['email' => 'lead@test.local'];
+$lead404 = false;
+try {
+    routeAdmin('POST', ['leads', 'delete']);
+} catch (Throwable $e) {
+    $lead404 = str_contains($e->getMessage(), 'J:404:Lead not found.');
+}
+check(
+    'POST /leads/delete removes one lead',
+    $lead404 && stripos(implode(' || ', $GLOBALS['sql_seen']), 'DELETE FROM guest_leads') !== false,
+    'sql [' . substr(implode(' || ', $GLOBALS['sql_seen']), 0, 110) . ']'
+);
+route('PUT /site-settings writes a setting', 'PUT', ['site-settings'], 'INSERT INTO app_settings', ['signupTarget' => 12]);
 
 // POST /users/:id/photo dispatches to the admin photo handler. No file is
 // attached in CLI, so the handler must answer 400 "Attach a photo" — a 404
