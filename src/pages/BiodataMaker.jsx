@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, forwardRef } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '../layouts/LandingLayout';
 import { useAuth } from '../lib/auth/AuthContext';
-import { Download, ImagePlus, Save, Sparkles, ZoomIn, ZoomOut, Maximize2, Upload, Share2 } from 'lucide-react';
+import { Download, ImagePlus, Save, Sparkles, ZoomIn, ZoomOut, Maximize2, Upload, MessageCircle } from 'lucide-react';
 import { http } from '../lib/api/transport';
 import { logSubmit } from '../lib/eventLog';
 import LeadCapture from '../components/LeadCapture.jsx';
@@ -183,6 +183,15 @@ export default function BiodataMaker() {
   const [pdfState, setPdfState] = useState('idle');
   const [imgState, setImgState] = useState('idle');
   const [exportError, setExportError] = useState('');
+  // Set when the visitor arrived from a shared biodata (the WhatsApp
+  // loop): they see a "make yours" banner instead of a cold tool page.
+  const [fromShare, setFromShare] = useState(false);
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get('utm_source') === 'whatsapp' || p.get('ref') === 'whatsapp') setFromShare(true);
+    } catch { /* ignore */ }
+  }, []);
   const previewRef = useRef(null);
   const fileRef = useRef(null);
 
@@ -399,8 +408,23 @@ export default function BiodataMaker() {
     } catch { /* ignore */ }
   };
 
+  // WhatsApp sharing push (2026-11-24): rishtas move through family
+  // WhatsApp groups, so every shared biodata carries a tracked link back
+  // to this maker — a forwarded biodata brings its readers here to make
+  // their own. The link is the loop; the footer credit alone was not
+  // tappable, so shares converted nobody.
+  const SHARE_LINK = 'https://shiarishta.com/biodata-maker?utm_source=whatsapp&utm_medium=biodata_share&utm_campaign=biodata_push';
+  const shareMessage = () => {
+    const who = (data.name || '').trim();
+    const head = who
+      ? `Assalamu alaikum! Sharing ${who}'s marriage biodata (attached).`
+      : 'Assalamu alaikum! Sharing a marriage biodata (attached).';
+    return `${head}\nPlease forward it to suitable families. JazakAllah khair.\n\nThis biodata was made free at Shia Rishta — make yours here: ${SHARE_LINK}`;
+  };
+
   const shareBiodata = async () => {
-    // Mobile: native share sheet (includes WhatsApp). Desktop: download + WhatsApp Web.
+    // Mobile: native share sheet (WhatsApp is the top target, file +
+    // message together). Desktop: download the image + WhatsApp Web.
     const canvas = await renderCanvas();
     if (!canvas) return;
     const fileName = `${fileSlug()}.png`;
@@ -410,20 +434,22 @@ export default function BiodataMaker() {
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: 'My Biodata',
-          text: 'My marriage biodata',
+          title: 'Marriage Biodata',
+          text: shareMessage(),
         });
+        try { logSubmit('biodata_share', true); } catch { /* ignore */ }
         return;
       }
     } catch {
       // User cancelled or share failed — fall through to WhatsApp Web.
     }
-    // Fallback: download the image and open WhatsApp with a prefilled note.
+    // Fallback: download the image and open WhatsApp with the full note.
     const a = document.createElement('a');
     a.download = fileName;
     a.href = canvas.toDataURL('image/png');
     a.click();
-    const text = encodeURIComponent('Assalamu alaikum! Sharing my biodata (attached).');
+    try { logSubmit('biodata_share', true); } catch { /* ignore */ }
+    const text = encodeURIComponent(shareMessage());
     window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener');
   };
 
@@ -498,6 +524,12 @@ export default function BiodataMaker() {
             Add a photo and details, pick a design, and download a polished biodata — free, with a discreet ShiaRishta credit.
           </p>
         </div>
+
+        {fromShare && (
+          <div className="max-w-xl mx-auto mb-6 px-4 py-3 rounded-xl text-center text-sm" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-primary)', color: 'var(--color-ink)' }}>
+            You received a biodata made here — free. <strong>Make yours in minutes</strong>, then share it with your family groups the same way.
+          </div>
+        )}
 
         {/* Templates — grid on mobile (no truncation), row on desktop */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 max-w-4xl mx-auto">
@@ -606,10 +638,13 @@ export default function BiodataMaker() {
               <button onClick={downloadPdf} disabled={pdfState === 'working'} className="btn btn-primary flex items-center gap-2">
                 <Download className="w-4 h-4" /> {pdfState === 'working' ? 'Preparing…' : pdfState === 'done' ? 'PDF saved ✓' : 'Save as PDF'}
               </button>
-              <button onClick={shareBiodata} className="btn btn-secondary flex items-center gap-2">
-                <Share2 className="w-4 h-4" /> Share
+              <button onClick={shareBiodata} className="btn flex items-center gap-2" style={{ background: '#128C7E', color: '#fff', fontWeight: 700 }}>
+                <MessageCircle className="w-4 h-4" /> Share on WhatsApp
               </button>
             </div>
+            <p className="text-xs mt-2" style={{ color: 'var(--color-ink-tertiary)' }}>
+              Tip: send your biodata to your family WhatsApp groups — every share carries a link back here, so relatives can make their own, free.
+            </p>
             {exportError && (
               <p role="alert" className="text-sm mt-2" style={{ color: '#b3261e' }}>{exportError}</p>
             )}
