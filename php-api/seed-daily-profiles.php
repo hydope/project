@@ -22,6 +22,7 @@
 // seeder can never again write somewhere photoServe() does not read.
 require_once __DIR__ . '/lib/bootstrap.php';
 require_once __DIR__ . '/lib/db.php';
+require_once __DIR__ . '/lib/util.php';
 require_once __DIR__ . '/lib/photos.php';
 
 $FEMALE_NAMES = [
@@ -95,12 +96,12 @@ $FEMALE_PHOTOS = ['female-01.webp', 'female-02.webp', 'female-03.webp', 'female-
 $MALE_PHOTOS = ['male-01.webp', 'male-02.webp', 'male-03.webp', 'male-04.webp', 'male-05.webp', 'male-06.webp', 'male-07.webp', 'male-08.webp'];
 
 // ── Helper Functions ───────────────────────────────────────────
-function uuid() {
-  return sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-    mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff),
-    mt_rand(0, 0x0fff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000,
-    mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff));
-}
+// uuid() comes from lib/util.php (loaded below and by the cron entry).
+// This script used to define its own uuid() here; once the cron entry
+// began loading util.php for the Admin → Settings gate (2026-11-23), the
+// duplicate declaration was an uncatchable compile fatal — the daily
+// seeder died with an empty response on 2026-11-24 and 2026-11-25 before
+// creating anything. One uuid(), in util.php, for every caller.
 
 function pick($arr) {
   return $arr[array_rand($arr)];
