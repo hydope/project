@@ -1249,6 +1249,24 @@ function routeSocialIngest(): void
         $cfg = $settings['platforms'][$platform];
         if (empty($cfg['enabled'])) { $skipped[$platform] = 'platform disabled in autopilot settings'; continue; }
         if (socialAutopilotTodayCount($platform) >= (int)$cfg['dailyCap']) { $skipped[$platform] = 'daily cap reached'; continue; }
+        if ($platform === 'youtube') {
+            // YOUTUBE SPREAD RULE (Syed's order, 2026-11-27): Google's API
+            // quota allows only ~6 uploads/day (10,000 units/day ÷ 1,600
+            // per upload). Spread them perfectly across the whole day: a
+            // YouTube target is created ONLY for a post scheduled on the
+            // hour at 00/04/08/12/16/20 America/New_York — one upload
+            // every 4 hours, so any 24h quota window sees at most 6 and
+            // the day's early posts cannot burn the whole quota. Every
+            // other post skips YouTube cleanly here at ingest instead of
+            // failing at publish time and wasting quota attempts.
+            $slotNy = (new DateTimeImmutable($slot, new DateTimeZone('UTC')))
+                ->setTimezone(new DateTimeZone('America/New_York'));
+            if ((int)$slotNy->format('i') !== 0
+                || !in_array((int)$slotNy->format('G'), [0, 4, 8, 12, 16, 20], true)) {
+                $skipped[$platform] = 'youtube spread schedule — YouTube rides only the 12/4/8 AM+PM ET slots';
+                continue;
+            }
+        }
         $stmt = db()->prepare("SELECT * FROM social_accounts WHERE platform = ? AND status = 'connected' ORDER BY created_at ASC LIMIT 1");
         $stmt->execute([$platform]);
         $acc = $stmt->fetch(PDO::FETCH_ASSOC);
