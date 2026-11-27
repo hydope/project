@@ -1196,7 +1196,22 @@ function routeSocialIngest(): void
 
     $caption = trim((string)($_POST['caption'] ?? ''));
     if ($caption === '') json(['error' => 'caption is required'], 400);
-    if (socialCaptionExists($caption)) json(['error' => 'duplicate caption — this exact caption was already queued or posted'], 409);
+    // Platform-restricted ingest (e.g. platforms=youtube for the daily
+    // top-6 YouTube repost): targets are created ONLY for the listed
+    // platforms. allowDuplicate=1 is honoured only together with a
+    // platform restriction — a repost to a platform the video has never
+    // been on is not a duplicate on THAT platform, even though the same
+    // caption already ran on Facebook/Instagram.
+    $onlyPlatforms = null;
+    if (!empty($_POST['platforms'])) {
+        $onlyPlatforms = array_values(array_intersect(
+            ['facebook', 'instagram', 'youtube'],
+            array_map('trim', explode(',', strtolower((string)$_POST['platforms'])))
+        ));
+        if ($onlyPlatforms === []) json(['error' => 'platforms lists no known platform'], 400);
+    }
+    $allowDuplicate = $onlyPlatforms !== null && !empty($_POST['allowDuplicate']);
+    if (!$allowDuplicate && socialCaptionExists($caption)) json(['error' => 'duplicate caption — this exact caption was already queued or posted'], 409);
 
     // Video: fresh multipart upload, or a reference to an uploaded file.
     $mediaPath = null;
@@ -1246,26 +1261,24 @@ function routeSocialIngest(): void
     $targets = [];
     $skipped = [];
     foreach (['facebook', 'instagram', 'youtube'] as $platform) {
+        if ($onlyPlatforms !== null && !in_array($platform, $onlyPlatforms, true)) {
+            $skipped[$platform] = 'not requested for this ingest';
+            continue;
+        }
         $cfg = $settings['platforms'][$platform];
         if (empty($cfg['enabled'])) { $skipped[$platform] = 'platform disabled in autopilot settings'; continue; }
         if (socialAutopilotTodayCount($platform) >= (int)$cfg['dailyCap']) { $skipped[$platform] = 'daily cap reached'; continue; }
-        if ($platform === 'youtube') {
-            // YOUTUBE SPREAD RULE (Syed's order, 2026-11-27): Google's API
-            // quota allows only ~6 uploads/day (10,000 units/day ÷ 1,600
-            // per upload). Spread them perfectly across the whole day: a
-            // YouTube target is created ONLY for a post scheduled on the
-            // hour at 00/04/08/12/16/20 America/New_York — one upload
-            // every 4 hours, so any 24h quota window sees at most 6 and
-            // the day's early posts cannot burn the whole quota. Every
-            // other post skips YouTube cleanly here at ingest instead of
-            // failing at publish time and wasting quota attempts.
-            $slotNy = (new DateTimeImmutable($slot, new DateTimeZone('UTC')))
-                ->setTimezone(new DateTimeZone('America/New_York'));
-            if ((int)$slotNy->format('i') !== 0
-                || !in_array((int)$slotNy->format('G'), [0, 4, 8, 12, 16, 20], true)) {
-                $skipped[$platform] = 'youtube spread schedule — YouTube rides only the 12/4/8 AM+PM ET slots';
-                continue;
-            }
+        if ($platform === 'youtube' && $onlyPlatforms === null) {
+            // YOUTUBE TOP-6 RULE (Syed's order, 2026-11-27): YouTube's ~6
+            // uploads/day (Google API quota: 10,000 units/day ÷ 1,600 per
+            // upload) are reserved for PROVEN videos — the top 6 most
+            // viewed Instagram videos of the previous day, uploaded by
+            // the daily top-6 job at spread hours (00/04/08/12/16/20 ET)
+            // through platform-restricted repost ingests. Fresh story
+            // ingests therefore never create a YouTube target; they skip
+            // cleanly here instead of burning quota on unproven videos.
+            $skipped[$platform] = 'youtube reserved for the daily top-6 instagram repost';
+            continue;
         }
         $stmt = db()->prepare("SELECT * FROM social_accounts WHERE platform = ? AND status = 'connected' ORDER BY created_at ASC LIMIT 1");
         $stmt->execute([$platform]);
@@ -1282,7 +1295,10 @@ function routeSocialIngest(): void
         $pdo->prepare(
             "INSERT INTO social_posts (id, caption, caption_overrides, first_comment, media_path, media_type, media_url, thumbnail_path, scheduled_at, status, source, caption_hash, created_by)
              VALUES (?, ?, ?, ?, ?, 'video', NULL, ?, ?, 'scheduled', 'autopilot_reel', ?, NULL)"
-        )->execute([$postId, $caption, $overrides, $firstComment, $mediaPath, $thumbnailPath, $slot, socialCaptionHash($caption)]);
+        // caption_hash carries a UNIQUE key: a platform-restricted repost
+        // (allowDuplicate) stores NULL so the same caption can exist once
+        // per platform family without tripping the key.
+        )->execute([$postId, $caption, $overrides, $firstComment, $mediaPath, $thumbnailPath, $slot, $allowDuplicate ? null : socialCaptionHash($caption)]);
         $ins = $pdo->prepare("INSERT INTO social_post_targets (id, post_id, social_account_id, platform, status) VALUES (?, ?, ?, ?, 'pending')");
         foreach ($targets as $platform => $acc) $ins->execute([uuid(), $postId, $acc['id'], $platform]);
         $pdo->commit();
